@@ -53,6 +53,9 @@ async function newPage({ connected = false, tz = "Europe/Berlin" } = {}) {
       access_token: "at-new", refresh_token: "rt-new", expires_at: Math.floor(Date.now() / 1000) + 21600,
       athlete: { id: 42 } }) }));
   const page = await ctx.newPage();
+  // Zeit einfrieren: die Tests prüfen konkrete Plan-Tage, sie dürfen nicht
+  // davon abhängen, wann sie laufen. 07.09.2026 = Woche 2, Montag, Easy run.
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   await page.addInitScript(([conn]) => {
@@ -255,8 +258,15 @@ async function noHScroll(page, where) {
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   await ctx.route("**/firebase-init.js", (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  // config.js hat inzwischen eine echte Worker-URL — den unkonfigurierten
+  // Zustand deshalb hier gezielt nachstellen.
+  await ctx.route("**/config.js", (r) => r.fulfill({
+    contentType: "application/javascript",
+    body: 'export const STRAVA_WORKER_URL = ""; export const STRAVA_CLIENT_ID = "277715"; export const isWorkerConfigured = false;',
+  }));
   const page = await ctx.newPage();
-  await page.goto(BASE + "/index.html"); // ohne workerUrl im localStorage
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.goto(BASE + "/index.html");
   await page.waitForSelector("#strava-slot .card");
   ok((await page.textContent("#strava-slot")).includes("Strava noch nicht eingerichtet"),
      "Setup: fehlender Worker wird erklärt statt zu hängen");

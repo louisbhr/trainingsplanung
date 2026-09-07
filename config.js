@@ -6,7 +6,7 @@
 //
 // Nach dem Worker-Deploy hier die echte URL eintragen, z. B.
 // "https://hm-tracker-auth.dein-name.workers.dev"
-const WORKER_URL_DEFAULT = "";
+const WORKER_URL_DEFAULT = "https://trainingsplanung-auth.jkmvkjn942.workers.dev";
 
 // Zum schnellen Ausprobieren ohne Commit: die Seite einmal mit
 // ?worker=https://...workers.dev aufrufen. Die URL wird dann lokal im
