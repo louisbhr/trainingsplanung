@@ -1,24 +1,28 @@
 import { saveStravaTokens, loadStravaTokens } from "./firebase-init.js";
+import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js";
 
-// Diese Werte liegen zwangsläufig im Client-Code, weil die Seite rein
-// statisch ist (kein eigener Server). Für ein privates Ein-Personen-Tool
-// ist das der übliche, akzeptierte Kompromiss.
-const CLIENT_ID = "277715";
-const CLIENT_SECRET = "206659961dcf60d028a642d6a1fff2a5e31fddae";
+// Die Client-ID ist unkritisch öffentlich (sie steht ohnehin in der
+// Authorize-URL). Das Client-Secret liegt NICHT hier, sondern nur als
+// Secret im Cloudflare Worker (siehe worker.js) — Strava erlaubt den
+// Token-Austausch nicht per CORS direkt aus dem Browser.
+const API_BASE = "https://www.strava.com/api/v3";
+
+export class StravaSetupError extends Error {}
 
 function redirectUri() {
   // Automatisch die aktuelle Seiten-URL ohne Query-String
   return location.origin + location.pathname;
 }
 
-export function isAuthorized() {
-  return loadStravaTokens().then((t) => !!(t && t.refresh_token));
+export async function isAuthorized() {
+  const t = await loadStravaTokens();
+  return !!(t && t.refresh_token);
 }
 
 export function startAuthorization() {
   const url =
     "https://www.strava.com/oauth/authorize" +
-    `?client_id=${CLIENT_ID}` +
+    `?client_id=${STRAVA_CLIENT_ID}` +
     `&redirect_uri=${encodeURIComponent(redirectUri())}` +
     "&response_type=code" +
     "&scope=activity:read_all" +
@@ -26,33 +30,81 @@ export function startAuthorization() {
   location.href = url;
 }
 
-// Wird beim Laden aufgerufen, falls Strava mit ?code=... zurückgeleitet hat
+export async function disconnect() {
+  runCache = null;
+  await saveStravaTokens({ refresh_token: null, access_token: null, expires_at: null });
+}
+
+// Ruft den Worker auf (/exchange oder /refresh)
+async function callWorker(path, body) {
+  if (!isWorkerConfigured) {
+    throw new StravaSetupError(
+      "Strava-Worker ist noch nicht eingerichtet — WORKER_URL_DEFAULT in config.js setzen."
+    );
+  }
+  let res;
+  try {
+    res = await fetch(`${STRAVA_WORKER_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error("Strava-Worker nicht erreichbar (Netzwerk oder falsche Worker-URL).");
+  }
+  const text = await res.text();
+  let data = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    /* keine JSON-Antwort — unten als Fehler behandelt */
+  }
+  if (!res.ok || !data) {
+    const detail = data?.message || text.slice(0, 160) || "keine Antwort";
+    throw new Error(`Strava-Token-Austausch fehlgeschlagen (HTTP ${res.status}): ${detail}`);
+  }
+  if (!data.access_token || !data.refresh_token) {
+    throw new Error(`Strava hat keine Tokens geliefert: ${(data.message || text).slice(0, 160)}`);
+  }
+  return data;
+}
+
+// Wird beim Laden aufgerufen, falls Strava zurückgeleitet hat.
+// Rückgabe: { status: "none" | "connected" | "denied" | "error", message? }
 export async function handleAuthRedirect() {
   const params = new URLSearchParams(location.search);
   const code = params.get("code");
-  if (!code) return false;
+  const error = params.get("error");
+  if (!code && !error) return { status: "none" };
 
-  const res = await fetch("https://www.strava.com/oauth/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      code,
-      grant_type: "authorization_code",
-    }),
-  });
-  if (!res.ok) throw new Error("Strava-Autorisierung fehlgeschlagen");
-  const data = await res.json();
-  await saveStravaTokens({
-    refresh_token: data.refresh_token,
-    access_token: data.access_token,
-    expires_at: data.expires_at,
-  });
-
-  // Query-String aus der URL entfernen, damit der Code nicht erneut verwendet wird
+  const scope = params.get("scope");
+  // Query-String immer entfernen, damit ein Reload den Code nicht erneut
+  // einzulösen versucht — Strava-Codes sind Einmal-Codes.
   history.replaceState({}, "", redirectUri());
-  return true;
+
+  if (error) {
+    return {
+      status: "denied",
+      message:
+        error === "access_denied" ? "Zugriff bei Strava abgelehnt." : `Strava-Fehler: ${error}`,
+    };
+  }
+
+  try {
+    const data = await callWorker("/exchange", { code });
+    await saveStravaTokens({
+      refresh_token: data.refresh_token,
+      access_token: data.access_token,
+      expires_at: data.expires_at,
+      scope: scope || null,
+      athleteId: data.athlete?.id ?? null,
+      connectedAt: Date.now(),
+    });
+    runCache = null;
+    return { status: "connected" };
+  } catch (err) {
+    return { status: "error", message: err.message };
+  }
 }
 
 async function getValidAccessToken() {
@@ -64,18 +116,7 @@ async function getValidAccessToken() {
     return tokens.access_token;
   }
 
-  const res = await fetch("https://www.strava.com/oauth/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      refresh_token: tokens.refresh_token,
-      grant_type: "refresh_token",
-    }),
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
+  const data = await callWorker("/refresh", { refresh_token: tokens.refresh_token });
   await saveStravaTokens({
     refresh_token: data.refresh_token,
     access_token: data.access_token,
@@ -84,39 +125,94 @@ async function getValidAccessToken() {
   return data.access_token;
 }
 
-// Holt die letzten Läufe (max. 30) seit einem gegebenen Datum
-export async function fetchRecentRuns(sinceISO) {
+let runCache = null; // { sinceISO, runs, fetchedAt }
+const CACHE_MS = 5 * 60 * 1000;
+
+// Holt die Läufe seit einem Datum (paginiert, max. 200 Aktivitäten).
+// Rückgabe: Array von Läufen, oder null wenn (noch) nicht autorisiert.
+// Wirft, wenn autorisiert ist, der Abruf aber fehlschlägt.
+export async function fetchRecentRuns(sinceISO, { force = false } = {}) {
+  if (
+    !force &&
+    runCache &&
+    runCache.sinceISO === sinceISO &&
+    Date.now() - runCache.fetchedAt < CACHE_MS
+  ) {
+    return runCache.runs;
+  }
+
   const token = await getValidAccessToken();
   if (!token) return null; // nicht autorisiert
 
-  const after = Math.floor(new Date(sinceISO).getTime() / 1000);
-  const res = await fetch(
-    `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=30`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (!res.ok) return null;
-  const activities = await res.json();
-  return activities
-    .filter((a) => a.type === "Run")
-    .map((a) => ({
-      date: a.start_date_local.slice(0, 10),
-      name: a.name,
-      distanceKm: (a.distance / 1000).toFixed(1),
-      paceMinPerKm: formatPace(a.moving_time, a.distance),
-      avgHr: a.average_heartrate ? Math.round(a.average_heartrate) : null,
-    }));
+  const after = Math.floor(new Date(sinceISO + "T00:00:00").getTime() / 1000);
+  const all = [];
+  for (let page = 1; page <= 4; page++) {
+    let res;
+    try {
+      res = await fetch(`${API_BASE}/athlete/activities?after=${after}&per_page=50&page=${page}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      throw new Error("Strava ist nicht erreichbar (Netzwerk).");
+    }
+    if (res.status === 401) throw new Error("Strava-Zugang abgelaufen — bitte neu verbinden.");
+    if (res.status === 429) throw new Error("Strava-Limit erreicht — bitte später nochmal.");
+    if (!res.ok) throw new Error(`Strava-Abruf fehlgeschlagen (HTTP ${res.status}).`);
+    const batch = await res.json();
+    all.push(...batch);
+    if (batch.length < 50) break;
+  }
+
+  const runs = all
+    .filter((a) => a.type === "Run" || a.sport_type === "Run" || a.sport_type === "TrailRun")
+    .map(mapActivity)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  runCache = { sinceISO, runs, fetchedAt: Date.now() };
+  return runs;
 }
 
-function formatPace(movingTimeSec, distanceM) {
-  if (!distanceM) return "–";
-  const secPerKm = movingTimeSec / (distanceM / 1000);
+function mapActivity(a) {
+  const distanceM = a.distance || 0;
+  const movingTimeSec = a.moving_time || 0;
+  const paceSecPerKm = distanceM > 0 ? movingTimeSec / (distanceM / 1000) : null;
+  return {
+    id: a.id,
+    date: (a.start_date_local || a.start_date || "").slice(0, 10),
+    name: a.name,
+    distanceKm: distanceM / 1000,
+    movingTimeSec,
+    paceSecPerKm,
+    paceLabel: formatPace(paceSecPerKm),
+    avgHr: a.average_heartrate ? Math.round(a.average_heartrate) : null,
+  };
+}
+
+export function formatPace(secPerKm) {
+  if (!secPerKm || !isFinite(secPerKm)) return "–";
   const min = Math.floor(secPerKm / 60);
   const sec = Math.round(secPerKm % 60);
-  return `${min}:${sec.toString().padStart(2, "0")} /km`;
+  if (sec === 60) return `${min + 1}:00 /km`; // 5:60 vermeiden
+  return `${min}:${String(sec).padStart(2, "0")} /km`;
 }
 
-// Matched Strava-Läufe auf ein bestimmtes Plan-Datum
-export function matchRunForDate(runs, dateISO) {
-  if (!runs) return null;
-  return runs.find((r) => r.date === dateISO) || null;
+export function formatDuration(totalSec) {
+  if (!totalSec) return "–";
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = Math.round(totalSec % 60);
+  return h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} h`
+    : `${m}:${String(s).padStart(2, "0")} min`;
 }
+
+// Matched Strava-Läufe auf ein Plan-Datum. Bei mehreren Läufen am selben
+// Tag gewinnt der längste — der Plan-Lauf ist praktisch immer der längste.
+export function matchRunForDate(runs, dateISO) {
+  if (!runs || !runs.length) return null;
+  const sameDay = runs.filter((r) => r.date === dateISO);
+  if (!sameDay.length) return null;
+  return sameDay.reduce((best, r) => (r.distanceKm > best.distanceKm ? r : best));
+}
+
+export { isWorkerConfigured };
