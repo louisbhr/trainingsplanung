@@ -1,0 +1,106 @@
+:root {
+  --teal: #0f6e56;
+  --teal-bg: #e1f5ee;
+  --coral: #993c1d;
+  --coral-bg: #faece7;
+  --purple: #534ab7;
+  --purple-bg: #eeedfe;
+  --surface-0: #f4f3ef;
+  --surface-1: #f0efe9;
+  --surface-2: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --text-primary: #1c1c1a;
+  --text-secondary: #5f5e5a;
+  --text-muted: #8a897f;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-0: #17171a;
+    --surface-1: #202024;
+    --surface-2: #26262b;
+    --border: rgba(255, 255, 255, 0.12);
+    --text-primary: #f2f1ec;
+    --text-secondary: #b3b2ab;
+    --text-muted: #85847c;
+    --teal-bg: #0c3a2f;
+    --coral-bg: #3d2013;
+    --purple-bg: #262156;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--surface-0);
+  color: var(--text-primary);
+}
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+}
+#header {
+  padding: 1rem 1.25rem 0.75rem;
+  border-bottom: 0.5px solid var(--border);
+}
+#header .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0; }
+#header .title-row { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
+#header h1 { font-size: 19px; font-weight: 600; margin: 0; }
+.badge { font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 600; }
+
+#main { flex: 1; padding: 1rem 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+
+.card { background: var(--surface-1); border-radius: 12px; padding: 0.85rem 1rem; }
+.card p.name { font-size: 15px; font-weight: 600; margin: 0; }
+.card p.hint { font-size: 12px; color: var(--text-muted); margin: 3px 0 0; }
+
+.row { display: flex; gap: 8px; align-items: center; }
+input[type="number"] {
+  flex: 1; text-align: center; font-size: 16px; font-weight: 600;
+  border: 0.5px solid var(--border); border-radius: 8px; height: 38px;
+  background: var(--surface-2); color: var(--text-primary);
+}
+button {
+  border: 0.5px solid var(--border); border-radius: 8px; background: var(--surface-2);
+  color: var(--text-primary); font-size: 13px; padding: 6px 12px; cursor: pointer;
+}
+button:active { transform: scale(0.97); }
+.icon-btn { width: 38px; height: 38px; padding: 0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+
+.set-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.set-row .set-label { width: 46px; font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
+
+.day-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.day-pill { text-align: center; padding: 10px 2px; border-radius: 12px; border: none; }
+.day-pill .d { font-size: 11px; font-weight: 600; margin: 0 0 4px; }
+.day-pill .t { font-size: 10.5px; font-weight: 600; margin: 0; }
+
+.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.metric-label { font-size: 11px; color: var(--text-muted); margin: 0; }
+.metric-value { font-size: 20px; font-weight: 700; margin: 2px 0 0; }
+
+.bars { display: flex; align-items: flex-end; gap: 6px; height: 100px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--teal); }
+.bar-label { font-size: 10px; color: var(--text-muted); }
+
+#tabbar { display: flex; border-top: 0.5px solid var(--border); }
+#tabbar button {
+  flex: 1; border: none; border-radius: 0; padding: 10px 0; background: transparent;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+#tabbar button.active { background: var(--surface-1); }
+#tabbar svg { width: 20px; height: 20px; }
+#tabbar span { font-size: 11px; }
+
+.center-note { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 10px; }
+.strava-note { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.strava-note svg { width: 16px; height: 16px; color: var(--text-muted); flex-shrink: 0; }
+.strava-note p { font-size: 12px; color: var(--text-muted); margin: 0; }
+
+.primary-btn { background: var(--teal); color: white; border: none; font-weight: 600; width: 100%; height: 42px; }
