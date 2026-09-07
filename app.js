@@ -1,318 +1,673 @@
-import { goal, zones, phases, weeks } from "./plan.js";
-import { saveLog, loadLog } from "./firebase-init.js";
-import { isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns, matchRunForDate } from "./strava.js";
+import {
+  goal, zones, phases, weeks, exerciseCatalog,
+  PLAN_START, TOTAL_WEEKS,
+  toISO, fromISO, addDays, weekStart, weekDates, weekNumberFor,
+} from "./plan.js";
+import { saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn } from "./firebase-init.js";
+import {
+  isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
+  matchRunForDate, formatPace, formatDuration, isWorkerConfigured,
+} from "./strava.js";
 
 const ICONS = {
-  today: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><circle cx="12" cy="15" r="1.5" fill="currentColor"/></svg>',
-  week: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h2M11 13h2M15 13h2M7 17h2M11 17h2"/></svg>',
-  history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
-  plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
   run: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="4" r="1.5" fill="currentColor" stroke="none"/><path d="M13 7l-2 3 3 2 1 5M11 10l-4 1-2 4M8 14l-3 1M13.5 11l3 1 2-2"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>',
+  prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>',
+  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>',
 };
 
-const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-const todayISO = () => new Date().toISOString().slice(0, 10);
-const dayNameDE = (d) => ["So","Mo","Di","Mi","Do","Fr","Sa"][new Date(d + "T12:00:00").getDay()];
+const STRAVA_SINCE = addDays(PLAN_START, -14); // etwas Vorlauf für den Verlauf
 
-function currentWeekNumber() {
-  const start = new Date("2026-08-31T00:00:00");
-  const now = new Date();
-  const diffDays = Math.floor((now - start) / 86400000);
-  const w = Math.floor(diffDays / 7) + 1;
-  return Math.min(Math.max(w, 1), 31);
-}
-
-let stravaRuns = null; // cache
+// ---------- kleine Helfer ----------
+const slug = (s) =>
+  s.toLowerCase()
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+const todayISO = () => toISO(new Date());
+const dayNameDE = (iso) => ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][fromISO(iso).getDay()];
+const shortDate = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const header = document.getElementById("header");
 const main = document.getElementById("main");
 
-function badge(text, color, bg) {
-  return `<span class="badge" style="background:${bg};color:${color}">${text}</span>`;
+const state = {
+  tab: "heute",
+  weekNo: weekNumberFor(todayISO()),
+  selectedDate: null,
+  historyMode: "kraft",
+  historyExercise: defaultHistoryExercise(),
+};
+
+// Vorauswahl im Verlauf: die erste Übung der laufenden Woche — der alte
+// Split aus Woche 1 steht sonst dauerhaft als Standard da.
+function defaultHistoryExercise() {
+  const week = weeks[weekNumberFor(todayISO())];
+  if (week && !week.placeholder) return slug(week.kraft.di.exercises[0].name);
+  return slug(exerciseCatalog[0]?.name || "Squats");
 }
 
-// ---------- Heute ----------
-async function renderToday() {
-  const dateISO = todayISO();
-  const w = currentWeekNumber();
+// Kraft-Eingaben der gerade sichtbaren Tagesansicht
+const logState = new Map();
+// Strava: null = noch nicht geladen, false = nicht verbunden
+let stravaState = { runs: null, error: null, connected: null };
+
+function badge(text, color, bg) {
+  return `<span class="badge" style="background:${bg};color:${color}">${esc(text)}</span>`;
+}
+
+function toast(msg, isError = false) {
+  let box = document.getElementById("toast");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "toast";
+    document.getElementById("app").appendChild(box);
+  }
+  box.textContent = msg;
+  box.className = isError ? "show error" : "show";
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => (box.className = ""), isError ? 6000 : 3000);
+}
+
+// ---------- Plan-Zugriff ----------
+function dayInfo(iso) {
+  const w = weekNumberFor(iso);
   const week = weeks[w];
-  const dow = new Date(dateISO + "T12:00:00").getDay(); // 0=So..6=Sa
+  if (!week || week.placeholder) return { kind: "placeholder", week: w, focus: week?.focus };
+  if (week.kraft.di.date === iso) return { kind: "kraft", ...week.kraft.di };
+  if (week.kraft.do.date === iso) return { kind: "kraft", ...week.kraft.do };
+  const run = week.runs.find((r) => r.date === iso);
+  if (run) return { kind: "lauf", ...run };
+  return { kind: "ruhe" };
+}
 
-  header.innerHTML = `
-    <p class="eyebrow">${dayNameDE(dateISO)} · ${dateISO.split("-").reverse().slice(0,2).join(".")}.</p>
-    <div class="title-row"><h1>Woche ${w}</h1></div>`;
-
-  if (week.placeholder) {
-    main.innerHTML = `<div class="card"><p class="name">Details folgen</p><p class="hint">Phase ${week.phase} — ${week.focus}. Genaue Werte werden nach der jeweiligen Re-Kalibrierung ergänzt.</p></div>`;
-    return;
-  }
-
-  let dayInfo = null;
-  if (dow === 2 && week.kraft.di.date === dateISO) dayInfo = { kind: "kraft", ...week.kraft.di };
-  else if (dow === 4 && week.kraft.do.date === dateISO) dayInfo = { kind: "kraft", ...week.kraft.do };
-  else {
-    const run = week.runs.find((r) => r.date === dateISO);
-    if (run) dayInfo = { kind: "lauf", ...run };
-  }
-  if (!dayInfo) dayInfo = { kind: "ruhe" };
-
-  header.querySelector(".title-row").innerHTML += badgeForKind(dayInfo);
-  await renderDayBody(dayInfo, dateISO, true);
+function colorsFor(info) {
+  if (info.kind === "kraft") return ["var(--teal-fg)", "var(--teal-bg)"];
+  if (info.kind === "lauf")
+    return info.shortType === "Long"
+      ? ["var(--purple-fg)", "var(--purple-bg)"]
+      : ["var(--coral-fg)", "var(--coral-bg)"];
+  return ["var(--text-secondary)", "var(--surface-1)"];
 }
 
 function badgeForKind(info) {
-  if (info.kind === "kraft") return badge(info.label, "var(--teal)", "var(--teal-bg)");
-  if (info.kind === "lauf") return badge(info.type, "var(--coral)", "var(--coral-bg)");
-  return badge("Ruhe", "var(--text-secondary)", "var(--surface-1)");
+  const [color, bg] = colorsFor(info);
+  if (info.kind === "kraft") return badge(info.label, color, bg);
+  if (info.kind === "lauf") return badge(info.type, color, bg);
+  if (info.kind === "placeholder") return badge("Offen", color, bg);
+  return badge("Ruhe", color, bg);
 }
 
-async function renderDayBody(info, dateISO, editable) {
-  if (info.kind === "kraft") {
-    main.innerHTML = info.exercises.map((ex, i) => exerciseCard(ex, i, editable)).join("");
-    if (editable) await wireExerciseCards(info.exercises, dateISO);
-    else disableInputs();
-  } else if (info.kind === "lauf") {
-    main.innerHTML = await laufPanel(info, editable);
-  } else {
-    main.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem 1rem;"><p class="name">Ruhetag</p><p class="hint">Mobility, Foam Rolling, Beine hoch.</p></div>`;
+// ---------- Rendering ----------
+function render() {
+  try {
+    if (state.tab === "heute") return renderDay(todayISO(), { showBack: false });
+    if (state.tab === "woche") {
+      return state.selectedDate ? renderDay(state.selectedDate, { showBack: true }) : renderWeek();
+    }
+    if (state.tab === "verlauf") return renderHistory();
+    if (state.tab === "plan") return renderPlan();
+  } catch (err) {
+    console.error(err);
+    header.innerHTML = `<h1>Fehler</h1>`;
+    main.innerHTML = errorCard("Etwas ist schiefgelaufen: " + err.message);
   }
 }
 
-function exerciseCard(ex, idx, editable) {
-  return `<div class="card">
-    <div class="row" style="justify-content:space-between;align-items:flex-start;">
-      <div><p class="name">${ex.name}</p><p class="hint">Soll ${ex.soll} · ${ex.hint}</p></div>
-      ${editable ? `<button data-toggle="${idx}">Sätze einzeln</button>` : ""}
-    </div>
-    <div data-body="${idx}" style="margin-top:10px;"></div>
-  </div>`;
+function errorCard(msg) {
+  return `<div class="card error-card"><p class="name">Problem</p><p class="hint">${esc(msg)}</p>
+    <button data-action="reload" style="margin-top:8px;">Neu laden</button></div>`;
+}
+function loadingCard(msg = "Lädt …") {
+  return `<p class="center-note">${esc(msg)}</p>`;
 }
 
+// ---------- Tagesansicht ----------
+async function renderDay(iso, { showBack }) {
+  const info = dayInfo(iso);
+  const w = weekNumberFor(iso);
+  const isToday = iso === todayISO();
+
+  header.innerHTML = `
+    <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} Woche ${w}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
+    <div class="title-row"><h1>${info.kind === "kraft" ? "Krafttraining" : info.kind === "lauf" ? "Lauf" : info.kind === "placeholder" ? `Woche ${w}` : "Ruhetag"}</h1>${badgeForKind(info)}</div>`;
+
+  if (info.kind === "kraft") return renderKraftDay(info, iso);
+  if (info.kind === "lauf") return renderRunDay(info, iso);
+  if (info.kind === "placeholder") {
+    main.innerHTML = `<div class="card"><p class="name">Details folgen</p>
+      <p class="hint">${esc(info.focus || "")} — die genauen Werte tragen wir nach der Re-Kalibrierung nach.</p></div>`;
+    return;
+  }
+  main.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem 1rem;">
+    <p class="name">Ruhetag</p><p class="hint">Mobility, Foam Rolling, Beine hoch.</p></div>`;
+}
+
+// ---------- Krafttag ----------
 function setsCountFromSoll(soll) {
-  const m = soll.match(/^(\d+)x/);
-  return m ? parseInt(m[1], 10) : 3;
+  const m = String(soll).match(/(\d+)\s*x/i);
+  const n = m ? parseInt(m[1], 10) : 3;
+  return Math.min(Math.max(n, 1), 8);
 }
 
-function simpleRowHTML(idx, saved) {
-  const kg = saved?.sets?.[0]?.kg ?? "";
-  const reps = saved?.sets?.[0]?.reps ?? "";
-  return `<div class="row">
-    <input type="number" data-kg="${idx}" value="${kg}" placeholder="kg" />
-    <span style="color:var(--text-muted);font-size:12px;">×</span>
-    <input type="number" data-reps="${idx}" value="${reps}" placeholder="Wdh" />
-    <button class="icon-btn" data-save="${idx}">${ICONS.check}</button>
+function numOrNull(v) {
+  const t = String(v ?? "").trim().replace(",", ".");
+  if (t === "") return null;
+  const n = Number(t);
+  return isFinite(n) ? n : null;
+}
+
+function sameSets(sets) {
+  if (!sets || sets.length < 2) return true;
+  return sets.every((s) => s.kg === sets[0].kg && s.reps === sets[0].reps);
+}
+
+async function renderKraftDay(info, iso) {
+  main.innerHTML = loadingCard("Lade gespeicherte Sätze …");
+
+  let saved = {};
+  try {
+    saved = await loadLogsForDate(iso);
+  } catch (err) {
+    console.error(err);
+    toast("Gespeicherte Sätze konnten nicht geladen werden — Eingabe geht trotzdem.", true);
+  }
+
+  logState.clear();
+  for (const ex of info.exercises) {
+    const s = slug(ex.name);
+    const rec = saved[s];
+    const count = setsCountFromSoll(ex.soll);
+    const sets =
+      rec?.sets?.length ? rec.sets.map((x) => ({ kg: x.kg ?? null, reps: x.reps ?? null }))
+                        : Array.from({ length: count }, () => ({ kg: null, reps: null }));
+    logState.set(s, {
+      slug: s, name: ex.name, soll: ex.soll, hint: ex.hint,
+      setCount: Math.max(count, sets.length),
+      sets,
+      perSet: !sameSets(sets),
+      saved: !!rec?.completed,
+    });
+  }
+
+  main.innerHTML =
+    `<div class="card summary-card">
+       <p class="name">${esc(info.label)}</p>
+       <p class="hint" id="progress-line">${progressText()}</p>
+     </div>` +
+    [...logState.values()].map(exerciseCard).join("");
+}
+
+function progressText() {
+  const total = logState.size;
+  const done = [...logState.values()].filter((s) => s.saved).length;
+  return `${done} von ${total} Übungen erfasst`;
+}
+
+function exerciseCard(st) {
+  return `<div class="card" data-ex="${st.slug}">
+    <div class="row" style="justify-content:space-between;align-items:flex-start;gap:10px;">
+      <div style="min-width:0;">
+        <p class="name">${esc(st.name)}${st.saved ? ` <span class="done-dot" title="gespeichert">${ICONS.check}</span>` : ""}</p>
+        <p class="hint">Soll ${esc(st.soll)} · ${esc(st.hint)}</p>
+      </div>
+      <button data-action="toggle-sets" data-slug="${st.slug}" class="small-btn">${st.perSet ? "Alle gleich" : "Sätze einzeln"}</button>
+    </div>
+    <div class="ex-body">${st.perSet ? perSetRowsHTML(st) : simpleRowHTML(st)}</div>
+    <p class="hint status" data-status="${st.slug}"></p>
   </div>`;
 }
 
-function perSetRowsHTML(idx, sets, saved) {
+function simpleRowHTML(st) {
+  const kg = st.sets[0]?.kg ?? "";
+  const reps = st.sets[0]?.reps ?? "";
+  return `<div class="row">
+    <input type="number" inputmode="decimal" step="0.5" data-kg value="${kg}" placeholder="kg" aria-label="Gewicht" />
+    <span class="times">×</span>
+    <input type="number" inputmode="numeric" data-reps value="${reps}" placeholder="Wdh" aria-label="Wiederholungen" />
+    <button class="icon-btn" data-action="save" data-slug="${st.slug}" aria-label="Speichern">${ICONS.check}</button>
+  </div>
+  <p class="hint tiny">Gilt für alle ${st.setCount} Sätze</p>`;
+}
+
+function perSetRowsHTML(st) {
   let rows = "";
-  for (let s = 0; s < sets; s++) {
-    const kg = saved?.sets?.[s]?.kg ?? "";
-    const reps = saved?.sets?.[s]?.reps ?? "";
+  for (let s = 0; s < st.setCount; s++) {
+    const kg = st.sets[s]?.kg ?? "";
+    const reps = st.sets[s]?.reps ?? "";
     rows += `<div class="set-row">
       <span class="set-label">Satz ${s + 1}</span>
-      <input type="number" data-kg="${idx}" data-set="${s}" value="${kg}" placeholder="kg" />
-      <input type="number" data-reps="${idx}" data-set="${s}" value="${reps}" placeholder="Wdh" />
+      <input type="number" inputmode="decimal" step="0.5" data-kg value="${kg}" placeholder="kg" aria-label="Gewicht Satz ${s + 1}" />
+      <input type="number" inputmode="numeric" data-reps value="${reps}" placeholder="Wdh" aria-label="Wiederholungen Satz ${s + 1}" />
     </div>`;
   }
-  rows += `<button data-save="${idx}" style="width:100%;margin-top:4px;">Speichern</button>`;
-  return rows;
+  return rows + `<button data-action="save" data-slug="${st.slug}" style="width:100%;margin-top:4px;">Speichern</button>`;
 }
 
-async function wireExerciseCards(exercises, dateISO) {
-  for (let i = 0; i < exercises.length; i++) {
-    const ex = exercises[i];
-    const exSlug = slug(ex.name);
-    const saved = await loadLog(dateISO, exSlug);
-    const body = document.querySelector(`[data-body="${i}"]`);
-    let perSet = false;
-    body.innerHTML = simpleRowHTML(i, saved);
-    wireSave(i, ex, dateISO, exSlug, () => perSet);
-
-    const toggleBtn = document.querySelector(`[data-toggle="${i}"]`);
-    toggleBtn.addEventListener("click", () => {
-      perSet = !perSet;
-      toggleBtn.textContent = perSet ? "Alle Sätze gleich" : "Sätze einzeln";
-      const sets = setsCountFromSoll(ex.soll);
-      body.innerHTML = perSet ? perSetRowsHTML(i, sets, saved) : simpleRowHTML(i, saved);
-      wireSave(i, ex, dateISO, exSlug, () => perSet);
-    });
+// Liest die aktuell sichtbaren Eingaben in den State zurück
+function readCard(st) {
+  const card = document.querySelector(`[data-ex="${st.slug}"]`);
+  if (!card) return;
+  if (st.perSet) {
+    st.sets = [...card.querySelectorAll(".set-row")].map((row) => ({
+      kg: numOrNull(row.querySelector("[data-kg]").value),
+      reps: numOrNull(row.querySelector("[data-reps]").value),
+    }));
+  } else {
+    const kg = numOrNull(card.querySelector("[data-kg]").value);
+    const reps = numOrNull(card.querySelector("[data-reps]").value);
+    st.sets = Array.from({ length: st.setCount }, () => ({ kg, reps }));
   }
 }
 
-function wireSave(idx, ex, dateISO, exSlug, isPerSet) {
-  const btn = document.querySelector(`[data-save="${idx}"]`);
-  if (!btn) return;
-  btn.addEventListener("click", async () => {
-    const kgInputs = document.querySelectorAll(`[data-kg="${idx}"]`);
-    const repInputs = document.querySelectorAll(`[data-reps="${idx}"]`);
-    const sets = [];
-    kgInputs.forEach((el, i) => {
-      sets.push({ kg: Number(el.value) || 0, reps: Number(repInputs[i]?.value) || 0 });
-    });
-    await saveLog(dateISO, exSlug, { week: currentWeekNumber(), name: ex.name, sets, completed: true });
-    btn.innerHTML = ICONS.check;
-    btn.style.color = "var(--teal)";
+function toggleSets(slugName) {
+  const st = logState.get(slugName);
+  if (!st) return;
+  readCard(st);
+  st.perSet = !st.perSet;
+  const card = document.querySelector(`[data-ex="${slugName}"]`);
+  card.querySelector(".ex-body").innerHTML = st.perSet ? perSetRowsHTML(st) : simpleRowHTML(st);
+  card.querySelector("[data-action='toggle-sets']").textContent = st.perSet ? "Alle gleich" : "Sätze einzeln";
+}
+
+function saveExercise(slugName, dateISO) {
+  const st = logState.get(slugName);
+  if (!st) return;
+  readCard(st);
+
+  const hasInput = st.sets.some((s) => s.kg !== null || s.reps !== null);
+  const status = document.querySelector(`[data-status="${slugName}"]`);
+  if (!hasInput) {
+    status.textContent = "Nichts eingetragen.";
+    status.className = "hint status warn";
+    return;
+  }
+
+  const payload = {
+    week: weekNumberFor(dateISO),
+    name: st.name,
+    soll: st.soll,
+    sets: st.sets.map((s) => ({ kg: s.kg, reps: s.reps })),
+    topKg: Math.max(...st.sets.map((s) => s.kg ?? 0)),
+    totalReps: st.sets.reduce((a, s) => a + (s.reps ?? 0), 0),
+    completed: true,
+  };
+
+  // Optimistisch bestätigen: mit Offline-Cache landet der Schreibvorgang
+  // lokal und wird später synchronisiert — das Promise löst dann erst
+  // beim Sync auf, darauf wollen wir im Gym nicht warten.
+  st.saved = true;
+  status.textContent = "Gespeichert.";
+  status.className = "hint status ok";
+  const line = document.getElementById("progress-line");
+  if (line) line.textContent = progressText();
+
+  saveLog(dateISO, slugName, payload).catch((err) => {
+    console.error(err);
+    st.saved = false;
+    status.textContent = "Speichern fehlgeschlagen: " + err.message;
+    status.className = "hint status warn";
   });
 }
 
-function disableInputs() {
-  main.querySelectorAll("input").forEach((i) => (i.disabled = true));
+// ---------- Lauftag ----------
+async function loadStrava({ force = false } = {}) {
+  if (!force && stravaState.connected !== null) return stravaState;
+  try {
+    const connected = await isAuthorized();
+    stravaState.connected = connected;
+    stravaState.error = null;
+    stravaState.runs = connected ? await fetchRecentRuns(STRAVA_SINCE, { force }) : null;
+  } catch (err) {
+    console.error(err);
+    stravaState.error = err.message;
+    stravaState.runs = null;
+  }
+  return stravaState;
 }
 
-async function laufPanel(info, editable) {
-  if (stravaRuns === null) {
-    const authorized = await isAuthorized();
-    stravaRuns = authorized ? await fetchRecentRuns("2026-08-01") : false;
-  }
-  const match = stravaRuns ? matchRunForDate(stravaRuns, info.date) : null;
+async function renderRunDay(info, iso) {
+  main.innerHTML =
+    planRunCard(info) +
+    `<div id="strava-slot">${loadingCard("Strava wird geprüft …")}</div>` +
+    `<div class="strava-note">${ICONS.run}<p>${esc(info.note || "Wird nicht hier eingetragen — die Daten kommen automatisch aus Strava.")}</p></div>`;
 
-  let resultHTML = "";
-  if (match) {
-    resultHTML = `<div class="card" style="margin-top:10px;">
-      <p class="name">Erfasst (Strava)</p>
-      <div class="metric-grid" style="margin-top:8px;">
-        <div><p class="metric-label">Distanz</p><p class="metric-value">${match.distanceKm} km</p></div>
-        <div><p class="metric-label">Pace</p><p class="metric-value" style="font-size:16px;">${match.paceMinPerKm}</p></div>
-      </div>
-      ${match.avgHr ? `<p class="hint" style="margin-top:6px;">Ø HF ${match.avgHr} bpm</p>` : ""}
-    </div>`;
-  } else if (stravaRuns === false) {
-    resultHTML = `<button class="primary-btn" id="connect-strava" style="margin-top:10px;">Mit Strava verbinden</button>`;
-  } else {
-    resultHTML = `<p class="center-note" style="margin-top:10px;">Noch kein passender Lauf in Strava gefunden.</p>`;
-  }
+  const slot = document.getElementById("strava-slot");
+  const s = await loadStrava();
+  if (!slot.isConnected) return; // Nutzer hat inzwischen weitergeklickt
+  slot.innerHTML = stravaResultHTML(s, iso);
+}
 
+function planRunCard(info) {
   return `<div class="card" style="background:var(--coral-bg);">
-    <p class="name" style="color:var(--coral);">${info.type}</p>
+    <p class="name" style="color:var(--coral-fg);">${esc(info.type)}</p>
     <div class="metric-grid" style="margin-top:8px;">
-      <div><p class="metric-label">Ziel-Distanz</p><p class="metric-value" style="color:var(--coral);">${info.dist}</p></div>
-      <div><p class="metric-label">Ziel-Pace</p><p class="metric-value" style="font-size:16px;">${info.pace}</p></div>
+      <div><p class="metric-label">Ziel-Distanz</p><p class="metric-value" style="color:var(--coral-fg);">${esc(info.dist)}</p></div>
+      <div><p class="metric-label">Ziel-Pace</p><p class="metric-value" style="font-size:16px;">${esc(info.pace)}</p></div>
     </div>
-    <p class="hint" style="margin-top:8px;">HF-Zone ${info.hf}</p>
-  </div>
-  ${resultHTML}
-  <div class="strava-note">${ICONS.run}<p>${info.note || "Wird nicht hier eingetragen — Daten kommen automatisch aus Strava."}</p></div>`;
+    <p class="hint" style="margin-top:8px;">HF-Zone ${esc(info.hf)}</p>
+  </div>`;
+}
+
+function stravaResultHTML(s, iso) {
+  if (!isWorkerConfigured) {
+    return `<div class="card error-card">
+      <p class="name">Strava noch nicht eingerichtet</p>
+      <p class="hint">Der Token-Worker fehlt (siehe README, Abschnitt „Strava"). Ohne ihn kann der Browser sich nicht bei Strava anmelden.</p></div>`;
+  }
+  if (s.error) {
+    return `<div class="card error-card"><p class="name">Strava-Problem</p>
+      <p class="hint">${esc(s.error)}</p>
+      <div class="row" style="margin-top:8px;gap:8px;">
+        <button data-action="reload-strava">Nochmal versuchen</button>
+        <button data-action="connect-strava">Neu verbinden</button>
+      </div></div>`;
+  }
+  if (s.connected === false) {
+    return `<button class="primary-btn" data-action="connect-strava" style="margin-top:10px;">Mit Strava verbinden</button>`;
+  }
+  const match = matchRunForDate(s.runs, iso);
+  if (!match) {
+    return `<div class="row" style="margin-top:10px;justify-content:center;gap:8px;">
+      <span class="center-note" style="margin:0;">Noch kein passender Lauf in Strava.</span>
+      <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
+    </div>`;
+  }
+  return `<div class="card" style="margin-top:10px;">
+    <div class="row" style="justify-content:space-between;">
+      <p class="name">Erfasst (Strava)</p>
+      <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
+    </div>
+    <p class="hint">${esc(match.name)}</p>
+    <div class="metric-grid" style="margin-top:8px;">
+      <div><p class="metric-label">Distanz</p><p class="metric-value">${match.distanceKm.toFixed(1)} km</p></div>
+      <div><p class="metric-label">Pace</p><p class="metric-value" style="font-size:18px;">${esc(match.paceLabel)}</p></div>
+      <div><p class="metric-label">Dauer</p><p class="metric-value" style="font-size:18px;">${esc(formatDuration(match.movingTimeSec))}</p></div>
+      <div><p class="metric-label">Ø HF</p><p class="metric-value" style="font-size:18px;">${match.avgHr ? match.avgHr + " bpm" : "–"}</p></div>
+    </div>
+  </div>`;
 }
 
 // ---------- Woche ----------
 function renderWeek() {
-  const w = currentWeekNumber();
+  const w = state.weekNo;
   const week = weeks[w];
   const phase = phases.find((p) => p.n === week.phase);
-  header.innerHTML = `<h1>Woche ${w} von 31</h1><p class="eyebrow" style="margin-top:2px;">Phase ${phase.n} – ${phase.name} · ${week.dateRange || phase.range}</p>`;
+  const start = weekStart(w);
+  const isCurrent = w === weekNumberFor(todayISO());
+
+  header.innerHTML = `
+    <p class="eyebrow">Phase ${phase.n} – ${esc(phase.name)} · ${shortDate(start)}–${shortDate(addDays(start, 6))}${week.deload ? " · Deload" : ""}</p>
+    <div class="title-row">
+      <h1>Woche ${w} <span class="of">von ${TOTAL_WEEKS}</span></h1>
+      <div class="row" style="gap:4px;">
+        <button class="icon-btn" data-action="week-prev" ${w <= 1 ? "disabled" : ""} aria-label="Vorherige Woche">${ICONS.prev}</button>
+        ${isCurrent ? "" : `<button class="small-btn" data-action="week-today">Heute</button>`}
+        <button class="icon-btn" data-action="week-next" ${w >= TOTAL_WEEKS ? "disabled" : ""} aria-label="Nächste Woche">${ICONS.next}</button>
+      </div>
+    </div>`;
 
   if (week.placeholder) {
-    main.innerHTML = `<div class="card"><p class="name">${phase.name}</p><p class="hint">${phase.focus}. Details folgen nach Re-Kalibrierung.</p></div>`;
+    main.innerHTML = `<div class="card"><p class="name">${esc(phase.name)}</p>
+      <p class="hint">${esc(phase.focus)}. Details folgen nach der Re-Kalibrierung.</p></div>`;
     return;
   }
 
-  const days = [];
-  for (let i = 0; i < 7; i++) {
-    const date = new Date("2026-08-31T12:00:00");
-    date.setDate(date.getDate() + (w - 1) * 7 + i);
-    const iso = date.toISOString().slice(0, 10);
-    let info = null, color = "var(--text-secondary)", bg = "var(--surface-1)";
-    if (week.kraft.di.date === iso) { info = { kind: "kraft", ...week.kraft.di }; color = "var(--teal)"; bg = "var(--teal-bg)"; }
-    else if (week.kraft.do.date === iso) { info = { kind: "kraft", ...week.kraft.do }; color = "var(--teal)"; bg = "var(--teal-bg)"; }
-    else {
-      const run = week.runs.find((r) => r.date === iso);
-      if (run) { info = { kind: "lauf", ...run }; color = run.type === "Long run" ? "var(--purple)" : "var(--coral)"; bg = run.type === "Long run" ? "var(--purple-bg)" : "var(--coral-bg)"; }
-    }
-    if (!info) info = { kind: "ruhe" };
-    days.push({ iso, info, color, bg, label: info.kind === "ruhe" ? "Ruhe" : (info.label || info.type) });
-  }
+  const today = todayISO();
+  const days = weekDates(w).map((iso) => {
+    const info = dayInfo(iso);
+    const [color, bg] = colorsFor(info);
+    const label =
+      info.kind === "ruhe" ? "Ruhe"
+      : info.kind === "kraft" ? info.shortLabel
+      : `${info.shortType}\n${info.dist}`;
+    return { iso, info, color, bg, label };
+  });
 
   main.innerHTML = `<div class="day-grid">
-    ${days.map((d, i) => `<button class="day-pill" data-day="${i}" style="background:${d.bg};">
-      <p class="d" style="color:${d.color}">${dayNameDE(d.iso)}</p>
-      <p class="t" style="color:${d.color}">${d.label}</p>
-    </button>`).join("")}
-  </div><p class="center-note">Tag antippen für Details</p>`;
+      ${days.map((d) => `<button class="day-pill${d.iso === today ? " today" : ""}" data-action="open-day" data-date="${d.iso}" style="background:${d.bg};">
+        <p class="d" style="color:${d.color}">${dayNameDE(d.iso)}</p>
+        <p class="t" style="color:${d.color}">${esc(d.label).replace("\n", "<br>")}</p>
+      </button>`).join("")}
+    </div>
+    <p class="center-note">Tag antippen für Details</p>
+    <div class="card">
+      <p class="name">Wochenumfang Laufen</p>
+      <p class="hint">${week.runs.map((r) => `${r.shortType} ${r.dist}`).join(" · ")} — zusammen ${weekKm(week)} km</p>
+    </div>`;
+}
 
-  days.forEach((d, i) => {
-    document.querySelector(`[data-day="${i}"]`).addEventListener("click", async () => {
-      header.innerHTML = `<p class="eyebrow">${dayNameDE(d.iso)} · ${d.iso.split("-").reverse().slice(0,2).join(".")}.</p><div class="title-row"><h1>Woche ${w}</h1>${badgeForKind(d.info)}</div>`;
-      await renderDayBody(d.info, d.iso, d.iso === todayISO());
-    });
-  });
+function weekKm(week) {
+  return week.runs.reduce((a, r) => a + (parseFloat(r.dist) || 0), 0);
 }
 
 // ---------- Verlauf ----------
-async function renderHistory(mode = "kraft") {
+async function renderHistory() {
+  const m = state.historyMode;
   header.innerHTML = `<div class="title-row"><h1>Verlauf</h1>
-    <div class="row" style="gap:4px;">
-      <button data-v="kraft" style="background:${mode === "kraft" ? "var(--teal-bg)" : "transparent"};color:${mode === "kraft" ? "var(--teal)" : "var(--text-secondary)"}">Kraft</button>
-      <button data-v="lauf" style="background:${mode === "lauf" ? "var(--coral-bg)" : "transparent"};color:${mode === "lauf" ? "var(--coral)" : "var(--text-secondary)"}">Lauf</button>
+    <div class="seg">
+      <button data-action="hist-mode" data-mode="kraft" class="${m === "kraft" ? "on" : ""}">Kraft</button>
+      <button data-action="hist-mode" data-mode="lauf" class="${m === "lauf" ? "on" : ""}">Lauf</button>
     </div></div>`;
-  document.querySelector('[data-v="kraft"]').addEventListener("click", () => renderHistory("kraft"));
-  document.querySelector('[data-v="lauf"]').addEventListener("click", () => renderHistory("lauf"));
+  main.innerHTML = loadingCard();
+  if (m === "kraft") await renderKraftHistory();
+  else await renderRunHistory();
+}
 
-  if (mode === "kraft") {
-    const w = currentWeekNumber();
-    const vals = [];
-    for (let i = 1; i <= Math.min(w, 8); i++) {
-      const wk = weeks[i];
-      if (wk.placeholder) continue;
-      const log = await loadLog(wk.kraft.di.date, "squats");
-      vals.push(log?.sets?.[0]?.kg || 0);
-    }
-    const max = Math.max(...vals, 1);
-    main.innerHTML = `<p class="name">Squats · Gewicht pro Woche</p>
-      <div class="bars" style="margin-top:10px;">
-        ${vals.map((v, i) => `<div class="bar-col"><div class="bar" style="height:${(v / max) * 90 || 2}px"></div><span class="bar-label">W${i + 1}</span></div>`).join("")}
-      </div>
-      <p class="center-note">Läuft analog für jede Übung.</p>`;
-  } else {
-    const authorized = await isAuthorized();
-    const runs = authorized ? await fetchRecentRuns("2026-08-01") : null;
-    if (!runs || !runs.length) {
-      main.innerHTML = `<p class="center-note">Noch keine Strava-Läufe gefunden.</p>`;
-      return;
-    }
-    const points = runs.slice(-8);
-    main.innerHTML = `<p class="name">Easy-run Pace (min/km)</p>
-      <div class="bars" style="margin-top:10px;align-items:flex-end;">
-        ${points.map((p) => `<div class="bar-col"><div class="bar" style="height:${40};background:var(--coral)"></div><span class="bar-label">${p.paceMinPerKm}</span></div>`).join("")}
-      </div>`;
+async function renderKraftHistory() {
+  const options = exerciseCatalog
+    .map((e) => `<option value="${slug(e.name)}" ${slug(e.name) === state.historyExercise ? "selected" : ""}>${esc(e.name)}</option>`)
+    .join("");
+
+  let logs = [];
+  try {
+    logs = await loadLogsForExercise(state.historyExercise);
+  } catch (err) {
+    main.innerHTML = errorCard("Verlauf konnte nicht geladen werden: " + err.message);
+    return;
   }
+
+  const points = logs
+    .map((l) => {
+      const sets = l.sets || [];
+      const topKg = l.topKg ?? Math.max(0, ...sets.map((s) => s.kg ?? 0));
+      const totalReps = l.totalReps ?? sets.reduce((a, s) => a + (s.reps ?? 0), 0);
+      return { date: l.date, topKg, totalReps };
+    })
+    .filter((p) => p.topKg > 0 || p.totalReps > 0)
+    .slice(-10);
+
+  const usesWeight = points.some((p) => p.topKg > 0);
+  const valueOf = (p) => (usesWeight ? p.topKg : p.totalReps);
+  const unit = usesWeight ? "kg" : "Wdh";
+
+  const picker = `<select id="ex-picker" aria-label="Übung wählen">${options}</select>`;
+
+  if (!points.length) {
+    main.innerHTML = `${picker}<p class="center-note">Noch nichts erfasst für diese Übung.</p>`;
+    wirePicker();
+    return;
+  }
+
+  main.innerHTML = `${picker}
+    <div class="card">
+      <p class="name">${usesWeight ? "Bestes Satzgewicht" : "Wiederholungen gesamt"}</p>
+      <p class="hint">Letzte ${points.length} Einheiten</p>
+      ${barsHTML(points.map((p) => ({ value: valueOf(p), label: shortDate(p.date), value_label: `${valueOf(p)} ${unit}` })), "var(--teal-fg)")}
+    </div>
+    <div class="card">
+      <p class="name">Einträge</p>
+      ${points.slice().reverse().map((p) => `<div class="row list-row"><span>${shortDate(p.date)}</span>
+        <span style="color:var(--text-secondary)">${p.topKg > 0 ? p.topKg + " kg" : "–"} · ${p.totalReps} Wdh</span></div>`).join("")}
+    </div>`;
+  wirePicker();
+}
+
+function wirePicker() {
+  const sel = document.getElementById("ex-picker");
+  if (!sel) return;
+  sel.addEventListener("change", () => {
+    state.historyExercise = sel.value;
+    renderHistory();
+  });
+}
+
+async function renderRunHistory() {
+  const s = await loadStrava();
+
+  if (!isWorkerConfigured) {
+    main.innerHTML = `<div class="card error-card"><p class="name">Strava noch nicht eingerichtet</p>
+      <p class="hint">Siehe README, Abschnitt „Strava".</p></div>`;
+    return;
+  }
+  if (s.error) {
+    main.innerHTML = errorCard(s.error);
+    return;
+  }
+  if (s.connected === false) {
+    main.innerHTML = `<button class="primary-btn" data-action="connect-strava">Mit Strava verbinden</button>`;
+    return;
+  }
+  const runs = s.runs || [];
+  if (!runs.length) {
+    main.innerHTML = `<p class="center-note">Noch keine Läufe seit ${shortDate(STRAVA_SINCE)} in Strava.</p>`;
+    return;
+  }
+
+  const last = runs.slice(-10);
+  const km7 = sumKm(runs, 7);
+  const km28 = sumKm(runs, 28);
+  const withPace = last.filter((r) => r.paceSecPerKm);
+  const avgPace = withPace.length
+    ? withPace.reduce((a, r) => a + r.paceSecPerKm, 0) / withPace.length
+    : null;
+
+  main.innerHTML = `
+    <div class="card">
+      <div class="metric-grid">
+        <div><p class="metric-label">Letzte 7 Tage</p><p class="metric-value">${km7.toFixed(1)} km</p></div>
+        <div><p class="metric-label">Letzte 28 Tage</p><p class="metric-value">${km28.toFixed(1)} km</p></div>
+        <div><p class="metric-label">Ø Pace (${withPace.length} ${withPace.length === 1 ? "Lauf" : "Läufe"})</p><p class="metric-value" style="font-size:18px;">${esc(formatPace(avgPace))}</p></div>
+        <div><p class="metric-label">Läufe gesamt</p><p class="metric-value">${runs.length}</p></div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="name">Distanz je Lauf</p>
+      <p class="hint">Label = Pace</p>
+      ${barsHTML(last.map((r) => ({ value: r.distanceKm, label: esc(r.paceLabel.replace(" /km", "")), value_label: r.distanceKm.toFixed(1) + " km" })), "var(--coral-fg)")}
+    </div>
+    <div class="card">
+      <p class="name">Läufe</p>
+      ${last.slice().reverse().map((r) => `<div class="row list-row"><span>${shortDate(r.date)} ${esc(r.name)}</span>
+        <span style="color:var(--text-secondary)">${r.distanceKm.toFixed(1)} km · ${esc(r.paceLabel)}</span></div>`).join("")}
+    </div>`;
+}
+
+function sumKm(runs, days) {
+  const cutoff = addDays(todayISO(), -days + 1);
+  return runs.filter((r) => r.date >= cutoff).reduce((a, r) => a + r.distanceKm, 0);
+}
+
+// Balken mit echten Höhen — Werte werden auf 8..90 px abgebildet.
+function barsHTML(points, color) {
+  const max = Math.max(...points.map((p) => p.value), 0);
+  if (max <= 0) return `<p class="center-note">Keine Werte.</p>`;
+  return `<div class="bars">
+    ${points.map((p) => {
+      const h = Math.max(8, Math.round((p.value / max) * 90));
+      return `<div class="bar-col" title="${esc(p.value_label)}">
+        <span class="bar-value">${esc(p.value_label)}</span>
+        <div class="bar" style="height:${h}px;background:${color}"></div>
+        <span class="bar-label">${p.label}</span>
+      </div>`;
+    }).join("")}
+  </div>`;
 }
 
 // ---------- Plan ----------
 function renderPlan() {
-  header.innerHTML = `<h1>Trainingsplan</h1><p class="eyebrow" style="margin-top:2px;">31 Wochen · Ziel ${goal.time}, ${goal.race}</p>`;
-  main.innerHTML = phases.map((p) => `<div class="card">
-    <p class="name">Phase ${p.n} – ${p.name}</p>
-    <p class="hint" style="margin-top:2px;">${p.range}</p>
-    <p class="hint" style="margin-top:4px;color:var(--text-secondary);">${p.focus}</p>
-  </div>`).join("") + `<div class="card"><p class="name">Trainingsbereiche</p>
-    ${zones.map((z) => `<div class="row" style="justify-content:space-between;margin-top:6px;font-size:13px;">
-      <span>${z.zone}</span><span style="color:var(--text-secondary);">${z.pace}</span>
+  const w = weekNumberFor(todayISO());
+  header.innerHTML = `<h1>Trainingsplan</h1>
+    <p class="eyebrow" style="margin-top:2px;">${TOTAL_WEEKS} Wochen · Ziel ${esc(goal.time)} (${esc(goal.targetPace)})</p>`;
+
+  main.innerHTML = `
+    <div class="card" style="background:var(--teal-bg);">
+      <p class="name" style="color:var(--teal-fg);">${esc(goal.race)}</p>
+      <p class="hint" style="margin-top:2px;">Aktuell Woche ${w} von ${TOTAL_WEEKS} · Start ${shortDate(PLAN_START)}</p>
+    </div>
+    ${phases.map((p) => `<div class="card${w >= p.weeks[0] && w <= p.weeks[1] ? " current" : ""}">
+      <p class="name">Phase ${p.n} – ${esc(p.name)}</p>
+      <p class="hint" style="margin-top:2px;">${esc(p.range)} · Woche ${p.weeks[0]}–${p.weeks[1]}</p>
+      <p class="hint" style="margin-top:4px;color:var(--text-secondary);">${esc(p.focus)}</p>
     </div>`).join("")}
-  </div>`;
+    <div class="card">
+      <p class="name">Trainingsbereiche</p>
+      ${zones.map((z) => `<div class="zone-row">
+        <span class="zone-name">${esc(z.zone)}</span>
+        <span class="zone-vals">${esc(z.hf)} bpm · ${esc(z.pace)}</span>
+      </div>`).join("")}
+    </div>`;
 }
 
-// ---------- Tabs ----------
+// ---------- Interaktion ----------
+document.getElementById("app").addEventListener("click", async (e) => {
+  const target = e.target.closest("[data-action]");
+  if (!target) return;
+  const action = target.dataset.action;
+
+  if (action === "reload") return location.reload();
+  if (action === "back") { state.selectedDate = null; return render(); }
+  if (action === "open-day") { state.selectedDate = target.dataset.date; return render(); }
+  if (action === "week-prev") { state.weekNo = Math.max(1, state.weekNo - 1); return render(); }
+  if (action === "week-next") { state.weekNo = Math.min(TOTAL_WEEKS, state.weekNo + 1); return render(); }
+  if (action === "week-today") { state.weekNo = weekNumberFor(todayISO()); return render(); }
+  if (action === "toggle-sets") return toggleSets(target.dataset.slug);
+  if (action === "save") return saveExercise(target.dataset.slug, currentDateISO());
+  if (action === "hist-mode") { state.historyMode = target.dataset.mode; return render(); }
+  if (action === "connect-strava") return startAuthorization();
+  if (action === "reload-strava") {
+    target.disabled = true;
+    await loadStrava({ force: true });
+    return render();
+  }
+});
+
+function currentDateISO() {
+  return state.tab === "woche" && state.selectedDate ? state.selectedDate : todayISO();
+}
+
 document.querySelectorAll("#tabbar button").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll("#tabbar button").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    const tab = btn.dataset.tab;
-    if (tab === "heute") renderToday();
-    if (tab === "woche") renderWeek();
-    if (tab === "verlauf") renderHistory();
-    if (tab === "plan") renderPlan();
+    state.tab = btn.dataset.tab;
+    state.selectedDate = null;
+    if (state.tab === "woche") state.weekNo = weekNumberFor(todayISO());
+    render();
   });
 });
 
 // ---------- Start ----------
 (async function init() {
-  await handleAuthRedirect();
-  renderToday();
+  const hasRedirect = /[?&](code|error)=/.test(location.search);
   document.querySelector('[data-tab="heute"]').classList.add("active");
 
-  main.addEventListener("click", (e) => {
-    if (e.target.id === "connect-strava") startAuthorization();
+  if (hasRedirect) {
+    header.innerHTML = `<h1>Strava</h1>`;
+    main.innerHTML = loadingCard("Strava-Verbindung wird abgeschlossen …");
+    const res = await handleAuthRedirect();
+    if (res.status === "connected") toast("Mit Strava verbunden.");
+    else if (res.status !== "none") toast(res.message, true);
+  }
+
+  // Anmeldung früh anstoßen, damit der erste Firestore-Zugriff nicht wartet.
+  ensureSignedIn().catch((err) => {
+    console.error(err);
+    toast("Firebase-Anmeldung fehlgeschlagen: " + err.message, true);
   });
+
+  render();
 })();
