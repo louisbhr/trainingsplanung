@@ -274,6 +274,52 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
+// ---- 9. Firestore verweigert Zugriff: als Firebase-Problem erkennbar ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route("**/firebase-init.js", (r) => r.fulfill({
+    contentType: "application/javascript",
+    body: `
+      class FirebaseAccessError extends Error {
+        constructor(m) { super("Firebase: " + m); this.source = "firebase"; }
+      }
+      const boom = () => { throw new FirebaseAccessError("Missing or insufficient permissions."); };
+      export const db = {};
+      export async function ensureSignedIn() { return { uid: "t" }; }
+      export async function saveLog() { boom(); }
+      export async function loadLog() { boom(); }
+      export async function loadLogsForDate() { boom(); }
+      export async function loadLogsForExercise() { boom(); }
+      export async function saveStravaTokens() { boom(); }
+      export async function loadStravaTokens() { boom(); }`,
+  }));
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.addInitScript(() => localStorage.setItem("hm-tracker.workerUrl", "https://worker.test"));
+  await page.goto(BASE + "/index.html");
+
+  await page.waitForSelector("#strava-slot .error-card");
+  const runTxt = await page.textContent("#strava-slot");
+  ok(runTxt.includes("Daten-Problem (Firebase)"), "Fehlerquelle: Firestore-Fehler wird nicht als Strava-Problem gezeigt");
+  ok(runTxt.includes("Missing or insufficient permissions."), "Fehlerquelle: Originalmeldung sichtbar");
+  ok(runTxt.includes("Anonymous"), "Fehlerquelle: Hinweis auf die tatsächliche Ursache");
+  ok((await page.locator('#strava-slot [data-action="connect-strava"]').count()) === 0,
+     "Fehlerquelle: kein irreführendes 'Neu verbinden' bei Firebase-Fehlern");
+  await shot(page, "09-firebase-fehler-lauftag");
+
+  // Krafttag: Meldung muss stehen bleiben, nicht als Toast verschwinden
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector("#main .error-card");
+  ok((await page.textContent("#main")).includes("Gespeicherte Sätze nicht geladen"),
+     "Krafttag: Ladefehler als dauerhafte Karte");
+  ok((await page.locator("[data-ex]").count()) === 8, "Krafttag: Eingabe bleibt trotz Fehler möglich");
+  await page.waitForTimeout(7000); // länger als die Toast-Dauer
+  ok((await page.locator("#main .error-card").count()) === 1, "Krafttag: Meldung verschwindet nicht wieder");
+  await shot(page, "10-firebase-fehler-krafttag");
+  await ctx.close();
+}
+
 await browser.close();
 console.log(`\n${checks - fails}/${checks} Browser-Checks bestanden`);
 process.exit(fails ? 1 : 0);

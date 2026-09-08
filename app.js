@@ -53,7 +53,7 @@ function defaultHistoryExercise() {
 // Kraft-Eingaben der gerade sichtbaren Tagesansicht
 const logState = new Map();
 // Strava: null = noch nicht geladen, false = nicht verbunden
-let stravaState = { runs: null, error: null, connected: null };
+let stravaState = { runs: null, error: null, errorSource: null, connected: null };
 
 function badge(text, color, bg) {
   return `<span class="badge" style="background:${bg};color:${color}">${esc(text)}</span>`;
@@ -169,11 +169,14 @@ async function renderKraftDay(info, iso) {
   main.innerHTML = loadingCard("Lade gespeicherte Sätze …");
 
   let saved = {};
+  let loadError = null;
   try {
     saved = await loadLogsForDate(iso);
   } catch (err) {
     console.error(err);
-    toast("Gespeicherte Sätze konnten nicht geladen werden — Eingabe geht trotzdem.", true);
+    // Als Karte, nicht als Toast: die Meldung muss stehen bleiben, sonst
+    // sieht man nur leere Felder und rät.
+    loadError = err.source === "firebase" ? err.message : "Laden fehlgeschlagen: " + err.message;
   }
 
   logState.clear();
@@ -194,6 +197,14 @@ async function renderKraftDay(info, iso) {
   }
 
   main.innerHTML =
+    (loadError
+      ? `<div class="card error-card">
+           <p class="name">Gespeicherte Sätze nicht geladen</p>
+           <p class="hint">${esc(loadError)}</p>
+           <p class="hint" style="margin-top:6px;">Eintragen geht trotzdem — gespeichert wird aber erst, wenn das behoben ist.</p>
+           <button data-action="reload" style="margin-top:8px;">Neu laden</button>
+         </div>`
+      : "") +
     `<div class="card summary-card">
        <p class="name">${esc(info.label)}</p>
        <p class="hint" id="progress-line">${progressText()}</p>
@@ -316,15 +327,20 @@ function saveExercise(slugName, dateISO) {
 // ---------- Lauftag ----------
 async function loadStrava({ force = false } = {}) {
   if (!force && stravaState.connected !== null) return stravaState;
+  stravaState.error = null;
+  stravaState.errorSource = null;
   try {
     const connected = await isAuthorized();
     stravaState.connected = connected;
-    stravaState.error = null;
     stravaState.runs = connected ? await fetchRecentRuns(STRAVA_SINCE, { force }) : null;
   } catch (err) {
     console.error(err);
     stravaState.error = err.message;
+    // Ein Firestore-Fehler ist kein Strava-Fehler — sonst sucht man an
+    // der falschen Stelle.
+    stravaState.errorSource = err.source === "firebase" ? "firebase" : "strava";
     stravaState.runs = null;
+    if (stravaState.errorSource === "firebase") stravaState.connected = null;
   }
   return stravaState;
 }
@@ -352,20 +368,31 @@ function planRunCard(info) {
   </div>`;
 }
 
+// Getrennte Karten für die beiden Fehlerwelten: an Firestore-Problemen
+// hilft "Neu verbinden" nicht, und der Hinweis muss auf Firebase zeigen.
+function problemCard(s) {
+  if (s.errorSource === "firebase") {
+    return `<div class="card error-card">
+      <p class="name">Daten-Problem (Firebase)</p>
+      <p class="hint">${esc(s.error)}</p>
+      <p class="hint" style="margin-top:6px;">Nicht Strava, sondern der Datenspeicher. Prüfe in der Firebase-Console, ob die Anmeldeart <b>Anonymous</b> aktiviert und die Regeln aus <code>firestore.rules</code> veröffentlicht sind.</p>
+      <button data-action="reload-strava" style="margin-top:8px;">Nochmal versuchen</button></div>`;
+  }
+  return `<div class="card error-card"><p class="name">Strava-Problem</p>
+    <p class="hint">${esc(s.error)}</p>
+    <div class="row" style="margin-top:8px;gap:8px;">
+      <button data-action="reload-strava">Nochmal versuchen</button>
+      <button data-action="connect-strava">Neu verbinden</button>
+    </div></div>`;
+}
+
 function stravaResultHTML(s, iso) {
   if (!isWorkerConfigured) {
     return `<div class="card error-card">
       <p class="name">Strava noch nicht eingerichtet</p>
       <p class="hint">Der Token-Worker fehlt (siehe README, Abschnitt „Strava"). Ohne ihn kann der Browser sich nicht bei Strava anmelden.</p></div>`;
   }
-  if (s.error) {
-    return `<div class="card error-card"><p class="name">Strava-Problem</p>
-      <p class="hint">${esc(s.error)}</p>
-      <div class="row" style="margin-top:8px;gap:8px;">
-        <button data-action="reload-strava">Nochmal versuchen</button>
-        <button data-action="connect-strava">Neu verbinden</button>
-      </div></div>`;
-  }
+  if (s.error) return problemCard(s);
   if (s.connected === false) {
     return `<button class="primary-btn" data-action="connect-strava" style="margin-top:10px;">Mit Strava verbinden</button>`;
   }

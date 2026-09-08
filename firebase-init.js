@@ -63,12 +63,32 @@ function authStateReady() {
   });
 }
 
+// Firestore-/Auth-Fehler als solche kennzeichnen. Ohne die Markierung
+// landet z. B. "fehlende Firestore-Regeln" unter der Überschrift
+// "Strava-Problem" — das hat beim Einrichten echte Zeit gekostet.
+export class FirebaseAccessError extends Error {
+  constructor(err) {
+    super("Firebase: " + (err?.message || String(err)));
+    this.name = "FirebaseAccessError";
+    this.source = "firebase";
+    this.code = err?.code;
+  }
+}
+
+async function fb(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    throw err instanceof FirebaseAccessError ? err : new FirebaseAccessError(err);
+  }
+}
+
 let signInPromise = null;
 export function ensureSignedIn() {
   if (!signInPromise) {
     signInPromise = (async () => {
       await authStateReady();
-      if (!auth.currentUser) await signInAnonymously(auth);
+      if (!auth.currentUser) await fb(() => signInAnonymously(auth));
       return auth.currentUser;
     })().catch((err) => {
       signInPromise = null; // beim nächsten Versuch neu probieren
@@ -82,17 +102,15 @@ export function ensureSignedIn() {
 export async function saveLog(dateISO, exerciseSlug, data) {
   await ensureSignedIn();
   const ref = doc(db, "logs", `${dateISO}_${exerciseSlug}`);
-  await setDoc(
-    ref,
-    { date: dateISO, exercise: exerciseSlug, ...data, updatedAt: Date.now() },
-    { merge: true }
+  await fb(() =>
+    setDoc(ref, { date: dateISO, exercise: exerciseSlug, ...data, updatedAt: Date.now() }, { merge: true })
   );
 }
 
 export async function loadLog(dateISO, exerciseSlug) {
   await ensureSignedIn();
   const ref = doc(db, "logs", `${dateISO}_${exerciseSlug}`);
-  const snap = await getDoc(ref);
+  const snap = await fb(() => getDoc(ref));
   return snap.exists() ? snap.data() : null;
 }
 
@@ -100,7 +118,7 @@ export async function loadLog(dateISO, exerciseSlug) {
 // einzeln zu laden. Ergebnis: { slug: daten }
 export async function loadLogsForDate(dateISO) {
   await ensureSignedIn();
-  const snap = await getDocs(query(collection(db, "logs"), where("date", "==", dateISO)));
+  const snap = await fb(() => getDocs(query(collection(db, "logs"), where("date", "==", dateISO))));
   const out = {};
   snap.forEach((d) => {
     const data = d.data();
@@ -113,7 +131,7 @@ export async function loadLogsForDate(dateISO) {
 // bewusst im Client, damit Firestore keinen zusammengesetzten Index braucht.
 export async function loadLogsForExercise(exerciseSlug) {
   await ensureSignedIn();
-  const snap = await getDocs(query(collection(db, "logs"), where("exercise", "==", exerciseSlug)));
+  const snap = await fb(() => getDocs(query(collection(db, "logs"), where("exercise", "==", exerciseSlug))));
   const out = [];
   snap.forEach((d) => out.push(d.data()));
   out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
@@ -123,11 +141,11 @@ export async function loadLogsForExercise(exerciseSlug) {
 // --- Strava-Tokens ---
 export async function saveStravaTokens(tokens) {
   await ensureSignedIn();
-  await setDoc(doc(db, "config", "strava"), tokens, { merge: true });
+  await fb(() => setDoc(doc(db, "config", "strava"), tokens, { merge: true }));
 }
 
 export async function loadStravaTokens() {
   await ensureSignedIn();
-  const snap = await getDoc(doc(db, "config", "strava"));
+  const snap = await fb(() => getDoc(doc(db, "config", "strava")));
   return snap.exists() ? snap.data() : null;
 }
