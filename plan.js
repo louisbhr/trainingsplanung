@@ -13,18 +13,18 @@ export const goal = {
 };
 
 export const zones = [
-  { zone: "Z1 – Recovery", hf: "< 148", pace: "> 6:40 /km", use: "Regeneration" },
-  { zone: "Z2 – Easy", hf: "148–163", pace: "6:10–6:35 /km", use: "Grundlage" },
-  { zone: "Z3 – Tempo", hf: "165–170", pace: "5:00–5:20 /km", use: "Marathon-Pace" },
-  { zone: "Z4 – Schwelle", hf: "172–181", pace: "4:35–4:50 /km", use: "Schwellenläufe" },
-  { zone: "Z5 – VO2max", hf: "> 184", pace: "4:05–4:20 /km", use: "Intervalle" },
+  { zone: "Z1 – Recovery", hf: "< 148", pace: "> 6:40 /km", use: "Regeneration", tone: "sky" },
+  { zone: "Z2 – Easy", hf: "148–163", pace: "6:10–6:35 /km", use: "Grundlage", tone: "teal" },
+  { zone: "Z3 – Tempo", hf: "165–170", pace: "5:00–5:20 /km", use: "Marathon-Pace", tone: "amber" },
+  { zone: "Z4 – Schwelle", hf: "172–181", pace: "4:35–4:50 /km", use: "Schwellenläufe", tone: "coral" },
+  { zone: "Z5 – VO2max", hf: "> 184", pace: "4:05–4:20 /km", use: "Intervalle", tone: "purple" },
 ];
 
 export const phases = [
-  { n: 1, name: "Basis", range: "31.08.–25.10.2026", weeks: [1, 8], focus: "Volumenaufbau, Maximalkraft" },
-  { n: 2, name: "Aufbau", range: "26.10.2026–03.01.2027", weeks: [9, 18], focus: "Schwelle, Plyometrie" },
-  { n: 3, name: "Spezifisch", range: "04.01.–07.03.2027", weeks: [19, 27], focus: "Renntempo, Kraft-Erhalt" },
-  { n: 4, name: "Taper", range: "08.03.–05.04.2027", weeks: [28, 31], focus: "Volumen runter, Frische" },
+  { n: 1, name: "Basis", range: "31.08.–25.10.2026", weeks: [1, 8], focus: "Volumenaufbau, Maximalkraft", tone: "teal" },
+  { n: 2, name: "Aufbau", range: "26.10.2026–03.01.2027", weeks: [9, 18], focus: "Schwelle, Plyometrie", tone: "sky" },
+  { n: 3, name: "Spezifisch", range: "04.01.–07.03.2027", weeks: [19, 27], focus: "Renntempo, Kraft-Erhalt", tone: "amber" },
+  { n: 4, name: "Taper", range: "08.03.–05.04.2027", weeks: [28, 31], focus: "Volumen runter, Frische", tone: "purple" },
 ];
 
 // --- Datums-Helfer (rein lokal, ohne toISOString/UTC-Verschiebung) ---

@@ -138,6 +138,26 @@ export async function loadLogsForExercise(exerciseSlug) {
   return out;
 }
 
+// --- Angepasste Übungen je Trainingstag ---
+// { removed: [slug, ...], added: [{ name, soll, hint }, ...] }
+export async function loadDayPlan(dateISO) {
+  await ensureSignedIn();
+  const snap = await fb(() => getDoc(doc(db, "dayplans", dateISO)));
+  const d = snap.exists() ? snap.data() : null;
+  return { removed: d?.removed || [], added: d?.added || [] };
+}
+
+export async function saveDayPlan(dateISO, dayPlan) {
+  await ensureSignedIn();
+  await fb(() =>
+    setDoc(
+      doc(db, "dayplans", dateISO),
+      { removed: dayPlan.removed || [], added: dayPlan.added || [], updatedAt: Date.now() },
+      { merge: true }
+    )
+  );
+}
+
 // --- Strava-Tokens ---
 export async function saveStravaTokens(tokens) {
   await ensureSignedIn();

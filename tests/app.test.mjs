@@ -22,6 +22,13 @@ export async function loadLogsForDate(d) {
 export async function loadLogsForExercise(slug) {
   return Object.values(read()).filter((v) => v.exercise === slug).sort((a, b) => (a.date < b.date ? -1 : 1));
 }
+export async function loadDayPlan(dateISO) {
+  const d = JSON.parse(localStorage.getItem("test.dayplan." + dateISO) || "null");
+  return { removed: d?.removed || [], added: d?.added || [] };
+}
+export async function saveDayPlan(dateISO, dp) {
+  localStorage.setItem("test.dayplan." + dateISO, JSON.stringify(dp));
+}
 export async function saveStravaTokens(t) {
   const cur = JSON.parse(localStorage.getItem("test.strava") || "null") || {};
   localStorage.setItem("test.strava", JSON.stringify({ ...cur, ...t }));
@@ -229,12 +236,20 @@ async function noHScroll(page, where) {
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
   await page.click('[data-tab="plan"]');
-  await page.waitForSelector(".zone-row");
+  await page.waitForSelector(".zone-line");
   const t = await page.textContent("#main");
-  ok(t.includes("Aktuell Woche 2 von 31"), "Plan: aktuelle Woche");
-  ok((await page.locator(".card.current").count()) === 1, "Plan: laufende Phase hervorgehoben");
-  ok((await page.locator(".zone-row").count()) === 5, "Plan: 5 Zonen");
-  ok(t.includes("148–163 bpm"), "Plan: HF-Werte sichtbar (vorher fehlten sie)");
+  ok((await page.textContent("#header .eyebrow")).includes("Woche 2 von 31"), "Plan: aktuelle Woche");
+  ok((await page.locator(".phase-card.is-current").count()) === 1, "Plan: laufende Phase hervorgehoben");
+  ok((await page.locator(".phase-card").count()) === 4, "Plan: 4 Phasenkarten, farblich getrennt");
+  ok((await page.locator(".zone-line").count()) === 5, "Plan: 5 Zonen");
+  ok(t.includes("148–163 bpm"), "Plan: HF-Werte sichtbar");
+  ok(t.includes("1:29:59 h"), "Plan: Zielzeit prominent");
+  ok((await page.locator(".timeline .seg").count()) === 4, "Plan: Zeitleiste über alle vier Phasen");
+  const fill = await page.locator(".timeline .seg i").first().evaluate((el) => el.getBoundingClientRect().width);
+  ok(fill > 0, `Plan: Fortschritt in der laufenden Phase sichtbar (${Math.round(fill)}px)`);
+  const tones = await page.locator(".phase-card").evaluateAll((els) =>
+    [...new Set(els.map((e) => getComputedStyle(e).backgroundColor))]);
+  ok(tones.length === 4, `Plan: jede Phase hat eine eigene Farbe (${tones.length} verschiedene)`);
   await shot(page, "07-plan");
   await noHScroll(page, "Plan");
   ok(errors.length === 0, "Plan: keine Konsolenfehler " + JSON.stringify(errors));
@@ -274,6 +289,88 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
+// ---- 10. Übungen anpassen: entfernen, hinzufügen, zurückholen ----
+{
+  const { page, ctx, errors } = await newPage();
+  await page.goto(BASE + "/index.html");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector('[data-ex="squats"]');
+  ok((await page.locator("[data-ex]").count()) === 8, "Anpassen: Ausgangslage 8 Übungen");
+
+  // Speichern-Knopf ist eine sichtbare Hauptaktion, kein weißer Kasten
+  const btn = page.locator('[data-ex="squats"] [data-action="save"]');
+  const look = await btn.evaluate((el) => ({
+    bg: getComputedStyle(el).backgroundColor,
+    text: el.textContent.trim(),
+    w: el.getBoundingClientRect().width,
+  }));
+  ok(look.bg === "rgb(15, 110, 86)", `Speichern: eingefärbt statt weiß (${look.bg})`);
+  ok(look.text === "Speichern", "Speichern: beschriftet, nicht nur ein Symbol");
+  ok(look.w > 200, `Speichern: volle Breite (${Math.round(look.w)}px)`);
+
+  await page.click('[data-action="toggle-edit"]');
+  await page.waitForSelector('[data-action="add-exercise"]');
+  ok((await page.locator('[data-action="remove-exercise"]').count()) === 8, "Anpassen: Entfernen-Knopf je Übung");
+
+  await page.click('[data-ex="deadlift"] [data-action="remove-exercise"]');
+  await page.waitForSelector('[data-action="restore-exercise"]');
+  ok((await page.locator("[data-ex]").count()) === 7, "Anpassen: Übung entfernt");
+
+  await page.fill("#new-ex-name", "Beinpresse");
+  await page.fill("#new-ex-soll", "4x10");
+  await page.click('[data-action="add-exercise"]');
+  await page.waitForSelector('[data-ex="beinpresse"]');
+  ok((await page.locator("[data-ex]").count()) === 8, "Anpassen: eigene Übung hinzugefügt");
+  ok((await page.textContent('[data-ex="beinpresse"]')).includes("Soll 4x10"), "Anpassen: Sollvorgabe übernommen");
+  ok((await page.locator('[data-ex="beinpresse"] .custom-tag').count()) === 1, "Anpassen: als eigene Übung markiert");
+
+  // Doppelte Namen werden abgefangen
+  await page.fill("#new-ex-name", "Beinpresse");
+  await page.click('[data-action="add-exercise"]');
+  ok((await page.locator("[data-ex]").count()) === 8, "Anpassen: doppelte Übung wird abgelehnt");
+
+  await page.click('[data-action="toggle-edit"]');
+  await page.waitForSelector('[data-action="toggle-sets"]');
+  await shot(page, "11-uebungen-anpassen");
+  await noHScroll(page, "Anpassen");
+
+  // In die eigene Übung eintragen und speichern
+  const bp = page.locator('[data-ex="beinpresse"]');
+  await bp.locator("[data-kg]").fill("120");
+  await bp.locator("[data-reps]").fill("10");
+  await bp.locator('[data-action="save"]').click();
+  await page.waitForSelector('[data-status="beinpresse"].ok');
+  ok((await bp.locator('[data-action="save"]').textContent()).includes("Gespeichert"),
+     "Speichern: Knopf zeigt den erledigten Zustand");
+  ok((await page.locator('[data-ex="beinpresse"].done').count()) === 1, "Speichern: Karte wird als erledigt markiert");
+
+  // Nach Reload muss die angepasste Liste stehen
+  await page.reload();
+  await page.waitForSelector("#tabbar button.active");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector('[data-ex="beinpresse"]');
+  ok((await page.locator('[data-ex="deadlift"]').count()) === 0, "Anpassen: Entfernung überlebt den Reload");
+  ok((await page.locator('[data-ex="beinpresse"] [data-kg]').inputValue()) === "120", "Anpassen: Werte der eigenen Übung bleiben");
+
+  // Zurückholen
+  await page.click('[data-action="toggle-edit"]');
+  await page.click('[data-action="restore-exercise"]');
+  await page.waitForSelector('[data-ex="deadlift"]');
+  ok((await page.locator("[data-ex]").count()) === 9,
+     "Anpassen: Übung zurückgeholt (8 aus dem Plan + die eigene)");
+
+  // Andere Tage bleiben unberührt
+  await page.click('[data-action="toggle-edit"]');
+  await page.click('[data-action="back"]');
+  await page.click('[data-date="2026-09-10"]');
+  await page.waitForSelector("[data-ex]");
+  ok((await page.locator('[data-ex="beinpresse"]').count()) === 0, "Anpassen: gilt nur für den bearbeiteten Tag");
+  ok(errors.length === 0, "Anpassen: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
 // ---- 9. Firestore verweigert Zugriff: als Firebase-Problem erkennbar ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
@@ -291,7 +388,9 @@ async function noHScroll(page, where) {
       export async function loadLogsForDate() { boom(); }
       export async function loadLogsForExercise() { boom(); }
       export async function saveStravaTokens() { boom(); }
-      export async function loadStravaTokens() { boom(); }`,
+      export async function loadStravaTokens() { boom(); }
+      export async function loadDayPlan() { boom(); }
+      export async function saveDayPlan() { boom(); }`,
   }));
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
