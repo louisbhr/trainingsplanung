@@ -19,6 +19,7 @@ export async function loadLog(d, s) { return read()[d + "_" + s] || null; }
 export async function loadLogsForDate(d) {
   const out = {}; for (const v of Object.values(read())) if (v.date === d) out[v.exercise] = v; return out;
 }
+export async function loadAllLogs() { return Object.values(read()); }
 export async function loadLogsForExercise(slug) {
   return Object.values(read()).filter((v) => v.exercise === slug).sort((a, b) => (a.date < b.date ? -1 : 1));
 }
@@ -56,6 +57,8 @@ const ACTIVITIES = [
   { id: 4, type: "Ride", name: "Rad", start_date_local: "2026-09-04T09:00:00Z", distance: 30000, moving_time: 3600 },
   { id: 5, type: "Run", name: "Easy run", start_date_local: "2026-09-02T07:00:00Z", distance: 7010, moving_time: 2680 },
   { id: 6, type: "Run", name: "Nachgeholt", start_date_local: "2026-09-10T18:30:00Z", distance: 8100, moving_time: 3050 },
+  { id: 7, type: "WeightTraining", name: "Morning Weight Training", start_date_local: "2026-09-08T10:10:00Z",
+    distance: 0, moving_time: 3868, average_heartrate: 118.4, max_heartrate: 155, suffer_score: 15 },
 ];
 
 const browser = await chromium.launch();
@@ -405,6 +408,7 @@ async function noHScroll(page, where) {
       export async function loadStravaTokens() { boom(); }
       export async function loadDayPlan() { boom(); }
       export async function saveDayPlan() { boom(); }
+      export async function loadAllLogs() { boom(); }
       export async function loadRunLinks() { boom(); }
       export async function saveRunLink() { boom(); }
       export async function clearRunLink() { boom(); }`,
@@ -522,6 +526,56 @@ async function noHScroll(page, where) {
   ok((await page.evaluate(() => document.documentElement.scrollHeight - document.documentElement.clientHeight)) <= 0,
      "Tableiste: die Seite selbst scrollt nicht mit");
   await shot(page, "15-leiste-unten");
+  await ctx.close();
+}
+
+// ---- 13. Progression aus den Wiederholungen statt RPE ----
+{
+  const { page, ctx, errors } = await newPage({ connected: true });
+  await page.addInitScript(() => {
+    // Vorwoche: Squats 3x10 bei 80 kg (Spanne voll), Deadlift 3x4 (unter Soll 3x5)
+    localStorage.setItem("test.logs", JSON.stringify({
+      "2026-09-01_squats": { date: "2026-09-01", exercise: "squats", completed: true,
+        sets: [{ kg: 80, reps: 10 }, { kg: 80, reps: 10 }, { kg: 80, reps: 10 }] },
+      "2026-09-01_deadlift": { date: "2026-09-01", exercise: "deadlift", completed: true,
+        sets: [{ kg: 100, reps: 4 }, { kg: 100, reps: 4 }, { kg: 100, reps: 4 }] },
+      "2026-09-01_klimmzuege": { date: "2026-09-01", exercise: "klimmzuege", completed: true,
+        sets: [{ kg: null, reps: 8 }, { kg: null, reps: 8 }, { kg: null, reps: 8 }] },
+    }));
+  });
+  await page.goto(BASE + "/index.html");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector(".tip");
+
+  const squats = await page.textContent('[data-ex="squats"] .tip');
+  ok(squats.includes("80 kg") && squats.includes("85 kg"),
+     `Progression: Spanne ausgeschöpft -> mehr Gewicht (${squats})`);
+  ok((await page.locator('[data-ex="squats"] .tip-up').count()) === 1, "Progression: als Steigerung eingefärbt");
+
+  const dl = await page.textContent('[data-ex="deadlift"] .tip');
+  ok(dl.includes("unter dem Soll"), `Progression: unter dem Soll erkannt (${dl})`);
+  ok((await page.locator('[data-ex="deadlift"] .tip-down').count()) === 1, "Progression: als Rücknahme eingefärbt");
+
+  const kz = await page.textContent('[data-ex="klimmzuege"] .tip');
+  ok(!kz.includes("kg"), `Progression: Körpergewichtsübung ohne Gewichtsvorschlag (${kz})`);
+
+  ok((await page.locator('[data-ex="brustpresse"] .tip').count()) === 0,
+     "Progression: ohne Vorgeschichte kein Vorschlag");
+
+  // Herzfrequenz der Einheit aus Strava
+  await page.waitForSelector(".session-card");
+  const sess = await page.textContent(".session-card");
+  ok(sess.includes("118 bpm") && sess.includes("155 bpm"), `Einheit: Herzfrequenz aus Strava (${sess.replace(/\s+/g, " ").slice(0, 80)})`);
+  ok(sess.includes("64:28 min") || sess.includes("1:04:28"), "Einheit: Dauer angezeigt");
+  ok(sess.includes("Relative Effort 15"), "Einheit: Relative Effort angezeigt");
+  await noHScroll(page, "Progression");
+  await shot(page, "16-progression");
+
+  // Kein RPE-Feld — die Eingabe bleibt kg und Wdh
+  ok((await page.locator('[data-ex="squats"] input').count()) === 2,
+     "Progression: keine zusätzliche Eingabe nötig");
+  ok(errors.length === 0, "Progression: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 

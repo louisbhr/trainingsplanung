@@ -7,8 +7,9 @@
     "serve": "http-server -p 8099 -s .",
     "test:plan": "node tests/plan.test.mjs",
     "test:runmatch": "node tests/runmatch.test.mjs",
+    "test:progression": "node tests/progression.test.mjs",
     "test:app": "node tests/app.test.mjs",
-    "test": "node tests/plan.test.mjs && node tests/runmatch.test.mjs && node tests/app.test.mjs"
+    "test": "node tests/plan.test.mjs && node tests/runmatch.test.mjs && node tests/progression.test.mjs && node tests/app.test.mjs"
   },
   "devDependencies": {
     "http-server": "^14.1.1",

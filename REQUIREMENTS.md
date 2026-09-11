@@ -46,6 +46,11 @@ Feste Randbedingungen, an denen sich jede Erweiterung messen lassen muss:
   Lauf von einem Tag davor bis drei Tage danach, ausgewiesen als
   „nachgeholt". Kein Lauf wird doppelt vergeben. Manuell korrigierbar
   („Anderen Lauf", „Passt nicht", „Zuordnung aufheben").
+- **Progressionsvorschlag statt RPE** — aus den Wiederholungen der
+  letzten Einheit leitet die App ab, ob heute mehr Gewicht dran ist
+  (Double Progression). Keine zusätzliche Eingabe im Gym.
+- **Belastung der Krafteinheit** — Ø und max. Herzfrequenz, Dauer und
+  Relative Effort kommen automatisch aus der Strava-Krafteinheit.
 - **Offline-tauglich** — Firestore mit persistentem Cache; Eingaben im
   Funkloch werden später synchronisiert.
 - **Dark Mode**, Zum-Home-Bildschirm-Manifest, fixierte Tableiste.
@@ -65,6 +70,7 @@ Datumstabellen.
 | `index.html`, `style.css`, `app.js` | Oberfläche und Ablaufsteuerung |
 | `plan.js` | Trainingsplan, Datums- und Wochenlogik |
 | `runmatch.js` | Zuordnung Strava-Läufe → Plan-Lauftage (ohne Browser testbar) |
+| `progression.js` | Gewichtsvorschlag aus den letzten Wiederholungen (ohne Browser testbar) |
 | `firebase-init.js` | Firestore, anonyme Anmeldung, Offline-Cache |
 | `strava.js` | OAuth-Ablauf und Aktivitäten-Abruf |
 | `config.js` | Worker-URL und Strava-Client-ID |
@@ -91,11 +97,12 @@ Datumstabellen.
 
 ### Qualitätssicherung
 
-`npm test` — 81 Prüfungen der Plandaten, 29 der Lauf-Zuordnung (beide
-ohne Browser), 101 Browser-Checks in Chromium gegen gestubbtes
-Firebase/Strava. Abgedeckt unter anderem: Zeitzonen um Mitternacht,
-Speichern und Wiederherstellen, verschobene Läufe, Übungen anpassen,
-Fehlerzustände, klebende Tableiste, kein horizontales Scrollen.
+`npm test` — 81 Prüfungen der Plandaten, 29 der Lauf-Zuordnung, 27 der
+Progressionslogik (alle ohne Browser), dazu 113 Browser-Checks in
+Chromium gegen gestubbtes Firebase/Strava. Abgedeckt unter anderem:
+Zeitzonen um Mitternacht, Speichern und Wiederherstellen, verschobene
+Läufe, Übungen anpassen, Progressionsvorschläge, Fehlerzustände,
+klebende Tableiste, kein horizontales Scrollen.
 
 ## 4. Bekannte Grenzen
 
@@ -128,17 +135,22 @@ Aufwand grob: **S** = ein Handgriff · **M** = eine Session · **L** = mehr.
 | # | Vorhaben | Aufwand |
 | --- | --- | --- |
 | 4 | **Dauerhafte Planänderungen** — Übungstausch nicht nur für einen Tag, sondern für alle künftigen Einheiten übernehmen. | M |
-| 5 | **RPE erfassen** — Anstrengungsgrad je Übung. Der Plan steuert die Progression darüber („+2.5 kg falls RPE ≤7"), erfasst wird er bisher nicht. Wäre auch die beste Eingangsgröße für die Trainer-Auswertung. | S |
-| 6 | **Soll/Ist im Wochenumfang** — geplante gegen gelaufene Kilometer je Woche, als Balken im Verlauf. | S |
-| 7 | **Pace über die Zeit** — echtes Zeitachsen-Diagramm statt Balken, getrennt nach Easy/Long/Tempo, um die Entwicklung Richtung 4:16 zu sehen. | M |
-| 8 | **Service Worker** — App startet auch ohne Netz. | M |
-| 9 | **Echtes Login** statt anonymer Anmeldung, Firestore-Regeln an die eigene UID binden. | M |
-| 10 | **Wettkampf-Countdown** und Formkurve auf dem Heute-Tab. | S |
-| 11 | **Export** der Trainingsdaten als CSV oder JSON. | S |
-| 12 | **Verletzungs-/Belastungsnotiz** je Tag — freies Feld, das auch in die Trainer-Auswertung einfließt. | S |
+| 5 | **Soll/Ist im Wochenumfang** — geplante gegen gelaufene Kilometer je Woche, als Balken im Verlauf. | S |
+| 6 | **Pace über die Zeit** — echtes Zeitachsen-Diagramm statt Balken, getrennt nach Easy/Long/Tempo, um die Entwicklung Richtung 4:16 zu sehen. | M |
+| 7 | **Service Worker** — App startet auch ohne Netz. | M |
+| 8 | **Echtes Login** statt anonymer Anmeldung, Firestore-Regeln an die eigene UID binden. | M |
+| 9 | **Wettkampf-Countdown** und Formkurve auf dem Heute-Tab. | S |
+| 10 | **Export** der Trainingsdaten als CSV oder JSON. | S |
+| 11 | **Verletzungs-/Belastungsnotiz** je Tag — freies Feld, das auch in die Trainer-Auswertung einfließt. | S |
 
 ### Bewusst nicht geplant
 
+- **RPE von Hand erfassen.** Im Gym soll niemand über sein Empfinden
+  nachdenken müssen. Die Progression kommt stattdessen aus den
+  Wiederholungen, die Belastung der Einheit aus der Herzfrequenz.
+  Herzfrequenz kann RPE auf Übungsebene nicht ersetzen — Strava liefert
+  zu Krafteinheiten keine einzelnen Übungen, und der Puls spiegelt beim
+  Krafttraining vor allem die Pausenlängen.
 - Mehrbenutzerbetrieb, Vereins- oder Freundesfunktionen.
 - Eigene Trainingsplan-Erstellung in der App — der Plan entsteht außerhalb.
 - Ein Build-Schritt oder ein Framework, solange es ohne geht.

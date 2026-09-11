@@ -5,12 +5,13 @@ import {
 } from "./plan.js";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
-  loadRunLinks, saveRunLink, clearRunLink,
+  loadRunLinks, saveRunLink, clearRunLink, loadAllLogs,
 } from "./firebase-init.js";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
-  formatPace, formatDuration, isWorkerConfigured,
+  formatPace, formatDuration, isWorkerConfigured, sessionForDate,
 } from "./strava.js";
+import { suggestProgression, previousEntry } from "./progression.js";
 import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js";
 
 const ICONS = {
@@ -66,6 +67,7 @@ let stravaState = { runs: null, error: null, errorSource: null, connected: null 
 let runAssignment = {};
 let runLinks = {};
 let runPickerFor = null; // Plan-Datum, für das gerade die Auswahl offen ist
+let allLogs = null; // Kraft-Verlauf, für die Progressionsvorschläge
 
 function badge(text, color, bg) {
   return `<span class="badge" style="background:${bg};color:${color}">${esc(text)}</span>`;
@@ -184,7 +186,11 @@ async function renderKraftDay(info, iso) {
   let saved = {};
   let loadError = null;
   try {
-    [saved, dayPlan] = await Promise.all([loadLogsForDate(iso), loadDayPlan(iso)]);
+    [saved, dayPlan, allLogs] = await Promise.all([
+      loadLogsForDate(iso),
+      loadDayPlan(iso),
+      allLogs ? Promise.resolve(allLogs) : loadAllLogs(),
+    ]);
   } catch (err) {
     console.error(err);
     dayPlan = { removed: [], added: [] };
@@ -196,6 +202,30 @@ async function renderKraftDay(info, iso) {
   currentKraftDay = { info, iso };
   buildLogState(effectiveExercises(info), saved);
   paintKraftDay(info, iso, loadError);
+  fillSessionSlot(iso);
+}
+
+// Herzfrequenz und Dauer der Einheit aus Strava — ohne jede Eingabe.
+// Über die einzelne Übung sagt das nichts, über die Einheit als Ganzes
+// und ihren Verlauf über die Wochen schon.
+async function fillSessionSlot(iso) {
+  const slot = document.getElementById("session-slot");
+  if (!slot) return;
+  const s = await loadStrava();
+  if (!slot.isConnected || s.error || !s.connected) return;
+  const session = sessionForDate(iso);
+  if (!session) return;
+  slot.innerHTML = `<div class="card session-card">
+    <div class="row" style="justify-content:space-between;">
+      <p class="name">Einheit (Strava)</p>
+      <span class="hint">${esc(formatDuration(session.movingTimeSec))}</span>
+    </div>
+    <div class="metric-grid" style="margin-top:8px;">
+      <div><p class="metric-label">Ø HF</p><p class="metric-value" style="font-size:18px;">${session.avgHr ? session.avgHr + " bpm" : "–"}</p></div>
+      <div><p class="metric-label">Max HF</p><p class="metric-value" style="font-size:18px;">${session.maxHr ? session.maxHr + " bpm" : "–"}</p></div>
+    </div>
+    ${session.effort != null ? `<p class="hint" style="margin-top:6px;">Relative Effort ${session.effort}</p>` : ""}
+  </div>`;
 }
 
 // Plan-Übungen ohne die entfernten, plus die selbst hinzugefügten
@@ -217,12 +247,21 @@ function buildLogState(exercises, saved) {
       : Array.from({ length: count }, () => ({ kg: null, reps: null }));
     logState.set(s, {
       slug: s, name: ex.name, soll: ex.soll, hint: ex.hint || "", custom: !!ex.custom,
+      tip: progressionTip(s, ex.soll),
       setCount: Math.max(count, sets.length),
       sets,
       perSet: !sameSets(sets),
       saved: !!rec?.completed,
     });
   }
+}
+
+// Was die Zahlen vom letzten Mal für heute nahelegen — ersetzt die
+// Frage nach dem Anstrengungsgrad.
+function progressionTip(exSlug, soll) {
+  if (!allLogs || !currentKraftDay.iso) return null;
+  const history = allLogs.filter((l) => l.exercise === exSlug);
+  return suggestProgression(soll, previousEntry(history, currentKraftDay.iso));
 }
 
 function paintKraftDay(info, iso, loadError) {
@@ -248,6 +287,7 @@ function paintKraftDay(info, iso, loadError) {
          <button class="small-btn" data-action="toggle-edit">${editMode ? "Fertig" : "Anpassen"}</button>
        </div>
      </div>` +
+    `<div id="session-slot"></div>` +
     [...logState.values()].map(exerciseCard).join("") +
     (editMode
       ? removedList.map((ex) => `<div class="card removed">
@@ -279,6 +319,7 @@ function exerciseCard(st) {
       <div style="min-width:0;">
         <p class="name">${esc(st.name)}${st.custom ? ' <span class="custom-tag">eigene</span>' : ""}</p>
         <p class="hint">Soll ${esc(st.soll)}${st.hint ? " · " + esc(st.hint) : ""}</p>
+        ${st.tip ? `<p class="tip tip-${st.tip.level}">${esc(st.tip.text)}</p>` : ""}
       </div>
       ${editMode
         ? `<button class="small-btn danger-btn" data-action="remove-exercise" data-slug="${st.slug}">Entfernen</button>`
