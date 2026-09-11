@@ -2,17 +2,17 @@ import {
   goal, zones, phases, weeks, exerciseCatalog,
   PLAN_START, TOTAL_WEEKS,
   toISO, fromISO, addDays, weekStart, weekDates, weekNumberFor,
-} from "./plan.js";
+} from "./plan.js?v=202609110852";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs,
-} from "./firebase-init.js";
+} from "./firebase-init.js?v=202609110852";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js";
-import { suggestProgression, previousEntry } from "./progression.js";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js";
+} from "./strava.js?v=202609110852";
+import { suggestProgression, previousEntry } from "./progression.js?v=202609110852";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609110852";
 
 const ICONS = {
   run: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="4" r="1.5" fill="currentColor" stroke="none"/><path d="M13 7l-2 3 3 2 1 5M11 10l-4 1-2 4M8 14l-3 1M13.5 11l3 1 2-2"/></svg>',

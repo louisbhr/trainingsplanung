@@ -20,6 +20,10 @@ npm test               # Plan-Daten + Browser-Tests
 - `progression.test.mjs` — prüft den Gewichtsvorschlag aus den
   Wiederholungen der Vorwoche: Spanne ausgeschöpft, unter dem Soll,
   Körpergewichts- und Zeitübungen, Deload.
+- `version.test.mjs` — prüft, dass der Versionsstempel in `index.html`
+  und in allen Modul-Importen gesetzt und überall derselbe ist. Fängt
+  den Fall ab, dass ein neues Modul angelegt, aber im Stempel-Skript
+  vergessen wurde.
 - `app.test.mjs` — startet Chromium gegen `http://127.0.0.1:8099`.
   Firebase wird durch einen localStorage-Stub ersetzt, die Strava-API
   durch feste Beispieldaten — es werden also keine echten Konten

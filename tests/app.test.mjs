@@ -66,7 +66,7 @@ const browser = await chromium.launch();
 async function newPage({ connected = false, tz = "Europe/Berlin" } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: tz });
   const errors = [];
-  await ctx.route("**/firebase-init.js", (r) =>
+  await ctx.route(/firebase-init\.js/, (r) =>
     r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => {
     const page = new URL(r.request().url()).searchParams.get("page");
@@ -276,7 +276,7 @@ async function noHScroll(page, where) {
 // ---- 7. Zeitzonen-Regression: 00:30 Berlin = Vortag in UTC ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
-  await ctx.route("**/firebase-init.js", (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-08T22:30:00Z")); // = 09.09. 00:30 Berlin
   await page.goto(BASE + "/index.html");
@@ -289,10 +289,10 @@ async function noHScroll(page, where) {
 // ---- 8. Worker nicht konfiguriert -> klarer Hinweis statt Hänger ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
-  await ctx.route("**/firebase-init.js", (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   // config.js hat inzwischen eine echte Worker-URL — den unkonfigurierten
   // Zustand deshalb hier gezielt nachstellen.
-  await ctx.route("**/config.js", (r) => r.fulfill({
+  await ctx.route(/config\.js/, (r) => r.fulfill({
     contentType: "application/javascript",
     body: 'export const STRAVA_WORKER_URL = ""; export const STRAVA_CLIENT_ID = "277715"; export const isWorkerConfigured = false;',
   }));
@@ -391,7 +391,7 @@ async function noHScroll(page, where) {
 // ---- 9. Firestore verweigert Zugriff: als Firebase-Problem erkennbar ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
-  await ctx.route("**/firebase-init.js", (r) => r.fulfill({
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({
     contentType: "application/javascript",
     body: `
       class FirebaseAccessError extends Error {

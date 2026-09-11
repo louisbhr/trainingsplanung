@@ -75,6 +75,7 @@ Datumstabellen.
 | `plan.js` | Trainingsplan, Datums- und Wochenlogik |
 | `runmatch.js` | Zuordnung Strava-Läufe → Plan-Lauftage (ohne Browser testbar) |
 | `progression.js` | Gewichtsvorschlag aus den letzten Wiederholungen (ohne Browser testbar) |
+| `tools/bump-version.mjs` | Versionsstempel gegen den Browser-Cache |
 | `firebase-init.js` | Firestore, anonyme Anmeldung, Offline-Cache |
 | `strava.js` | OAuth-Ablauf und Aktivitäten-Abruf |
 | `config.js` | Worker-URL und Strava-Client-ID |
@@ -106,7 +107,8 @@ Rückkehr des Originals.
 ### Qualitätssicherung
 
 `npm test` — 81 Prüfungen der Plandaten, 29 der Lauf-Zuordnung, 27 der
-Progressionslogik (alle ohne Browser), dazu 132 Browser-Checks in
+Progressionslogik und die Versionsstempel (alle ohne Browser), dazu 132
+Browser-Checks in
 Chromium gegen gestubbtes Firebase/Strava. Abgedeckt unter anderem:
 Zeitzonen um Mitternacht, Speichern und Wiederherstellen, verschobene
 Läufe, Übungen anpassen und ersetzen, Progressionsvorschläge,
@@ -120,8 +122,9 @@ Fehlerzustände, Glasleiste, kein horizontales Scrollen.
   privates Tool vertretbar, aber kein echter Schutz.
 - **Kein Service Worker** — ohne Netz startet die App nicht, nur bereits
   geladene Daten und Eingaben überleben.
-- **Browser-Cache** — nach einem Deploy braucht es mitunter einen harten
-  Reload, weil GitHub Pages CSS und JS für zehn Minuten cacht.
+- **Browser-Cache** — gelöst über einen Versionsstempel
+  (`npm run version` vor jedem Commit). Wird er vergessen, greift wieder
+  der alte Cache; `npm test` warnt, wenn er inkonsistent ist.
 - **Client-Geheimnisse** — das Strava-Client-Secret der ersten Fassung
   liegt weiterhin in der Git-Historie (Commit `5160b7d`) und wurde
   deshalb rotiert.
@@ -136,19 +139,18 @@ Aufwand grob: **S** = ein Handgriff · **M** = eine Session · **L** = mehr.
 | --- | --- | --- |
 | 1 | **Trainer-Auswertung.** Worker-Endpunkt `/coach` ruft die Claude API auf und liefert eine kurze Einschätzung zum Trainingsfortschritt: Verlauf der Kraftwerte gegen den Plan, Laufumfang und Pace-Entwicklung, Empfehlung fürs Weitermachen. Einmal pro Woche automatisch, Ergebnis in Firestore, plus Knopf „Neu einschätzen". Endpunkt an die Firebase-Anmeldung binden und Tageslimit setzen, sonst zahlt jeder Fremdaufruf auf die Rechnung ein. Grob 8 Cent je Auswertung. **Verabredet für Ende September, wenn genug echte Daten da sind.** | M |
 | 2 | **Wochen 9–31 ausformulieren** — nach der Re-Kalibrierung am Ende von Phase 1 (Woche 8, ab 19.10.2026). Gleiches Muster wie Woche 1–8 in `plan.js`. | M |
-| 3 | **Versionsstempel an CSS und JS**, damit ein Deploy das Nachladen erzwingt. Bei ES-Modulen sorgfältig, sonst mischt sich Alt und Neu. | S |
 
 ### Danach
 
 | # | Vorhaben | Aufwand |
 | --- | --- | --- |
-| 4 | **Dauerhafte Planänderungen** — Übungstausch nicht nur für einen Tag, sondern für alle künftigen Einheiten übernehmen. | M |
-| 5 | **Soll/Ist im Wochenumfang** — geplante gegen gelaufene Kilometer je Woche, als Balken im Verlauf. | S |
-| 6 | **Pace über die Zeit** — echtes Zeitachsen-Diagramm statt Balken, getrennt nach Easy/Long/Tempo, um die Entwicklung Richtung 4:16 zu sehen. | M |
-| 7 | **Service Worker** — App startet auch ohne Netz. | M |
-| 8 | **Echtes Login** statt anonymer Anmeldung, Firestore-Regeln an die eigene UID binden. | M |
-| 9 | **Wettkampf-Countdown** und Formkurve auf dem Heute-Tab. | S |
-| 12 | **Echte Lichtbrechung in der Glasleiste**, sobald WebKit `backdrop-filter: url()` mit SVG-Verzerrungsfiltern unterstützt. Heute nur in Chromium möglich, auf dem iPhone wirkungslos; standardisiert wird es gerade unter [w3c/svgwg#1142](https://github.com/w3c/svgwg/issues/1142). Bis dahin bleibt es bei Unschärfe, Sättigung und Lichtkante. | S |
+| 3 | **Dauerhafte Planänderungen** — Übungstausch nicht nur für einen Tag, sondern für alle künftigen Einheiten übernehmen. | M |
+| 4 | **Soll/Ist im Wochenumfang** — geplante gegen gelaufene Kilometer je Woche, als Balken im Verlauf. | S |
+| 5 | **Pace über die Zeit** — echtes Zeitachsen-Diagramm statt Balken, getrennt nach Easy/Long/Tempo, um die Entwicklung Richtung 4:16 zu sehen. | M |
+| 6 | **Service Worker** — App startet auch ohne Netz. | M |
+| 7 | **Echtes Login** statt anonymer Anmeldung, Firestore-Regeln an die eigene UID binden. | M |
+| 8 | **Wettkampf-Countdown** und Formkurve auf dem Heute-Tab. | S |
+| 9 | **Echte Lichtbrechung in der Glasleiste**, sobald WebKit `backdrop-filter: url()` mit SVG-Verzerrungsfiltern unterstützt. Heute nur in Chromium möglich, auf dem iPhone wirkungslos; standardisiert wird es gerade unter [w3c/svgwg#1142](https://github.com/w3c/svgwg/issues/1142). Bis dahin bleibt es bei Unschärfe, Sättigung und Lichtkante. | S |
 | 10 | **Export** der Trainingsdaten als CSV oder JSON. | S |
 | 11 | **Verletzungs-/Belastungsnotiz** je Tag — freies Feld, das auch in die Trainer-Auswertung einfließt. | S |
 
