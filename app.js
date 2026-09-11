@@ -5,11 +5,13 @@ import {
 } from "./plan.js";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
+  loadRunLinks, saveRunLink, clearRunLink,
 } from "./firebase-init.js";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
-  matchRunForDate, formatPace, formatDuration, isWorkerConfigured,
+  formatPace, formatDuration, isWorkerConfigured,
 } from "./strava.js";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js";
 
 const ICONS = {
   run: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="4" r="1.5" fill="currentColor" stroke="none"/><path d="M13 7l-2 3 3 2 1 5M11 10l-4 1-2 4M8 14l-3 1M13.5 11l3 1 2-2"/></svg>',
@@ -60,6 +62,10 @@ let currentKraftDay = { info: null, iso: null };
 let editMode = false;
 // Strava: null = noch nicht geladen, false = nicht verbunden
 let stravaState = { runs: null, error: null, errorSource: null, connected: null };
+// Plan-Datum -> { run, offset, source }
+let runAssignment = {};
+let runLinks = {};
+let runPickerFor = null; // Plan-Datum, für das gerade die Auswahl offen ist
 
 function badge(text, color, bg) {
   return `<span class="badge" style="background:${bg};color:${color}">${esc(text)}</span>`;
@@ -473,6 +479,10 @@ async function loadStrava({ force = false } = {}) {
     const connected = await isAuthorized();
     stravaState.connected = connected;
     stravaState.runs = connected ? await fetchRecentRuns(STRAVA_SINCE, { force }) : null;
+    if (connected) {
+      runLinks = await loadRunLinks();
+      recomputeAssignment();
+    }
   } catch (err) {
     console.error(err);
     stravaState.error = err.message;
@@ -483,6 +493,43 @@ async function loadStrava({ force = false } = {}) {
     if (stravaState.errorSource === "firebase") stravaState.connected = null;
   }
   return stravaState;
+}
+
+// Alle Lauftage des Plans — Grundlage der Zuordnung
+function allPlanRunDays() {
+  const out = [];
+  for (let w = 1; w <= TOTAL_WEEKS; w++) {
+    const week = weeks[w];
+    if (!week || week.placeholder) continue;
+    for (const r of week.runs) out.push({ date: r.date, distKm: parseFloat(r.dist) || 0 });
+  }
+  return out;
+}
+
+function recomputeAssignment() {
+  runAssignment = assignRuns(allPlanRunDays(), stravaState.runs || [], runLinks);
+}
+
+function setRunLink(planDate, activityId) {
+  runLinks[planDate] = { activityId };
+  recomputeAssignment();
+  runPickerFor = null;
+  render();
+  saveRunLink(planDate, activityId).catch((err) => {
+    console.error(err);
+    toast("Zuordnung nicht gespeichert: " + err.message, true);
+  });
+}
+
+function resetRunLink(planDate) {
+  delete runLinks[planDate];
+  recomputeAssignment();
+  runPickerFor = null;
+  render();
+  clearRunLink(planDate).catch((err) => {
+    console.error(err);
+    toast("Zuordnung nicht zurückgesetzt: " + err.message, true);
+  });
 }
 
 async function renderRunDay(info, iso) {
@@ -536,25 +583,74 @@ function stravaResultHTML(s, iso) {
   if (s.connected === false) {
     return `<button class="primary-btn" data-action="connect-strava" style="margin-top:10px;">Mit Strava verbinden</button>`;
   }
-  const match = matchRunForDate(s.runs, iso);
-  if (!match) {
-    return `<div class="row" style="margin-top:10px;justify-content:center;gap:8px;">
-      <span class="center-note" style="margin:0;">Noch kein passender Lauf in Strava.</span>
-      <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
-    </div>`;
+
+  const a = runAssignment[iso];
+  const picker = runPickerFor === iso ? runPickerHTML(s, iso) : "";
+
+  if (!a || !a.run) {
+    return `<div class="card">
+        <p class="name">Noch kein Lauf zugeordnet</p>
+        <p class="hint">${a?.source === "ignored"
+          ? "Für diesen Tag ist bewusst kein Lauf hinterlegt."
+          : "In Strava liegt kein Lauf an diesem Tag und keiner in den Tagen danach."}</p>
+        <div class="row" style="margin-top:8px;gap:8px;">
+          <button data-action="pick-run" data-date="${iso}">Lauf zuordnen</button>
+          ${a?.source === "ignored" ? `<button data-action="reset-run" data-date="${iso}">Automatik zurück</button>` : ""}
+          <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
+        </div>
+      </div>${picker}`;
   }
-  return `<div class="card" style="margin-top:10px;">
+
+  const m = a.run;
+  const shifted = a.offset !== 0;
+  return `<div class="card${shifted ? " shifted" : ""}" style="margin-top:10px;">
     <div class="row" style="justify-content:space-between;">
       <p class="name">Erfasst (Strava)</p>
       <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
     </div>
-    <p class="hint">${esc(match.name)}</p>
+    <p class="hint">${esc(m.name)}</p>
+    ${shifted
+      ? `<p class="shift-note">${dayNameDE(m.date)}, ${shortDate(m.date)} · ${esc(offsetLabel(a.offset))}</p>`
+      : ""}
     <div class="metric-grid" style="margin-top:8px;">
-      <div><p class="metric-label">Distanz</p><p class="metric-value">${match.distanceKm.toFixed(1)} km</p></div>
-      <div><p class="metric-label">Pace</p><p class="metric-value" style="font-size:18px;">${esc(match.paceLabel)}</p></div>
-      <div><p class="metric-label">Dauer</p><p class="metric-value" style="font-size:18px;">${esc(formatDuration(match.movingTimeSec))}</p></div>
-      <div><p class="metric-label">Ø HF</p><p class="metric-value" style="font-size:18px;">${match.avgHr ? match.avgHr + " bpm" : "–"}</p></div>
+      <div><p class="metric-label">Distanz</p><p class="metric-value">${m.distanceKm.toFixed(1)} km</p></div>
+      <div><p class="metric-label">Pace</p><p class="metric-value" style="font-size:18px;">${esc(m.paceLabel)}</p></div>
+      <div><p class="metric-label">Dauer</p><p class="metric-value" style="font-size:18px;">${esc(formatDuration(m.movingTimeSec))}</p></div>
+      <div><p class="metric-label">Ø HF</p><p class="metric-value" style="font-size:18px;">${m.avgHr ? m.avgHr + " bpm" : "–"}</p></div>
     </div>
+    <div class="row" style="margin-top:10px;gap:8px;">
+      ${a.source === "auto"
+        ? `<button class="small-btn" data-action="ignore-run" data-date="${iso}">Passt nicht</button>` : ""}
+      ${a.source === "manual"
+        ? `<button class="small-btn" data-action="reset-run" data-date="${iso}">Zuordnung aufheben</button>` : ""}
+      <button class="small-btn" data-action="pick-run" data-date="${iso}">Anderen Lauf</button>
+    </div>
+  </div>${picker}`;
+}
+
+function runPickerHTML(s, iso) {
+  const options = pickableRuns(s.runs || [], runAssignment, iso);
+  if (!options.length) {
+    return `<div class="card">
+      <p class="name">Kein Lauf zur Auswahl</p>
+      <p class="hint">In Strava liegt im Umkreis von sieben Tagen kein freier Lauf.</p>
+      <button data-action="close-picker" style="margin-top:8px;">Schließen</button></div>`;
+  }
+  const current = runAssignment[iso]?.run?.id;
+  return `<div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <p class="name">Lauf für ${dayNameDE(iso)}, ${shortDate(iso)}</p>
+      <button class="small-btn" data-action="close-picker">Schließen</button>
+    </div>
+    ${options.map((r) => {
+      const off = daysBetween(iso, r.date);
+      return `<button class="pick-row${String(r.id) === String(current) ? " on" : ""}"
+          data-action="assign-run" data-date="${iso}" data-run="${r.id}">
+        <span class="pick-main">${dayNameDE(r.date)}, ${shortDate(r.date)}${off ? ` · ${off > 0 ? "+" : ""}${off} ${Math.abs(off) === 1 ? "Tag" : "Tage"}` : " · am Plantag"}</span>
+        <span class="pick-sub">${esc(r.name)} · ${r.distanceKm.toFixed(1)} km · ${esc(r.paceLabel)}</span>
+      </button>`;
+    }).join("")}
+    <button data-action="ignore-run" data-date="${iso}" style="width:100%;margin-top:8px;">Kein Lauf an diesem Tag</button>
   </div>`;
 }
 
@@ -734,8 +830,11 @@ async function renderRunHistory() {
 }
 
 function sumKm(runs, days) {
-  const cutoff = addDays(todayISO(), -days + 1);
-  return runs.filter((r) => r.date >= cutoff).reduce((a, r) => a + r.distanceKm, 0);
+  const today = todayISO();
+  const cutoff = addDays(today, -days + 1);
+  // Obergrenze heute: ein Lauf mit Datum in der Zukunft (Zeitzone, manuell
+  // in Strava nachgetragen) gehört nicht in „die letzten 7 Tage".
+  return runs.filter((r) => r.date >= cutoff && r.date <= today).reduce((a, r) => a + r.distanceKm, 0);
 }
 
 // Balken mit echten Höhen — Werte werden auf 8..90 px abgebildet.
@@ -814,8 +913,8 @@ document.getElementById("app").addEventListener("click", async (e) => {
   const action = target.dataset.action;
 
   if (action === "reload") return location.reload();
-  if (action === "back") { state.selectedDate = null; return render(); }
-  if (action === "open-day") { state.selectedDate = target.dataset.date; return render(); }
+  if (action === "back") { state.selectedDate = null; runPickerFor = null; return render(); }
+  if (action === "open-day") { state.selectedDate = target.dataset.date; runPickerFor = null; return render(); }
   if (action === "week-prev") { state.weekNo = Math.max(1, state.weekNo - 1); return render(); }
   if (action === "week-next") { state.weekNo = Math.min(TOTAL_WEEKS, state.weekNo + 1); return render(); }
   if (action === "week-today") { state.weekNo = weekNumberFor(todayISO()); return render(); }
@@ -827,9 +926,15 @@ document.getElementById("app").addEventListener("click", async (e) => {
   if (action === "save") return saveExercise(target.dataset.slug, currentDateISO());
   if (action === "hist-mode") { state.historyMode = target.dataset.mode; return render(); }
   if (action === "connect-strava") return startAuthorization();
+  if (action === "pick-run") { runPickerFor = target.dataset.date; return render(); }
+  if (action === "close-picker") { runPickerFor = null; return render(); }
+  if (action === "assign-run") return setRunLink(target.dataset.date, Number(target.dataset.run));
+  if (action === "ignore-run") return setRunLink(target.dataset.date, null);
+  if (action === "reset-run") return resetRunLink(target.dataset.date);
   if (action === "reload-strava") {
     target.disabled = true;
     await loadStrava({ force: true });
+    recomputeAssignment();
     return render();
   }
 });
@@ -844,6 +949,7 @@ document.querySelectorAll("#tabbar button").forEach((btn) => {
     btn.classList.add("active");
     state.tab = btn.dataset.tab;
     state.selectedDate = null;
+    runPickerFor = null;
     if (state.tab === "woche") state.weekNo = weekNumberFor(todayISO());
     render();
   });

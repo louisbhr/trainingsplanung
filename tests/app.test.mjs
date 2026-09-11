@@ -22,6 +22,19 @@ export async function loadLogsForDate(d) {
 export async function loadLogsForExercise(slug) {
   return Object.values(read()).filter((v) => v.exercise === slug).sort((a, b) => (a.date < b.date ? -1 : 1));
 }
+export async function loadRunLinks() {
+  return JSON.parse(localStorage.getItem("test.runlinks") || "{}");
+}
+export async function saveRunLink(date, activityId) {
+  const all = JSON.parse(localStorage.getItem("test.runlinks") || "{}");
+  all[date] = { activityId: activityId ?? null };
+  localStorage.setItem("test.runlinks", JSON.stringify(all));
+}
+export async function clearRunLink(date) {
+  const all = JSON.parse(localStorage.getItem("test.runlinks") || "{}");
+  delete all[date];
+  localStorage.setItem("test.runlinks", JSON.stringify(all));
+}
 export async function loadDayPlan(dateISO) {
   const d = JSON.parse(localStorage.getItem("test.dayplan." + dateISO) || "null");
   return { removed: d?.removed || [], added: d?.added || [] };
@@ -42,6 +55,7 @@ const ACTIVITIES = [
   { id: 3, type: "Run", name: "Long run", start_date_local: "2026-09-05T09:00:00Z", distance: 12030, moving_time: 4700, average_heartrate: 151 },
   { id: 4, type: "Ride", name: "Rad", start_date_local: "2026-09-04T09:00:00Z", distance: 30000, moving_time: 3600 },
   { id: 5, type: "Run", name: "Easy run", start_date_local: "2026-09-02T07:00:00Z", distance: 7010, moving_time: 2680 },
+  { id: 6, type: "Run", name: "Nachgeholt", start_date_local: "2026-09-10T18:30:00Z", distance: 8100, moving_time: 3050 },
 ];
 
 const browser = await chromium.launch();
@@ -220,11 +234,11 @@ async function noHScroll(page, where) {
 
   await page.click('[data-action="hist-mode"][data-mode="lauf"]');
   await page.waitForSelector(".bars");
-  ok((await page.locator(".bar").count()) === 4, "Verlauf Lauf: 4 Läufe (Radfahrt gefiltert)");
+  ok((await page.locator(".bar").count()) === 5, "Verlauf Lauf: 5 Läufe (Radfahrt gefiltert)");
   const h2 = await page.locator(".bar").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
   ok(new Set(h2).size > 1 && Math.min(...h2) >= 8, `Verlauf Lauf: Balken haben echte Höhen (${h2.join(", ")})`);
   const t = await page.textContent("#main");
-  ok(t.includes("29.1 km"), "Verlauf Lauf: 7-Tage-Summe korrekt");
+  ok(t.includes("29.1 km"), "Verlauf Lauf: 7-Tage-Summe zählt nur bis heute");
   await shot(page, "06-verlauf-lauf");
   await noHScroll(page, "Verlauf Lauf");
   ok(errors.length === 0, "Verlauf: keine Konsolenfehler " + JSON.stringify(errors));
@@ -390,7 +404,10 @@ async function noHScroll(page, where) {
       export async function saveStravaTokens() { boom(); }
       export async function loadStravaTokens() { boom(); }
       export async function loadDayPlan() { boom(); }
-      export async function saveDayPlan() { boom(); }`,
+      export async function saveDayPlan() { boom(); }
+      export async function loadRunLinks() { boom(); }
+      export async function saveRunLink() { boom(); }
+      export async function clearRunLink() { boom(); }`,
   }));
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
@@ -416,6 +433,95 @@ async function noHScroll(page, where) {
   await page.waitForTimeout(7000); // länger als die Toast-Dauer
   ok((await page.locator("#main .error-card").count()) === 1, "Krafttag: Meldung verschwindet nicht wieder");
   await shot(page, "10-firebase-fehler-krafttag");
+  await ctx.close();
+}
+
+// ---- 11. Verschobener Lauf: Mittwoch geplant, Donnerstag gelaufen ----
+{
+  const { page, ctx, errors } = await newPage({ connected: true });
+  await page.goto(BASE + "/index.html");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-09"]'); // Mi = Easy run + 4x20s
+  await page.waitForSelector("#strava-slot .card");
+  const txt = await page.textContent("#strava-slot");
+  ok(txt.includes("Erfasst (Strava)"), "Verschoben: Lauf wird trotzdem gefunden");
+  ok(txt.includes("Nachgeholt"), "Verschoben: der richtige Lauf (Do 10.09.)");
+  ok(txt.includes("einen Tag später nachgeholt"), "Verschoben: als nachgeholt ausgewiesen");
+  ok(txt.includes("Do, 10.09."), "Verschoben: tatsächliches Datum sichtbar");
+  ok((await page.locator("#strava-slot .card.shifted").count()) === 1, "Verschoben: optisch markiert");
+  await shot(page, "13-verschobener-lauf");
+
+  // Der Montagslauf darf davon unberührt bleiben
+  await page.click('[data-action="back"]');
+  await page.click('[data-date="2026-09-07"]');
+  await page.waitForSelector("#strava-slot .card");
+  const mo = await page.textContent("#strava-slot");
+  ok(mo.includes("8.0 km") && !mo.includes("nachgeholt"), "Verschoben: exakter Treffer bleibt exakt");
+
+  // "Passt nicht" -> Automatik aus, Angebot zur Zuordnung
+  await page.click('[data-action="back"]');
+  await page.click('[data-date="2026-09-09"]');
+  await page.waitForSelector('[data-action="ignore-run"]');
+  await page.click('[data-action="ignore-run"]');
+  await page.waitForSelector('[data-action="pick-run"]');
+  ok((await page.textContent("#strava-slot")).includes("bewusst kein Lauf"),
+     "Verschoben: 'Passt nicht' merkt sich die Entscheidung");
+
+  // Manuell zuordnen
+  await page.click('[data-action="pick-run"]');
+  await page.waitForSelector(".pick-row");
+  const rows = await page.locator(".pick-row .pick-main").allTextContents();
+  ok(rows.length > 0 && rows[0].includes("Do, 10.09."), `Auswahl: nächstliegender Lauf zuerst (${rows[0]})`);
+  ok(rows[0].includes("+1 Tag") && !rows[0].includes("+1 Tage"), `Auswahl: Einzahl bei einem Tag (${rows[0]})`);
+  await noHScroll(page, "Lauf-Auswahl");
+  await shot(page, "14-lauf-zuordnen");
+  await page.click('.pick-row');
+  await page.waitForSelector("#strava-slot .card.shifted");
+  ok((await page.textContent("#strava-slot")).includes("Zuordnung aufheben"),
+     "Auswahl: manuell zugeordnet");
+
+  // Überlebt den Reload
+  await page.reload();
+  await page.waitForSelector("#tabbar button.active");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-09"]');
+  await page.waitForSelector("#strava-slot .card");
+  ok((await page.textContent("#strava-slot")).includes("Nachgeholt"), "Zuordnung überlebt den Reload");
+
+  // Zurück auf Automatik
+  await page.click('[data-action="reset-run"]');
+  await page.waitForSelector("#strava-slot .card");
+  ok((await page.textContent("#strava-slot")).includes("Passt nicht"),
+     "Zurücksetzen: wieder automatisch zugeordnet");
+  ok(errors.length === 0, "Verschoben: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 12. Tableiste klebt unten ----
+{
+  const { page, ctx } = await newPage({ connected: true });
+  await page.goto(BASE + "/index.html");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]'); // Krafttag, lange Liste
+  await page.waitForSelector("[data-ex]");
+
+  const vh = 844;
+  const before = await page.locator("#tabbar").boundingBox();
+  ok(Math.abs(before.y + before.height - vh) < 2,
+     `Tableiste: sitzt am unteren Rand (${Math.round(before.y + before.height)} von ${vh})`);
+
+  const scrolled = await page.evaluate(() => {
+    const m = document.getElementById("main");
+    m.scrollTop = m.scrollHeight;
+    return { top: m.scrollTop, scrollable: m.scrollHeight > m.clientHeight };
+  });
+  ok(scrolled.scrollable && scrolled.top > 100, `Tableiste: Inhalt ist scrollbar (${scrolled.top}px)`);
+
+  const after = await page.locator("#tabbar").boundingBox();
+  ok(Math.abs(after.y - before.y) < 1, "Tableiste: bleibt beim Scrollen an Ort und Stelle");
+  ok((await page.evaluate(() => document.documentElement.scrollHeight - document.documentElement.clientHeight)) <= 0,
+     "Tableiste: die Seite selbst scrollt nicht mit");
+  await shot(page, "15-leiste-unten");
   await ctx.close();
 }
 

@@ -14,6 +14,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  deleteDoc,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   getAuth,
@@ -156,6 +157,30 @@ export async function saveDayPlan(dateISO, dayPlan) {
       { merge: true }
     )
   );
+}
+
+// --- Zuordnung von Strava-Läufen zu Plan-Lauftagen ---
+// Doc-Id ist das Plan-Datum. activityId null heißt: an dem Tag bewusst
+// kein Lauf, die automatische Zuordnung soll nichts hineinraten.
+export async function loadRunLinks() {
+  await ensureSignedIn();
+  const snap = await fb(() => getDocs(collection(db, "runlinks")));
+  const out = {};
+  snap.forEach((d) => (out[d.id] = { activityId: d.data().activityId ?? null }));
+  return out;
+}
+
+export async function saveRunLink(planDateISO, activityId) {
+  await ensureSignedIn();
+  await fb(() =>
+    setDoc(doc(db, "runlinks", planDateISO), { activityId: activityId ?? null, updatedAt: Date.now() })
+  );
+}
+
+// Zurück auf Automatik
+export async function clearRunLink(planDateISO) {
+  await ensureSignedIn();
+  await fb(() => deleteDoc(doc(db, "runlinks", planDateISO)));
 }
 
 // --- Strava-Tokens ---

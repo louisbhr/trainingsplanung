@@ -14,6 +14,9 @@ npm test               # Plan-Daten + Browser-Tests
 - `plan.test.mjs` — prüft die Plan-Daten ohne Browser: Wochennummern
   (inkl. Zeitumstellung), Wochentage der Kraft-/Lauftage, Vollständigkeit
   der Wochen 1–31.
+- `runmatch.test.mjs` — prüft die Zuordnung von Strava-Läufen zu
+  Plan-Lauftagen ohne Browser: exakte Treffer, nachgeholte Läufe,
+  manuelle Zuordnung, und dass kein Lauf doppelt vergeben wird.
 - `app.test.mjs` — startet Chromium gegen `http://127.0.0.1:8099`.
   Firebase wird durch einen localStorage-Stub ersetzt, die Strava-API
   durch feste Beispieldaten — es werden also keine echten Konten
