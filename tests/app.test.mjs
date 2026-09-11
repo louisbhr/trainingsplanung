@@ -681,6 +681,56 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
+// ---- 16. Nur senkrecht scrollen, nichts zoomt ungefragt ----
+{
+  const { page, ctx } = await newPage({ connected: true });
+  await page.goto(BASE + "/index.html");
+
+  // Jedes Feld, das man antippen kann, muss mindestens 16px haben —
+  // darunter zoomt iOS Safari hinein und die Seite lässt sich danach
+  // seitlich schieben.
+  const views = [
+    ["Krafttag", async () => { await page.click('[data-tab="woche"]'); await page.click('[data-date="2026-09-08"]'); await page.waitForSelector("[data-ex]"); }],
+    ["Übung hinzufügen", async () => { await page.click('[data-action="quick-add"]'); await page.waitForSelector("#new-ex-name"); }],
+    ["Verlauf", async () => { await page.click('[data-tab="verlauf"]'); await page.waitForSelector("#ex-picker"); }],
+  ];
+  for (const [name, go] of views) {
+    await go();
+    const small = await page.locator("input, select, textarea").evaluateAll((els) =>
+      els.map((el) => ({ tag: el.tagName, type: el.type, px: parseFloat(getComputedStyle(el).fontSize) }))
+         .filter((f) => f.px < 16));
+    ok(small.length === 0, `${name}: kein Feld unter 16px (${JSON.stringify(small)})`);
+  }
+
+  // Seitwärts darf nichts scrollen — weder die Seite noch der Inhalt
+  const scroll = await page.evaluate(() => {
+    const d = document.documentElement, m = document.getElementById("main");
+    return {
+      docX: d.scrollWidth - d.clientWidth,
+      mainX: m.scrollWidth - m.clientWidth,
+      bodyOverflow: getComputedStyle(document.body).overflowX,
+      mainOverscroll: getComputedStyle(m).overscrollBehaviorX,
+    };
+  });
+  ok(scroll.docX <= 0 && scroll.mainX <= 0, `Nur senkrecht: nichts ragt seitlich heraus (${scroll.docX}/${scroll.mainX})`);
+  ok(scroll.bodyOverflow === "hidden", "Nur senkrecht: die Seite selbst scrollt nicht");
+  ok(scroll.mainOverscroll === "none", "Nur senkrecht: kein seitliches Nachfedern");
+
+  // Sicherheitsabstände greifen (auf dem Home-Bildschirm liegt sonst der
+  // Kopf unter der Uhr)
+  const insets = await page.evaluate(() => {
+    const cs = getComputedStyle(document.getElementById("header"));
+    return { top: cs.paddingTop, left: cs.paddingLeft };
+  });
+  ok(parseFloat(insets.top) >= 16, `Sicherheitsabstand oben berücksichtigt (${insets.top})`);
+  ok(parseFloat(insets.left) >= 20, `Sicherheitsabstand seitlich berücksichtigt (${insets.left})`);
+
+  // Der Inhalt füllt die volle Gerätebreite
+  const appW = await page.locator("#app").evaluate((el) => el.getBoundingClientRect().width);
+  ok(Math.abs(appW - 390) < 1, `Seite füllt die Breite (${Math.round(appW)} von 390)`);
+  await ctx.close();
+}
+
 await browser.close();
 console.log(`\n${checks - fails}/${checks} Browser-Checks bestanden`);
 process.exit(fails ? 1 : 0);
