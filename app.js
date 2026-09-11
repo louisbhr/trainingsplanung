@@ -3,11 +3,15 @@ import {
   PLAN_START, TOTAL_WEEKS,
   toISO, fromISO, addDays, weekStart, weekDates, weekNumberFor,
 } from "./plan.js";
-import { saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn } from "./firebase-init.js";
+import {
+  saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
+  loadRunLinks, saveRunLink, clearRunLink,
+} from "./firebase-init.js";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
-  matchRunForDate, formatPace, formatDuration, isWorkerConfigured,
+  formatPace, formatDuration, isWorkerConfigured,
 } from "./strava.js";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js";
 
 const ICONS = {
   run: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="4" r="1.5" fill="currentColor" stroke="none"/><path d="M13 7l-2 3 3 2 1 5M11 10l-4 1-2 4M8 14l-3 1M13.5 11l3 1 2-2"/></svg>',
@@ -52,8 +56,16 @@ function defaultHistoryExercise() {
 
 // Kraft-Eingaben der gerade sichtbaren Tagesansicht
 const logState = new Map();
+// Pro Tag angepasste Übungsliste: { removed: [slug], added: [{name, soll, hint}] }
+let dayPlan = { removed: [], added: [] };
+let currentKraftDay = { info: null, iso: null };
+let editMode = false;
 // Strava: null = noch nicht geladen, false = nicht verbunden
-let stravaState = { runs: null, error: null, connected: null };
+let stravaState = { runs: null, error: null, errorSource: null, connected: null };
+// Plan-Datum -> { run, offset, source }
+let runAssignment = {};
+let runLinks = {};
+let runPickerFor = null; // Plan-Datum, für das gerade die Auswahl offen ist
 
 function badge(text, color, bg) {
   return `<span class="badge" style="background:${bg};color:${color}">${esc(text)}</span>`;
@@ -135,6 +147,7 @@ async function renderDay(iso, { showBack }) {
     <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} Woche ${w}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
     <div class="title-row"><h1>${info.kind === "kraft" ? "Krafttraining" : info.kind === "lauf" ? "Lauf" : info.kind === "placeholder" ? `Woche ${w}` : "Ruhetag"}</h1>${badgeForKind(info)}</div>`;
 
+  if (info.kind !== "kraft") editMode = false;
   if (info.kind === "kraft") return renderKraftDay(info, iso);
   if (info.kind === "lauf") return renderRunDay(info, iso);
   if (info.kind === "placeholder") {
@@ -169,36 +182,89 @@ async function renderKraftDay(info, iso) {
   main.innerHTML = loadingCard("Lade gespeicherte Sätze …");
 
   let saved = {};
+  let loadError = null;
   try {
-    saved = await loadLogsForDate(iso);
+    [saved, dayPlan] = await Promise.all([loadLogsForDate(iso), loadDayPlan(iso)]);
   } catch (err) {
     console.error(err);
-    toast("Gespeicherte Sätze konnten nicht geladen werden — Eingabe geht trotzdem.", true);
+    dayPlan = { removed: [], added: [] };
+    // Als Karte, nicht als Toast: die Meldung muss stehen bleiben, sonst
+    // sieht man nur leere Felder und rät.
+    loadError = err.source === "firebase" ? err.message : "Laden fehlgeschlagen: " + err.message;
   }
 
+  currentKraftDay = { info, iso };
+  buildLogState(effectiveExercises(info), saved);
+  paintKraftDay(info, iso, loadError);
+}
+
+// Plan-Übungen ohne die entfernten, plus die selbst hinzugefügten
+function effectiveExercises(info) {
+  const removed = new Set(dayPlan.removed);
+  const base = info.exercises.filter((ex) => !removed.has(slug(ex.name)));
+  const extra = dayPlan.added.map((ex) => ({ ...ex, custom: true }));
+  return [...base, ...extra];
+}
+
+function buildLogState(exercises, saved) {
   logState.clear();
-  for (const ex of info.exercises) {
+  for (const ex of exercises) {
     const s = slug(ex.name);
     const rec = saved[s];
     const count = setsCountFromSoll(ex.soll);
-    const sets =
-      rec?.sets?.length ? rec.sets.map((x) => ({ kg: x.kg ?? null, reps: x.reps ?? null }))
-                        : Array.from({ length: count }, () => ({ kg: null, reps: null }));
+    const sets = rec?.sets?.length
+      ? rec.sets.map((x) => ({ kg: x.kg ?? null, reps: x.reps ?? null }))
+      : Array.from({ length: count }, () => ({ kg: null, reps: null }));
     logState.set(s, {
-      slug: s, name: ex.name, soll: ex.soll, hint: ex.hint,
+      slug: s, name: ex.name, soll: ex.soll, hint: ex.hint || "", custom: !!ex.custom,
       setCount: Math.max(count, sets.length),
       sets,
       perSet: !sameSets(sets),
       saved: !!rec?.completed,
     });
   }
+}
+
+function paintKraftDay(info, iso, loadError) {
+  const removedList = dayPlan.removed
+    .map((sl) => info.exercises.find((ex) => slug(ex.name) === sl))
+    .filter(Boolean);
 
   main.innerHTML =
+    (loadError
+      ? `<div class="card error-card">
+           <p class="name">Gespeicherte Sätze nicht geladen</p>
+           <p class="hint">${esc(loadError)}</p>
+           <p class="hint" style="margin-top:6px;">Eintragen geht trotzdem — gespeichert wird aber erst, wenn das behoben ist.</p>
+           <button data-action="reload" style="margin-top:8px;">Neu laden</button>
+         </div>`
+      : "") +
     `<div class="card summary-card">
-       <p class="name">${esc(info.label)}</p>
-       <p class="hint" id="progress-line">${progressText()}</p>
+       <div class="row" style="justify-content:space-between;align-items:flex-start;gap:10px;">
+         <div style="min-width:0;">
+           <p class="name">${esc(info.label)}</p>
+           <p class="hint" id="progress-line">${progressText()}</p>
+         </div>
+         <button class="small-btn" data-action="toggle-edit">${editMode ? "Fertig" : "Anpassen"}</button>
+       </div>
      </div>` +
-    [...logState.values()].map(exerciseCard).join("");
+    [...logState.values()].map(exerciseCard).join("") +
+    (editMode
+      ? removedList.map((ex) => `<div class="card removed">
+           <div class="row" style="justify-content:space-between;gap:10px;">
+             <div style="min-width:0;"><p class="name">${esc(ex.name)}</p><p class="hint">Für diesen Tag entfernt</p></div>
+             <button class="small-btn" data-action="restore-exercise" data-slug="${slug(ex.name)}">Zurückholen</button>
+           </div></div>`).join("") +
+        `<div class="card">
+           <p class="name">Übung hinzufügen</p>
+           <p class="hint" style="margin-bottom:8px;">Gilt nur für diesen Tag (${shortDate(iso)}).</p>
+           <div class="add-form">
+             <input type="text" id="new-ex-name" placeholder="Name, z. B. Beinpresse" />
+             <input type="text" id="new-ex-soll" placeholder="Soll, z. B. 3x8-10" />
+             <button class="save-btn wide" data-action="add-exercise">Hinzufügen</button>
+           </div>
+         </div>`
+      : "");
 }
 
 function progressText() {
@@ -208,17 +274,25 @@ function progressText() {
 }
 
 function exerciseCard(st) {
-  return `<div class="card" data-ex="${st.slug}">
+  return `<div class="card${st.saved ? " done" : ""}" data-ex="${st.slug}">
     <div class="row" style="justify-content:space-between;align-items:flex-start;gap:10px;">
       <div style="min-width:0;">
-        <p class="name">${esc(st.name)}${st.saved ? ` <span class="done-dot" title="gespeichert">${ICONS.check}</span>` : ""}</p>
-        <p class="hint">Soll ${esc(st.soll)} · ${esc(st.hint)}</p>
+        <p class="name">${esc(st.name)}${st.custom ? ' <span class="custom-tag">eigene</span>' : ""}</p>
+        <p class="hint">Soll ${esc(st.soll)}${st.hint ? " · " + esc(st.hint) : ""}</p>
       </div>
-      <button data-action="toggle-sets" data-slug="${st.slug}" class="small-btn">${st.perSet ? "Alle gleich" : "Sätze einzeln"}</button>
+      ${editMode
+        ? `<button class="small-btn danger-btn" data-action="remove-exercise" data-slug="${st.slug}">Entfernen</button>`
+        : `<button data-action="toggle-sets" data-slug="${st.slug}" class="small-btn">${st.perSet ? "Alle gleich" : "Sätze einzeln"}</button>`}
     </div>
     <div class="ex-body">${st.perSet ? perSetRowsHTML(st) : simpleRowHTML(st)}</div>
     <p class="hint status" data-status="${st.slug}"></p>
   </div>`;
+}
+
+function saveButtonHTML(st, wide) {
+  const label = st.saved ? "Gespeichert" : "Speichern";
+  return `<button class="save-btn${wide ? " wide" : ""}${st.saved ? " is-saved" : ""}"
+    data-action="save" data-slug="${st.slug}" aria-label="${label}">${ICONS.check}<span>${label}</span></button>`;
 }
 
 function simpleRowHTML(st) {
@@ -228,9 +302,9 @@ function simpleRowHTML(st) {
     <input type="number" inputmode="decimal" step="0.5" data-kg value="${kg}" placeholder="kg" aria-label="Gewicht" />
     <span class="times">×</span>
     <input type="number" inputmode="numeric" data-reps value="${reps}" placeholder="Wdh" aria-label="Wiederholungen" />
-    <button class="icon-btn" data-action="save" data-slug="${st.slug}" aria-label="Speichern">${ICONS.check}</button>
   </div>
-  <p class="hint tiny">Gilt für alle ${st.setCount} Sätze</p>`;
+  <p class="hint tiny">Gilt für alle ${st.setCount} Sätze</p>
+  ${saveButtonHTML(st, true)}`;
 }
 
 function perSetRowsHTML(st) {
@@ -244,7 +318,7 @@ function perSetRowsHTML(st) {
       <input type="number" inputmode="numeric" data-reps value="${reps}" placeholder="Wdh" aria-label="Wiederholungen Satz ${s + 1}" />
     </div>`;
   }
-  return rows + `<button data-action="save" data-slug="${st.slug}" style="width:100%;margin-top:4px;">Speichern</button>`;
+  return rows + saveButtonHTML(st, true);
 }
 
 // Liest die aktuell sichtbaren Eingaben in den State zurück
@@ -263,6 +337,10 @@ function readCard(st) {
   }
 }
 
+function readAllCards() {
+  for (const st of logState.values()) readCard(st);
+}
+
 function toggleSets(slugName) {
   const st = logState.get(slugName);
   if (!st) return;
@@ -271,6 +349,74 @@ function toggleSets(slugName) {
   const card = document.querySelector(`[data-ex="${slugName}"]`);
   card.querySelector(".ex-body").innerHTML = st.perSet ? perSetRowsHTML(st) : simpleRowHTML(st);
   card.querySelector("[data-action='toggle-sets']").textContent = st.perSet ? "Alle gleich" : "Sätze einzeln";
+}
+
+// --- Übungen anpassen ---
+function toggleEditMode() {
+  readAllCards();
+  editMode = !editMode;
+  paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null);
+}
+
+function persistDayPlan() {
+  saveDayPlan(currentKraftDay.iso, dayPlan).catch((err) => {
+    console.error(err);
+    toast("Änderung an den Übungen nicht gespeichert: " + err.message, true);
+  });
+}
+
+function removeExercise(slugName) {
+  readAllCards();
+  const st = logState.get(slugName);
+  if (st?.custom) {
+    dayPlan.added = dayPlan.added.filter((ex) => slug(ex.name) !== slugName);
+  } else if (!dayPlan.removed.includes(slugName)) {
+    dayPlan.removed.push(slugName);
+  }
+  refreshExercises();
+}
+
+function restoreExercise(slugName) {
+  readAllCards();
+  dayPlan.removed = dayPlan.removed.filter((s) => s !== slugName);
+  refreshExercises();
+}
+
+function addExercise() {
+  const nameEl = document.getElementById("new-ex-name");
+  const sollEl = document.getElementById("new-ex-soll");
+  const name = (nameEl?.value || "").trim();
+  const soll = (sollEl?.value || "").trim() || "3x8-10";
+  if (!name) {
+    nameEl?.focus();
+    toast("Bitte einen Namen eintragen.", true);
+    return;
+  }
+  const s = slug(name);
+  if (!s) {
+    toast("Der Name ergibt keine gültige Übung.", true);
+    return;
+  }
+  if (logState.has(s)) {
+    toast("Diese Übung steht heute schon auf der Liste.", true);
+    return;
+  }
+  readAllCards();
+  // Falls die Übung nur „entfernt" war: einfach wieder aufnehmen
+  if (dayPlan.removed.includes(s)) dayPlan.removed = dayPlan.removed.filter((x) => x !== s);
+  else dayPlan.added.push({ name, soll, hint: "Eigene Übung" });
+  refreshExercises();
+}
+
+// Zustand der sichtbaren Eingaben behalten, Liste neu aufbauen
+function refreshExercises() {
+  const keep = {};
+  for (const st of logState.values()) {
+    keep[st.slug] = { sets: st.sets, completed: st.saved };
+  }
+  buildLogState(effectiveExercises(currentKraftDay.info), keep);
+  persistDayPlan();
+  paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null);
 }
 
 function saveExercise(slugName, dateISO) {
@@ -290,6 +436,7 @@ function saveExercise(slugName, dateISO) {
     week: weekNumberFor(dateISO),
     name: st.name,
     soll: st.soll,
+    custom: st.custom,
     sets: st.sets.map((s) => ({ kg: s.kg, reps: s.reps })),
     topKg: Math.max(...st.sets.map((s) => s.kg ?? 0)),
     totalReps: st.sets.reduce((a, s) => a + (s.reps ?? 0), 0),
@@ -302,6 +449,13 @@ function saveExercise(slugName, dateISO) {
   st.saved = true;
   status.textContent = "Gespeichert.";
   status.className = "hint status ok";
+  const card = document.querySelector(`[data-ex="${slugName}"]`);
+  card?.classList.add("done");
+  const btn = card?.querySelector("[data-action='save']");
+  if (btn) {
+    btn.classList.add("is-saved");
+    btn.querySelector("span").textContent = "Gespeichert";
+  }
   const line = document.getElementById("progress-line");
   if (line) line.textContent = progressText();
 
@@ -310,23 +464,72 @@ function saveExercise(slugName, dateISO) {
     st.saved = false;
     status.textContent = "Speichern fehlgeschlagen: " + err.message;
     status.className = "hint status warn";
+    card?.classList.remove("done");
+    btn?.classList.remove("is-saved");
+    if (btn) btn.querySelector("span").textContent = "Speichern";
   });
 }
 
 // ---------- Lauftag ----------
 async function loadStrava({ force = false } = {}) {
   if (!force && stravaState.connected !== null) return stravaState;
+  stravaState.error = null;
+  stravaState.errorSource = null;
   try {
     const connected = await isAuthorized();
     stravaState.connected = connected;
-    stravaState.error = null;
     stravaState.runs = connected ? await fetchRecentRuns(STRAVA_SINCE, { force }) : null;
+    if (connected) {
+      runLinks = await loadRunLinks();
+      recomputeAssignment();
+    }
   } catch (err) {
     console.error(err);
     stravaState.error = err.message;
+    // Ein Firestore-Fehler ist kein Strava-Fehler — sonst sucht man an
+    // der falschen Stelle.
+    stravaState.errorSource = err.source === "firebase" ? "firebase" : "strava";
     stravaState.runs = null;
+    if (stravaState.errorSource === "firebase") stravaState.connected = null;
   }
   return stravaState;
+}
+
+// Alle Lauftage des Plans — Grundlage der Zuordnung
+function allPlanRunDays() {
+  const out = [];
+  for (let w = 1; w <= TOTAL_WEEKS; w++) {
+    const week = weeks[w];
+    if (!week || week.placeholder) continue;
+    for (const r of week.runs) out.push({ date: r.date, distKm: parseFloat(r.dist) || 0 });
+  }
+  return out;
+}
+
+function recomputeAssignment() {
+  runAssignment = assignRuns(allPlanRunDays(), stravaState.runs || [], runLinks);
+}
+
+function setRunLink(planDate, activityId) {
+  runLinks[planDate] = { activityId };
+  recomputeAssignment();
+  runPickerFor = null;
+  render();
+  saveRunLink(planDate, activityId).catch((err) => {
+    console.error(err);
+    toast("Zuordnung nicht gespeichert: " + err.message, true);
+  });
+}
+
+function resetRunLink(planDate) {
+  delete runLinks[planDate];
+  recomputeAssignment();
+  runPickerFor = null;
+  render();
+  clearRunLink(planDate).catch((err) => {
+    console.error(err);
+    toast("Zuordnung nicht zurückgesetzt: " + err.message, true);
+  });
 }
 
 async function renderRunDay(info, iso) {
@@ -352,42 +555,102 @@ function planRunCard(info) {
   </div>`;
 }
 
+// Getrennte Karten für die beiden Fehlerwelten: an Firestore-Problemen
+// hilft "Neu verbinden" nicht, und der Hinweis muss auf Firebase zeigen.
+function problemCard(s) {
+  if (s.errorSource === "firebase") {
+    return `<div class="card error-card">
+      <p class="name">Daten-Problem (Firebase)</p>
+      <p class="hint">${esc(s.error)}</p>
+      <p class="hint" style="margin-top:6px;">Nicht Strava, sondern der Datenspeicher. Prüfe in der Firebase-Console, ob die Anmeldeart <b>Anonymous</b> aktiviert und die Regeln aus <code>firestore.rules</code> veröffentlicht sind.</p>
+      <button data-action="reload-strava" style="margin-top:8px;">Nochmal versuchen</button></div>`;
+  }
+  return `<div class="card error-card"><p class="name">Strava-Problem</p>
+    <p class="hint">${esc(s.error)}</p>
+    <div class="row" style="margin-top:8px;gap:8px;">
+      <button data-action="reload-strava">Nochmal versuchen</button>
+      <button data-action="connect-strava">Neu verbinden</button>
+    </div></div>`;
+}
+
 function stravaResultHTML(s, iso) {
   if (!isWorkerConfigured) {
     return `<div class="card error-card">
       <p class="name">Strava noch nicht eingerichtet</p>
       <p class="hint">Der Token-Worker fehlt (siehe README, Abschnitt „Strava"). Ohne ihn kann der Browser sich nicht bei Strava anmelden.</p></div>`;
   }
-  if (s.error) {
-    return `<div class="card error-card"><p class="name">Strava-Problem</p>
-      <p class="hint">${esc(s.error)}</p>
-      <div class="row" style="margin-top:8px;gap:8px;">
-        <button data-action="reload-strava">Nochmal versuchen</button>
-        <button data-action="connect-strava">Neu verbinden</button>
-      </div></div>`;
-  }
+  if (s.error) return problemCard(s);
   if (s.connected === false) {
     return `<button class="primary-btn" data-action="connect-strava" style="margin-top:10px;">Mit Strava verbinden</button>`;
   }
-  const match = matchRunForDate(s.runs, iso);
-  if (!match) {
-    return `<div class="row" style="margin-top:10px;justify-content:center;gap:8px;">
-      <span class="center-note" style="margin:0;">Noch kein passender Lauf in Strava.</span>
-      <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
-    </div>`;
+
+  const a = runAssignment[iso];
+  const picker = runPickerFor === iso ? runPickerHTML(s, iso) : "";
+
+  if (!a || !a.run) {
+    return `<div class="card">
+        <p class="name">Noch kein Lauf zugeordnet</p>
+        <p class="hint">${a?.source === "ignored"
+          ? "Für diesen Tag ist bewusst kein Lauf hinterlegt."
+          : "In Strava liegt kein Lauf an diesem Tag und keiner in den Tagen danach."}</p>
+        <div class="row" style="margin-top:8px;gap:8px;">
+          <button data-action="pick-run" data-date="${iso}">Lauf zuordnen</button>
+          ${a?.source === "ignored" ? `<button data-action="reset-run" data-date="${iso}">Automatik zurück</button>` : ""}
+          <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
+        </div>
+      </div>${picker}`;
   }
-  return `<div class="card" style="margin-top:10px;">
+
+  const m = a.run;
+  const shifted = a.offset !== 0;
+  return `<div class="card${shifted ? " shifted" : ""}" style="margin-top:10px;">
     <div class="row" style="justify-content:space-between;">
       <p class="name">Erfasst (Strava)</p>
       <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
     </div>
-    <p class="hint">${esc(match.name)}</p>
+    <p class="hint">${esc(m.name)}</p>
+    ${shifted
+      ? `<p class="shift-note">${dayNameDE(m.date)}, ${shortDate(m.date)} · ${esc(offsetLabel(a.offset))}</p>`
+      : ""}
     <div class="metric-grid" style="margin-top:8px;">
-      <div><p class="metric-label">Distanz</p><p class="metric-value">${match.distanceKm.toFixed(1)} km</p></div>
-      <div><p class="metric-label">Pace</p><p class="metric-value" style="font-size:18px;">${esc(match.paceLabel)}</p></div>
-      <div><p class="metric-label">Dauer</p><p class="metric-value" style="font-size:18px;">${esc(formatDuration(match.movingTimeSec))}</p></div>
-      <div><p class="metric-label">Ø HF</p><p class="metric-value" style="font-size:18px;">${match.avgHr ? match.avgHr + " bpm" : "–"}</p></div>
+      <div><p class="metric-label">Distanz</p><p class="metric-value">${m.distanceKm.toFixed(1)} km</p></div>
+      <div><p class="metric-label">Pace</p><p class="metric-value" style="font-size:18px;">${esc(m.paceLabel)}</p></div>
+      <div><p class="metric-label">Dauer</p><p class="metric-value" style="font-size:18px;">${esc(formatDuration(m.movingTimeSec))}</p></div>
+      <div><p class="metric-label">Ø HF</p><p class="metric-value" style="font-size:18px;">${m.avgHr ? m.avgHr + " bpm" : "–"}</p></div>
     </div>
+    <div class="row" style="margin-top:10px;gap:8px;">
+      ${a.source === "auto"
+        ? `<button class="small-btn" data-action="ignore-run" data-date="${iso}">Passt nicht</button>` : ""}
+      ${a.source === "manual"
+        ? `<button class="small-btn" data-action="reset-run" data-date="${iso}">Zuordnung aufheben</button>` : ""}
+      <button class="small-btn" data-action="pick-run" data-date="${iso}">Anderen Lauf</button>
+    </div>
+  </div>${picker}`;
+}
+
+function runPickerHTML(s, iso) {
+  const options = pickableRuns(s.runs || [], runAssignment, iso);
+  if (!options.length) {
+    return `<div class="card">
+      <p class="name">Kein Lauf zur Auswahl</p>
+      <p class="hint">In Strava liegt im Umkreis von sieben Tagen kein freier Lauf.</p>
+      <button data-action="close-picker" style="margin-top:8px;">Schließen</button></div>`;
+  }
+  const current = runAssignment[iso]?.run?.id;
+  return `<div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <p class="name">Lauf für ${dayNameDE(iso)}, ${shortDate(iso)}</p>
+      <button class="small-btn" data-action="close-picker">Schließen</button>
+    </div>
+    ${options.map((r) => {
+      const off = daysBetween(iso, r.date);
+      return `<button class="pick-row${String(r.id) === String(current) ? " on" : ""}"
+          data-action="assign-run" data-date="${iso}" data-run="${r.id}">
+        <span class="pick-main">${dayNameDE(r.date)}, ${shortDate(r.date)}${off ? ` · ${off > 0 ? "+" : ""}${off} ${Math.abs(off) === 1 ? "Tag" : "Tage"}` : " · am Plantag"}</span>
+        <span class="pick-sub">${esc(r.name)} · ${r.distanceKm.toFixed(1)} km · ${esc(r.paceLabel)}</span>
+      </button>`;
+    }).join("")}
+    <button data-action="ignore-run" data-date="${iso}" style="width:100%;margin-top:8px;">Kein Lauf an diesem Tag</button>
   </div>`;
 }
 
@@ -567,8 +830,11 @@ async function renderRunHistory() {
 }
 
 function sumKm(runs, days) {
-  const cutoff = addDays(todayISO(), -days + 1);
-  return runs.filter((r) => r.date >= cutoff).reduce((a, r) => a + r.distanceKm, 0);
+  const today = todayISO();
+  const cutoff = addDays(today, -days + 1);
+  // Obergrenze heute: ein Lauf mit Datum in der Zukunft (Zeitzone, manuell
+  // in Strava nachgetragen) gehört nicht in „die letzten 7 Tage".
+  return runs.filter((r) => r.date >= cutoff && r.date <= today).reduce((a, r) => a + r.distanceKm, 0);
 }
 
 // Balken mit echten Höhen — Werte werden auf 8..90 px abgebildet.
@@ -590,25 +856,53 @@ function barsHTML(points, color) {
 // ---------- Plan ----------
 function renderPlan() {
   const w = weekNumberFor(todayISO());
+  const done = Math.max(0, w - 1);
+  const pct = Math.round((done / TOTAL_WEEKS) * 100);
+
   header.innerHTML = `<h1>Trainingsplan</h1>
-    <p class="eyebrow" style="margin-top:2px;">${TOTAL_WEEKS} Wochen · Ziel ${esc(goal.time)} (${esc(goal.targetPace)})</p>`;
+    <p class="eyebrow" style="margin-top:2px;">Woche ${w} von ${TOTAL_WEEKS} · ${pct}% geschafft</p>`;
 
   main.innerHTML = `
-    <div class="card" style="background:var(--teal-bg);">
-      <p class="name" style="color:var(--teal-fg);">${esc(goal.race)}</p>
-      <p class="hint" style="margin-top:2px;">Aktuell Woche ${w} von ${TOTAL_WEEKS} · Start ${shortDate(PLAN_START)}</p>
+    <div class="card goal-card">
+      <p class="metric-label">Ziel</p>
+      <p class="goal-time">${esc(goal.time)}</p>
+      <p class="hint" style="margin-top:4px;">${esc(goal.race)} · Renntempo ${esc(goal.targetPace)}</p>
+      <div class="timeline">
+        ${phases.map((p) => {
+          const len = p.weeks[1] - p.weeks[0] + 1;
+          // Anteil dieser Phase, der schon hinter dir liegt
+          const fill = w > p.weeks[1] ? 100 : w < p.weeks[0] ? 0 : ((w - p.weeks[0] + 1) / len) * 100;
+          return `<div class="seg tone-${p.tone}" style="flex:${len}" title="Phase ${p.n}"><i style="width:${fill}%"></i></div>`;
+        }).join("")}
+      </div>
+      <div class="timeline-marker"><span>${shortDate(PLAN_START)}</span><span>Wettkampf</span></div>
+      <div class="timeline-legend">
+        ${phases.map((p) => `<span class="tone-${p.tone}"><i></i>${esc(p.name)}</span>`).join("")}
+      </div>
     </div>
-    ${phases.map((p) => `<div class="card${w >= p.weeks[0] && w <= p.weeks[1] ? " current" : ""}">
-      <p class="name">Phase ${p.n} – ${esc(p.name)}</p>
-      <p class="hint" style="margin-top:2px;">${esc(p.range)} · Woche ${p.weeks[0]}–${p.weeks[1]}</p>
-      <p class="hint" style="margin-top:4px;color:var(--text-secondary);">${esc(p.focus)}</p>
-    </div>`).join("")}
+
+    ${phases.map((p) => {
+      const current = w >= p.weeks[0] && w <= p.weeks[1];
+      return `<div class="phase-card tone-${p.tone}${current ? " is-current" : ""}">
+        <div class="phase-head">
+          <p class="name">Phase ${p.n} – ${esc(p.name)}</p>
+          <span class="phase-weeks">W${p.weeks[0]}–${p.weeks[1]}</span>
+        </div>
+        <p class="hint" style="margin-top:2px;">${esc(p.range)}</p>
+        <p class="hint" style="margin-top:4px;">${esc(p.focus)}${current ? " · läuft gerade" : ""}</p>
+      </div>`;
+    }).join("")}
+
     <div class="card">
       <p class="name">Trainingsbereiche</p>
-      ${zones.map((z) => `<div class="zone-row">
-        <span class="zone-name">${esc(z.zone)}</span>
-        <span class="zone-vals">${esc(z.hf)} bpm · ${esc(z.pace)}</span>
-      </div>`).join("")}
+      ${zones.map((z) => {
+        const [tag, label] = z.zone.split(" – ");
+        return `<div class="zone-line tone-${z.tone}">
+          <span class="zone-chip">${esc(tag)}</span>
+          <span class="zname">${esc(label)}<br><span style="color:var(--text-muted);font-size:11px;">${esc(z.use)}</span></span>
+          <span class="zvals">${esc(z.hf)} bpm<br>${esc(z.pace)}</span>
+        </div>`;
+      }).join("")}
     </div>`;
 }
 
@@ -619,18 +913,28 @@ document.getElementById("app").addEventListener("click", async (e) => {
   const action = target.dataset.action;
 
   if (action === "reload") return location.reload();
-  if (action === "back") { state.selectedDate = null; return render(); }
-  if (action === "open-day") { state.selectedDate = target.dataset.date; return render(); }
+  if (action === "back") { state.selectedDate = null; runPickerFor = null; return render(); }
+  if (action === "open-day") { state.selectedDate = target.dataset.date; runPickerFor = null; return render(); }
   if (action === "week-prev") { state.weekNo = Math.max(1, state.weekNo - 1); return render(); }
   if (action === "week-next") { state.weekNo = Math.min(TOTAL_WEEKS, state.weekNo + 1); return render(); }
   if (action === "week-today") { state.weekNo = weekNumberFor(todayISO()); return render(); }
   if (action === "toggle-sets") return toggleSets(target.dataset.slug);
+  if (action === "toggle-edit") return toggleEditMode();
+  if (action === "remove-exercise") return removeExercise(target.dataset.slug);
+  if (action === "restore-exercise") return restoreExercise(target.dataset.slug);
+  if (action === "add-exercise") return addExercise();
   if (action === "save") return saveExercise(target.dataset.slug, currentDateISO());
   if (action === "hist-mode") { state.historyMode = target.dataset.mode; return render(); }
   if (action === "connect-strava") return startAuthorization();
+  if (action === "pick-run") { runPickerFor = target.dataset.date; return render(); }
+  if (action === "close-picker") { runPickerFor = null; return render(); }
+  if (action === "assign-run") return setRunLink(target.dataset.date, Number(target.dataset.run));
+  if (action === "ignore-run") return setRunLink(target.dataset.date, null);
+  if (action === "reset-run") return resetRunLink(target.dataset.date);
   if (action === "reload-strava") {
     target.disabled = true;
     await loadStrava({ force: true });
+    recomputeAssignment();
     return render();
   }
 });
@@ -645,6 +949,7 @@ document.querySelectorAll("#tabbar button").forEach((btn) => {
     btn.classList.add("active");
     state.tab = btn.dataset.tab;
     state.selectedDate = null;
+    runPickerFor = null;
     if (state.tab === "woche") state.weekNo = weekNumberFor(todayISO());
     render();
   });

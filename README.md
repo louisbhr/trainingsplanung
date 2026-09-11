@@ -9,6 +9,14 @@ Firestore gespeichert, Läufe kommen automatisch aus Strava.
 - **Verlauf** — Gewichtsverlauf je Übung, Distanz/Pace der letzten Läufe
 - **Plan** — Phasen, Zeitraum, HF- und Pace-Zonen
 
+Krafttage lassen sich über „Anpassen" für den jeweiligen Tag umbauen:
+Übungen entfernen, zurückholen oder eigene hinzufügen.
+
+Verschobene Läufe erkennt die App selbst: liegt am Plantag kein Lauf in
+Strava, sucht sie einen Tag davor bis drei Tage danach und weist ihn als
+nachgeholt aus (`runmatch.js`). Passt die Vermutung nicht, lässt sich über
+„Anderen Lauf" von Hand zuordnen oder der Tag bewusst leer lassen.
+
 ## 1. Auf GitHub Pages veröffentlichen
 
 1. Repository auf GitHub anlegen (öffentlich, sonst braucht Pages GitHub Pro).
@@ -85,6 +93,7 @@ Details siehe `tests/README.md`.
 | `index.html`, `style.css`, `app.js` | die App |
 | `config.js` | Worker-URL und Strava-Client-ID |
 | `plan.js` | Trainingsplan; Daten werden aus `PLAN_START` berechnet |
+| `runmatch.js` | Zuordnung von Strava-Läufen zu Plan-Lauftagen |
 | `firebase-init.js` | Firestore + anonyme Anmeldung, mit Offline-Cache |
 | `strava.js` | Strava-Anbindung |
 | `worker.js`, `wrangler.toml` | Cloudflare Worker für den Token-Austausch |
