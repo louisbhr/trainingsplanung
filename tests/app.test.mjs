@@ -579,6 +579,108 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
+// ---- 14. Übung im Gym ersetzen und schnell ergänzen ----
+{
+  const { page, ctx, errors } = await newPage();
+  await page.goto(BASE + "/index.html");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector('[data-ex="squats"]');
+
+  // Hinzufügen ohne Umweg über den Bearbeitungsmodus
+  ok((await page.locator('[data-action="quick-add"]').count()) === 1,
+     "Ergänzen: Knopf steht direkt unter der Liste");
+  await page.click('[data-action="quick-add"]');
+  await page.fill("#new-ex-name", "Beinpresse");
+  await page.fill("#new-ex-soll", "4x10");
+  await page.click('[data-action="add-exercise"]');
+  await page.waitForSelector('[data-ex="beinpresse"]');
+  ok((await page.locator("[data-ex]").count()) === 9, "Ergänzen: Übung ist da");
+  const order = await page.locator("[data-ex]").evaluateAll((els) => els.map((e) => e.dataset.ex));
+  ok(order[order.length - 1] === "beinpresse", "Ergänzen: neue Übung hängt hinten an");
+
+  // Ersetzen: Bank belegt, also Brustpresse gegen Kurzhantelbank tauschen
+  await page.click('[data-action="toggle-edit"]');
+  await page.click('[data-ex="brustpresse"] [data-action="replace-exercise"]');
+  await page.waitForSelector("#rep-ex-name");
+  ok((await page.inputValue("#rep-ex-soll")) === "3x8-10", "Ersetzen: Sollvorgabe wird übernommen");
+  await page.fill("#rep-ex-name", "Kurzhantelbank");
+  await page.click('[data-action="confirm-replace"]');
+  await page.waitForSelector('[data-ex="kurzhantelbank"]');
+
+  const after = await page.locator("[data-ex]").evaluateAll((els) => els.map((e) => e.dataset.ex));
+  ok(!after.includes("brustpresse"), "Ersetzen: alte Übung ist weg");
+  ok(after.indexOf("kurzhantelbank") === order.indexOf("brustpresse"),
+     `Ersetzen: neue Übung steht an derselben Stelle (${after.indexOf("kurzhantelbank")})`);
+  ok((await page.textContent('[data-ex="kurzhantelbank"]')).includes("Ersetzt Brustpresse"),
+     "Ersetzen: Herkunft bleibt sichtbar");
+  await shot(page, "17-uebung-ersetzen");
+  await noHScroll(page, "Ersetzen");
+
+  // Überlebt den Reload
+  await page.reload();
+  await page.waitForSelector("#tabbar button.active");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector('[data-ex="kurzhantelbank"]');
+  ok((await page.locator('[data-ex="brustpresse"]').count()) === 0, "Ersetzen: überlebt den Reload");
+
+  // Tausch rückgängig -> Original kommt zurück
+  await page.click('[data-action="toggle-edit"]');
+  await page.click('[data-ex="kurzhantelbank"] [data-action="remove-exercise"]');
+  await page.waitForSelector('[data-ex="brustpresse"]');
+  ok((await page.locator('[data-ex="kurzhantelbank"]').count()) === 0,
+     "Ersetzen: Tausch entfernt, Original zurück");
+  ok(errors.length === 0, "Ersetzen: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 15. Glasleiste ----
+{
+  const { page, ctx } = await newPage();
+  await page.goto(BASE + "/index.html");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector("[data-ex]");
+
+  const bar = await page.locator("#tabbar").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return {
+      backdrop: cs.backdropFilter || cs.webkitBackdropFilter,
+      position: cs.position,
+      bg: cs.backgroundColor,
+      rect: el.getBoundingClientRect().toJSON(),
+    };
+  });
+  ok(bar.backdrop.includes("blur"), `Glas: Unschärfe aktiv (${bar.backdrop})`);
+  ok(bar.backdrop.includes("saturate"), "Glas: Sättigung angehoben");
+  ok(/rgba?\([^)]*0?\.\d+\)/.test(bar.bg), `Glas: Fläche ist durchscheinend (${bar.bg})`);
+  ok(bar.position === "absolute", "Glas: Leiste liegt über dem Inhalt");
+  ok(Math.abs(bar.rect.bottom - 844) < 2, "Glas: sitzt weiterhin am unteren Rand");
+
+  // Damit die Unschärfe etwas zu tun hat, muss Inhalt darunter durchlaufen
+  const passesUnder = await page.evaluate(() => {
+    const m = document.getElementById("main");
+    const bar = document.getElementById("tabbar").getBoundingClientRect();
+    m.scrollTop = m.scrollHeight / 2;
+    return [...document.querySelectorAll("[data-ex]")].some((el) => {
+      const r = el.getBoundingClientRect();
+      return r.top < bar.top && r.bottom > bar.top;
+    });
+  });
+  ok(passesUnder, "Glas: Inhalt scrollt unter der Leiste durch");
+
+  // Kapsel hinter dem aktiven Tab
+  const capsule = await page.locator("#tabbar button.active").evaluate((el) => {
+    const cs = getComputedStyle(el, "::after");
+    return { bg: cs.backgroundColor, radius: cs.borderRadius };
+  });
+  ok(capsule.bg !== "rgba(0, 0, 0, 0)", `Glas: aktiver Tab hat eine Kapsel (${capsule.bg})`);
+  ok(parseFloat(capsule.radius) > 0, "Glas: Kapsel ist abgerundet");
+  await shot(page, "18-glasleiste");
+  await ctx.close();
+}
+
 await browser.close();
 console.log(`\n${checks - fails}/${checks} Browser-Checks bestanden`);
 process.exit(fails ? 1 : 0);

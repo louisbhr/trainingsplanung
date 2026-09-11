@@ -61,6 +61,8 @@ const logState = new Map();
 let dayPlan = { removed: [], added: [] };
 let currentKraftDay = { info: null, iso: null };
 let editMode = false;
+let replaceFor = null; // Slug der Übung, die gerade getauscht wird
+let quickAdd = false;  // Maske zum schnellen Hinzufügen offen
 // Strava: null = noch nicht geladen, false = nicht verbunden
 let stravaState = { runs: null, error: null, errorSource: null, connected: null };
 // Plan-Datum -> { run, offset, source }
@@ -149,7 +151,7 @@ async function renderDay(iso, { showBack }) {
     <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} Woche ${w}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
     <div class="title-row"><h1>${info.kind === "kraft" ? "Krafttraining" : info.kind === "lauf" ? "Lauf" : info.kind === "placeholder" ? `Woche ${w}` : "Ruhetag"}</h1>${badgeForKind(info)}</div>`;
 
-  if (info.kind !== "kraft") editMode = false;
+  if (info.kind !== "kraft") { editMode = false; replaceFor = null; quickAdd = false; }
   if (info.kind === "kraft") return renderKraftDay(info, iso);
   if (info.kind === "lauf") return renderRunDay(info, iso);
   if (info.kind === "placeholder") {
@@ -228,12 +230,24 @@ async function fillSessionSlot(iso) {
   </div>`;
 }
 
-// Plan-Übungen ohne die entfernten, plus die selbst hinzugefügten
+// Plan-Übungen ohne die entfernten, plus die selbst hinzugefügten.
+// Eine Ersetzung rückt an die Stelle der Übung, die sie ersetzt — sonst
+// rutscht der Tausch ans Listenende und man sucht ihn.
 function effectiveExercises(info) {
   const removed = new Set(dayPlan.removed);
-  const base = info.exercises.filter((ex) => !removed.has(slug(ex.name)));
-  const extra = dayPlan.added.map((ex) => ({ ...ex, custom: true }));
-  return [...base, ...extra];
+  const replacements = new Map();
+  for (const ex of dayPlan.added) if (ex.replaces) replacements.set(ex.replaces, ex);
+
+  const out = [];
+  for (const ex of info.exercises) {
+    const sl = slug(ex.name);
+    const rep = replacements.get(sl);
+    if (rep) { out.push({ ...rep, custom: true }); continue; }
+    if (removed.has(sl)) continue;
+    out.push(ex);
+  }
+  for (const ex of dayPlan.added) if (!ex.replaces) out.push({ ...ex, custom: true });
+  return out;
 }
 
 function buildLogState(exercises, saved) {
@@ -289,22 +303,43 @@ function paintKraftDay(info, iso, loadError) {
      </div>` +
     `<div id="session-slot"></div>` +
     [...logState.values()].map(exerciseCard).join("") +
+    (editMode ? "" : `<button class="add-inline" data-action="quick-add">+ Übung hinzufügen</button>`) +
+    (quickAdd ? addFormHTML(iso) : "") +
     (editMode
       ? removedList.map((ex) => `<div class="card removed">
            <div class="row" style="justify-content:space-between;gap:10px;">
              <div style="min-width:0;"><p class="name">${esc(ex.name)}</p><p class="hint">Für diesen Tag entfernt</p></div>
              <button class="small-btn" data-action="restore-exercise" data-slug="${slug(ex.name)}">Zurückholen</button>
            </div></div>`).join("") +
-        `<div class="card">
-           <p class="name">Übung hinzufügen</p>
-           <p class="hint" style="margin-bottom:8px;">Gilt nur für diesen Tag (${shortDate(iso)}).</p>
-           <div class="add-form">
-             <input type="text" id="new-ex-name" placeholder="Name, z. B. Beinpresse" />
-             <input type="text" id="new-ex-soll" placeholder="Soll, z. B. 3x8-10" />
-             <button class="save-btn wide" data-action="add-exercise">Hinzufügen</button>
-           </div>
-         </div>`
+        addFormHTML(iso)
       : "");
+}
+
+function addFormHTML(iso) {
+  return `<div class="card">
+    <p class="name">Übung hinzufügen</p>
+    <p class="hint" style="margin-bottom:8px;">Gilt nur für diesen Tag (${shortDate(iso)}).</p>
+    <div class="add-form">
+      <input type="text" id="new-ex-name" placeholder="Name, z. B. Beinpresse" autocomplete="off" />
+      <input type="text" id="new-ex-soll" placeholder="Soll, z. B. 3x8-10" autocomplete="off" />
+      <div class="row" style="gap:8px;">
+        <button class="save-btn" style="flex:1;" data-action="add-exercise">Hinzufügen</button>
+        <button data-action="cancel-add">Abbrechen</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function replaceFormHTML(st) {
+  return `<div class="add-form">
+    <p class="hint">Ersetzt ${esc(st.name)} an dieser Stelle.</p>
+    <input type="text" id="rep-ex-name" placeholder="Neue Übung" value="" autocomplete="off" />
+    <input type="text" id="rep-ex-soll" placeholder="Soll" value="${esc(st.soll)}" autocomplete="off" />
+    <div class="row" style="gap:8px;">
+      <button class="save-btn" style="flex:1;" data-action="confirm-replace" data-slug="${st.slug}">Übernehmen</button>
+      <button data-action="cancel-replace">Abbrechen</button>
+    </div>
+  </div>`;
 }
 
 function progressText() {
@@ -322,10 +357,18 @@ function exerciseCard(st) {
         ${st.tip ? `<p class="tip tip-${st.tip.level}">${esc(st.tip.text)}</p>` : ""}
       </div>
       ${editMode
-        ? `<button class="small-btn danger-btn" data-action="remove-exercise" data-slug="${st.slug}">Entfernen</button>`
+        ? ""
         : `<button data-action="toggle-sets" data-slug="${st.slug}" class="small-btn">${st.perSet ? "Alle gleich" : "Sätze einzeln"}</button>`}
     </div>
-    <div class="ex-body">${st.perSet ? perSetRowsHTML(st) : simpleRowHTML(st)}</div>
+    ${editMode && replaceFor !== st.slug
+      ? `<div class="row edit-actions">
+           <button class="small-btn" data-action="replace-exercise" data-slug="${st.slug}">Ersetzen</button>
+           <button class="small-btn danger-btn" data-action="remove-exercise" data-slug="${st.slug}">Entfernen</button>
+         </div>`
+      : ""}
+    <div class="ex-body">${
+      replaceFor === st.slug ? replaceFormHTML(st) : st.perSet ? perSetRowsHTML(st) : simpleRowHTML(st)
+    }</div>
     <p class="hint status" data-status="${st.slug}"></p>
   </div>`;
 }
@@ -366,6 +409,8 @@ function perSetRowsHTML(st) {
 function readCard(st) {
   const card = document.querySelector(`[data-ex="${st.slug}"]`);
   if (!card) return;
+  // Zeigt die Karte gerade die Ersetzen-Maske, gibt es keine Eingabefelder
+  if (!card.querySelector("[data-kg]")) return;
   if (st.perSet) {
     st.sets = [...card.querySelectorAll(".set-row")].map((row) => ({
       kg: numOrNull(row.querySelector("[data-kg]").value),
@@ -396,6 +441,8 @@ function toggleSets(slugName) {
 function toggleEditMode() {
   readAllCards();
   editMode = !editMode;
+  replaceFor = null;
+  quickAdd = false;
   paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null);
 }
 
@@ -410,7 +457,10 @@ function removeExercise(slugName) {
   readAllCards();
   const st = logState.get(slugName);
   if (st?.custom) {
+    const entry = dayPlan.added.find((ex) => slug(ex.name) === slugName);
     dayPlan.added = dayPlan.added.filter((ex) => slug(ex.name) !== slugName);
+    // War es ein Tausch, soll die ursprüngliche Übung zurückkommen
+    if (entry?.replaces) dayPlan.removed = dayPlan.removed.filter((x) => x !== entry.replaces);
   } else if (!dayPlan.removed.includes(slugName)) {
     dayPlan.removed.push(slugName);
   }
@@ -423,9 +473,9 @@ function restoreExercise(slugName) {
   refreshExercises();
 }
 
-function addExercise() {
-  const nameEl = document.getElementById("new-ex-name");
-  const sollEl = document.getElementById("new-ex-soll");
+function addExercise(replaces = null) {
+  const nameEl = document.getElementById(replaces ? "rep-ex-name" : "new-ex-name");
+  const sollEl = document.getElementById(replaces ? "rep-ex-soll" : "new-ex-soll");
   const name = (nameEl?.value || "").trim();
   const soll = (sollEl?.value || "").trim() || "3x8-10";
   if (!name) {
@@ -443,9 +493,19 @@ function addExercise() {
     return;
   }
   readAllCards();
-  // Falls die Übung nur „entfernt" war: einfach wieder aufnehmen
-  if (dayPlan.removed.includes(s)) dayPlan.removed = dayPlan.removed.filter((x) => x !== s);
-  else dayPlan.added.push({ name, soll, hint: "Eigene Übung" });
+  if (replaces) {
+    // Tausch: die ersetzte Übung verschwindet, die neue rückt an ihre Stelle
+    dayPlan.added = dayPlan.added.filter((ex) => ex.replaces !== replaces);
+    dayPlan.added.push({ name, soll, hint: "Ersetzt " + (logState.get(replaces)?.name || replaces), replaces });
+    if (!dayPlan.removed.includes(replaces)) dayPlan.removed.push(replaces);
+  } else if (dayPlan.removed.includes(s)) {
+    // Falls die Übung nur „entfernt" war: einfach wieder aufnehmen
+    dayPlan.removed = dayPlan.removed.filter((x) => x !== s);
+  } else {
+    dayPlan.added.push({ name, soll, hint: "Eigene Übung" });
+  }
+  replaceFor = null;
+  quickAdd = false;
   refreshExercises();
 }
 
@@ -964,6 +1024,11 @@ document.getElementById("app").addEventListener("click", async (e) => {
   if (action === "remove-exercise") return removeExercise(target.dataset.slug);
   if (action === "restore-exercise") return restoreExercise(target.dataset.slug);
   if (action === "add-exercise") return addExercise();
+  if (action === "quick-add") { quickAdd = true; paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null); document.getElementById("new-ex-name")?.focus(); return; }
+  if (action === "cancel-add") { quickAdd = false; return paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null); }
+  if (action === "replace-exercise") { readAllCards(); replaceFor = target.dataset.slug; paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null); document.getElementById("rep-ex-name")?.focus(); return; }
+  if (action === "cancel-replace") { replaceFor = null; return paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null); }
+  if (action === "confirm-replace") return addExercise(target.dataset.slug);
   if (action === "save") return saveExercise(target.dataset.slug, currentDateISO());
   if (action === "hist-mode") { state.historyMode = target.dataset.mode; return render(); }
   if (action === "connect-strava") return startAuthorization();

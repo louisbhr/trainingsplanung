@@ -39,9 +39,12 @@ Feste Randbedingungen, an denen sich jede Erweiterung messen lassen muss:
   einzeln. Speichern quittiert sofort und synchronisiert im Hintergrund,
   damit es im Gym ohne Netz nicht hängt. Erledigte Übungen sind farblich
   markiert, mit Fortschrittszähler.
-- **Übungen anpassen** — pro Trainingstag Übungen entfernen, zurückholen
-  oder eigene mit Name und Sollvorgabe hinzufügen. Eigene Übungen nutzen
-  denselben Schlüssel wie Plan-Übungen und tauchen im Verlauf auf.
+- **Übungen anpassen** — pro Trainingstag Übungen entfernen, ersetzen,
+  zurückholen oder eigene hinzufügen. „+ Übung hinzufügen" steht immer
+  unter der Liste, für den Fall im Gym; Ersetzen und Entfernen stecken
+  hinter „Anpassen". Eine Ersetzung rückt an die Stelle der getauschten
+  Übung; wird sie entfernt, kommt das Original zurück. Eigene Übungen
+  nutzen denselben Schlüssel wie Plan-Übungen und tauchen im Verlauf auf.
 - **Läufe automatisch zuordnen** — exakter Treffer am Plantag; sonst ein
   Lauf von einem Tag davor bis drei Tage danach, ausgewiesen als
   „nachgeholt". Kein Lauf wird doppelt vergeben. Manuell korrigierbar
@@ -53,7 +56,8 @@ Feste Randbedingungen, an denen sich jede Erweiterung messen lassen muss:
   Relative Effort kommen automatisch aus der Strava-Krafteinheit.
 - **Offline-tauglich** — Firestore mit persistentem Cache; Eingaben im
   Funkloch werden später synchronisiert.
-- **Dark Mode**, Zum-Home-Bildschirm-Manifest, fixierte Tableiste.
+- **Dark Mode**, Zum-Home-Bildschirm-Manifest. Die Tableiste liegt als
+  durchscheinende Glasfläche über dem Inhalt, der darunter durchscrollt.
 
 ### Plandaten (`plan.js`)
 
@@ -84,6 +88,10 @@ Datumstabellen.
 | `logs/{datum}_{übung}` | Sätze einer Übung: `sets[{kg,reps}]`, `topKg`, `totalReps`, `week`, `completed` |
 | `dayplans/{datum}` | Angepasste Übungsliste: `removed[]`, `added[{name,soll,hint}]` |
 | `runlinks/{plandatum}` | Manuelle Lauf-Zuordnung: `activityId` (`null` = bewusst kein Lauf) |
+
+`dayplans.added[]` trägt optional `replaces` — den Schlüssel der Übung,
+die getauscht wurde. Daran hängt die Position in der Liste und die
+Rückkehr des Originals.
 | `config/strava` | Strava-Tokens |
 
 ### Fremdsysteme
@@ -98,11 +106,11 @@ Datumstabellen.
 ### Qualitätssicherung
 
 `npm test` — 81 Prüfungen der Plandaten, 29 der Lauf-Zuordnung, 27 der
-Progressionslogik (alle ohne Browser), dazu 113 Browser-Checks in
+Progressionslogik (alle ohne Browser), dazu 132 Browser-Checks in
 Chromium gegen gestubbtes Firebase/Strava. Abgedeckt unter anderem:
 Zeitzonen um Mitternacht, Speichern und Wiederherstellen, verschobene
-Läufe, Übungen anpassen, Progressionsvorschläge, Fehlerzustände,
-klebende Tableiste, kein horizontales Scrollen.
+Läufe, Übungen anpassen und ersetzen, Progressionsvorschläge,
+Fehlerzustände, Glasleiste, kein horizontales Scrollen.
 
 ## 4. Bekannte Grenzen
 
@@ -140,6 +148,7 @@ Aufwand grob: **S** = ein Handgriff · **M** = eine Session · **L** = mehr.
 | 7 | **Service Worker** — App startet auch ohne Netz. | M |
 | 8 | **Echtes Login** statt anonymer Anmeldung, Firestore-Regeln an die eigene UID binden. | M |
 | 9 | **Wettkampf-Countdown** und Formkurve auf dem Heute-Tab. | S |
+| 12 | **Echte Lichtbrechung in der Glasleiste**, sobald WebKit `backdrop-filter: url()` mit SVG-Verzerrungsfiltern unterstützt. Heute nur in Chromium möglich, auf dem iPhone wirkungslos; standardisiert wird es gerade unter [w3c/svgwg#1142](https://github.com/w3c/svgwg/issues/1142). Bis dahin bleibt es bei Unschärfe, Sättigung und Lichtkante. | S |
 | 10 | **Export** der Trainingsdaten als CSV oder JSON. | S |
 | 11 | **Verletzungs-/Belastungsnotiz** je Tag — freies Feld, das auch in die Trainer-Auswertung einfließt. | S |
 
