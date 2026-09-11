@@ -1,5 +1,5 @@
-import { saveStravaTokens, loadStravaTokens } from "./firebase-init.js";
-import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js";
+import { saveStravaTokens, loadStravaTokens } from "./firebase-init.js?v=202609110852";
+import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202609110852";
 
 // Die Client-ID ist unkritisch öffentlich (sie steht ohnehin in der
 // Authorize-URL). Das Client-Secret liegt NICHT hier, sondern nur als
@@ -125,7 +125,8 @@ async function getValidAccessToken() {
   return data.access_token;
 }
 
-let runCache = null; // { sinceISO, runs, fetchedAt }
+let runCache = null; // { sinceISO, runs, sessions, fetchedAt }
+let lastSessions = [];
 const CACHE_MS = 5 * 60 * 1000;
 
 // Holt die Läufe seit einem Datum (paginiert, max. 200 Aktivitäten).
@@ -138,6 +139,7 @@ export async function fetchRecentRuns(sinceISO, { force = false } = {}) {
     runCache.sinceISO === sinceISO &&
     Date.now() - runCache.fetchedAt < CACHE_MS
   ) {
+    lastSessions = runCache.sessions || [];
     return runCache.runs;
   }
 
@@ -168,8 +170,41 @@ export async function fetchRecentRuns(sinceISO, { force = false } = {}) {
     .map(mapActivity)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
-  runCache = { sinceISO, runs, fetchedAt: Date.now() };
+  // Krafteinheiten kommen von der Uhr als WeightTraining. Strava kennt
+  // dazu keine einzelnen Übungen, aber Herzfrequenz und Dauer — daraus
+  // wird die Belastung der Einheit ohne jede Eingabe sichtbar.
+  lastSessions = all
+    .filter((a) => a.type === "WeightTraining" || a.sport_type === "WeightTraining" || a.sport_type === "Workout")
+    .map(mapSession)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  runCache = { sinceISO, runs, sessions: lastSessions, fetchedAt: Date.now() };
   return runs;
+}
+
+// Krafteinheiten aus dem letzten Abruf
+export function strengthSessions() {
+  return lastSessions;
+}
+
+export function sessionForDate(dateISO) {
+  const sameDay = lastSessions.filter((s) => s.date === dateISO);
+  if (!sameDay.length) return null;
+  return sameDay.reduce((a, b) => (b.movingTimeSec > a.movingTimeSec ? b : a));
+}
+
+function mapSession(a) {
+  return {
+    id: a.id,
+    date: (a.start_date_local || a.start_date || "").slice(0, 10),
+    name: a.name,
+    movingTimeSec: a.moving_time || 0,
+    avgHr: a.average_heartrate ? Math.round(a.average_heartrate) : null,
+    maxHr: a.max_heartrate ? Math.round(a.max_heartrate) : null,
+    calories: a.calories ?? null,
+    // Strava nennt das "Relative Effort" — aus der Herzfrequenz berechnet
+    effort: a.suffer_score ?? null,
+  };
 }
 
 function mapActivity(a) {

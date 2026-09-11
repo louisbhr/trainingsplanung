@@ -18,6 +18,10 @@
   --teal-fg: var(--teal);
   --coral-fg: var(--coral);
   --purple-fg: var(--purple);
+  /* Glasleiste: durchscheinende Fläche plus Lichtkante oben */
+  --glass: rgba(255, 255, 255, 0.78);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --glass-tint: rgba(255, 255, 255, 0.55);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -34,6 +38,9 @@
     --teal-fg: #5fcfa7;
     --coral-fg: #ef8f61;
     --purple-fg: #a49df5;
+    --glass: rgba(30, 30, 34, 0.72);
+    --glass-edge: rgba(255, 255, 255, 0.14);
+    --glass-tint: rgba(255, 255, 255, 0.06);
   }
 }
 
@@ -72,7 +79,7 @@ body {
 
 #main {
   flex: 1 1 auto; min-height: 0;
-  padding: 1rem 1.25rem 1.5rem;
+  padding: 1rem 1.25rem calc(78px + env(safe-area-inset-bottom));
   display: flex; flex-direction: column; gap: 10px;
   overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -116,12 +123,50 @@ button:active { transform: scale(0.97); }
 .bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--teal); }
 .bar-label { font-size: 10px; color: var(--text-muted); }
 
-#tabbar { display: flex; border-top: 0.5px solid var(--border); flex-shrink: 0; background: var(--surface-2); }
+/* Glasleiste: der Inhalt scrollt darunter durch, deshalb liegt sie über
+   #main statt daneben. Echte Lichtbrechung (SVG-Verzerrungsfilter im
+   backdrop-filter) unterstützt WebKit nicht — auf dem iPhone bliebe sie
+   wirkungslos. Was dort trägt, ist Unschärfe plus Sättigung, eine
+   Lichtkante und eine Kapsel hinter dem aktiven Tab. */
+#tabbar {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 10;
+  display: flex;
+  background: var(--surface-2);
+  border-top: 0.5px solid var(--border);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #tabbar {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    backdrop-filter: blur(22px) saturate(180%);
+  }
+  /* Haarfeine Lichtkante — der Teil von Apples Material, der am
+     stärksten den Glas-Eindruck macht */
+  #tabbar::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--glass-edge) 25%, var(--glass-edge) 75%, transparent);
+    pointer-events: none;
+  }
+}
 #tabbar button {
   flex: 1; border: none; border-radius: 0; padding: 10px 0; background: transparent;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
 }
-#tabbar button.active { background: var(--surface-1); }
+#tabbar button {
+  position: relative;
+  transition: color 0.18s ease;
+}
+/* Kapsel hinter dem aktiven Tab */
+#tabbar button::after {
+  content: ""; position: absolute; inset: 4px 8px; border-radius: 12px;
+  background: transparent; transition: background 0.22s ease, transform 0.22s ease;
+  transform: scale(0.92); z-index: -1;
+}
+#tabbar button.active { color: var(--teal-fg); }
+#tabbar button.active::after { background: var(--glass-tint); transform: scale(1); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #tabbar button.active::after { background: var(--surface-1); }
+}
 #tabbar svg { width: 20px; height: 20px; }
 #tabbar span { font-size: 11px; }
 
@@ -307,3 +352,24 @@ select {
 .pick-row .pick-main { font-size: 13px; font-weight: 600; }
 .pick-row .pick-sub { font-size: 11px; color: var(--text-muted); }
 .pick-row.on .pick-main, .pick-row.on .pick-sub { color: var(--teal-fg); }
+
+/* ---- Progressionsvorschlag aus den letzten Zahlen ---- */
+.tip {
+  font-size: 11.5px; font-weight: 600; margin: 6px 0 0;
+  padding: 4px 8px; border-radius: 6px; display: inline-block;
+}
+.tip-up { background: var(--teal-bg); color: var(--teal-fg); }
+.tip-hold { background: var(--sky-bg); color: var(--sky-fg); }
+.tip-down { background: var(--coral-bg); color: var(--coral-fg); }
+.tip-info { background: var(--surface-2); color: var(--text-secondary); }
+.card.session-card { background: var(--sky-bg); }
+.card.session-card .name, .card.session-card .hint { color: var(--sky-fg); }
+.card.session-card .metric-label, .card.session-card .metric-value { color: var(--sky-fg); }
+
+/* ---- Schnell eine Übung ergänzen ---- */
+.add-inline {
+  width: 100%; border-style: dashed; color: var(--text-secondary);
+  padding: 10px; font-weight: 600;
+}
+.edit-actions { margin-top: 8px; gap: 8px; }
+.edit-actions button { flex: 1; }

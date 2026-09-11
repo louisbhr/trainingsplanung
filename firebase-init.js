@@ -159,6 +159,17 @@ export async function saveDayPlan(dateISO, dayPlan) {
   );
 }
 
+// Kompletter Kraft-Verlauf in einer Abfrage. Über 31 Wochen sind das
+// einige hundert Zeilen — einmal laden und im Speicher halten ist
+// günstiger als eine Abfrage je Übung.
+export async function loadAllLogs() {
+  await ensureSignedIn();
+  const snap = await fb(() => getDocs(collection(db, "logs")));
+  const out = [];
+  snap.forEach((d) => out.push(d.data()));
+  return out;
+}
+
 // --- Zuordnung von Strava-Läufen zu Plan-Lauftagen ---
 // Doc-Id ist das Plan-Datum. activityId null heißt: an dem Tag bewusst
 // kein Lauf, die automatische Zuordnung soll nichts hineinraten.

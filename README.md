@@ -17,6 +17,9 @@ Strava, sucht sie einen Tag davor bis drei Tage danach und weist ihn als
 nachgeholt aus (`runmatch.js`). Passt die Vermutung nicht, lässt sich über
 „Anderen Lauf" von Hand zuordnen oder der Tag bewusst leer lassen.
 
+Was die App heute kann, worauf sie aufbaut und was noch kommen soll,
+steht in [`REQUIREMENTS.md`](REQUIREMENTS.md).
+
 ## 1. Auf GitHub Pages veröffentlichen
 
 1. Repository auf GitHub anlegen (öffentlich, sonst braucht Pages GitHub Pro).
@@ -76,7 +79,20 @@ Die Tokens liegen danach in Firestore und gelten für alle Geräte.
 > auf strava.com/settings/api und trage das neue nur noch als Worker-Secret
 > ein. Im ausgelieferten Code steht jetzt nur noch die unkritische Client-ID.
 
-## 4. Lokal testen
+## 4. Nach jeder Änderung: Version stempeln
+
+```bash
+npm run version
+```
+
+Hängt einen Zeitstempel an die Verweise auf `style.css`, `app.js` und
+alle Modul-Importe. Ohne ihn liefert der Browser nach einem Deploy
+womöglich noch die alte Fassung aus — GitHub Pages lässt zehn Minuten
+cachen, Safari auf dem Home-Bildschirm länger. Danach committen; der
+Stempel steht im Diff. `npm test` prüft mit, dass er überall gesetzt und
+überall derselbe ist.
+
+## 5. Lokal testen
 
 ```bash
 npm install && npx playwright install chromium
@@ -97,6 +113,7 @@ Details siehe `tests/README.md`.
 | `firebase-init.js` | Firestore + anonyme Anmeldung, mit Offline-Cache |
 | `strava.js` | Strava-Anbindung |
 | `worker.js`, `wrangler.toml` | Cloudflare Worker für den Token-Austausch |
+| `tools/bump-version.mjs` | Setzt den Versionsstempel gegen Browser-Cache |
 | `firestore.rules` | Firestore-Regeln |
 | `manifest.webmanifest`, `icon.png` | „Zum Home-Bildschirm" auf dem Handy |
 | `tests/` | Plan- und Browser-Tests |

@@ -19,6 +19,7 @@ export async function loadLog(d, s) { return read()[d + "_" + s] || null; }
 export async function loadLogsForDate(d) {
   const out = {}; for (const v of Object.values(read())) if (v.date === d) out[v.exercise] = v; return out;
 }
+export async function loadAllLogs() { return Object.values(read()); }
 export async function loadLogsForExercise(slug) {
   return Object.values(read()).filter((v) => v.exercise === slug).sort((a, b) => (a.date < b.date ? -1 : 1));
 }
@@ -56,6 +57,8 @@ const ACTIVITIES = [
   { id: 4, type: "Ride", name: "Rad", start_date_local: "2026-09-04T09:00:00Z", distance: 30000, moving_time: 3600 },
   { id: 5, type: "Run", name: "Easy run", start_date_local: "2026-09-02T07:00:00Z", distance: 7010, moving_time: 2680 },
   { id: 6, type: "Run", name: "Nachgeholt", start_date_local: "2026-09-10T18:30:00Z", distance: 8100, moving_time: 3050 },
+  { id: 7, type: "WeightTraining", name: "Morning Weight Training", start_date_local: "2026-09-08T10:10:00Z",
+    distance: 0, moving_time: 3868, average_heartrate: 118.4, max_heartrate: 155, suffer_score: 15 },
 ];
 
 const browser = await chromium.launch();
@@ -63,7 +66,7 @@ const browser = await chromium.launch();
 async function newPage({ connected = false, tz = "Europe/Berlin" } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: tz });
   const errors = [];
-  await ctx.route("**/firebase-init.js", (r) =>
+  await ctx.route(/firebase-init\.js/, (r) =>
     r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => {
     const page = new URL(r.request().url()).searchParams.get("page");
@@ -273,7 +276,7 @@ async function noHScroll(page, where) {
 // ---- 7. Zeitzonen-Regression: 00:30 Berlin = Vortag in UTC ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
-  await ctx.route("**/firebase-init.js", (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-08T22:30:00Z")); // = 09.09. 00:30 Berlin
   await page.goto(BASE + "/index.html");
@@ -286,10 +289,10 @@ async function noHScroll(page, where) {
 // ---- 8. Worker nicht konfiguriert -> klarer Hinweis statt Hänger ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
-  await ctx.route("**/firebase-init.js", (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   // config.js hat inzwischen eine echte Worker-URL — den unkonfigurierten
   // Zustand deshalb hier gezielt nachstellen.
-  await ctx.route("**/config.js", (r) => r.fulfill({
+  await ctx.route(/config\.js/, (r) => r.fulfill({
     contentType: "application/javascript",
     body: 'export const STRAVA_WORKER_URL = ""; export const STRAVA_CLIENT_ID = "277715"; export const isWorkerConfigured = false;',
   }));
@@ -388,7 +391,7 @@ async function noHScroll(page, where) {
 // ---- 9. Firestore verweigert Zugriff: als Firebase-Problem erkennbar ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
-  await ctx.route("**/firebase-init.js", (r) => r.fulfill({
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({
     contentType: "application/javascript",
     body: `
       class FirebaseAccessError extends Error {
@@ -405,6 +408,7 @@ async function noHScroll(page, where) {
       export async function loadStravaTokens() { boom(); }
       export async function loadDayPlan() { boom(); }
       export async function saveDayPlan() { boom(); }
+      export async function loadAllLogs() { boom(); }
       export async function loadRunLinks() { boom(); }
       export async function saveRunLink() { boom(); }
       export async function clearRunLink() { boom(); }`,
@@ -522,6 +526,158 @@ async function noHScroll(page, where) {
   ok((await page.evaluate(() => document.documentElement.scrollHeight - document.documentElement.clientHeight)) <= 0,
      "Tableiste: die Seite selbst scrollt nicht mit");
   await shot(page, "15-leiste-unten");
+  await ctx.close();
+}
+
+// ---- 13. Progression aus den Wiederholungen statt RPE ----
+{
+  const { page, ctx, errors } = await newPage({ connected: true });
+  await page.addInitScript(() => {
+    // Vorwoche: Squats 3x10 bei 80 kg (Spanne voll), Deadlift 3x4 (unter Soll 3x5)
+    localStorage.setItem("test.logs", JSON.stringify({
+      "2026-09-01_squats": { date: "2026-09-01", exercise: "squats", completed: true,
+        sets: [{ kg: 80, reps: 10 }, { kg: 80, reps: 10 }, { kg: 80, reps: 10 }] },
+      "2026-09-01_deadlift": { date: "2026-09-01", exercise: "deadlift", completed: true,
+        sets: [{ kg: 100, reps: 4 }, { kg: 100, reps: 4 }, { kg: 100, reps: 4 }] },
+      "2026-09-01_klimmzuege": { date: "2026-09-01", exercise: "klimmzuege", completed: true,
+        sets: [{ kg: null, reps: 8 }, { kg: null, reps: 8 }, { kg: null, reps: 8 }] },
+    }));
+  });
+  await page.goto(BASE + "/index.html");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector(".tip");
+
+  const squats = await page.textContent('[data-ex="squats"] .tip');
+  ok(squats.includes("80 kg") && squats.includes("85 kg"),
+     `Progression: Spanne ausgeschöpft -> mehr Gewicht (${squats})`);
+  ok((await page.locator('[data-ex="squats"] .tip-up').count()) === 1, "Progression: als Steigerung eingefärbt");
+
+  const dl = await page.textContent('[data-ex="deadlift"] .tip');
+  ok(dl.includes("unter dem Soll"), `Progression: unter dem Soll erkannt (${dl})`);
+  ok((await page.locator('[data-ex="deadlift"] .tip-down').count()) === 1, "Progression: als Rücknahme eingefärbt");
+
+  const kz = await page.textContent('[data-ex="klimmzuege"] .tip');
+  ok(!kz.includes("kg"), `Progression: Körpergewichtsübung ohne Gewichtsvorschlag (${kz})`);
+
+  ok((await page.locator('[data-ex="brustpresse"] .tip').count()) === 0,
+     "Progression: ohne Vorgeschichte kein Vorschlag");
+
+  // Herzfrequenz der Einheit aus Strava
+  await page.waitForSelector(".session-card");
+  const sess = await page.textContent(".session-card");
+  ok(sess.includes("118 bpm") && sess.includes("155 bpm"), `Einheit: Herzfrequenz aus Strava (${sess.replace(/\s+/g, " ").slice(0, 80)})`);
+  ok(sess.includes("64:28 min") || sess.includes("1:04:28"), "Einheit: Dauer angezeigt");
+  ok(sess.includes("Relative Effort 15"), "Einheit: Relative Effort angezeigt");
+  await noHScroll(page, "Progression");
+  await shot(page, "16-progression");
+
+  // Kein RPE-Feld — die Eingabe bleibt kg und Wdh
+  ok((await page.locator('[data-ex="squats"] input').count()) === 2,
+     "Progression: keine zusätzliche Eingabe nötig");
+  ok(errors.length === 0, "Progression: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 14. Übung im Gym ersetzen und schnell ergänzen ----
+{
+  const { page, ctx, errors } = await newPage();
+  await page.goto(BASE + "/index.html");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector('[data-ex="squats"]');
+
+  // Hinzufügen ohne Umweg über den Bearbeitungsmodus
+  ok((await page.locator('[data-action="quick-add"]').count()) === 1,
+     "Ergänzen: Knopf steht direkt unter der Liste");
+  await page.click('[data-action="quick-add"]');
+  await page.fill("#new-ex-name", "Beinpresse");
+  await page.fill("#new-ex-soll", "4x10");
+  await page.click('[data-action="add-exercise"]');
+  await page.waitForSelector('[data-ex="beinpresse"]');
+  ok((await page.locator("[data-ex]").count()) === 9, "Ergänzen: Übung ist da");
+  const order = await page.locator("[data-ex]").evaluateAll((els) => els.map((e) => e.dataset.ex));
+  ok(order[order.length - 1] === "beinpresse", "Ergänzen: neue Übung hängt hinten an");
+
+  // Ersetzen: Bank belegt, also Brustpresse gegen Kurzhantelbank tauschen
+  await page.click('[data-action="toggle-edit"]');
+  await page.click('[data-ex="brustpresse"] [data-action="replace-exercise"]');
+  await page.waitForSelector("#rep-ex-name");
+  ok((await page.inputValue("#rep-ex-soll")) === "3x8-10", "Ersetzen: Sollvorgabe wird übernommen");
+  await page.fill("#rep-ex-name", "Kurzhantelbank");
+  await page.click('[data-action="confirm-replace"]');
+  await page.waitForSelector('[data-ex="kurzhantelbank"]');
+
+  const after = await page.locator("[data-ex]").evaluateAll((els) => els.map((e) => e.dataset.ex));
+  ok(!after.includes("brustpresse"), "Ersetzen: alte Übung ist weg");
+  ok(after.indexOf("kurzhantelbank") === order.indexOf("brustpresse"),
+     `Ersetzen: neue Übung steht an derselben Stelle (${after.indexOf("kurzhantelbank")})`);
+  ok((await page.textContent('[data-ex="kurzhantelbank"]')).includes("Ersetzt Brustpresse"),
+     "Ersetzen: Herkunft bleibt sichtbar");
+  await shot(page, "17-uebung-ersetzen");
+  await noHScroll(page, "Ersetzen");
+
+  // Überlebt den Reload
+  await page.reload();
+  await page.waitForSelector("#tabbar button.active");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector('[data-ex="kurzhantelbank"]');
+  ok((await page.locator('[data-ex="brustpresse"]').count()) === 0, "Ersetzen: überlebt den Reload");
+
+  // Tausch rückgängig -> Original kommt zurück
+  await page.click('[data-action="toggle-edit"]');
+  await page.click('[data-ex="kurzhantelbank"] [data-action="remove-exercise"]');
+  await page.waitForSelector('[data-ex="brustpresse"]');
+  ok((await page.locator('[data-ex="kurzhantelbank"]').count()) === 0,
+     "Ersetzen: Tausch entfernt, Original zurück");
+  ok(errors.length === 0, "Ersetzen: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 15. Glasleiste ----
+{
+  const { page, ctx } = await newPage();
+  await page.goto(BASE + "/index.html");
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector("[data-ex]");
+
+  const bar = await page.locator("#tabbar").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return {
+      backdrop: cs.backdropFilter || cs.webkitBackdropFilter,
+      position: cs.position,
+      bg: cs.backgroundColor,
+      rect: el.getBoundingClientRect().toJSON(),
+    };
+  });
+  ok(bar.backdrop.includes("blur"), `Glas: Unschärfe aktiv (${bar.backdrop})`);
+  ok(bar.backdrop.includes("saturate"), "Glas: Sättigung angehoben");
+  ok(/rgba?\([^)]*0?\.\d+\)/.test(bar.bg), `Glas: Fläche ist durchscheinend (${bar.bg})`);
+  ok(bar.position === "absolute", "Glas: Leiste liegt über dem Inhalt");
+  ok(Math.abs(bar.rect.bottom - 844) < 2, "Glas: sitzt weiterhin am unteren Rand");
+
+  // Damit die Unschärfe etwas zu tun hat, muss Inhalt darunter durchlaufen
+  const passesUnder = await page.evaluate(() => {
+    const m = document.getElementById("main");
+    const bar = document.getElementById("tabbar").getBoundingClientRect();
+    m.scrollTop = m.scrollHeight / 2;
+    return [...document.querySelectorAll("[data-ex]")].some((el) => {
+      const r = el.getBoundingClientRect();
+      return r.top < bar.top && r.bottom > bar.top;
+    });
+  });
+  ok(passesUnder, "Glas: Inhalt scrollt unter der Leiste durch");
+
+  // Kapsel hinter dem aktiven Tab
+  const capsule = await page.locator("#tabbar button.active").evaluate((el) => {
+    const cs = getComputedStyle(el, "::after");
+    return { bg: cs.backgroundColor, radius: cs.borderRadius };
+  });
+  ok(capsule.bg !== "rgba(0, 0, 0, 0)", `Glas: aktiver Tab hat eine Kapsel (${capsule.bg})`);
+  ok(parseFloat(capsule.radius) > 0, "Glas: Kapsel ist abgerundet");
+  await shot(page, "18-glasleiste");
   await ctx.close();
 }
 
