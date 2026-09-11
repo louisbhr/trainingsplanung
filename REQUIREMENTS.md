@@ -107,12 +107,13 @@ Rückkehr des Originals.
 ### Qualitätssicherung
 
 `npm test` — 81 Prüfungen der Plandaten, 29 der Lauf-Zuordnung, 27 der
-Progressionslogik und die Versionsstempel (alle ohne Browser), dazu 132
+Progressionslogik und die Versionsstempel (alle ohne Browser), dazu 141
 Browser-Checks in
 Chromium gegen gestubbtes Firebase/Strava. Abgedeckt unter anderem:
 Zeitzonen um Mitternacht, Speichern und Wiederherstellen, verschobene
 Läufe, Übungen anpassen und ersetzen, Progressionsvorschläge,
-Fehlerzustände, Glasleiste, kein horizontales Scrollen.
+Fehlerzustände, Glasleiste, Sicherheitsabstände und dass nichts
+seitlich scrollt oder ungefragt zoomt.
 
 ## 4. Bekannte Grenzen
 
