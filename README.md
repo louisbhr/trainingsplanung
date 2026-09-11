@@ -17,6 +17,9 @@ Strava, sucht sie einen Tag davor bis drei Tage danach und weist ihn als
 nachgeholt aus (`runmatch.js`). Passt die Vermutung nicht, lässt sich über
 „Anderen Lauf" von Hand zuordnen oder der Tag bewusst leer lassen.
 
+Was die App heute kann, worauf sie aufbaut und was noch kommen soll,
+steht in [`REQUIREMENTS.md`](REQUIREMENTS.md).
+
 ## 1. Auf GitHub Pages veröffentlichen
 
 1. Repository auf GitHub anlegen (öffentlich, sonst braucht Pages GitHub Pro).
