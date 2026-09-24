@@ -18,7 +18,8 @@ nachgeholt aus (`runmatch.js`). Passt die Vermutung nicht, lässt sich über
 „Anderen Lauf" von Hand zuordnen oder der Tag bewusst leer lassen.
 
 Was die App heute kann, worauf sie aufbaut und was noch kommen soll,
-steht in [`REQUIREMENTS.md`](REQUIREMENTS.md).
+steht in [`REQUIREMENTS.md`](REQUIREMENTS.md). Wer neu hier weitermacht,
+fängt mit [`HANDOFF.md`](HANDOFF.md) an.
 
 ## 1. Auf GitHub Pages veröffentlichen
 
