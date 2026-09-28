@@ -35,6 +35,7 @@ const MODULES = [
   "strava.js",
   "ui.js",
   "view-dashboard.js",
+  "view-week.js",
 ];
 const ASSETS = ["style.css", "app.js", "manifest.webmanifest"];
 

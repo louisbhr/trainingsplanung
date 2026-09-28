@@ -3,22 +3,23 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202609281048";
-import { loadPlans } from "./plan-store.js?v=202609281048";
+} from "./plan.js?v=202609281100";
+import { loadPlans } from "./plan-store.js?v=202609281100";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans,
-} from "./firebase-init.js?v=202609281048";
+} from "./firebase-init.js?v=202609281100";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202609281048";
-import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202609281048";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281048";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202609281048";
-import * as dash from "./view-dashboard.js?v=202609281048";
-import * as metrics from "./metrics.js?v=202609281048";
-import { THRESHOLDS } from "./config.js?v=202609281048";
+} from "./strava.js?v=202609281100";
+import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202609281100";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281100";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202609281100";
+import * as dash from "./view-dashboard.js?v=202609281100";
+import * as dashWeek from "./view-week.js?v=202609281100";
+import * as metrics from "./metrics.js?v=202609281100";
+import { THRESHOLDS } from "./config.js?v=202609281100";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 
@@ -1200,55 +1201,137 @@ function runPickerHTML(s, iso) {
 // Der Wochen-Tab bleibt in Schritt 1 unverändert und arbeitet deshalb auf
 // dem (einzigen) Plan der Registry — Mehrplan-Unterstützung für diesen Tab
 // ist Teil von M2/Schritt 2, nicht von M1.
-function renderWeek() {
+// Baut die Zeile eines aktiven Tags (Kraft/Lauf) für die neue
+// Wochen-Tab-Tagesliste (F9, M2-7): Status-Symbol nach Priorität
+// Zukunft > Heute > Vergangenheit, Ist/Ziel-Zeile, Nachgeholt-Hinweis.
+function buildWeekDayRow(plan, iso, today, logs, dps) {
+  const info = sessionOn(plan, iso);
+  const d = dayNameDE(iso);
+  const dt = shortDate(iso);
+  if (info.kind === "ruhe") return { isRest: true, d, dt };
+
+  const isToday = iso === today;
+  const isFuture = iso > today;
+  const kindColorVar =
+    info.kind === "kraft" ? "var(--teal-fg)"
+    : info.kind === "lauf" ? (info.shortType === "Long" ? "var(--purple-fg)" : "var(--coral-fg)")
+    : "var(--text-muted)";
+
+  if (info.kind === "kraft") {
+    const dp = dps[iso] || { removed: [], added: [] };
+    const exercises = effectiveExercisesFor(info, dp);
+    const total = exercises.length;
+    const done = exercises.filter((ex) => logs.some((l) => l.date === iso && l.exercise === slug(ex.name) && l.completed)).length;
+
+    let statusHTML;
+    if (isFuture) statusHTML = dashWeek.statusFutureHTML();
+    else if (total > 0 && done === total) statusHTML = dashWeek.statusCheckHTML();
+    else if (done > 0) statusHTML = dashWeek.statusPartialHTML(done, total);
+    else if (isToday) statusHTML = dashWeek.statusTodayHTML();
+    else statusHTML = dashWeek.statusMissedHTML();
+
+    return {
+      isRest: false, iso, d, dt, isToday, kindColorVar,
+      sessionName: info.label,
+      targetText: `${total} Übungen`,
+      hasActual: done > 0,
+      actualText: `${done}/${total} geloggt`,
+      statusHTML,
+    };
+  }
+
+  // Lauf
+  const a = runAssignment[iso];
+  const run = a?.run;
+  let statusHTML;
+  if (isFuture) statusHTML = dashWeek.statusFutureHTML();
+  else if (!run) statusHTML = isToday ? dashWeek.statusTodayHTML() : dashWeek.statusMissedHTML();
+  else if (run.avgHr != null && run.avgHr > info.hfMax) statusHTML = dashWeek.statusWarnHTML();
+  else statusHTML = isToday ? dashWeek.statusTodayHTML() : dashWeek.statusCheckHTML();
+
+  const actualText = run
+    ? `${run.distanceKm.toFixed(1)} km · ${run.paceLabel}${a.offset !== 0 ? " (nachgeholt)" : ""}`
+    : "";
+
+  return {
+    isRest: false, iso, d, dt, isToday, kindColorVar,
+    sessionName: info.type,
+    targetText: `${info.dist} · ${info.pace}`,
+    hasActual: !!run,
+    actualText,
+    statusHTML,
+  };
+}
+
+async function renderWeek() {
   const plan = plans[0];
   const w = state.weekNo;
   const week = weekOf(plan, w);
-  const phase = phaseOf(plan, w);
-  const start = weekStart(plan, w);
   const isCurrent = w === weekNoForTab(todayISO());
+  const start = weekStart(plan, w);
 
-  header.innerHTML = `
-    <p class="eyebrow">Phase ${phase.n} – ${esc(phase.name)} · ${shortDate(start)}–${shortDate(addDays(start, 6))}${week.deload ? " · Deload" : ""}</p>
-    <div class="title-row">
-      <h1>Woche ${w} <span class="of">von ${plan.totalWeeks}</span></h1>
-      <div class="row" style="gap:4px;">
-        <button class="icon-btn" data-action="week-prev" ${w <= 1 ? "disabled" : ""} aria-label="Vorherige Woche">${ICONS.prev}</button>
-        ${isCurrent ? "" : `<button class="small-btn" data-action="week-today">Heute</button>`}
-        <button class="icon-btn" data-action="week-next" ${w >= plan.totalWeeks ? "disabled" : ""} aria-label="Nächste Woche">${ICONS.next}</button>
-      </div>
-    </div>`;
+  header.innerHTML = dashWeek.weekNavHTML({
+    n: w,
+    weekType: week.weekType,
+    dateRange: `${shortDate(start)}–${shortDate(addDays(start, 6))}`,
+    hasPrev: w > 1,
+    hasNext: w < plan.totalWeeks,
+    showToday: !isCurrent,
+  });
 
   if (week.placeholder) {
+    const phase = phaseOf(plan, w);
     main.innerHTML = `<div class="card"><p class="name">${esc(phase.name)}</p>
-      <p class="hint">${esc(phase.focus)}. Details folgen nach der Re-Kalibrierung.</p></div>`;
+      <p class="hint">${esc(week.focus)}. Details folgen nach der Re-Kalibrierung.</p></div>`;
     return;
   }
 
+  main.innerHTML = loadingCard("Woche wird geladen …");
+  // Ein Firestore-/Strava-Ausfall darf die Wochenliste nicht leer lassen
+  // (analog zum Dashboard, F7-Prinzip): mit leeren Daten weiterrendern statt
+  // die Ansicht dauerhaft bei "Woche wird geladen …" hängen zu lassen — die
+  // einzelnen Tage führen trotzdem in die Tagesansicht, die ihre eigenen
+  // Fehlerkarten zeigt (z. B. #strava-slot).
+  let logs = [], dps = {};
+  try {
+    await loadStrava();
+    ({ logs, dps } = await ensureAllLogsAndDayPlans());
+  } catch (err) {
+    console.error(err);
+  }
+  // Zwischenzeitlich weitergeklickt (anderer Tab/andere Woche)? Dann nicht
+  // mehr in die falsche Ansicht schreiben.
+  if (state.tab !== "woche" || state.selectedDate || state.weekNo !== w) return;
+
   const today = todayISO();
-  const days = weekDates(plan, w).map((iso) => {
-    const info = sessionOn(plan, iso);
-    const [color, bg] = colorsFor(info);
-    const label =
-      info.kind === "ruhe" ? "Ruhe"
-      : info.kind === "kraft" ? info.shortLabel
-      : `${info.shortType}\n${info.dist}`;
-    return { iso, info, color, bg, label };
-  });
+  const days = weekDates(plan, w).map((iso) => buildWeekDayRow(plan, iso, today, logs, dps));
 
   const laufSessions = week.sessions.filter((s) => s.kind === "lauf");
+  const sollKm = laufSessions.reduce((a, s) => a + s.km, 0);
+  const istKm = laufSessions.reduce((a, s) => a + (runAssignment[s.date]?.run?.distanceKm || 0), 0);
+  const kraftSessions = week.sessions.filter((s) => s.kind === "kraft");
+  const kraftDone = kraftSessions.filter((s) => {
+    const dp = dps[s.date] || { removed: [], added: [] };
+    const exercises = effectiveExercisesFor(s, dp);
+    const done = exercises.filter((ex) => logs.some((l) => l.date === s.date && l.exercise === slug(ex.name) && l.completed)).length;
+    return exercises.length > 0 && done === exercises.length;
+  }).length;
 
-  main.innerHTML = `<div class="day-grid">
-      ${days.map((d) => `<button class="day-pill${d.iso === today ? " today" : ""}" data-action="open-day" data-date="${d.iso}" style="background:${d.bg};">
-        <p class="d" style="color:${d.color}">${dayNameDE(d.iso)}</p>
-        <p class="t" style="color:${d.color}">${esc(d.label).replace("\n", "<br>")}</p>
-      </button>`).join("")}
-    </div>
-    <p class="center-note">Tag antippen für Details</p>
-    <div class="card">
-      <p class="name">Wochenumfang Laufen</p>
-      <p class="hint">${laufSessions.map((r) => `${r.shortType} ${r.dist}`).join(" · ")} — zusammen ${week.plannedKm} km</p>
-    </div>`;
+  // F9/E7: Ist heute außerhalb der Planwochen (Rennlücke oder danach), gilt
+  // die letzte Planwoche als Endpunkt — dort erscheint der Hinweis.
+  const todayState = planDayState(today, plans);
+  const planIsOver = todayState === "bisZumRennen" || (todayState === "keinPlan" && today > plan.start);
+
+  main.innerHTML =
+    dashWeek.weekSummaryHTML({
+      ist: Math.round(istKm * 10) / 10,
+      soll: sollKm,
+      pct: sollKm > 0 ? Math.min(100, Math.round((istKm / sollKm) * 100)) : 0,
+      kraftDone,
+      kraftPlanned: kraftSessions.length,
+    }) +
+    days.map((d) => (d.isRest ? dashWeek.restRowHTML(d.d, d.dt) : dashWeek.dayRowHTML(d))).join("") +
+    (planIsOver && w === plan.totalWeeks ? dashWeek.planBeendetHintHTML(plan.totalWeeks) : "");
 }
 
 // ---------- Verlauf ----------

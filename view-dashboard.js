@@ -3,8 +3,8 @@
 // Datenzugriff (Firestore, Strava, Plan) bleiben in app.js. Keine eigenen
 // Styles — alle Klassen kommen aus style.css (D0), siehe
 // docs/ui-markup-dashboard-v2.md für die genaue Markup-Referenz.
-import { esc, ICONS, skelLine } from "./ui.js?v=202609281048";
-import { formatDuration } from "./strava.js?v=202609281048";
+import { esc, ICONS, skelLine } from "./ui.js?v=202609281100";
+import { formatDuration } from "./strava.js?v=202609281100";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
 

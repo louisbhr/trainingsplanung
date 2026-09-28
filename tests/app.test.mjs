@@ -281,32 +281,47 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
-// ---- 3. Woche: Navigation, Tag öffnen ----
+// ---- 3. Woche: Navigation, Tag öffnen (M2-7: neue Tagesliste statt Grid) ----
 {
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
   await page.click('[data-tab="woche"]');
-  await page.waitForSelector(".day-grid");
-  ok((await page.locator(".day-pill").count()) === 7, "Woche: 7 Tage");
-  ok((await page.textContent("#header h1")).includes("Woche 2"), "Woche: aktuelle Woche 2");
-  ok((await page.locator(".day-pill.today").count()) === 1, "Woche: heute markiert");
+  await page.waitForSelector(".day-row");
+  ok((await page.locator(".day-row").count()) === 7, "Woche: 7 Tage");
+  ok((await page.textContent("#header .t1")).includes("Woche 2"), "Woche: aktuelle Woche 2");
+  ok((await page.locator(".day-row.today").count()) === 1, "Woche: heute markiert");
+  ok((await page.locator('[data-action="week-today"]').count()) === 0, "Woche: kein 'Heute'-Knopf, wenn schon die aktuelle Woche zu sehen ist");
   await page.click('[data-action="week-next"]');
-  ok((await page.textContent("#header h1")).includes("Woche 3"), "Woche: vorwärts blättern");
+  await page.waitForFunction(() => document.querySelector("#header .t1")?.textContent.includes("Woche 3"));
+  ok(true, "Woche: vorwärts blättern");
   await page.click('[data-action="week-prev"]');
   await page.click('[data-action="week-prev"]');
-  ok((await page.textContent("#header h1")).includes("Woche 1"), "Woche: rückwärts blättern");
+  await page.waitForFunction(() => document.querySelector("#header .t1")?.textContent.includes("Woche 1"));
+  ok(true, "Woche: rückwärts blättern");
   ok(await page.locator('[data-action="week-prev"]').isDisabled(), "Woche: bei Woche 1 kein Zurück");
+  ok((await page.locator('[data-action="week-today"]').count()) === 1, "Woche: 'Heute'-Knopf erscheint außerhalb der aktuellen Woche");
   await page.click('[data-action="week-today"]');
-  ok((await page.textContent("#header h1")).includes("Woche 2"), "Woche: 'Heute' springt zurück");
+  await page.waitForFunction(() => document.querySelector("#header .t1")?.textContent.includes("Woche 2"));
+  ok(true, "Woche: 'Heute' springt zurück");
+  await page.waitForSelector(".week-summary");
   await shot(page, "03-woche");
   await noHScroll(page, "Woche");
-  // Dienstag = Krafttag öffnen
+
+  // Status-Symbole und Ist/Ziel-Zeile der neuen Tagesliste
+  const rows = await page.locator(".day-row.solid").evaluateAll((els) =>
+    els.map((el) => el.querySelector(".mid .n").textContent.trim()));
+  ok(rows.includes("Easy run") && rows.includes("Full Body A"), `Woche: Tagesliste zeigt Lauf- und Krafteinheiten (${rows.join(", ")})`);
+  const monday = page.locator('.day-row[data-date="2026-09-07"]');
+  ok((await monday.locator(".mid .s").textContent()).startsWith("Ist:"), "Woche: bereits gelaufener Tag zeigt Ist statt Ziel");
+
+  // Dienstag = Krafttag öffnen (ein Tap direkt in die Tagesansicht, siehe
+  // Kommentar in view-week.js zur bewussten Abweichung vom Akkordeon-Vorschlag)
   await page.click('[data-date="2026-09-08"]');
   await page.waitForSelector('[data-ex]');
   ok((await page.textContent("#header h1")) === "Krafttraining", "Tagesansicht: Krafttag geöffnet");
   ok((await page.locator("[data-ex]").count()) === 8, "Krafttag: 8 Übungen");
   await page.click('[data-action="back"]');
-  await page.waitForSelector(".day-grid");
+  await page.waitForSelector(".day-row");
   ok(true, "Tagesansicht: Zurück zur Woche");
   ok(errors.length === 0, "Woche: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -1019,8 +1034,8 @@ async function noHScroll(page, where) {
   ok((await page.textContent("#header h1")) === "Kein aktiver Plan", "Vor Planstart: 'Kein aktiver Plan' auf 'Heute'");
 
   await page.click('[data-tab="woche"]');
-  await page.waitForSelector(".day-grid, .card");
-  ok((await page.textContent("#header h1")).includes("Woche 1"), "Vor Planstart: Wochen-Tab zeigt Woche 1, nicht Woche 31");
+  await page.waitForSelector(".day-row, .card");
+  ok((await page.textContent("#header .t1")).includes("Woche 1"), "Vor Planstart: Wochen-Tab zeigt Woche 1, nicht Woche 31");
 
   await page.click('[data-tab="plan"]');
   await page.waitForSelector(".zone-line");
