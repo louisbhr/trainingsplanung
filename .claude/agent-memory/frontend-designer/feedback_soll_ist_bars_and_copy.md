@@ -1,23 +1,34 @@
 ---
 name: feedback-soll-ist-bars-and-copy
-description: target-vs-actual bar convention (outline=Soll, filled=Ist) and a hard no-em-dash rule for all visible copy in trainingsplanung
+description: target-vs-actual bar convention (both bars filled, dedicated --soll-fill token, own si-* class namespace) and a hard no-em-dash rule for all visible copy in trainingsplanung
 metadata:
   type: feedback
 ---
 
-**Soll/Ist (target vs. actual) bar convention, confirmed 2026-09-27:** don't pick two
-different fill colors for a "planned vs. actual" bar pair — at trainingsplanung's
-surface tones, a light tinted fill (e.g. `--teal-bg`) reads as almost invisible against
-`--surface-1` in light mode (measured ~1.02:1 contrast) and barely better in dark mode
-(~1.3:1). Fix used in `docs/mockup-dashboard-v2.html`: Soll = outline only (2px border
-in the category's `-fg` color, transparent fill), Ist = solid fill in the same `-fg`
-color. Same hue, shape carries the distinction (outline vs. solid), which also makes
-it colorblind-safe and gives ≥3:1 contrast against the card in both themes (measured
-`--teal-fg` vs `--surface-1`: 5.4:1 light, 8.5:1 dark). Always add a small swatch
-legend ("Soll" outline swatch + "Ist" filled swatch) next to any chart using this
-pattern — a paired soll/ist bar chart is not self-explanatory without one, unlike a
-single Ist-of-Soll progress bar (e.g. the Woche-tab's laufvolumen track), which reads
-fine from its accompanying "14 / 24 km" label alone and doesn't need a legend.
+**Soll/Ist (target vs. actual) bar convention — superseded 2026-09-27, then confirmed
+in the final abgenommene mockup:** the final, Louis-approved version in
+`docs/mockup-dashboard-v2.html` (and ported into real `style.css` in D0, 2026-09-28)
+uses **two solid-filled bars**, not outline-vs-solid as an earlier draft of this memory
+said. Soll = `--soll-fill` (a new, dedicated dampened neutral gray token, `#7f7e76`
+light / `#8b8b86` dark — deliberately NOT a tinted version of the category color, since
+`--teal-bg` reads as near-invisible against `--surface-1`, ~1.02:1 light / ~1.3:1 dark).
+Ist = `--teal-fg` (full-strength). Both fully opaque/filled, same shape, distinguished
+by hue+lightness, not outline-vs-fill. Contrast against `--surface-1`: Ist (`--teal-fg`)
+5.4:1 light / 8.5:1 dark; Soll (`--soll-fill`) measured ≥3:1 in both themes (the actual
+D2 requirement). An Ist of 0 draws no bar at all (no fake zero-stub). Always add a small
+swatch legend ("Soll"/"Ist") next to any chart using this pattern — a paired soll/ist
+bar chart is not self-explanatory without one, unlike a single Ist-of-Soll progress bar
+(e.g. the Woche-tab's laufvolumen track), which reads fine from its accompanying
+"14 / 24 km" label alone and doesn't need a legend.
+
+**Namespace warning for implementation:** trainingsplanung's real `style.css` already
+has unrelated `.bars`/`.bar-col`/`.bar-label`/`.bar` classes for the Verlauf-tab's
+single-value bar chart (different height/meaning). The Dashboard's soll/ist bar-pair
+component must use its own prefix (`si-bars`/`si-bar-col`/`si-bar-pair`/`si-bar-soll`/
+`si-bar-ist`/`si-bar-label`/`si-bar-legend`) — reusing the old names would silently
+inherit the wrong height/font-size from the older, unrelated component. See
+[[project_trainingsplanung_tokens]] for the general rule of checking for class-name
+collisions against the real `style.css` before porting mockup classes into it.
 
 **No em dashes ("—") in any visible/UI copy for this app**, including coach text,
 notice/empty-state text, and any annotation text that renders into the page (not just

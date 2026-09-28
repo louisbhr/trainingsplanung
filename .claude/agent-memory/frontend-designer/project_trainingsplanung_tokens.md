@@ -33,5 +33,17 @@ patterns in `app.js` (`#header`/`#main`/`#tabbar`, `.card`, inline-SVG `ICONS` m
   that v2 explicitly builds on. Worth re-reading if asked to iterate on this dashboard
   again, since it is not checked into git.
 
-Plan data (weeks, phases, zones, deload weeks 4 & 8) lives in `plan.js` — use it as the
-source of realistic example numbers in any future mockup rather than inventing figures.
+Plan data (weeks, phases, zones, deload weeks 4 & 8) lives in `plan.js` (M2: moving to
+`plans/hm-2027.json`, see plan-dashboard-v2.md) — use it as the source of realistic
+example numbers in any future mockup rather than inventing figures.
+
+**D0 (2026-09-28): the approved mockup was ported into the real `style.css`, `index.html`
+(D5 icon fix only), and `docs/ui-markup-dashboard-v2.md`** (exact markup reference for
+the coder, on branch `dashboard-v2-m2`). All new Dashboard-v2 component classes live in
+one clearly labeled section at the end of `style.css` ("Dashboard v2 (D0)"). See
+[[feedback_d0_css_port_decisions]] for the class-collision checks and additive-edit
+approach used, and [[feedback_soll_ist_bars_and_copy]] for the final (filled, not
+outline) soll/ist bar treatment. The frontend-designer's own role for the rest of M2 is
+limited to `style.css`, icon `<svg>` markup in `index.html`, and the markup-reference
+doc — `app.js`/`view-dashboard.js`/`view-week.js` logic and wiring belong to the coder
+(M2-3 through M2-10), per `docs/plan-dashboard-v2.md`'s role split.
