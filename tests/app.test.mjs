@@ -117,35 +117,89 @@ async function noHScroll(page, where) {
   ok(doc <= 0 && over.length === 0, `${where}: nichts ragt über den Rand (${doc}px, ${JSON.stringify(over)})`);
 }
 
-// ---- 1. Heute, nicht verbunden (07.09.2026 = W2 Montag, Easy run) ----
+// ---- 1. Dashboard, nicht verbunden (07.09.2026 = W2 Montag, Easy run) ----
+// Ersetzt die alte "Heute"-Tagesansicht als Starttab (M2-4). Die
+// Tagesansicht mit dem Strava-"Verbinden"-Einstieg bleibt über den
+// Wochen-Tab erreichbar, siehe unten.
 {
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#main .card");
-  ok((await page.textContent("#header h1")) === "Lauf", "Heute: Lauftag erkannt");
-  ok((await page.textContent("#header .badge")).includes("Easy run"), "Heute: Badge 'Easy run + 4x20s'");
-  ok((await page.textContent("#main")).includes("8 km"), "Heute: Ziel-Distanz 8 km");
+  await page.waitForSelector("#main .today-card");
+  ok((await page.textContent("#header h1")) === "Woche 2 · Aufbau", "Dashboard: Kopfzeile zeigt Woche + Wochentyp");
+  ok((await page.textContent("#header .badge")).includes("Phase 1 · Basis"), "Dashboard: Phasen-Badge");
+  ok((await page.textContent("#header .countdown")).includes("Datum offen"), "Dashboard: Countdown 'Datum offen' ohne bestätigtes Renndatum");
+  const today = await page.textContent("#today-slot");
+  ok(today.includes("Easy run") && today.includes("8 km"), "Dashboard: 'Heute dran' zeigt den Lauftag (Easy run, 8 km)");
+  ok(today.includes("Ist-Werte werden nach dem Lauf aus Strava geladen"), "Dashboard: Lauftag wartet sichtbar auf Strava, blockiert aber nicht");
+  ok((await page.locator("#coach-slot .coach-card").count()) === 1, "Dashboard: Coach-Platzhalter rendert sofort");
+  ok((await page.locator("#ampel-slot .ampel-tile").count()) === 4, "Dashboard: vier Ampel-Kacheln (Platzhalter) sofort da");
+  ok((await page.locator("#detail-slot .card").count()) === 1, "Dashboard: 'Im Detail'-Platzhalter sofort da");
+  await shot(page, "01-dashboard-nicht-verbunden");
+  await noHScroll(page, "Dashboard");
+  ok(errors.length === 0, "Dashboard: keine Konsolenfehler " + JSON.stringify(errors));
+
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-07"]');
   await page.waitForSelector('[data-action="connect-strava"]');
-  ok(true, "Heute: 'Mit Strava verbinden' erscheint ohne Tokens");
-  await shot(page, "01-heute-nicht-verbunden");
-  await noHScroll(page, "Heute");
-  ok(errors.length === 0, "Heute: keine Konsolenfehler " + JSON.stringify(errors));
+  ok(true, "Wochen-Tab: 'Mit Strava verbinden' erscheint ohne Tokens (unverändert aus M1)");
   await ctx.close();
 }
 
-// ---- 2. Heute, verbunden -> Strava-Daten ----
+// ---- 2. Dashboard, verbunden -> Ist-Werte laden nach, ohne zu blockieren ----
 {
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#strava-slot .card");
-  const txt = await page.textContent("#strava-slot");
-  ok(txt.includes("Erfasst (Strava)"), "Strava: Lauf gematcht");
-  ok(txt.includes("8.0 km"), "Strava: längster Lauf des Tages (8.0 km statt 2.0)");
-  ok(txt.includes("6:15 /km"), "Strava: Pace korrekt berechnet");
-  ok(txt.includes("155 bpm"), "Strava: Ø HF angezeigt");
-  ok(txt.includes("50:10 min"), "Strava: Dauer formatiert");
-  await shot(page, "02-heute-mit-strava");
-  ok(errors.length === 0, "Strava: keine Konsolenfehler " + JSON.stringify(errors));
+  await page.waitForSelector("#today-slot .metric-value");
+  const txt = await page.textContent("#today-slot");
+  ok(txt.includes("8.0 km"), "Dashboard: längster Lauf des Tages (8.0 km statt 2.0)");
+  ok(txt.includes("6:15 /km"), "Dashboard: Pace korrekt berechnet");
+  ok(txt.includes("155 bpm"), "Dashboard: Ø HF angezeigt");
+  ok(txt.includes("50:10 min"), "Dashboard: Dauer formatiert");
+  await shot(page, "02-dashboard-mit-strava");
+  await noHScroll(page, "Dashboard mit Strava");
+  ok(errors.length === 0, "Dashboard mit Strava: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 2b. Dashboard, Krafttag: Starten -> Übung -> Kraft-Tagesansicht -> zurück (F4) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  await page.clock.setFixedTime(new Date("2026-09-08T09:00:00Z")); // Di = Krafttag "Full Body A"
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#today-slot .today-card.k-kraft");
+  const before = await page.textContent("#today-slot");
+  ok(before.includes("Full Body A") && before.includes("8 Übungen"), "Dashboard: Krafttag mit Titel + Übungsanzahl");
+  ok((await page.locator("#todayExList").isVisible()) === false, "Dashboard: Übungsliste startet zugeklappt");
+
+  await page.click('[data-action="toggle-today-exercises"]');
+  await page.waitForSelector("#todayExList.open");
+  await page.waitForFunction(() => !document.querySelector("#todayExList .ex-progress")?.textContent.includes("…"));
+  ok((await page.locator("#todayExList .ex-row").count()) === 8, "Dashboard: aufgeklappte Liste zeigt alle 8 Übungen");
+  ok((await page.textContent("#todayExList .ex-progress")).includes("0/8"), "Dashboard: Fortschritt aus Firestore nachgeladen (0/8)");
+
+  // Tippen auf eine Übungszeile öffnet die bestehende Kraft-Tagesansicht.
+  await page.locator('#todayExList .ex-row').first().click();
+  await page.waitForSelector('[data-ex="squats"]');
+  ok((await page.textContent("#header h1")) === "Krafttraining", "Dashboard->Tagesansicht: Krafttag geöffnet");
+  ok((await page.textContent("#header .eyebrow")).includes("Dashboard"), "Dashboard->Tagesansicht: Zurück-Knopf beschriftet mit 'Dashboard'");
+
+  await page.locator('[data-ex="squats"] [data-kg]').fill("80");
+  await page.locator('[data-ex="squats"] [data-reps]').fill("9");
+  await page.click('[data-ex="squats"] [data-action="save"]');
+  await page.waitForSelector('[data-status="squats"].ok');
+
+  await page.click('[data-action="back"]');
+  await page.waitForSelector("#today-slot .today-card.k-kraft");
+  await page.waitForFunction(() =>
+    document.querySelector("#todayExList .ex-progress")?.textContent.includes("1/8 geloggt"));
+  ok(true, "Dashboard: zurück zeigt den aktualisierten Fortschritt (1/8 geloggt)");
+  await shot(page, "02b-dashboard-krafttag");
+  await noHScroll(page, "Dashboard Krafttag");
+  ok(errors.length === 0, "Dashboard Krafttag: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
@@ -296,7 +350,8 @@ async function noHScroll(page, where) {
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#header h1");
   const eyebrow = await page.textContent("#header .eyebrow");
-  ok(eyebrow.includes("09.09.") && eyebrow.includes("Mi"), `Zeitzone: 00:30 Berlin zeigt den 09.09. (war: "${eyebrow.trim()}")`);
+  ok(eyebrow.includes("Mittwoch") && eyebrow.includes("9. September"),
+     `Zeitzone: 00:30 Berlin zeigt den 09.09. (war: "${eyebrow.trim()}")`);
   await ctx.close();
 }
 
@@ -313,6 +368,10 @@ async function noHScroll(page, where) {
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
   await page.goto(BASE + "/index.html");
+  // Der "Strava noch nicht eingerichtet"-Hinweis erscheint in der
+  // Tagesansicht (Wochen-Tab), nicht mehr auf dem Dashboard-Starttab.
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-07"]');
   await page.waitForSelector("#strava-slot .card");
   ok((await page.textContent("#strava-slot")).includes("Strava noch nicht eingerichtet"),
      "Setup: fehlender Worker wird erklärt statt zu hängen");
@@ -433,6 +492,10 @@ async function noHScroll(page, where) {
   await page.addInitScript(() => localStorage.setItem("hm-tracker.workerUrl", "https://worker.test"));
   await page.goto(BASE + "/index.html");
 
+  // Der Fehler-Karten-Vergleich (Firebase vs. Strava) lebt in der
+  // Tagesansicht (#strava-slot), nicht auf dem Dashboard-Starttab.
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-07"]');
   await page.waitForSelector("#strava-slot .error-card");
   const runTxt = await page.textContent("#strava-slot");
   ok(runTxt.includes("Daten-Problem (Firebase)"), "Fehlerquelle: Firestore-Fehler wird nicht als Strava-Problem gezeigt");
@@ -760,7 +823,7 @@ async function noHScroll(page, where) {
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#toast.show");
   ok((await page.textContent("#toast")).includes("Plan aus letzter Kopie"), "Plan-404 mit Kopie: dezenter Hinweis erscheint");
-  ok((await page.textContent("#header h1")) === "Lauf", "Plan-404 mit Kopie: App läuft normal weiter (Lauftag erkannt)");
+  ok((await page.textContent("#header h1")) === "Woche 2 · Aufbau", "Plan-404 mit Kopie: App läuft normal weiter (Lauftag erkannt)");
 
   // Satz-Logging funktioniert weiterhin mit der Kopie
   await page.click('[data-tab="woche"]');
@@ -835,6 +898,8 @@ async function noHScroll(page, where) {
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#header h1");
   ok((await page.textContent("#header h1")) === "Bis zum Rennen", "Rennlücke: kein 'Woche 31', Zustand 'Bis zum Rennen'");
+  ok((await page.textContent("#today-slot")).includes("Der Plan endet vor dem Renntag"),
+     "Rennlücke: 'Heute dran' zeigt die neutrale Karte statt einer erfundenen Einheit");
   await shot(page, "21-bis-zum-rennen");
   ok(errors.length === 0, "Rennlücke: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -852,6 +917,12 @@ async function noHScroll(page, where) {
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#header h1");
   ok((await page.textContent("#header h1")) === "Kein aktiver Plan", "Nach dem Rennen: 'Kein aktiver Plan'");
+  ok((await page.textContent("#header .countdown")).includes("Rennen am 11.04.2027"),
+     "Nach dem Rennen: Kopfzeile nennt das vergangene Renndatum");
+  ok((await page.textContent("#today-slot")).includes("Läufe werden weiter aus Strava gezeigt"),
+     "Nach dem Rennen: 'Heute dran' zeigt die neutrale Karte (F7)");
+  ok((await page.textContent("#coach-slot")).includes("Ein neues Ziel legst du im Plan-Tab an"),
+     "Nach dem Rennen: Coach zeigt einen festen Hinweis statt eines API-Aufrufs (F7)");
   await shot(page, "22-kein-plan");
   ok(errors.length === 0, "Nach dem Rennen: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -900,7 +971,7 @@ async function noHScroll(page, where) {
   await page.reload();
   await page.waitForSelector("#toast.show");
   ok((await page.textContent("#toast")).includes("Plan aus letzter Kopie"), "Nach 404: die selbst geschriebene Kopie greift beim Reload wirklich");
-  ok((await page.textContent("#header h1")) === "Lauf", "Nach 404 mit echter Kopie: App läuft normal weiter");
+  ok((await page.textContent("#header h1")) === "Woche 2 · Aufbau", "Nach 404 mit echter Kopie: App läuft normal weiter");
   await ctx.close();
 }
 

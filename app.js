@@ -2,27 +2,21 @@ import {
   slug, toISO, fromISO, addDays,
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, activePlanFor, planDayState, exerciseCatalog, formatGoal,
-} from "./plan.js?v=202609281001";
-import { loadPlans } from "./plan-store.js?v=202609281001";
+  monthLabel, germanDate,
+} from "./plan.js?v=202609281032";
+import { loadPlans } from "./plan-store.js?v=202609281032";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
-  loadRunLinks, saveRunLink, clearRunLink, loadAllLogs,
-} from "./firebase-init.js?v=202609281001";
+  loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans,
+} from "./firebase-init.js?v=202609281032";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202609281001";
-import { suggestProgression, previousEntry } from "./progression.js?v=202609281001";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281001";
-
-const ICONS = {
-  run: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="4" r="1.5" fill="currentColor" stroke="none"/><path d="M13 7l-2 3 3 2 1 5M11 10l-4 1-2 4M8 14l-3 1M13.5 11l3 1 2-2"/></svg>',
-  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>',
-  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>',
-  prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>',
-  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>',
-  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>',
-};
+} from "./strava.js?v=202609281032";
+import { suggestProgression, previousEntry } from "./progression.js?v=202609281032";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281032";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE } from "./ui.js?v=202609281032";
+import * as dash from "./view-dashboard.js?v=202609281032";
 
 // Wird erst gesetzt, wenn der Plan geladen ist (A1) — vorher greift jeder
 // Zugriff auf den STRAVA_SINCE-Wert daneben.
@@ -35,20 +29,17 @@ let plans = [];
 
 // ---------- kleine Helfer ----------
 const todayISO = () => toISO(new Date());
-const dayNameDE = (iso) => ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][fromISO(iso).getDay()];
-const shortDate = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
-  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const header = document.getElementById("header");
 const main = document.getElementById("main");
 
 const state = {
-  tab: "heute",
+  tab: "dashboard",
   weekNo: 1, // richtiger Wert kommt aus init(), sobald der Plan geladen ist
   selectedDate: null,
   historyMode: "kraft",
   historyExercise: null,
+  todayExpanded: false, // "Heute dran" (Kraft): Übungsliste auf-/zugeklappt
 };
 
 // Wochennummer für den Wochen-Tab: innerhalb einer Planwoche die echte
@@ -94,23 +85,6 @@ let runLinks = {};
 let runPickerFor = null; // Plan-Datum, für das gerade die Auswahl offen ist
 let allLogs = null; // Kraft-Verlauf, für die Progressionsvorschläge
 
-function badge(text, color, bg) {
-  return `<span class="badge" style="background:${bg};color:${color}">${esc(text)}</span>`;
-}
-
-function toast(msg, isError = false) {
-  let box = document.getElementById("toast");
-  if (!box) {
-    box = document.createElement("div");
-    box.id = "toast";
-    document.getElementById("app").appendChild(box);
-  }
-  box.textContent = msg;
-  box.className = isError ? "show error" : "show";
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => (box.className = ""), isError ? 6000 : 3000);
-}
-
 // ---------- Plan-Zugriff ----------
 // Delegiert an sessionOn(plan, iso) innerhalb eines aktiven Plans; deckt
 // zusätzlich die beiden Zustände außerhalb der Planwochen ab (A8/E7):
@@ -142,11 +116,178 @@ function badgeForKind(info) {
   return badge("Ruhe", color, bg);
 }
 
+// ---------- Dashboard (F1–F8) ----------
+// M2-4: Kopfzeile + "Heute dran" sind fertig; Coach/Ampeln/"Im Detail" sind
+// bewusst Platzhalter (siehe view-dashboard.js) — echte Werte kommen mit
+// M2-5/M2-6/M2-9/M2-10.
+const COACH_NO_PLAN_TEXT =
+  "Dein Plan ist beendet. Ein neues Ziel legst du im Plan-Tab an, sobald es feststeht. " +
+  "Bis dahin zeigt dir das Dashboard weiter deine Strava-Läufe und die Belastung.";
+
+// Letzter geladener dayplans-Stand für den heutigen Krafttag (M2-4) — bleibt
+// über Toggle-Klicks erhalten, damit "Starten" nicht jedes Mal auf die
+// Plan-Rohliste zurückfällt, bevor der frische Fetch durch ist.
+let todayDayPlanCache = { removed: [], added: [] };
+
+// Wie effectiveExercises(info), aber mit explizit übergebenem dayPlan statt
+// dem Modul-Global — Dashboard und Ampeln (M2-5) brauchen das für Tage, die
+// nicht die gerade offene Kraft-Tagesansicht sind.
+function effectiveExercisesFor(info, dp) {
+  const removed = new Set(dp.removed);
+  const replacements = new Map();
+  for (const ex of dp.added) if (ex.replaces) replacements.set(ex.replaces, ex);
+  const out = [];
+  for (const ex of info.exercises) {
+    const sl = slug(ex.name);
+    const rep = replacements.get(sl);
+    if (rep) { out.push({ ...rep, custom: true }); continue; }
+    if (removed.has(sl)) continue;
+    out.push(ex);
+  }
+  for (const ex of dp.added) if (!ex.replaces) out.push({ ...ex, custom: true });
+  return out;
+}
+
+function todayStravaSummary(iso) {
+  if (!stravaState.runs) return null;
+  const todays = stravaState.runs.filter((r) => r.date === iso);
+  if (!todays.length) return null;
+  const best = todays.reduce((a, b) => (b.distanceKm > a.distanceKm ? b : a));
+  return `${best.name} · ${best.distanceKm.toFixed(1)} km`;
+}
+
+// F2: "Datum offen" ohne bestätigtes Renndatum, sonst Wochen/Tage bis zum
+// Rennen (letzte Planwoche bzw. Rennlücke zeigt Tage statt Wochen).
+function countdownText(plan, iso, dayState) {
+  if (!plan.goal.raceDateConfirmed) {
+    return `Rennen ca. ${monthLabel(plan.goal.raceDate)} · Datum offen`;
+  }
+  const days = daysBetween(iso, plan.goal.raceDate);
+  if (days <= 0) return "Rennen heute!";
+  const lastStretch = dayState === "bisZumRennen" || weekNumberFor(plan, iso) === plan.totalWeeks;
+  if (lastStretch || days <= 7) return `Noch ${days} ${days === 1 ? "Tag" : "Tage"}`;
+  const weeks = Math.ceil(days / 7);
+  return `Noch ${weeks} ${weeks === 1 ? "Woche" : "Wochen"} bis zum Rennen`;
+}
+
+function paintDashboardHeader(iso, dayState, plan) {
+  if (dayState === "keinPlan") {
+    const race = plans[0]?.goal;
+    const past = race && race.raceDate < iso;
+    header.innerHTML = dash.headerHTML({
+      eyebrow: longDateDE(iso),
+      title: "Kein aktiver Plan",
+      badge: dash.noPlanBadgeHTML(),
+      countdown: past ? `Rennen am ${germanDate(race.raceDate)}` : "",
+    });
+    return;
+  }
+  if (dayState === "bisZumRennen") {
+    header.innerHTML = dash.headerHTML({
+      eyebrow: longDateDE(iso),
+      title: "Bis zum Rennen",
+      badge: dash.noPlanBadgeHTML(),
+      countdown: countdownText(plan, iso, dayState),
+    });
+    return;
+  }
+  const w = weekNumberFor(plan, iso);
+  const week = weekOf(plan, w);
+  const phase = phaseOf(plan, w);
+  header.innerHTML = dash.headerHTML({
+    eyebrow: longDateDE(iso),
+    title: `Woche ${w} · ${week.weekType}`,
+    badge: dash.phaseBadgeHTML(phase.n, phase.name, phase.tone),
+    countdown: countdownText(plan, iso, dayState),
+  });
+}
+
+function todayCardSlotHTML(iso, dayState, plan) {
+  if (dayState === "keinPlan") return dash.todayCardNoPlanHTML(todayStravaSummary(iso));
+  if (dayState === "bisZumRennen") return dash.todayCardBisZumRennenHTML();
+
+  const info = sessionOn(plan, iso);
+  if (info.kind === "placeholder") return dash.todayCardPlaceholderHTML(phaseOf(plan, info.week)?.n, info.focus);
+  if (info.kind === "kraft") {
+    const exercises = effectiveExercisesFor(info, todayDayPlanCache);
+    return dash.todayCardKraftHTML(info, { expanded: state.todayExpanded, progressText: "… geloggt", exercises });
+  }
+  if (info.kind === "lauf") {
+    const actualHTML = stravaState.connected ? dash.laufActualHTML(runAssignment[iso]) : dash.laufLoadingHTML();
+    return dash.todayCardLaufHTML(info, actualHTML);
+  }
+  return dash.todayCardRuheHTML();
+}
+
+function paintDashboardMain(iso, dayState, plan) {
+  main.innerHTML = `
+    <div id="today-slot">${todayCardSlotHTML(iso, dayState, plan)}</div>
+    <div id="coach-slot">${dayState === "keinPlan" ? dash.coachNoPlanHTML(COACH_NO_PLAN_TEXT) : dash.coachPlaceholderHTML()}</div>
+    <div id="ampel-slot">${dash.ampelPlaceholderGridHTML()}</div>
+    <div id="detail-slot">${dash.detailPlaceholderHTML()}</div>`;
+  fillDashboardData(iso, dayState, plan);
+}
+
+function refreshTodaySlot(iso, dayState, plan) {
+  // Kann inzwischen weitergeklickt haben (anderer Tab, Tagesansicht offen) —
+  // dann nicht mehr in die aktuelle Ansicht schreiben.
+  if (state.tab !== "dashboard" || state.selectedDate) return;
+  const slot = document.getElementById("today-slot");
+  if (slot) slot.innerHTML = todayCardSlotHTML(iso, dayState, plan);
+}
+
+// Lädt nach, was die Synchron-Ansicht noch nicht hatte (Strava-Ist-Werte,
+// Kraft-Fortschritt) — das Dashboard selbst wartet darauf nicht (F3/F7).
+async function fillDashboardData(iso, dayState, plan) {
+  if (dayState === "woche") {
+    const info = sessionOn(plan, iso);
+    if (info.kind === "kraft") {
+      try {
+        const [saved, dp] = await Promise.all([loadLogsForDate(iso), loadDayPlan(iso)]);
+        todayDayPlanCache = dp;
+        const exercises = effectiveExercisesFor(info, dp);
+        const done = exercises.filter((ex) => saved[slug(ex.name)]?.completed).length;
+        if (state.tab === "dashboard" && !state.selectedDate) {
+          const slot = document.getElementById("today-slot");
+          if (slot) {
+            slot.innerHTML = dash.todayCardKraftHTML(info, {
+              expanded: state.todayExpanded,
+              progressText: `${done}/${exercises.length} geloggt`,
+              exercises,
+            });
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      return;
+    }
+  }
+  // Lauftag, "kein Plan" (Strava-Fallback) oder "bis zum Rennen": Strava
+  // laden, dann die Karte mit den Ist-Werten aktualisieren.
+  try {
+    await loadStrava();
+    refreshTodaySlot(iso, dayState, plan);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function renderDashboard() {
+  const iso = todayISO();
+  const dayState = planDayState(iso, plans);
+  const plan = activePlanFor(iso, plans);
+  paintDashboardHeader(iso, dayState, plan);
+  paintDashboardMain(iso, dayState, plan);
+}
+
 // ---------- Rendering ----------
 function render() {
   if (!plans.length) return; // Plan lädt noch (siehe init()); nichts zu rendern
   try {
-    if (state.tab === "heute") return renderDay(todayISO(), { showBack: false });
+    if (state.tab === "dashboard") {
+      return state.selectedDate ? renderDay(state.selectedDate, { showBack: true, backLabel: "Dashboard" }) : renderDashboard();
+    }
     if (state.tab === "woche") {
       return state.selectedDate ? renderDay(state.selectedDate, { showBack: true }) : renderWeek();
     }
@@ -159,23 +300,16 @@ function render() {
   }
 }
 
-function errorCard(msg) {
-  return `<div class="card error-card"><p class="name">Problem</p><p class="hint">${esc(msg)}</p>
-    <button data-action="reload" style="margin-top:8px;">Neu laden</button></div>`;
-}
-function loadingCard(msg = "Lädt …") {
-  return `<p class="center-note">${esc(msg)}</p>`;
-}
-
 // ---------- Tagesansicht ----------
-async function renderDay(iso, { showBack }) {
+async function renderDay(iso, { showBack, backLabel }) {
   const info = dayInfo(iso);
   const plan = activePlanFor(iso, plans);
   const w = plan ? weekNumberFor(plan, iso) : null;
   const isToday = iso === todayISO();
+  const label = backLabel ?? `Woche ${w}`;
 
   header.innerHTML = `
-    <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} Woche ${w}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
+    <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} ${esc(label)}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
     <div class="title-row"><h1>${
       info.kind === "kraft" ? "Krafttraining"
       : info.kind === "lauf" ? "Lauf"
@@ -1083,6 +1217,7 @@ document.getElementById("app").addEventListener("click", async (e) => {
   if (action === "reload") return location.reload();
   if (action === "back") { state.selectedDate = null; runPickerFor = null; return render(); }
   if (action === "open-day") { state.selectedDate = target.dataset.date; runPickerFor = null; return render(); }
+  if (action === "toggle-today-exercises") { state.todayExpanded = !state.todayExpanded; return render(); }
   if (action === "week-prev") { state.weekNo = Math.max(1, state.weekNo - 1); return render(); }
   if (action === "week-next") { state.weekNo = Math.min(plans[0].totalWeeks, state.weekNo + 1); return render(); }
   if (action === "week-today") { state.weekNo = weekNoForTab(todayISO()); return render(); }
@@ -1131,7 +1266,7 @@ document.querySelectorAll("#tabbar button").forEach((btn) => {
 // ---------- Start ----------
 (async function init() {
   // Tab-Leiste zeigt sofort einen Zustand, auch während der Plan noch lädt.
-  document.querySelector('[data-tab="heute"]').classList.add("active");
+  document.querySelector('[data-tab="dashboard"]').classList.add("active");
   main.innerHTML = loadingCard("Plan wird geladen …");
 
   // A1: Der Plan wird asynchron geladen. Scheitert das ganz (kein Abruf,

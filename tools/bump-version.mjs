@@ -33,6 +33,8 @@ const MODULES = [
   "progression.js",
   "runmatch.js",
   "strava.js",
+  "ui.js",
+  "view-dashboard.js",
 ];
 const ASSETS = ["style.css", "app.js", "manifest.webmanifest"];
 

@@ -11,7 +11,8 @@
     "test:progression": "node tests/progression.test.mjs",
     "test:app": "node tests/app.test.mjs",
     "test:stubs": "node tests/stubs.test.mjs",
-    "test": "node tests/plan.test.mjs && node tests/plan-golden.test.mjs && node tests/runmatch.test.mjs && node tests/progression.test.mjs && node tests/version.test.mjs && node tests/stubs.test.mjs && node tests/app.test.mjs",
+    "test:metrics": "node --test tests/metrics.test.mjs",
+    "test": "node tests/plan.test.mjs && node tests/plan-golden.test.mjs && node tests/runmatch.test.mjs && node tests/progression.test.mjs && node tests/version.test.mjs && node tests/stubs.test.mjs && node --test tests/metrics.test.mjs && node tests/app.test.mjs",
     "version": "node tools/bump-version.mjs",
     "test:version": "node tests/version.test.mjs"
   },
