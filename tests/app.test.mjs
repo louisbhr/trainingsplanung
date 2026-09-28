@@ -203,6 +203,67 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
+// ---- 2c. Dashboard: echte Ampeln (Wochensoll/Belastung/Kraft-Progression) + Info-Sheet (M2-5) ----
+{
+  const { page, ctx, errors } = await newPage({ connected: true });
+  await page.addInitScript(() => {
+    // Squats und Deadlift hängen bei gleichem Soll/Gewicht zwei Einheiten in
+    // Folge fest (Stagnation), Brustpresse steigert normal -> zwei betroffene
+    // Übungen = rot (F5 Ampel 4), beide Daten liegen im 42-Tage-Fenster vor
+    // dem eingefrorenen Test-Datum 07.09.2026.
+    const stagnant = (kg) => [{ kg, reps: 9 }, { kg, reps: 9 }, { kg, reps: 9 }];
+    localStorage.setItem("test.logs", JSON.stringify({
+      "2026-08-24_squats": { date: "2026-08-24", exercise: "squats", name: "Squats", soll: "3x8-10", topKg: 60, totalReps: 27, completed: true, sets: stagnant(60) },
+      "2026-08-31_squats": { date: "2026-08-31", exercise: "squats", name: "Squats", soll: "3x8-10", topKg: 60, totalReps: 27, completed: true, sets: stagnant(60) },
+      "2026-08-24_deadlift": { date: "2026-08-24", exercise: "deadlift", name: "Deadlift", soll: "3x8-10", topKg: 70, totalReps: 27, completed: true, sets: stagnant(70) },
+      "2026-08-31_deadlift": { date: "2026-08-31", exercise: "deadlift", name: "Deadlift", soll: "3x8-10", topKg: 70, totalReps: 27, completed: true, sets: stagnant(70) },
+      "2026-08-24_brustpresse": { date: "2026-08-24", exercise: "brustpresse", name: "Brustpresse", soll: "3x8-10", topKg: 50, totalReps: 24, completed: true, sets: [{ kg: 50, reps: 8 }, { kg: 50, reps: 8 }, { kg: 50, reps: 8 }] },
+      "2026-08-31_brustpresse": { date: "2026-08-31", exercise: "brustpresse", name: "Brustpresse", soll: "3x8-10", topKg: 55, totalReps: 27, completed: true, sets: [{ kg: 55, reps: 9 }, { kg: 55, reps: 9 }, { kg: 55, reps: 9 }] },
+    }));
+  });
+  await page.goto(BASE + "/index.html");
+  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
+
+  const tiles = await page.locator("#ampel-slot .ampel-tile").evaluateAll((els) =>
+    els.map((el) => ({
+      title: el.querySelector(".title").textContent.trim(),
+      status: [...el.querySelector(".ampel-dot").classList].find((c) => c.startsWith("st-")),
+      detail: el.querySelector(".detail")?.textContent.trim(),
+    })));
+  const byTitle = Object.fromEntries(tiles.map((t) => [t.title, t]));
+
+  ok(byTitle["Wochensoll"].status === "st-gruen", `Ampel Wochensoll: grün erwartet (${byTitle["Wochensoll"].status})`);
+  // 16,1 km = Montag exakt (8,02 km) + der auf Mittwoch nachgeholte Lauf vom
+  // 10.09. (8,1 km, per assignRuns automatisch zugeordnet) — die Anzeige
+  // zeigt die ganze Woche, nicht nur den Anteil bis heute (F5).
+  ok(byTitle["Wochensoll"].detail === "16.1 / 29 km · Kraft 0/2", `Ampel Wochensoll: Detailtext (${byTitle["Wochensoll"].detail})`);
+  ok(byTitle["Belastung"].status === "st-grau", `Ampel Belastung: grau ohne 4 Wochen Historie (${byTitle["Belastung"].status})`);
+  ok(byTitle["Kraft-Progression"].status === "st-rot", `Ampel Kraft-Progression: rot bei zwei betroffenen Übungen (${byTitle["Kraft-Progression"].status})`);
+  ok(byTitle["Kraft-Progression"].detail.includes("Squats") && byTitle["Kraft-Progression"].detail.includes("+1 weitere"),
+     `Ampel Kraft-Progression: Detailtext nennt die schlechteste Übung zuerst (${byTitle["Kraft-Progression"].detail})`);
+  ok(["st-gruen", "st-gelb", "st-rot", "st-grau"].includes(byTitle["Easy-Disziplin"].status),
+     `Ampel Easy-Disziplin: rechnet, ohne hängen zu bleiben (${byTitle["Easy-Disziplin"].status})`);
+
+  // Info-Sheet (D1): öffnen per Klick, Grenzwerte aus THRESHOLDS im Text,
+  // per Escape schließen, Fokus kehrt zum Info-Knopf zurück.
+  const kraftInfoBtn = page.locator('[data-info="kraft"]');
+  await kraftInfoBtn.focus();
+  await kraftInfoBtn.press("Enter");
+  await page.waitForSelector("#infoSheet.open");
+  ok((await page.textContent("#infoSheetTitle")) === "Kraft-Progression", "Info-Sheet: Titel passt zur Ampel");
+  const body = await page.textContent("#infoSheetBody");
+  ok(body.includes("42 Tage"), `Info-Sheet: Grenzwert aus THRESHOLDS (windowDays) im Text (${body.slice(0, 120)})`);
+  ok(body.includes("2 oder mehr"), "Info-Sheet: Grenzwert redAffectedCount im Text");
+  ok(await page.evaluate(() => document.activeElement.id === "infoSheetClose"), "Info-Sheet: Fokus springt auf den Schließen-Knopf");
+  await page.keyboard.press("Escape");
+  await page.waitForSelector("#infoSheet:not(.open)");
+  ok(await page.evaluate(() => document.activeElement.dataset.info === "kraft"), "Info-Sheet: Fokus kehrt zum auslösenden Info-Knopf zurück");
+  await shot(page, "02c-dashboard-ampeln-info");
+  await noHScroll(page, "Dashboard Ampeln");
+  ok(errors.length === 0, "Dashboard Ampeln: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
 // ---- 3. Woche: Navigation, Tag öffnen ----
 {
   const { page, ctx, errors } = await newPage({ connected: true });
@@ -363,7 +424,9 @@ async function noHScroll(page, where) {
   // Zustand deshalb hier gezielt nachstellen.
   await ctx.route(/config\.js/, (r) => r.fulfill({
     contentType: "application/javascript",
-    body: 'export const STRAVA_WORKER_URL = ""; export const STRAVA_CLIENT_ID = "277715"; export const isWorkerConfigured = false;',
+    body: `export const STRAVA_WORKER_URL = ""; export const STRAVA_CLIENT_ID = "277715"; export const isWorkerConfigured = false;
+      export const THRESHOLDS = { wochensoll: { gruen: 0.9, gelb: 0.7 }, easy: { gelbMaxOver: 8 },
+      belastung: { gruen: 1.3, gelb: 1.5 }, kraft: { windowDays: 42, stallSessions: 2, minExercisesWithData: 3, redAffectedCount: 2, redConsecutiveBelow: 2 }, coach: { dailyLimit: 3, weeklyLimit: 2 } };`,
   }));
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));

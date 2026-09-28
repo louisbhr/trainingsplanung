@@ -1,22 +1,26 @@
 import {
   slug, toISO, fromISO, addDays,
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
-  sessionOn, activePlanFor, planDayState, exerciseCatalog, formatGoal,
+  sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202609281032";
-import { loadPlans } from "./plan-store.js?v=202609281032";
+} from "./plan.js?v=202609281043";
+import { loadPlans } from "./plan-store.js?v=202609281043";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans,
-} from "./firebase-init.js?v=202609281032";
+} from "./firebase-init.js?v=202609281043";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202609281032";
-import { suggestProgression, previousEntry } from "./progression.js?v=202609281032";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281032";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE } from "./ui.js?v=202609281032";
-import * as dash from "./view-dashboard.js?v=202609281032";
+} from "./strava.js?v=202609281043";
+import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202609281043";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281043";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202609281043";
+import * as dash from "./view-dashboard.js?v=202609281043";
+import * as metrics from "./metrics.js?v=202609281043";
+import { THRESHOLDS } from "./config.js?v=202609281043";
+
+const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 
 // Wird erst gesetzt, wenn der Plan geladen ist (A1) — vorher greift jeder
 // Zugriff auf den STRAVA_SINCE-Wert daneben.
@@ -84,6 +88,7 @@ let runAssignment = {};
 let runLinks = {};
 let runPickerFor = null; // Plan-Datum, für das gerade die Auswahl offen ist
 let allLogs = null; // Kraft-Verlauf, für die Progressionsvorschläge
+let allDayPlans = null; // Tages-Anpassungen aller Tage, für die Wochensoll-Ampel (M2-5)
 
 // ---------- Plan-Zugriff ----------
 // Delegiert an sessionOn(plan, iso) innerhalb eines aktiven Plans; deckt
@@ -225,7 +230,8 @@ function paintDashboardMain(iso, dayState, plan) {
     <div id="coach-slot">${dayState === "keinPlan" ? dash.coachNoPlanHTML(COACH_NO_PLAN_TEXT) : dash.coachPlaceholderHTML()}</div>
     <div id="ampel-slot">${dash.ampelPlaceholderGridHTML()}</div>
     <div id="detail-slot">${dash.detailPlaceholderHTML()}</div>`;
-  fillDashboardData(iso, dayState, plan);
+  fillTodayCard(iso, dayState, plan);
+  fillAmpeln(iso, dayState, plan);
 }
 
 function refreshTodaySlot(iso, dayState, plan) {
@@ -238,7 +244,7 @@ function refreshTodaySlot(iso, dayState, plan) {
 
 // Lädt nach, was die Synchron-Ansicht noch nicht hatte (Strava-Ist-Werte,
 // Kraft-Fortschritt) — das Dashboard selbst wartet darauf nicht (F3/F7).
-async function fillDashboardData(iso, dayState, plan) {
+async function fillTodayCard(iso, dayState, plan) {
   if (dayState === "woche") {
     const info = sessionOn(plan, iso);
     if (info.kind === "kraft") {
@@ -268,6 +274,117 @@ async function fillDashboardData(iso, dayState, plan) {
   try {
     await loadStrava();
     refreshTodaySlot(iso, dayState, plan);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// ---------- Ampeln (F5, M2-5) ----------
+async function ensureAllLogsAndDayPlans() {
+  const [logs, dps] = await Promise.all([
+    allLogs ? Promise.resolve(allLogs) : loadAllLogs(),
+    allDayPlans ? Promise.resolve(allDayPlans) : loadAllDayPlans(),
+  ]);
+  allLogs = logs;
+  allDayPlans = dps;
+  return { logs, dps };
+}
+
+// Letzte (max n) über assignRuns zugeordnete Easy/Long/Recovery-Läufe über
+// alle Planwochen hinweg (nicht nur die aktuelle Woche) — F5 Ampel 2.
+function lastAssignedEasyRuns(plan, n) {
+  const candidates = [];
+  for (const week of plan.weeks) {
+    if (week.placeholder) continue;
+    for (const s of week.sessions.filter((x) => x.kind === "lauf" && ["Easy", "Long", "Recovery"].includes(x.shortType))) {
+      const a = runAssignment[s.date];
+      if (a?.run) candidates.push({ avgHr: a.run.avgHr, hfMax: s.hfMax, dayLabel: dayNameDE(s.date), date: s.date });
+    }
+  }
+  candidates.sort((a, b) => (a.date < b.date ? 1 : -1)); // neueste zuerst
+  return candidates.slice(0, n);
+}
+
+// Gewichtsübungen der letzten windowDays Tage, gruppiert nach Übungsname,
+// aufsteigend sortiert — Deload-Einheiten und Zeit-/Körpergewichtsübungen
+// fallen schon hier raus (F5 Ampel 4).
+function kraftHistoryByExercise(logs, iso, windowDays) {
+  const cutoff = addDays(iso, -(windowDays - 1));
+  const byExercise = new Map();
+  for (const log of logs) {
+    if (!log.completed || !log.sets?.length) continue;
+    if (log.date < cutoff || log.date > iso) continue;
+    const spec = parseSoll(log.soll);
+    if (!spec || spec.timeBased || spec.deload) continue;
+    if (!(log.topKg > 0)) continue;
+    const key = log.name || log.exercise;
+    if (!byExercise.has(key)) byExercise.set(key, []);
+    byExercise.get(key).push({ date: log.date, soll: log.soll, topKg: log.topKg, totalReps: log.totalReps, sets: log.sets });
+  }
+  for (const entries of byExercise.values()) entries.sort((a, b) => (a.date < b.date ? -1 : 1));
+  return byExercise;
+}
+
+function grauAmpeln(iso, detail) {
+  const b = metrics.belastung(stravaState.runs || [], iso, THRESHOLDS);
+  return [
+    { key: "wochensoll", status: "grau", detail },
+    { key: "easy", status: "grau", detail },
+    { key: "belastung", status: b.status, detail: b.detail },
+    { key: "kraft", status: "grau", detail },
+  ];
+}
+
+function computeRealAmpeln(plan, weekNo, iso, logs, dayPlans) {
+  const sessions = sessionsFor(plan, weekNo);
+
+  const actualKmByDate = {};
+  for (const s of sessions.filter((x) => x.kind === "lauf")) {
+    const a = runAssignment[s.date];
+    if (a?.run) actualKmByDate[s.date] = a.run.distanceKm;
+  }
+  const kraftDoneByDate = {};
+  for (const s of sessions.filter((x) => x.kind === "kraft")) {
+    const dp = dayPlans[s.date] || { removed: [], added: [] };
+    const exercises = effectiveExercisesFor(s, dp);
+    const done = exercises.filter((ex) =>
+      logs.some((l) => l.date === s.date && l.exercise === slug(ex.name) && l.completed)
+    ).length;
+    kraftDoneByDate[s.date] = exercises.length > 0 && done === exercises.length;
+  }
+  const wochensollResult = metrics.wochensoll(sessions, actualKmByDate, kraftDoneByDate, iso, THRESHOLDS);
+  const easyResult = metrics.easyDisziplin(lastAssignedEasyRuns(plan, 3), THRESHOLDS);
+  const belastungResult = metrics.belastung(stravaState.runs || [], iso, THRESHOLDS);
+  const kraftResult = metrics.kraftProgression(kraftHistoryByExercise(logs, iso, THRESHOLDS.kraft.windowDays), THRESHOLDS);
+
+  return [
+    { key: "wochensoll", status: wochensollResult.status, detail: wochensollResult.detail },
+    { key: "easy", status: easyResult.status, detail: easyResult.detail },
+    { key: "belastung", status: belastungResult.status, detail: belastungResult.detail },
+    { key: "kraft", status: kraftResult.status, detail: kraftResult.detail },
+  ];
+}
+
+async function fillAmpeln(iso, dayState, plan) {
+  try {
+    await loadStrava(); // idempotent/gecacht — Zuordnung + Belastung brauchen es
+    let list;
+    if (dayState !== "woche") {
+      list = grauAmpeln(iso, dayState === "keinPlan" ? "kein aktiver Plan" : "kein aktiver Plan");
+    } else {
+      const weekNo = weekNumberFor(plan, iso);
+      const week = weekOf(plan, weekNo);
+      if (week.placeholder) {
+        list = grauAmpeln(iso, "Woche ohne Details");
+      } else {
+        const { logs, dps } = await ensureAllLogsAndDayPlans();
+        list = computeRealAmpeln(plan, weekNo, iso, logs, dps);
+      }
+    }
+    if (state.tab === "dashboard" && !state.selectedDate) {
+      const slot = document.getElementById("ampel-slot");
+      if (slot) slot.innerHTML = dash.ampelGridHTML(list);
+    }
   } catch (err) {
     console.error(err);
   }
@@ -1218,6 +1335,12 @@ document.getElementById("app").addEventListener("click", async (e) => {
   if (action === "back") { state.selectedDate = null; runPickerFor = null; return render(); }
   if (action === "open-day") { state.selectedDate = target.dataset.date; runPickerFor = null; return render(); }
   if (action === "toggle-today-exercises") { state.todayExpanded = !state.todayExpanded; return render(); }
+  if (action === "open-info") {
+    const c = INFO_CONTENT[target.dataset.info];
+    if (c) openInfo(c.title, c.body, target);
+    return;
+  }
+  if (action === "close-info") return closeInfo();
   if (action === "week-prev") { state.weekNo = Math.max(1, state.weekNo - 1); return render(); }
   if (action === "week-next") { state.weekNo = Math.min(plans[0].totalWeeks, state.weekNo + 1); return render(); }
   if (action === "week-today") { state.weekNo = weekNoForTab(todayISO()); return render(); }
@@ -1250,6 +1373,11 @@ document.getElementById("app").addEventListener("click", async (e) => {
 function currentDateISO() {
   return state.tab === "woche" && state.selectedDate ? state.selectedDate : todayISO();
 }
+
+// Info-Sheet (D1): Escape schließt, unabhängig davon, wo der Fokus liegt.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeInfo();
+});
 
 document.querySelectorAll("#tabbar button").forEach((btn) => {
   btn.addEventListener("click", () => {

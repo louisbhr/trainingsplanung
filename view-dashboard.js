@@ -3,8 +3,8 @@
 // Datenzugriff (Firestore, Strava, Plan) bleiben in app.js. Keine eigenen
 // Styles — alle Klassen kommen aus style.css (D0), siehe
 // docs/ui-markup-dashboard-v2.md für die genaue Markup-Referenz.
-import { esc, ICONS, skelLine } from "./ui.js?v=202609281032";
-import { formatDuration } from "./strava.js?v=202609281032";
+import { esc, ICONS, skelLine } from "./ui.js?v=202609281043";
+import { formatDuration } from "./strava.js?v=202609281043";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
 
@@ -142,6 +142,57 @@ export function ampelGridHTML(list) {
     </div>`
     )
     .join("")}</div>`;
+}
+
+// ---------- Info-Sheets (D1) ----------
+// Texte je Ampel + Aerobe Effizienz; Grenzwerte kommen aus THRESHOLDS
+// (config.js), nicht als fester Text — F5/D1.
+export function infoContent(THRESHOLDS) {
+  const w = THRESHOLDS.wochensoll, b = THRESHOLDS.belastung, k = THRESHOLDS.kraft;
+  const pct = (n) => Math.round(n * 100);
+  const comma = (n) => String(n).replace(".", ",");
+  return {
+    wochensoll: {
+      title: "Wochensoll",
+      body: [
+        "Berechnung: gelaufene Kilometer der Planwoche bis heute im Verhältnis zu den geplanten Kilometern derselben Tage, dazu die erledigten Krafteinheiten.",
+        `Bedeutung: Grün ab ${pct(w.gruen)} % der geplanten Kilometer. Gelb zwischen ${pct(w.gelb)} % und ${pct(w.gruen)} %. Rot darunter. Eine verpasste, bereits vergangene Einheit zählt mindestens als Gelb.`,
+        "Grau: kein aktiver Plan oder die Woche hat noch keine Details.",
+      ],
+    },
+    easy: {
+      title: "Easy-Disziplin",
+      body: [
+        "Berechnung: die Herzfrequenz deiner letzten drei Easy-, Long- oder Recovery-Läufe im Vergleich zur Obergrenze der jeweiligen Zone.",
+        `Bedeutung: Grün, wenn alle drei im Rahmen liegen. Gelb bei einem Ausreißer bis ${THRESHOLDS.easy.gelbMaxOver} Schläge über der Grenze. Rot bei zwei oder mehr Ausreißern oder einem deutlich über der Grenze.`,
+        "Grau: noch kein zugeordneter Lauf vorhanden.",
+      ],
+    },
+    belastung: {
+      title: "Belastung",
+      body: [
+        "Berechnung: Kilometer der letzten 7 Tage geteilt durch die durchschnittlichen Wochenkilometer der 28 Tage davor.",
+        `Bedeutung: 1,0 heißt so viel wie zuletzt üblich. In Entlastungswochen ist ein Wert unter 1 gewollt. Über ${comma(b.gruen)} steht auf Gelb, du steigerst schnell. Über ${comma(b.gelb)} steht auf Rot, das ist ein deutlich zu schneller Anstieg.`,
+        "Ehrlicher Hinweis: eine grobe Faustregel (Acute:Chronic), gedacht als Warnsignal, keine Verletzungsprognose.",
+        "Grau: weniger als 4 Wochen Lauf-Historie.",
+      ],
+    },
+    kraft: {
+      title: "Kraft-Progression",
+      body: [
+        `Berechnung: deine Gewichtsübungen der letzten ${k.windowDays} Tage, Deload-Wochen zählen nicht mit.`,
+        `Bedeutung: Grün, wenn keine Übung feststeckt. Gelb bei einer Übung ohne Steigerung oder unter Soll. Rot bei ${k.redAffectedCount} oder mehr betroffenen Übungen oder wenn dieselbe Übung ${k.redConsecutiveBelow}-mal in Folge unter Soll bleibt.`,
+        `Grau: weniger als ${k.minExercisesWithData} Gewichtsübungen mit Daten, oder kein aktiver Plan.`,
+      ],
+    },
+    aerobe: {
+      title: "Aerobe Effizienz",
+      body: [
+        "Berechnung: die durchschnittliche Pace deiner Läufe mit Herzfrequenz in der Easy-Zone, pro Woche.",
+        "Bedeutung: sinkt die Pace bei gleicher Herzfrequenz, wird deine Grundlagenausdauer besser. Wochen ohne passenden Lauf zählen nicht mit.",
+      ],
+    },
+  };
 }
 
 // ---------- "Im Detail" (F8) ----------

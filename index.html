@@ -11,8 +11,8 @@
 <meta name="apple-mobile-web-app-title" content="HM Tracker" />
 <link rel="icon" href="icon.png" />
 <link rel="apple-touch-icon" href="icon.png" />
-<link rel="manifest" href="manifest.webmanifest?v=202609281032" />
-<link rel="stylesheet" href="style.css?v=202609281032" />
+<link rel="manifest" href="manifest.webmanifest?v=202609281043" />
+<link rel="stylesheet" href="style.css?v=202609281043" />
 </head>
 <body>
 <div id="app">
@@ -24,8 +24,17 @@
     <button data-tab="verlauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Verlauf</span></button>
     <button data-tab="plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Plan</span></button>
   </div>
+  <div id="infoBackdrop" class="info-backdrop" data-action="close-info"></div>
+  <div id="infoSheet" class="info-sheet" role="dialog" aria-modal="true" aria-labelledby="infoSheetTitle" hidden>
+    <div class="info-sheet-handle"></div>
+    <div class="info-sheet-head">
+      <h2 id="infoSheetTitle"></h2>
+      <button type="button" id="infoSheetClose" class="info-sheet-close" data-action="close-info" aria-label="Erklärung schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div id="infoSheetBody" class="info-sheet-body"></div>
+  </div>
 </div>
 <noscript><p style="padding:1.25rem;font-family:sans-serif;">Diese App braucht JavaScript.</p></noscript>
-<script type="module" src="app.js?v=202609281032"></script>
+<script type="module" src="app.js?v=202609281043"></script>
 </body>
 </html>
