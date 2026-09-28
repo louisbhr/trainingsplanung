@@ -108,21 +108,25 @@ Details siehe `tests/README.md`.
 | --- | --- |
 | `index.html`, `style.css`, `app.js` | die App |
 | `config.js` | Worker-URL und Strava-Client-ID |
-| `plan.js` | Trainingsplan; Daten werden aus `PLAN_START` berechnet |
+| `plans/hm-2027.json` | Die eigentlichen Plandaten (Wochen, Einheiten, Ziel, Renndatum) — reine Daten, keine Generator-Funktionen mehr |
+| `plan.js` | Reine Trainingsplan-**Logik**; nimmt den Plan (aus `plans/`) als Parameter entgegen, enthält selbst keine Plandaten |
+| `plan-store.js` | Lädt `plans/hm-2027.json` per `fetch`, validiert sie und hält eine Kopie in `localStorage` fürs Funkloch |
 | `runmatch.js` | Zuordnung von Strava-Läufen zu Plan-Lauftagen |
 | `firebase-init.js` | Firestore + anonyme Anmeldung, mit Offline-Cache |
 | `strava.js` | Strava-Anbindung |
 | `worker.js`, `wrangler.toml` | Cloudflare Worker für den Token-Austausch |
-| `tools/bump-version.mjs` | Setzt den Versionsstempel gegen Browser-Cache |
+| `tools/bump-version.mjs` | Setzt den Versionsstempel gegen Browser-Cache (auch auf die JSON-URL in `plan-store.js`) |
 | `firestore.rules` | Firestore-Regeln |
 | `manifest.webmanifest`, `icon.png` | „Zum Home-Bildschirm" auf dem Handy |
 | `tests/` | Plan- und Browser-Tests |
 
 ## Was noch offen ist
 
-- **Wochen 9–31** zeigen nur Phase und Zeitraum. Die Tagesdetails tragen
-  wir nach der Re-Kalibrierung am Ende von Phase 1 nach — gleiches Muster
-  wie Woche 1–8 in `plan.js`, die Datumsangaben ergeben sich automatisch.
+- **Wochen 9–31** zeigen nur Phase und Zeitraum (`placeholder: true`). Die
+  Tagesdetails tragen wir nach der Re-Kalibrierung am Ende von Phase 1 nach
+  — direkt in `plans/hm-2027.json` (nicht mehr in `plan.js`, das enthält
+  seit M1 keine Plandaten mehr). Nach jeder Änderung an der JSON nicht
+  `npm run version` vergessen (siehe HANDOFF.md, Falle 1).
 - **Offline:** Eingaben werden lokal zwischengespeichert und später
   synchronisiert. Die App selbst lädt aber noch aus dem Netz (kein Service
   Worker), ohne Verbindung öffnet sie also nicht.

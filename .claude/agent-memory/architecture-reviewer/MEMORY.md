@@ -1,0 +1,1 @@
+- [Trainingsplanung review patterns](project_trainingsplanung_review_patterns.md) — key-bearing slugs/dates, no SW, public worker URL, alias≠retirement-proof, DST in plan

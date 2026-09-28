@@ -1,0 +1,1 @@
+- [Trainingsplanung planning constraints](project_trainingsplanung_planning_constraints.md) — flat modules (version stamp), test stubs, 3-stage plan→DB, visual-plan tools missing in subagent

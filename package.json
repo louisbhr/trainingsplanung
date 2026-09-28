@@ -6,10 +6,12 @@
   "scripts": {
     "serve": "http-server -p 8099 -s .",
     "test:plan": "node tests/plan.test.mjs",
+    "test:golden": "node tests/plan-golden.test.mjs",
     "test:runmatch": "node tests/runmatch.test.mjs",
     "test:progression": "node tests/progression.test.mjs",
     "test:app": "node tests/app.test.mjs",
-    "test": "node tests/plan.test.mjs && node tests/runmatch.test.mjs && node tests/progression.test.mjs && node tests/version.test.mjs && node tests/app.test.mjs",
+    "test:stubs": "node tests/stubs.test.mjs",
+    "test": "node tests/plan.test.mjs && node tests/plan-golden.test.mjs && node tests/runmatch.test.mjs && node tests/progression.test.mjs && node tests/version.test.mjs && node tests/stubs.test.mjs && node tests/app.test.mjs",
     "version": "node tools/bump-version.mjs",
     "test:version": "node tests/version.test.mjs"
   },
