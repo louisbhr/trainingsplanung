@@ -28,6 +28,7 @@ const MODULES = [
   "config.js",
   "firebase-init.js",
   "plan.js",
+  "plan-store.js",
   "progression.js",
   "runmatch.js",
   "strava.js",
@@ -62,5 +63,11 @@ const importRe = /from\s+(["'])\.\/([a-z0-9-]+\.js)(\?v=\d+)?\1/gi;
 for (const mod of MODULES) {
   withVersion(mod, (src) => src.replace(importRe, (_m, q, name) => `from ${q}./${name}?v=${stamp}${q}`));
 }
+
+// plan-store.js lädt die Plan-JSON nicht über einen ES-Import, sondern per
+// fetch() zur Laufzeit (new URL(...)) — der Import-Stempel oben greift da
+// nicht, deshalb ein eigener Ersetzungsschritt (A1).
+const jsonUrlRe = /(\.\/plans\/[a-z0-9-]+\.json\?v=)\d+/gi;
+withVersion("plan-store.js", (src) => src.replace(jsonUrlRe, `$1${stamp}`));
 
 console.log(`Version ${stamp} gesetzt (${touched} Datei${touched === 1 ? "" : "en"} geändert).`);

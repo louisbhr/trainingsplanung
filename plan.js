@@ -1,31 +1,7 @@
-// Trainingsplan-Daten. Phase 1 (Woche 1-8) ist im Detail ausformuliert,
-// Phase 2-4 als Struktur mit Datumsbereich — Details folgen nach der
-// Re-Kalibrierung am Ende von Phase 1.
-
-export const PLAN_START = "2026-08-31"; // Montag, Woche 1
-export const TOTAL_WEEKS = 31;
-export const DETAILED_UNTIL_WEEK = 8;
-
-export const goal = {
-  time: "1:29:59 h",
-  race: "Halbmarathon, Anfang/Mitte April 2027",
-  targetPace: "4:16 /km",
-};
-
-export const zones = [
-  { zone: "Z1 – Recovery", hf: "< 148", pace: "> 6:40 /km", use: "Regeneration", tone: "sky" },
-  { zone: "Z2 – Easy", hf: "148–163", pace: "6:10–6:35 /km", use: "Grundlage", tone: "teal" },
-  { zone: "Z3 – Tempo", hf: "165–170", pace: "5:00–5:20 /km", use: "Marathon-Pace", tone: "amber" },
-  { zone: "Z4 – Schwelle", hf: "172–181", pace: "4:35–4:50 /km", use: "Schwellenläufe", tone: "coral" },
-  { zone: "Z5 – VO2max", hf: "> 184", pace: "4:05–4:20 /km", use: "Intervalle", tone: "purple" },
-];
-
-export const phases = [
-  { n: 1, name: "Basis", range: "31.08.–25.10.2026", weeks: [1, 8], focus: "Volumenaufbau, Maximalkraft", tone: "teal" },
-  { n: 2, name: "Aufbau", range: "26.10.2026–03.01.2027", weeks: [9, 18], focus: "Schwelle, Plyometrie", tone: "sky" },
-  { n: 3, name: "Spezifisch", range: "04.01.–07.03.2027", weeks: [19, 27], focus: "Renntempo, Kraft-Erhalt", tone: "amber" },
-  { n: 4, name: "Taper", range: "08.03.–05.04.2027", weeks: [28, 31], focus: "Volumen runter, Frische", tone: "purple" },
-];
+// Reine Trainingsplan-Logik (F0/F0a). Die Plandaten liegen in
+// plans/hm-2027.json und werden über plan-store.js geladen; jede Funktion
+// hier nimmt den Plan als Parameter entgegen statt eigene Konstanten zu
+// halten — Grundlage für weitere Pläne (Schritt 2) und Firestore (1b).
 
 // --- Datums-Helfer (rein lokal, ohne toISOString/UTC-Verschiebung) ---
 const pad = (n) => String(n).padStart(2, "0");
@@ -41,198 +17,220 @@ export function addDays(iso, n) {
   d.setDate(d.getDate() + n);
   return toISO(d);
 }
-// Montag der Woche w (1-basiert)
-export function weekStart(w) {
-  return addDays(PLAN_START, (w - 1) * 7);
+
+// Zeichen für Zeichen aus app.js übernommen (A2): Log-IDs
+// (logs/{datum}_{slug}) hängen an dieser Funktion, sie darf sich beim
+// Umzug nicht ändern.
+export const slug = (s) =>
+  s.toLowerCase()
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+// --- Wochen-Zugriff ---
+export function weekStart(plan, w) {
+  return addDays(plan.start, (w - 1) * 7);
 }
-// Alle sieben Daten einer Woche, Montag zuerst
-export function weekDates(w) {
-  const start = weekStart(w);
+export function weekDates(plan, w) {
+  const start = weekStart(plan, w);
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
-export function weekNumberFor(iso) {
-  const diffMs = fromISO(iso) - fromISO(PLAN_START);
-  // Runden statt Abschneiden: Sommer-/Winterzeit verschiebt die Differenz
-  // sonst um eine Stunde und kippt den Tag.
-  const diffDays = Math.round(diffMs / 86400000);
+export function weekOf(plan, n) {
+  return plan.weeks.find((w) => w.n === n);
+}
+// Liefert die Wochennummer für ein Datum innerhalb des Plans, sonst null
+// (kein stummes Klemmen auf 1…totalWeeks mehr — F0, [Abweichung vom Ist-Code]).
+export function weekNumberFor(plan, iso) {
+  const diffDays = Math.round((fromISO(iso) - fromISO(plan.start)) / 86400000);
   const w = Math.floor(diffDays / 7) + 1;
-  return Math.min(Math.max(w, 1), TOTAL_WEEKS);
+  return w >= 1 && w <= plan.totalWeeks ? w : null;
+}
+export function phaseOf(plan, weekNo) {
+  return plan.phases.find((p) => weekNo >= p.weeks.from && weekNo <= p.weeks.to);
 }
 
-// Wochentags-Offsets ab Montag
-const MO = 0, DI = 1, MI = 2, DO = 3, SA = 5, SO = 6;
-
-function easy(date, dist, steig) {
-  return {
-    date,
-    type: "Easy run" + (steig ? " + " + steig : ""),
-    shortType: "Easy",
-    dist,
-    pace: "6:10–6:35 /km",
-    hf: "148–163 bpm",
-  };
-}
-function easyDeload(date, dist) {
-  return { date, type: "Easy run", shortType: "Easy", dist, pace: "6:15–6:40 /km", hf: "148–160 bpm" };
-}
-function longRun(date, dist) {
-  return { date, type: "Long run", shortType: "Long", dist, pace: "6:15–6:40 /km", hf: "148–160 bpm" };
-}
-function recovery(date, dist, note) {
-  return { date, type: "Recovery run", shortType: "Recovery", dist, pace: "> 6:40 /km", hf: "< 148 bpm", note };
+// Phasen-Zeitraum als Text — früher eine hartkodierte Konstante je Phase,
+// jetzt aus den Wochendaten abgeleitet (z. B. "31.08.–25.10.2026", oder mit
+// Jahr auf beiden Seiten, wenn die Phase über den Jahreswechsel läuft).
+export function phaseRange(plan, phase) {
+  const start = weekStart(plan, phase.weeks.from);
+  const end = addDays(weekStart(plan, phase.weeks.to), 6);
+  const short = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
+  const withYear = (iso) => `${short(iso)}${iso.slice(0, 4)}`;
+  return start.slice(0, 4) === end.slice(0, 4)
+    ? `${short(start)}–${withYear(end)}`
+    : `${withYear(start)}–${withYear(end)}`;
 }
 
-// ---- Kraft: alter Split (nur Woche 1) ----
-const kraftA_alt = [
-  { name: "Back squat", soll: "3x8-10", hint: "Aufwärmsätze, dann Arbeitsgewicht bei RPE 6-7 in Satz 3" },
-  { name: "Rumänisches Kreuzheben", soll: "3x8-10", hint: "Start bei ca. 60-70% des Squat-Gewichts" },
-  { name: "Bulgarian split squat", soll: "3x8/Seite", hint: "Start mit 2 Kurzhanteln à 8-12 kg" },
-  { name: "Nordic hamstring curl", soll: "3x4", hint: "Kein Zusatzgewicht, langsames Ablassen" },
-  { name: "Soleus raise", soll: "3x15/Seite", hint: "Körpergewicht oder leichte Kurzhantel auf dem Knie" },
-  { name: "Pallof press", soll: "3x10/Seite", hint: "Leichter bis mittlerer Kabelzug/Band" },
-];
-const kraftB_alt = [
-  { name: "Klimmzug", soll: "3x8-10", hint: "Ohne Zusatzgewicht oder bandunterstützt bei RPE 6-7" },
-  { name: "Schrägbankdrücken", soll: "3x8-10", hint: "Startgewicht bei RPE 6-7 in Satz 3" },
-  { name: "Langhantelrudern", soll: "3x8", hint: "Startgewicht bei RPE 6-7 in Satz 3" },
-  { name: "Copenhagen plank", soll: "3x20-30s/Seite", hint: "Anfangs unteres Knie auf der Bank" },
-  { name: "Hüftabduktion (Band)", soll: "3x15/Seite", hint: "Moderate Bandstärke" },
-  { name: "Single-leg glute bridge", soll: "3x10/Seite", hint: "Körpergewicht" },
-  { name: "Side plank", soll: "3x30-45s/Seite", hint: "Kein Gewicht" },
-];
-
-// ---- Kraft: neuer Full-Body-Split (ab Woche 2) ----
-const fullBodyA_tbl = {
-  2: ["3x8-10", "3x5", "3x4", "3x6-8", "3x8-10", "Wie Woche 1, +2.5-5 kg falls RPE klar unter 7"],
-  3: ["3x8-10", "3x5", "3x5", "3x6-8", "3x8-10", "+2.5-5 kg falls Woche 2 RPE ≤7, sonst halten"],
-  4: ["2x8 (Deload)", "2x5 (Deload)", "2x4 (Deload)", "2x6 (Deload)", "2x8 (Deload)", "Ca. 80% des Woche-3-Gewichts"],
-  5: ["4x4-6", "4x3-5", "3x5", "4x5-7", "4x6-8", "Zurück auf Woche-3-Gewicht, jetzt RPE 8 bei weniger Wdh"],
-  6: ["4x4-6", "4x3-5", "3x6", "4x5-7", "4x6-8", "+2.5-5 kg falls Woche 5 RPE ≤8, sonst halten"],
-  7: ["4x4-6", "4x3-5", "3x6", "4x5-7", "4x6-8", "Höchste Last der Phase, +2.5-5 kg falls RPE ≤8"],
-  8: ["2x6 (Deload)", "2x5 (Deload)", "2x5 (Deload)", "2x6 (Deload)", "2x6 (Deload)", "Ca. 80% des Woche-7-Gewichts"],
-};
-const fullBodyB_tbl = {
-  2: ["3x8/Seite", "3x8/Seite", "3x10-12", "3x8-10", "3x8-10", "Start moderat, RPE 6-7 in Satz 3"],
-  3: ["3x8/Seite", "3x8/Seite", "3x10-12", "3x8-10", "3x8-10", "+1-2.5 kg/Hand falls Woche 2 RPE ≤7"],
-  4: ["2x8/Seite (Deload)", "2x8/Seite (Deload)", "2x10 (Deload)", "2x8 (Deload)", "2x8 (Deload)", "Ca. 80% des Woche-3-Gewichts"],
-  5: ["4x6/Seite", "4x6/Seite", "3x10-12", "4x8-10", "4x6-8", "Zurück auf Woche-3-Gewicht, RPE 8 Zielbereich"],
-  6: ["4x6/Seite", "4x6/Seite", "3x10-12", "4x8-10", "4x6-8", "+1-2.5 kg/Hand falls Woche 5 RPE ≤8"],
-  7: ["4x6/Seite", "4x6/Seite", "3x10-12", "4x8-10", "4x6-8", "Höchstes Volumen der Phase"],
-  8: ["2x6/Seite (Deload)", "2x6/Seite (Deload)", "2x10 (Deload)", "2x8 (Deload)", "2x6 (Deload)", "Ca. 80% des Woche-7-Gewichts"],
-};
-
-function fullBodyA(w) {
-  const tbl = fullBodyA_tbl[w];
-  return [
-    { name: "Squats", soll: tbl[0], hint: tbl[5] },
-    { name: "Deadlift", soll: tbl[1], hint: "Reduziertes Volumen — nach dem Squat begrenzte Reserve" },
-    { name: "Nordic hamstring curl", soll: tbl[2], hint: "Kein Zusatzgewicht, Steigerung über Wdh/Tempo" },
-    { name: "Klimmzüge", soll: tbl[3], hint: "Hohe Frequenz bewusst — skill-lastige Bewegung" },
-    { name: "Brustpresse", soll: tbl[4], hint: "Horizontaler Push" },
-    { name: "Soleus raises", soll: "3x15/Seite", hint: "Steigern wenn 15 Wdh sauber gelingen" },
-    { name: "Pallof press", soll: "3x10/Seite", hint: "Anti-Rotation, Fokus ruhige Hüfte" },
-    { name: "Planks (wechselnd)", soll: "3x30-45s", hint: "Front-/Seiten-/RKC-Plank abwechselnd" },
-  ];
-}
-function fullBodyB(w) {
-  const tbl = fullBodyB_tbl[w];
-  return [
-    { name: "Bulgarian split squats", soll: tbl[0], hint: tbl[5] },
-    { name: "Single leg RDL", soll: tbl[1], hint: "Fokus Balance & Hüftstreckung" },
-    { name: "Hamstring curls (Maschine)", soll: tbl[2], hint: "Konzentrisch, ermüdungsärmer als Nordic Curls" },
-    { name: "Klimmzüge", soll: tbl[3], hint: "Etwas höhere Wdh als Dienstag" },
-    { name: "Schulterpresse", soll: tbl[4], hint: "Vertikaler Push, andere Winkelbelastung als Dienstag" },
-    { name: "Copenhagen planks", soll: "3x20-30s/Seite", hint: "Bein strecken sobald 30s sauber gelingen" },
-    { name: "Hüftbeuger", soll: "3x12-15/Seite", hint: "Band oder Körpergewicht" },
-    { name: "Crunches", soll: "3x15-20", hint: "Hypertrophie-Fokus, nahe Muskelversagen" },
-  ];
+export function planEnd(plan) {
+  return addDays(weekStart(plan, plan.totalWeeks), 6);
 }
 
-const runDist = {
-  1: ["7 km", "7 km", "12 km"],
-  2: ["8 km", "8 km", "13 km"],
-  3: ["8 km", "9 km", "15 km"],
-  4: ["7 km", "7 km", "10 km"],
-  5: ["8 km", "9 km", "13 km"],
-  6: ["9 km", "9 km", "14 km"],
-  7: ["10 km", "10 km", "16 km"],
-  8: ["8 km", "8 km", "11 km"],
-};
-const steig = { 2: "4x20s", 3: "5x20s", 5: "5x20s", 6: "6x20s", 7: "6x20s" };
-const recoveryWeeks = { 5: "4 km", 6: "5 km", 7: "5 km", 8: "3 km" };
-const deloadWeeks = [4, 8];
-
-export const weeks = {};
-
-for (let w = 1; w <= DETAILED_UNTIL_WEEK; w++) {
-  const start = weekStart(w);
-  const dist = runDist[w];
-  const isDeload = deloadWeeks.includes(w);
-
-  const runs = [
-    isDeload ? easyDeload(addDays(start, MO), dist[0]) : easy(addDays(start, MO), dist[0]),
-    isDeload ? easyDeload(addDays(start, MI), dist[1]) : easy(addDays(start, MI), dist[1], steig[w]),
-    longRun(addDays(start, SA), dist[2]),
-  ];
-  if (recoveryWeeks[w]) {
-    runs.push(
-      recovery(
-        addDays(start, SO),
-        recoveryWeeks[w],
-        w === DETAILED_UNTIL_WEEK ? "Ende Phase 1 — Re-Kalibrierung fällig" : null
-      )
-    );
-  }
-
-  weeks[w] = {
-    n: w,
-    phase: 1,
-    deload: isDeload,
-    start,
-    end: addDays(start, SO),
-    dateRange: start + " bis " + addDays(start, SO),
-    runs,
-    kraft: {
-      di: {
-        date: addDays(start, DI),
-        label: w === 1 ? "Kraft A (alter Split)" : "Full Body A",
-        shortLabel: w === 1 ? "Kraft A" : "FB A",
-        exercises: w === 1 ? kraftA_alt : fullBodyA(w),
-      },
-      do: {
-        date: addDays(start, DO),
-        label: w === 1 ? "Kraft B (alter Split)" : "Full Body B",
-        shortLabel: w === 1 ? "Kraft B" : "FB B",
-        exercises: w === 1 ? kraftB_alt : fullBodyB(w),
-      },
-    },
-  };
+// --- Einheiten (F0a Punkt 2: week.sessions[] statt fester Wochentags-Schlüssel) ---
+export function sessionsFor(plan, weekNo) {
+  return weekOf(plan, weekNo)?.sessions || [];
+}
+// Liefert die Einheit eines Tages innerhalb des Plans (kind: "kraft" |
+// "lauf" | "ruhe" | "placeholder"), oder null, wenn das Datum außerhalb
+// des Plans liegt (dafür ist planDayState/activePlanFor zuständig).
+export function sessionOn(plan, iso) {
+  const w = weekNumberFor(plan, iso);
+  if (w == null) return null;
+  const week = weekOf(plan, w);
+  if (!week || week.placeholder) return { kind: "placeholder", week: w, focus: week?.focus };
+  const session = (week.sessions || []).find((s) => s.date === iso);
+  return session ? { kind: session.kind, ...session } : { kind: "ruhe" };
 }
 
-// Wochen 9-31: Struktur bekannt, Details folgen nach Re-Kalibrierung
-for (let w = DETAILED_UNTIL_WEEK + 1; w <= TOTAL_WEEKS; w++) {
-  const phase = phases.find((p) => w >= p.weeks[0] && w <= p.weeks[1]);
-  const start = weekStart(w);
-  weeks[w] = {
-    n: w,
-    phase: phase.n,
-    placeholder: true,
-    focus: phase.focus,
-    start,
-    end: addDays(start, SO),
-    dateRange: start + " bis " + addDays(start, SO),
-  };
+// --- Plan-Registry (F0a Punkt 4: Liste statt Einzelplan, injizierbar) ---
+// Ein Plan gilt von seinem Start bis einschließlich Renntag bzw. letzter
+// Planwoche, je nachdem, was später liegt (F0) — das deckt auch die Lücke
+// zwischen Planende und (ggf. noch unbestätigtem) Renntag ab (A8/E7).
+function raceDateOrPlanEnd(plan) {
+  const end = planEnd(plan);
+  const race = plan.goal?.raceDate;
+  return race && race > end ? race : end;
+}
+export function activePlanFor(iso, plans) {
+  return plans.find((plan) => iso >= plan.start && iso <= raceDateOrPlanEnd(plan)) || null;
+}
+
+// "woche": aktiver Plan mit Wochendetails · "bisZumRennen": aktiver Plan,
+// Datum liegt hinter der letzten Planwoche, aber bis (inkl.) Renntag ·
+// "keinPlan": kein Plan deckt das Datum ab.
+export function planDayState(iso, plans) {
+  const plan = activePlanFor(iso, plans);
+  if (!plan) return "keinPlan";
+  return weekNumberFor(plan, iso) == null ? "bisZumRennen" : "woche";
 }
 
 // Alle Übungen, die im Plan vorkommen — für die Auswahl im Verlauf.
-export const exerciseCatalog = (() => {
+export function exerciseCatalog(plan) {
   const seen = new Map();
-  for (let w = 1; w <= DETAILED_UNTIL_WEEK; w++) {
-    for (const day of [weeks[w].kraft.di, weeks[w].kraft.do]) {
-      for (const ex of day.exercises) {
-        if (!seen.has(ex.name)) seen.set(ex.name, { name: ex.name, firstWeek: w });
+  for (const week of plan.weeks) {
+    if (week.placeholder) continue;
+    for (const s of week.sessions.filter((x) => x.kind === "kraft")) {
+      for (const ex of s.exercises) {
+        if (!seen.has(ex.name)) seen.set(ex.name, { name: ex.name, firstWeek: week.n });
       }
     }
   }
   return [...seen.values()];
-})();
+}
+
+// --- Ziel-Text für den Plan-Tab ---
+const MONTHS_DE = [
+  "Januar", "Februar", "März", "April", "Mai", "Juni",
+  "Juli", "August", "September", "Oktober", "November", "Dezember",
+];
+function monthLabel(iso) {
+  const day = Number(iso.slice(8, 10));
+  const month = MONTHS_DE[Number(iso.slice(5, 7)) - 1];
+  const bucket = day <= 10 ? "Anfang" : day <= 20 ? "Mitte" : "Ende";
+  return `${bucket} ${month} ${iso.slice(0, 4)}`;
+}
+function germanDate(iso) {
+  return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
+}
+// Ersetzt die frühere hartkodierte goal.time/goal.race-Konstante. Solange
+// das Renndatum nicht bestätigt ist, zeigt der Text nur den Monat — das ist
+// die bewusst in Kauf genommene kleine Textabweichung ggü. dem Ist-Code.
+export function formatGoal(goal) {
+  return {
+    time: `${goal.targetTime} h`,
+    race: goal.raceDateConfirmed
+      ? `${goal.distance}, ${germanDate(goal.raceDate)}`
+      : `${goal.distance}, ca. ${monthLabel(goal.raceDate)}`,
+  };
+}
+
+// --- Plan-Objekt-Validierung (A1/A8) ---
+//
+// Prüft ein Plan-Objekt aus plans/hm-2027.json auf die Form, die
+// plan-store.js und die Tests erwarten. Gibt eine Liste von Problemen
+// zurück (deutsch, für Fehlermeldungen geeignet) — leer heißt gültig.
+
+// Firestore speichert keine Arrays, deren Elemente selbst Arrays sind
+// ("Array in Array"). Arrays aus Objekten, die wiederum Arrays enthalten,
+// sind erlaubt — nur die direkte Verschachtelung ist verboten.
+function hasNestedArray(value) {
+  if (Array.isArray(value)) {
+    if (value.some((v) => Array.isArray(v))) return true;
+    return value.some((v) => hasNestedArray(v));
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value).some((v) => hasNestedArray(v));
+  }
+  return false;
+}
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const FILE_VERSION_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+export function validatePlan(plan) {
+  const problems = [];
+  const need = (cond, msg) => { if (!cond) problems.push(msg); };
+
+  if (!plan || typeof plan !== "object") return ["Plan ist kein Objekt."];
+
+  need(typeof plan.id === "string" && plan.id, "id fehlt oder ist kein String.");
+  need(typeof plan.schemaVersion === "number", "schemaVersion fehlt oder ist keine Zahl.");
+  need(
+    typeof plan.fileVersion === "string" && FILE_VERSION_RE.test(plan.fileVersion),
+    "fileVersion fehlt oder passt nicht auf JJJJ-MM-TTTHH:MM."
+  );
+  need(plan.goal && typeof plan.goal === "object", "goal fehlt oder ist kein Objekt.");
+  const startOk = typeof plan.start === "string" && ISO_DATE_RE.test(plan.start);
+  need(startOk, "start fehlt oder ist kein ISO-Datum.");
+  need(typeof plan.totalWeeks === "number" && plan.totalWeeks > 0, "totalWeeks fehlt oder ist keine Zahl.");
+  need(typeof plan.detailedUntilWeek === "number", "detailedUntilWeek fehlt oder ist keine Zahl.");
+  need(Array.isArray(plan.recalibrationDates), "recalibrationDates fehlt oder ist kein Array.");
+  need(Array.isArray(plan.zones), "zones fehlt oder ist kein Array.");
+  need(Array.isArray(plan.phases), "phases fehlt oder ist kein Array.");
+  need(Array.isArray(plan.weeks), "weeks fehlt oder ist kein Array.");
+
+  if (hasNestedArray(plan)) {
+    problems.push("Plan enthält ein Array in einem Array (nicht Firestore-tauglich).");
+  }
+
+  if (startOk && Array.isArray(plan.weeks) && typeof plan.totalWeeks === "number") {
+    const byN = new Map(plan.weeks.map((w) => [w.n, w]));
+    for (let n = 1; n <= plan.totalWeeks; n++) {
+      const week = byN.get(n);
+      if (!week) { problems.push(`Woche ${n} fehlt.`); continue; }
+
+      const expectedStart = addDays(plan.start, (n - 1) * 7);
+      need(week.start === expectedStart, `Woche ${n}: start ist ${week.start}, erwartet ${expectedStart}.`);
+
+      if (typeof plan.detailedUntilWeek === "number") {
+        const expectedPlaceholder = n > plan.detailedUntilWeek;
+        need(
+          !!week.placeholder === expectedPlaceholder,
+          `Woche ${n}: placeholder ist ${!!week.placeholder}, erwartet ${expectedPlaceholder}.`
+        );
+      }
+
+      if (Array.isArray(week.sessions) && typeof week.start === "string" && ISO_DATE_RE.test(week.start)) {
+        const weekEnd = addDays(week.start, 6);
+        for (const s of week.sessions) {
+          need(
+            typeof s.date === "string" && s.date >= week.start && s.date <= weekEnd,
+            `Woche ${n}: Einheit am ${s.date} liegt nicht in der Woche (${week.start}–${weekEnd}).`
+          );
+        }
+      }
+    }
+  }
+
+  if (plan.goal?.raceDateConfirmed === true) {
+    const raceDate = plan.goal.raceDate;
+    const raceInWeek =
+      Array.isArray(plan.weeks) &&
+      typeof raceDate === "string" &&
+      plan.weeks.some(
+        (w) => typeof w.start === "string" && ISO_DATE_RE.test(w.start) && raceDate >= w.start && raceDate <= addDays(w.start, 6)
+      );
+    need(raceInWeek, "Renndatum ist bestätigt, liegt aber in keiner Planwoche.");
+  }
+
+  return problems;
+}

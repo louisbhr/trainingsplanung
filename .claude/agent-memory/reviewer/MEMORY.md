@@ -1,0 +1,1 @@
+- [Review standards](feedback_review_standards.md) — verify by own probes/deep-compare; hang w/o error card = critical; recurring coder gaps (tests, docs)

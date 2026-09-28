@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<!-- impeccable-disable marquee: Lade-Schimmer der Platzhalter, von Louis bestätigt -->
+<!-- impeccable-disable single-font: System-Schrift der App, von Louis bestätigt -->
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard v2 – Mockup (Design-Referenz)</title>
+<style>
+/* =========================================================
+   Tokens – 1:1 aus style.css übernommen (Kopie für ein
+   eigenständiges Mockup, siehe apps/trainingsplanung/style.css)
+   ========================================================= */
+:root {
+  --teal: #0f6e56; --teal-bg: #e1f5ee;
+  --coral: #993c1d; --coral-bg: #faece7;
+  --purple: #534ab7; --purple-bg: #eeedfe;
+  --surface-0: #f4f3ef; --surface-1: #f0efe9; --surface-2: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --text-primary: #1c1c1a; --text-secondary: #5f5e5a; --text-muted: #8a897f;
+  --teal-fg: var(--teal); --coral-fg: var(--coral); --purple-fg: var(--purple);
+  --glass: rgba(255, 255, 255, 0.78);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --glass-tint: rgba(255, 255, 255, 0.55);
+  --amber: #96631a; --amber-bg: #fbf0dc; --amber-fg: var(--amber);
+  --sky: #1e6b8f; --sky-bg: #e0f0f8; --sky-fg: var(--sky);
+  /* Neu für dieses Mockup: echte Ampel-Statusfarben. Teal/Koralle/Lila sind
+     Kategoriefarben (Kraft/Lauf/Long Run) und ungeeignet für "grün/rot" —
+     siehe Abweichungshinweis im Abschlussbericht. */
+  --ok-fg: #2f7d32; --ok-bg: #e3f2e1;
+  --danger-fg: #b3261e; --danger-bg: #fbe4e1;
+  /* Soll-Fuellfarbe fuer Soll/Ist-Balkenpaare: gedaempfter Neutralton,
+     bewusst heller/matter als --teal-fg (Ist), nicht nur ein anderer
+     Farbton, siehe Kontrastwerte im Bericht. */
+  --soll-fill: #7f7e76;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface-0: #17171a; --surface-1: #202024; --surface-2: #26262b;
+    --border: rgba(255, 255, 255, 0.12);
+    --text-primary: #f2f1ec; --text-secondary: #b3b2ab; --text-muted: #918f87;
+    --teal-bg: #0c3a2f; --coral-bg: #3d2013; --purple-bg: #262156;
+    --teal-fg: #5fcfa7; --coral-fg: #ef8f61; --purple-fg: #a49df5;
+    --glass: rgba(30, 30, 34, 0.72); --glass-edge: rgba(255, 255, 255, 0.14); --glass-tint: rgba(255, 255, 255, 0.06);
+    --amber-bg: #3a2a0e; --amber-fg: #ddaa55;
+    --sky-bg: #0b2f42; --sky-fg: #5fb6dd;
+    --ok-fg: #7ed88f; --ok-bg: #123a1c;
+    --danger-fg: #ff8a80; --danger-bg: #4a1f1c;
+    --soll-fill: #8b8b86;
+  }
+}
+:root[data-theme="dark"] {
+  --surface-0: #17171a; --surface-1: #202024; --surface-2: #26262b;
+  --border: rgba(255, 255, 255, 0.12);
+  --text-primary: #f2f1ec; --text-secondary: #b3b2ab; --text-muted: #918f87;
+  --teal-bg: #0c3a2f; --coral-bg: #3d2013; --purple-bg: #262156;
+  --teal-fg: #5fcfa7; --coral-fg: #ef8f61; --purple-fg: #a49df5;
+  --glass: rgba(30, 30, 34, 0.72); --glass-edge: rgba(255, 255, 255, 0.14); --glass-tint: rgba(255, 255, 255, 0.06);
+  --amber-bg: #3a2a0e; --amber-fg: #ddaa55;
+  --sky-bg: #0b2f42; --sky-fg: #5fb6dd;
+  --ok-fg: #7ed88f; --ok-bg: #123a1c;
+  --danger-fg: #ff8a80; --danger-bg: #4a1f1c;
+  --soll-fill: #8b8b86;
+}
+.tone-teal   { --tone: var(--teal-fg);   --tone-bg: var(--teal-bg); }
+.tone-coral  { --tone: var(--coral-fg);  --tone-bg: var(--coral-bg); }
+.tone-purple { --tone: var(--purple-fg); --tone-bg: var(--purple-bg); }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--surface-0); color: var(--text-primary);
+}
+button { font-family: inherit; }
+
+/* =========================================================
+   Mockup-Rahmen (kein App-Code): Szenario-Leiste, Notizspalte,
+   Handy-Schale. Fluid: Handy bleibt ~390-430px, Notizspalte
+   rutscht auf schmalen Fenstern darunter statt zu clippen.
+   ========================================================= */
+.mockup-page { min-height: 100%; padding: 20px 16px 64px; }
+.mockup-intro { max-width: 900px; margin: 0 auto 18px; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
+.mockup-intro strong { color: var(--text-primary); }
+
+.theme-toggle { position: fixed; top: 14px; right: 14px; z-index: 30; display: flex; gap: 4px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 20px; padding: 3px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.theme-toggle button { border: none; background: transparent; color: var(--text-secondary); border-radius: 16px; padding: 7px 12px; font-size: 12px; font-weight: 600; cursor: pointer; min-height: 32px; }
+.theme-toggle button.on { background: var(--teal-bg); color: var(--teal-fg); }
+
+.scenario-bar { max-width: 900px; margin: 0 auto 22px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.scenario-btn {
+  border: 0.5px solid var(--border); background: var(--surface-2); color: var(--text-secondary);
+  border-radius: 10px; padding: 9px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  min-height: 44px; text-align: left; max-width: 220px;
+}
+.scenario-btn .n { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; opacity: 0.65; text-transform: uppercase; }
+.scenario-btn:hover { border-color: var(--teal-fg); }
+.scenario-btn:focus-visible, button:focus-visible, [role="tab"]:focus-visible { outline: 2.5px solid var(--teal-fg); outline-offset: 2px; }
+.scenario-btn.on { background: var(--teal-bg); color: var(--teal-fg); border-color: transparent; }
+
+.layout { max-width: 900px; margin: 0 auto; display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+
+.phone-shell {
+  /* 100%-of-available statt vw: vw ignoriert das Padding von .mockup-page
+     und lief bei schmalen Fenstern seitlich über den Rand hinaus. */
+  width: 100%; max-width: 410px; flex-shrink: 1;
+  height: min(844px, 82vh); min-height: 560px;
+  background: var(--surface-2); border-radius: 34px; overflow: hidden;
+  border: 0.5px solid var(--border); box-shadow: 0 24px 60px rgba(0,0,0,.28);
+  display: flex; flex-direction: column; position: relative;
+}
+.notes-panel {
+  flex: 1 1 260px; min-width: 240px; max-width: 320px;
+  background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 16px;
+  padding: 18px 18px 20px; align-self: stretch;
+}
+.notes-panel h2 { font-size: 13px; font-weight: 700; margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.notes-panel p { font-size: 13px; line-height: 1.55; color: var(--text-secondary); margin: 0 0 14px; }
+.notes-panel .legend { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.notes-panel .legend .row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+
+/* ---- Nachbau der echten App-Struktur (#header/#main/#tabbar) ---- */
+#header { padding: 1rem 1.25rem 0.75rem; border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
+#header .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0; }
+#header .title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+#header h1 { font-size: 19px; font-weight: 600; margin: 0; min-width: 0; }
+.badge { font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 600; background: var(--tone-bg, var(--surface-1)); color: var(--tone, var(--text-secondary)); white-space: nowrap; flex-shrink: 0; }
+.countdown { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
+
+#main { flex: 1 1 auto; min-height: 0; padding: 1rem 1.25rem calc(88px); display: flex; flex-direction: column; gap: 10px; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+/* Bug (reproduziert bei 1280x720, kleinere Fensterhoehe): #main ist ein
+   Spalten-Flex-Container mit fester Hoehe + overflow:auto. Ohne dies
+   durften seine direkten Kinder (Karten, Wochenzeilen) auf ihre
+   min-height zusammengestaucht werden statt zu scrollen. Betrifft alle
+   Tabs, nicht nur Woche. */
+#main > * { flex-shrink: 0; }
+
+.card { background: var(--surface-1); border-radius: 12px; padding: 0.85rem 1rem; min-width: 0; overflow-wrap: anywhere; }
+.card p.name { font-size: 15px; font-weight: 600; margin: 0; }
+.card p.hint { font-size: 12px; color: var(--text-muted); margin: 3px 0 0; }
+/* Generische Fallback-Regel: .hint kommt auch ausserhalb von .card vor
+   (z. B. der Woche-Tab-Fusshinweis) und war dort bisher ungestylt. */
+.hint { font-size: 12px; color: var(--text-muted); margin: 3px 0 0; }
+.section-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 6px 0 0; text-transform: uppercase; letter-spacing: 0.04em; }
+
+button.plain { border: 0.5px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text-primary); font-size: 13px; padding: 8px 14px; cursor: pointer; min-height: 36px; }
+button.plain:active { transform: scale(0.97); }
+
+/* ---- Coach-Karte ---- */
+.coach-card { background: var(--purple-bg); border-radius: 12px; padding: 0.85rem 1rem; }
+.coach-card .head { display: flex; gap: 9px; align-items: flex-start; }
+.coach-card svg.icon { width: 18px; height: 18px; color: var(--purple-fg); flex-shrink: 0; margin-top: 1px; }
+.coach-card .label { font-size: 11px; font-weight: 700; color: var(--purple-fg); margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.03em; }
+.coach-card p.text { font-size: 13px; color: var(--purple-fg); margin: 0; line-height: 1.5; }
+.coach-card .divider { border-top: 0.5px solid rgba(83,74,183,0.25); margin: 10px 0 8px; }
+.bilanz-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; background: transparent; border: none; padding: 4px 0; color: var(--purple-fg); font-size: 12.5px; font-weight: 700; cursor: pointer; min-height: 36px; }
+.bilanz-toggle svg { width: 16px; height: 16px; transition: transform 0.18s ease; }
+.bilanz-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.bilanz-body { font-size: 13px; color: var(--purple-fg); line-height: 1.55; margin: 6px 0 0; }
+.bilanz-heading { font-size: 12px; font-weight: 700; color: var(--purple-fg); margin: 0 0 4px; }
+
+/* ---- Ampeln 2x2 ---- */
+.ampel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ampel-tile { background: var(--surface-1); border-radius: 12px; padding: 0.65rem 0.8rem; min-width: 0; }
+.ampel-tile .row1 { display: flex; align-items: center; gap: 7px; }
+.ampel-tile p.title { font-size: 12px; font-weight: 600; margin: 0; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ampel-tile p.detail { font-size: 12px; color: var(--text-secondary); margin: 4px 0 0; line-height: 1.4; }
+.ampel-dot { flex-shrink: 0; display: inline-block; width: 10px; height: 10px; }
+.ampel-dot.st-gruen { border-radius: 50%; background: var(--ok-fg); }
+.ampel-dot.st-gelb { background: var(--amber-fg); transform: rotate(45deg); border-radius: 2px; }
+.ampel-dot.st-rot { background: var(--danger-fg); border-radius: 2.5px; }
+.ampel-dot.st-grau { border-radius: 50%; background: transparent; border: 2px solid var(--text-muted); width: 8px; height: 8px; }
+
+/* Info-Knopf: 20px sichtbar, aber >=44px Trefffläche über ein
+   unsichtbares ::after, damit die Kachel nicht optisch aufgebläht wird. */
+.info-btn { position: relative; flex-shrink: 0; width: 21px; height: 21px; border: none; background: transparent; color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.info-btn::after { content: ""; position: absolute; inset: -12px; }
+.info-btn svg { width: 17px; height: 17px; }
+.info-btn:hover { color: var(--text-primary); }
+
+/* ---- Info-Sheet (Popover/Bottom-Sheet für Ampel-/Diagramm-Erklärungen) ---- */
+.info-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.4); z-index: 24; opacity: 0; pointer-events: none; transition: opacity 0.18s ease; }
+.info-backdrop.open { opacity: 1; pointer-events: auto; }
+.info-sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface-2); border-radius: 18px 18px 0 0; padding: 0.4rem 1.25rem 1.25rem; max-height: 72%; overflow-y: auto; box-shadow: 0 -10px 30px rgba(0,0,0,0.28); z-index: 25; transform: translateY(100%); transition: transform 0.2s ease; }
+.info-sheet.open { transform: translateY(0); }
+.info-sheet[hidden] { display: none; }
+.info-sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 8px auto 12px; }
+.info-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.info-sheet-head h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.info-sheet-close { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: var(--text-secondary); cursor: pointer; margin: -12px -12px -12px 0; flex-shrink: 0; }
+.info-sheet-close svg { width: 18px; height: 18px; }
+.info-sheet-body p { font-size: 13px; line-height: 1.55; color: var(--text-secondary); margin: 0 0 10px; }
+.info-sheet-body p:last-child { margin-bottom: 0; }
+
+/* ---- Heute-dran-Karte ---- */
+.today-card { border-radius: 12px; padding: 0.85rem 1rem; }
+.today-card.k-kraft { background: var(--teal-bg); }
+.today-card.k-lauf { background: var(--coral-bg); }
+.today-card.k-long { background: var(--purple-bg); }
+.today-card.k-ruhe, .today-card.k-noplan { background: var(--surface-1); }
+.today-card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.today-card .eyebrow2 { font-size: 11px; margin: 0; opacity: 0.9; }
+.today-card .name2 { font-size: 15px; font-weight: 600; margin: 2px 0 0; }
+.today-card .sub { font-size: 12px; margin: 3px 0 0; opacity: 0.85; line-height: 1.45; }
+.today-card .plain-name { font-size: 15px; font-weight: 600; margin: 0; color: var(--text-primary); }
+.today-card .plain-hint { font-size: 12px; color: var(--text-muted); margin: 3px 0 0; line-height: 1.45; }
+.today-card.k-kraft, .today-card.k-kraft .eyebrow2, .today-card.k-kraft .name2, .today-card.k-kraft .sub { color: var(--teal-fg); }
+.today-card.k-lauf, .today-card.k-lauf .eyebrow2, .today-card.k-lauf .name2, .today-card.k-lauf .sub { color: var(--coral-fg); }
+.today-card.k-long, .today-card.k-long .eyebrow2, .today-card.k-long .name2, .today-card.k-long .sub { color: var(--purple-fg); }
+.start-btn { font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 8px; border: none; background: var(--teal-fg); color: #fff; cursor: pointer; flex-shrink: 0; min-height: 36px; }
+.start-btn:active { transform: scale(0.96); }
+.ex-list { display: none; margin-top: 10px; border-top: 0.5px solid rgba(15,110,86,0.25); padding-top: 8px; }
+.ex-list.open { display: block; }
+.ex-row { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 2px; border-radius: 8px; cursor: pointer; color: var(--teal-fg); min-height: 44px; background: transparent; border: none; font: inherit; text-align: left; }
+.ex-row:hover { background: rgba(15,110,86,0.08); }
+.ex-row .exn { font-size: 13px; }
+.ex-row .exs { font-size: 12px; opacity: 0.8; white-space: nowrap; }
+.ex-row svg { width: 15px; height: 15px; opacity: 0.6; flex-shrink: 0; }
+.ex-hint { font-size: 11px; color: var(--teal-fg); opacity: 0.8; margin: 6px 0 0; }
+.ex-progress { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: rgba(15,110,86,0.14); color: var(--teal-fg); white-space: nowrap; }
+
+/* ---- Bars / Balkenpaare ----
+   Soll und Ist sind beide vollflaechig gefuellt, mit unterschiedlicher
+   Helligkeit statt nur unterschiedlichem Farbton: Soll = --soll-fill
+   (gedaempfter Neutralton), Ist = --teal-fg (kraeftig). Kontrastwerte
+   gegen --surface-1 in beiden Farbschemata siehe Bericht (jeweils >= 3:1,
+   Soll deutlich niedrigere Leuchtdichte als Ist). */
+.bars { display: flex; align-items: flex-end; gap: 6px; height: 110px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.bar-pair { display: flex; align-items: flex-end; gap: 3px; height: 92px; width: 100%; }
+.bar-soll { flex: 1; background: var(--soll-fill); border-radius: 3px 3px 0 0; min-height: 4px; }
+.bar-ist { flex: 1; background: var(--teal-fg); border-radius: 3px 3px 0 0; min-height: 3px; }
+.bar-label { font-size: 10px; color: var(--text-muted); }
+.bar-label.current { color: var(--teal-fg); font-weight: 700; }
+.bar-legend { display: flex; gap: 14px; margin: 2px 0 10px; }
+.bar-legend .lg-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
+.bar-legend .lg-swatch { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.bar-legend .lg-swatch.lg-soll { background: var(--soll-fill); }
+.bar-legend .lg-swatch.lg-ist { background: var(--teal-fg); }
+
+/* ---- Adhärenz ---- */
+.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.metric-tile { background: var(--surface-1); border-radius: 12px; padding: 0.75rem 0.85rem; }
+.metric-label { font-size: 12px; font-weight: 600; margin: 0; }
+.metric-value { font-size: 22px; font-weight: 700; margin: 4px 0 2px; }
+.metric-bar-track { height: 5px; border-radius: 3px; background: var(--border); }
+.metric-bar-fill { height: 5px; border-radius: 3px; background: var(--teal-fg); }
+.metric-sub { font-size: 11px; color: var(--text-muted); margin: 4px 0 0; }
+
+/* ---- Woche-Tab ---- */
+.week-summary { background: var(--surface-1); border-radius: 12px; padding: 0.85rem 1rem; }
+.week-summary .line { display: flex; justify-content: space-between; font-size: 13px; }
+.week-summary .line + .line { margin-top: 8px; }
+/* .track sitzt zwischen den beiden .line-Elementen, "line + line" greift
+   deshalb nie fuer den Abstand zur zweiten Zeile - der Abstand kommt hier
+   ueber die Track-Margins selbst. */
+.week-summary .track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text-muted) 25%, transparent); margin: 6px 0 8px; }
+.week-summary .fill { height: 6px; border-radius: 3px; background: var(--coral-fg); }
+/* Gleiche Aussenmasse (Radius, Padding) fuer aktive und Ruhetage, damit die
+   Liste einen sauberen Rhythmus behaelt - "ruhiger" kommt bei Ruhetagen
+   allein aus Farbe/Gewicht/fehlendem Karten-Hintergrund, nicht aus einer
+   kleineren Zeile (das sah zuvor wie ein Layout-Fehler aus). */
+.day-row { display: block; width: 100%; border: none; font: inherit; text-align: left; color: inherit; border-radius: 12px; padding: 0.85rem 1rem; cursor: pointer; min-height: 44px; background: transparent; }
+.day-row.rest { cursor: default; background: transparent !important; }
+.day-row.solid { background: var(--surface-1); }
+.day-row.today { box-shadow: inset 0 0 0 1.5px var(--teal-fg); }
+.day-row .head { display: flex; align-items: center; gap: 10px; }
+.day-row .dcol { width: 36px; flex-shrink: 0; }
+.day-row .dcol .d { font-size: 12px; font-weight: 700; margin: 0; }
+.day-row .dcol .dt { font-size: 10px; color: var(--text-muted); margin: 1px 0 0; }
+.day-row .mid { flex: 1; min-width: 0; }
+.day-row .mid .n { font-size: 14px; font-weight: 600; margin: 0; line-height: 1.3; }
+.day-row .mid .s { font-size: 11px; color: var(--text-muted); margin: 4px 0 0; line-height: 1.3; }
+.day-row.rest .mid .n { color: var(--text-muted); font-weight: 400; }
+/* Bug: die SVGs selbst haben keine width/height, ohne Groessenvorgabe hat
+   der Browser sie im Flex-Layout praktisch auf 0 zusammengeschrumpft
+   (daher "nichts sichtbar"). Jetzt feste Box + object-fit-artige Skalierung
+   ueber width/height:100% auf dem inneren svg. */
+.status-icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex-shrink: 0; }
+.status-icon svg { width: 100%; height: 100%; display: block; }
+.today-pill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--teal-bg); color: var(--teal-fg); white-space: nowrap; }
+.partial-pill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--amber-bg); color: var(--amber-fg); white-space: nowrap; }
+.missed-pill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--danger-bg); color: var(--danger-fg); white-space: nowrap; }
+.day-detail { display: none; margin: 8px 0 0 46px; padding-top: 8px; border-top: 0.5px solid var(--border); }
+.day-detail.open { display: block; }
+.day-detail p { font-size: 12px; color: var(--text-secondary); margin: 0 0 3px; }
+.day-detail .muted { color: var(--text-muted); }
+.week-nav { display: flex; align-items: center; justify-content: space-between; }
+.week-nav button { width: 38px; height: 38px; border-radius: 10px; border: 0.5px solid var(--border); background: var(--surface-2); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.week-nav button:disabled { opacity: 0.35; cursor: default; }
+.week-nav button svg { width: 18px; height: 18px; }
+.week-nav .titles { text-align: center; }
+.week-nav .titles p.t1 { font-size: 17px; font-weight: 600; margin: 0; }
+.week-nav .titles p.t2 { font-size: 12px; color: var(--text-muted); margin: 2px 0 0; }
+
+.notice-card { background: var(--surface-1); border-radius: 12px; padding: 1.4rem 1rem; text-align: center; }
+.notice-card p { font-size: 13px; color: var(--text-secondary); margin: 0; line-height: 1.5; }
+
+/* ---- Skeleton / Ladezustand ---- */
+.skel { position: relative; overflow: hidden; background: var(--border); border-radius: 6px; }
+.skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,.4), transparent); animation: shimmer 1.5s infinite; }
+@keyframes shimmer { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .skel::after { animation: none; opacity: 0.5; } }
+.skel-line { height: 10px; margin: 6px 0; }
+.skel-tile-body { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.skel-bar { flex: 1; background: var(--border); border-radius: 3px 3px 0 0; }
+
+#toast { position: absolute; left: 50%; bottom: 78px; transform: translate(-50%, 16px); max-width: 90%; width: max-content; background: var(--text-primary); color: var(--surface-2); font-size: 12.5px; padding: 10px 14px; border-radius: 10px; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 20; text-align: center; }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---- Tableiste (Glas-Look wie style.css) ---- */
+#tabbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; background: var(--surface-2); border-top: 0.5px solid var(--border); }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #tabbar { background: var(--glass); -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%); }
+  #tabbar::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; background: linear-gradient(90deg, transparent, var(--glass-edge) 25%, var(--glass-edge) 75%, transparent); pointer-events: none; }
+}
+#tabbar button { flex: 1; border: none; border-radius: 0; padding: 10px 0; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 3px; position: relative; cursor: pointer; color: var(--text-secondary); min-height: 52px; }
+#tabbar button::after { content: ""; position: absolute; inset: 4px 8px; border-radius: 12px; background: transparent; transition: background 0.22s ease, transform 0.22s ease; transform: scale(0.92); z-index: -1; }
+#tabbar button.active { color: var(--teal-fg); }
+#tabbar button.active::after { background: var(--glass-tint); transform: scale(1); }
+#tabbar svg { width: 20px; height: 20px; }
+#tabbar span { font-size: 11px; }
+
+@media (max-width: 460px) {
+  .theme-toggle { position: static; margin: 0 auto 14px; width: max-content; }
+}
+</style>
+</head>
+<body>
+<div class="mockup-page">
+  <p class="mockup-intro">
+    <strong>Design-Referenz für die Dashboard-v2-Abnahme</strong>: statische Beispieldaten, kein App-Code.
+    Gehört zu <code>docs/requirements-dashboard-v2.md</code>. Der Umschalter unten wechselt zwischen sechs
+    Zuständen, die Notizspalte rechts erklärt jeweils, was er zeigt.
+  </p>
+
+  <div class="theme-toggle" role="group" aria-label="Farbschema erzwingen">
+    <button data-theme-btn="system" class="on">System</button>
+    <button data-theme-btn="light">Hell</button>
+    <button data-theme-btn="dark">Dunkel</button>
+  </div>
+
+  <div class="scenario-bar" role="tablist" aria-label="Szenario wählen"></div>
+
+  <div class="layout">
+    <div class="phone-shell">
+      <div id="header"></div>
+      <div id="main"></div>
+      <div id="tabbar">
+        <button data-tab="dash"><span data-icon="dash"></span><span>Dashboard</span></button>
+        <button data-tab="woche"><span data-icon="woche"></span><span>Woche</span></button>
+        <button data-tab="verlauf"><span data-icon="verlauf"></span><span>Verlauf</span></button>
+        <button data-tab="plan"><span data-icon="plan"></span><span>Plan</span></button>
+      </div>
+      <div id="toast"></div>
+      <div id="infoBackdrop" class="info-backdrop"></div>
+      <div id="infoSheet" class="info-sheet" role="dialog" aria-modal="true" aria-labelledby="infoSheetTitle" hidden>
+        <div class="info-sheet-handle"></div>
+        <div class="info-sheet-head">
+          <h2 id="infoSheetTitle"></h2>
+          <button type="button" id="infoSheetClose" class="info-sheet-close" aria-label="Erklärung schließen"></button>
+        </div>
+        <div id="infoSheetBody" class="info-sheet-body"></div>
+      </div>
+    </div>
+    <div class="notes-panel">
+      <h2>Was zeigt dieses Szenario?</h2>
+      <p id="notesText"></p>
+      <h2>Ampel-Zeichen (Form + Farbe)</h2>
+      <div class="legend">
+        <div class="row"><span class="ampel-dot st-gruen"></span> Grün: im Ziel</div>
+        <div class="row"><span class="ampel-dot st-gelb"></span> Gelb: eine Auffälligkeit</div>
+        <div class="row"><span class="ampel-dot st-rot"></span> Rot: mehrere/deutlich daneben</div>
+        <div class="row"><span class="ampel-dot st-grau"></span> Grau: keine/zu wenig Daten</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   Icons — Inline-SVG im Stil der echten ICONS-Map aus app.js
+   ========================================================= */
+const ICONS = {
+  prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>',
+  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>',
+  chevronRight: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>',
+  chevronDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>',
+  chat: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H9l-4 4V5z"/><path d="M8 9h8M8 12.5h5"/></svg>',
+  info: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.2" fill="currentColor" stroke="none"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.5"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3.5 2.5 20.5h19L12 3.5z" stroke-linejoin="round"/><path d="M12 9.5v4.2" stroke-linecap="round"/><circle cx="12" cy="17.1" r="1.2" fill="currentColor" stroke="none"/></svg>',
+  missed: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.3 9.3l5.4 5.4M14.7 9.3l-5.4 5.4"/></svg>',
+  dash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" stroke-dasharray="3.2 3.2"/></svg>',
+  tabDash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>',
+  tabWoche: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h2M11 13h2M15 13h2M7 17h2M11 17h2"/></svg>',
+  tabVerlauf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  tabPlan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+};
+document.querySelector('[data-icon="dash"]').innerHTML = ICONS.tabDash;
+document.querySelector('[data-icon="woche"]').innerHTML = ICONS.tabWoche;
+document.querySelector('[data-icon="verlauf"]').innerHTML = ICONS.tabVerlauf;
+document.querySelector('[data-icon="plan"]').innerHTML = ICONS.tabPlan;
+document.getElementById("infoSheetClose").innerHTML = ICONS.close;
+
+const header = document.getElementById("header");
+const main = document.getElementById("main");
+const toastEl = document.getElementById("toast");
+
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toastEl.classList.remove("show"), 2200);
+}
+function skelLine(w, h) { return `<div class="skel skel-line" style="width:${w};${h ? "height:" + h + ";" : ""}"></div>`; }
+
+/* =========================================================
+   Info-Sheet: kurze, jargonfreie Erklärung je Ampel/Kennzahl.
+   Ein Muster für alle vier Ampeln + Aerobe Effizienz, damit es
+   konsistent bleibt statt nur an "Belastung" zu hängen.
+   ========================================================= */
+const INFO_CONTENT = {
+  wochensoll: {
+    title: "Wochensoll",
+    body: [
+      "Berechnung: gelaufene Kilometer der Planwoche bis heute im Verhältnis zu den geplanten Kilometern derselben Tage, dazu die erledigten Krafteinheiten.",
+      "Bedeutung: Grün ab 90 % der geplanten Kilometer. Gelb zwischen 70 % und 90 %. Rot darunter. Eine verpasste, bereits vergangene Einheit zählt mindestens als Gelb.",
+      "Grau: kein aktiver Plan oder die Woche hat noch keine Details.",
+    ],
+  },
+  easy: {
+    title: "Easy-Disziplin",
+    body: [
+      "Berechnung: die Herzfrequenz deiner letzten drei Easy-, Long- oder Recovery-Läufe im Vergleich zur Obergrenze der jeweiligen Zone.",
+      "Bedeutung: Grün, wenn alle drei im Rahmen liegen. Gelb bei einem Ausreißer bis 8 Schläge über der Grenze. Rot bei zwei oder mehr Ausreißern oder einem deutlich über der Grenze.",
+      "Grau: noch kein zugeordneter Lauf vorhanden.",
+    ],
+  },
+  belastung: {
+    title: "Belastung",
+    body: [
+      "Berechnung: Kilometer der letzten 7 Tage geteilt durch die durchschnittlichen Wochenkilometer der 28 Tage davor.",
+      "Bedeutung: 1,0 heißt so viel wie zuletzt üblich. 0,72 heißt diese Woche 28 % weniger als dein Schnitt, in Entlastungswochen ist das gewollt. Über 1,3 steht auf Gelb, du steigerst schnell. Über 1,5 steht auf Rot, das ist ein deutlich zu schneller Anstieg.",
+      "Ehrlicher Hinweis: eine grobe Faustregel (Acute:Chronic), gedacht als Warnsignal, keine Verletzungsprognose.",
+      "Grau: weniger als 4 Wochen Lauf-Historie.",
+    ],
+  },
+  kraft: {
+    title: "Kraft-Progression",
+    body: [
+      "Berechnung: deine Gewichtsübungen der letzten 6 Wochen, Deload-Wochen zählen nicht mit.",
+      "Bedeutung: Grün, wenn keine Übung feststeckt. Gelb bei einer Übung ohne Steigerung oder unter Soll. Rot bei mehreren betroffenen Übungen oder wenn dieselbe Übung zweimal in Folge unter Soll bleibt.",
+      "Grau: noch zu wenige Gewichtsübungen geloggt, oder kein aktiver Plan.",
+    ],
+  },
+  aerobe: {
+    title: "Aerobe Effizienz",
+    body: [
+      "Berechnung: die durchschnittliche Pace deiner Läufe mit Herzfrequenz in der Easy-Zone, pro Woche.",
+      "Bedeutung: sinkt die Pace bei gleicher Herzfrequenz, wird deine Grundlagenausdauer besser. Wochen ohne passenden Lauf zählen nicht mit.",
+    ],
+  },
+};
+function infoBtn(key) {
+  return `<button type="button" class="info-btn" data-info="${key}" aria-label="Erklärung: ${INFO_CONTENT[key].title}">${ICONS.info}</button>`;
+}
+const infoBackdrop = document.getElementById("infoBackdrop");
+const infoSheet = document.getElementById("infoSheet");
+const infoSheetTitle = document.getElementById("infoSheetTitle");
+const infoSheetBody = document.getElementById("infoSheetBody");
+let infoReturnFocus = null;
+function openInfo(key, triggerEl) {
+  const c = INFO_CONTENT[key];
+  if (!c) return;
+  infoReturnFocus = triggerEl || null;
+  infoSheetTitle.textContent = c.title;
+  infoSheetBody.innerHTML = c.body.map(p => `<p>${p}</p>`).join("");
+  infoSheet.hidden = false;
+  requestAnimationFrame(() => { infoBackdrop.classList.add("open"); infoSheet.classList.add("open"); });
+  document.getElementById("infoSheetClose").focus();
+}
+function closeInfo() {
+  if (infoSheet.hidden) return;
+  infoBackdrop.classList.remove("open");
+  infoSheet.classList.remove("open");
+  setTimeout(() => { infoSheet.hidden = true; }, 200);
+  if (infoReturnFocus) infoReturnFocus.focus();
+}
+main.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-info]");
+  if (btn) openInfo(btn.dataset.info, btn);
+});
+document.getElementById("infoSheetClose").addEventListener("click", closeInfo);
+infoBackdrop.addEventListener("click", closeInfo);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeInfo(); });
+
+/* =========================================================
+   Szenario-Daten — realistische Werte aus plan.js (Woche 3-6,
+   Halbmarathon-Plan, Deload in Woche 4/8). Referenzdatum für
+   Szenario 1 ist der 24.09.2026 (heutiges Datum).
+   ========================================================= */
+
+// Wochenvolumen Phase 1 (Soll aus plan.js runDist; Ist je nach Szenario)
+function volumeWeeks(istOverride) {
+  const base = [
+    { w: 1, soll: 26, ist: 26 }, { w: 2, soll: 29, ist: 29 }, { w: 3, soll: 32, ist: 32 },
+    { w: 4, soll: 24, ist: 14 }, { w: 5, soll: 30, ist: null }, { w: 6, soll: 32, ist: null },
+    { w: 7, soll: 36, ist: null }, { w: 8, soll: 27, ist: null },
+  ];
+  return base.map(x => istOverride && istOverride[x.w] !== undefined ? { ...x, ist: istOverride[x.w] } : x);
+}
+
+const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
+
+const SCENARIOS = {
+  s1: {
+    id: "s1", nav: "Do, W4", navSub: "Normalfall",
+    note: "Normalfall: Donnerstag in der Entlastungswoche. Heute dran ist Full Body B (reduziert), bereits 5 von 8 Übungen geloggt. Genau eine Ampel steht auf Gelb, Kraft-Progression, weil die Klimmzüge feststecken. Der Coach kommentiert die schlechteste Ampel; die Wochenbilanz zu Woche 3 ist eingeklappt zu finden.",
+    header: { day: "Donnerstag, 24. September", week: "Woche 4 · Entlastung", phase: "Phase 1 · Basis", tone: "teal",
+      countdown: "Rennen ca. Mitte April 2027 · Datum offen" },
+    today: { kind: "kraft", eyebrow: "Heute dran", name: "Full Body B (reduziert)",
+      sub: "8 Übungen · ca. 80 % Gewicht · 2 Sätze", progress: "5/8 geloggt",
+      exercises: [["Bulgarian split squats","2x8/Seite"],["Single leg RDL","2x8/Seite"],["Hamstring curls","2x10"],["Klimmzüge","2x8"],["Schulterpresse","2x8"],["Copenhagen planks","3x20-30s/Seite"],["Hüftbeuger","3x12-15/Seite"],["Crunches","3x15-20"]] },
+    coach: { mode: "daily+collapsed",
+      daily: "Entlastungswoche, dass sich alles leicht anfühlt, ist genau der Plan. Einziger Punkt: Die Klimmzüge hängen seit zwei Einheiten bei demselben Gewicht. Nimm sie am Dienstag bewusst als Erstes, wenn noch Kraft da ist.",
+      collapsedWeek: 3 },
+    ampeln: [
+      { key: "wochensoll", status: "gruen", detail: "14 / 24 km · Kraft 1/2" },
+      { key: "easy", status: "gruen", detail: "Alle 3 Läufe in der Zone" },
+      { key: "belastung", status: "gruen", detail: "Verhältnis 0,72" },
+      { key: "kraft", status: "gelb", detail: "Klimmzüge: 2x8 ohne Steigerung seit 2 Einheiten" },
+    ],
+    detail: { mode: "full", currentWeek: 4, volume: volumeWeeks(),
+      aerobe: { points: [["W1","6:28"],["W2","6:22"],["W3","6:19"],["W4","6:21"]], delta: "−7 s/km seit W1", good: true },
+      adherence: { done: 11, planned: 12 },
+      next: ["Sa: Long Run 10 km", "Mo: Woche 5, Aufbau", "25.10.: Re-Kalibrierung"] },
+  },
+  s2: {
+    id: "s2", nav: "Mo, Bilanz", navSub: "Wochenbilanz",
+    note: "Montag nach der Entlastungswoche: Lauftag (Easy Run), Coach zeigt den Tagessatz plus automatisch ausgeklappte Wochenbilanz zu Woche 4 (5 Sätze inkl. Kraft-Trend, Easy-Disziplin, Belastung, Schwerpunkt für Woche 5). Ampeln stehen gemischt grün/gelb, die neue Woche hat gerade erst begonnen.",
+    header: { day: "Montag, 28. September", week: "Woche 5 · Aufbau", phase: "Phase 1 · Basis", tone: "teal",
+      countdown: "Rennen ca. Mitte April 2027 · Datum offen" },
+    today: { kind: "lauf", eyebrow: "Heute dran", name: "Easy Run 8 km",
+      sub: "Ziel-Pace 6:10–6:35 /km · HF-Zone 148–163 bpm" },
+    coach: { mode: "daily+expanded",
+      daily: "Guten Start in Woche 5: Nach der Entlastung geht es mit etwas mehr Umfang weiter. Heute reicht ein lockerer Easy Run, um wieder reinzukommen.",
+      weeklyTitle: "Wochenbilanz · Woche 4",
+      weekly: "Woche 4 war deine Entlastungswoche und lief rund: 24,3 von 24 geplanten Kilometern, alle drei Läufe und beide Krafteinheiten erledigt. Nur am Mittwoch lagst du beim Easy Run mit Ø 166 bpm über der Zone, also in der nächsten Aufbauwoche am Mittwoch bewusst langsamer starten. Bei der Kraft hält sich Squats seit drei Einheiten bei 60 kg ohne mehr Wiederholungen. Dort lohnt sich in Woche 5 ein bewusster Sprung auf ein neues Schema. Das Belastungsverhältnis liegt entspannt bei 0,72, die aerobe Effizienz hat sich seit Woche 1 um 7 Sekunden pro Kilometer verbessert. Woche 5 startet wieder im Aufbau, der Schlüssel ist der Long Run am Samstag über 13 km." },
+    ampeln: [
+      { key: "wochensoll", status: "gruen", detail: "0 / 30 km · Kraft 0/2" },
+      { key: "easy", status: "gelb", detail: "Mi: Ø 166 bpm, Obergrenze 160" },
+      { key: "belastung", status: "gruen", detail: "Verhältnis 0,72" },
+      { key: "kraft", status: "gelb", detail: "Squats: 3× 60 kg ohne Steigerung" },
+    ],
+    detail: { mode: "full", currentWeek: 5, volume: volumeWeeks({ 4: 24.3 }),
+      aerobe: { points: [["W1","6:28"],["W2","6:22"],["W3","6:19"],["W4","6:21"]], delta: "−7 s/km seit W1", good: true },
+      adherence: { done: 11, planned: 12 },
+      next: ["Sa: Long Run 13 km", "Mo: Woche 6, Aufbau", "25.10.: Re-Kalibrierung"] },
+  },
+  s3: {
+    id: "s3", nav: "Fr, W4", navSub: "Alles grün",
+    note: "Ruhetag: die schlichte graue „Heute dran“-Karte ohne Aktion. Alle vier Ampeln stehen auf Grün, zeigt den entspannten Normalzustand.",
+    header: { day: "Freitag, 25. September", week: "Woche 4 · Entlastung", phase: "Phase 1 · Basis", tone: "teal",
+      countdown: "Rennen ca. Mitte April 2027 · Datum offen" },
+    today: { kind: "ruhe", eyebrow: "Heute dran", name: "Ruhe", sub: "Mobility" },
+    coach: { mode: "daily+collapsed",
+      daily: "Guter Rhythmus diese Woche: Nichts hängt fest, die Belastung ist niedrig. Nutz den freien Tag für Mobility, morgen wartet der Long Run.",
+      collapsedWeek: 3 },
+    ampeln: [
+      { key: "wochensoll", status: "gruen", detail: "14 / 24 km · Kraft 2/2" },
+      { key: "easy", status: "gruen", detail: "Alle 3 Läufe in der Zone" },
+      { key: "belastung", status: "gruen", detail: "Verhältnis 0,68" },
+      { key: "kraft", status: "gruen", detail: "6 Übungen, keine hängt fest" },
+    ],
+    detail: { mode: "full", currentWeek: 4, volume: volumeWeeks(),
+      aerobe: { points: [["W1","6:28"],["W2","6:22"],["W3","6:19"],["W4","6:20"]], delta: "−8 s/km seit W1", good: true },
+      adherence: { done: 12, planned: 12 },
+      next: ["Sa: Long Run 10 km", "Mo: Woche 5, Aufbau", "25.10.: Re-Kalibrierung"] },
+  },
+  s4: {
+    id: "s4", nav: "Mi, W6", navSub: "Rot/Warnung",
+    note: "Belastungsspitze in der Aufbauwoche 6: Belastung (Verhältnis 1,62) und Easy-Disziplin stehen auf Rot, Kraft-Progression auf Gelb (Deadlift unter Soll). Der Coach nennt zuerst die Belastung, danach die Easy-Disziplin: laut Priorität Rot vor Gelb, Belastung vor Easy-Disziplin.",
+    header: { day: "Mittwoch, 7. Oktober", week: "Woche 6 · Aufbau", phase: "Phase 1 · Basis", tone: "teal",
+      countdown: "Rennen ca. Mitte April 2027 · Datum offen" },
+    today: { kind: "lauf", eyebrow: "Heute dran", name: "Easy Run 9 km + 6×20s",
+      sub: "Ziel-Pace 6:10–6:35 /km · HF-Zone 148–163 bpm" },
+    coach: { mode: "daily+collapsed",
+      daily: "Dein Belastungsverhältnis liegt mit 1,62 deutlich über den letzten Wochen, die Steigerung kam zu schnell. Nimm den Easy Run heute bewusst locker: Am Montag warst du mit Ø 171 bpm ohnehin schon über der Zone.",
+      collapsedWeek: 5 },
+    ampeln: [
+      { key: "wochensoll", status: "gruen", detail: "9 / 32 km · Kraft 2/2" },
+      { key: "easy", status: "rot", detail: "Mo: Ø 171 bpm, Obergrenze 163" },
+      { key: "belastung", status: "rot", detail: "Verhältnis 1,62 · deutlich über der Vorwoche" },
+      { key: "kraft", status: "gelb", detail: "Deadlift unter Soll (4/3/3 bei 3x5)" },
+    ],
+    detail: { mode: "full", currentWeek: 6, volume: volumeWeeks({ 5: 31, 6: 9 }),
+      aerobe: { points: [["W3","6:19"],["W4","6:21"],["W5","6:24"],["W6","6:26"]], delta: "+7 s/km seit W3", good: false },
+      adherence: { done: 8, planned: 12 },
+      next: ["Sa: Long Run 14 km", "Mo: Woche 7, Aufbau", "25.10.: Re-Kalibrierung"] },
+  },
+  s5: {
+    id: "s5", nav: "Plan Ende", navSub: "Plan beendet",
+    note: "Zustand nach Planende (F7): Kopfzeile zeigt „Kein aktiver Plan“ und das vergangene Renndatum, die Kraft-/Lauf-/Kraft-Progressions-Ampeln sind grau, nur Belastung rechnet weiter. Der Coach macht keinen API-Aufruf mehr, „Im Detail“ zeigt nur noch die aerobe Effizienz.",
+    header: { day: "Montag, 12. April 2027", week: "Kein aktiver Plan", phase: null, tone: null,
+      countdown: "Rennen am 11.04.2027" },
+    today: { kind: "noplan", eyebrow: "Heute dran", name: "Kein Plan aktiv",
+      sub: "Läufe werden weiter aus Strava gezeigt.", stravaNote: "Heute: Easy Run 6,2 km · Ø 152 bpm (aus Strava)" },
+    coach: { mode: "noplan",
+      daily: "Dein Plan ist beendet, herzlichen Glückwunsch! Ein neues Ziel legst du im Plan-Tab an, sobald es feststeht. Bis dahin zeigt dir das Dashboard weiter deine Strava-Läufe und die Belastung." },
+    ampeln: [
+      { key: "wochensoll", status: "grau", detail: "Kein aktiver Plan" },
+      { key: "easy", status: "grau", detail: "Kein aktiver Plan" },
+      { key: "belastung", status: "gruen", detail: "Verhältnis 0,95" },
+      { key: "kraft", status: "grau", detail: "Kein aktiver Plan" },
+    ],
+    detail: { mode: "onlyAerobe",
+      aerobe: { points: [["Jan","6:05"],["Feb","6:02"],["Mrz","5:58"],["Apr","5:55"]], delta: "−10 s/km seit Januar", good: true } },
+  },
+  s6: {
+    id: "s6", nav: "Lädt …", navSub: "Vor dem Laden",
+    note: "Direkt nach dem Öffnen, bevor Strava/Coach geantwortet haben: Kopfzeile, „Heute dran“ (Plan-Daten) und „Als Nächstes“ stehen sofort, weil sie nur den lokalen Plan brauchen. Ampeln, Ist-Balken, aerobe Effizienz und Adhärenz sind Platzhalter, weil sie Strava-Daten brauchen, nur Kraft-Progression braucht lediglich Firestore-Logs und ist deshalb schon fertig. Der Coach zeigt einen Platzhalter statt zu warten.",
+    header: { day: "Samstag, 26. September", week: "Woche 4 · Entlastung", phase: "Phase 1 · Basis", tone: "teal",
+      countdown: "Rennen ca. Mitte April 2027 · Datum offen" },
+    today: { kind: "long", eyebrow: "Heute dran", name: "Long Run 10 km",
+      sub: "Ziel-Pace 6:15–6:40 /km · HF-Zone 148–160 bpm", loadingIst: true },
+    coach: { mode: "loading" },
+    ampeln: [
+      { key: "wochensoll", status: "loading" },
+      { key: "easy", status: "loading" },
+      { key: "belastung", status: "loading" },
+      { key: "kraft", status: "gruen", detail: "6 Übungen, keine hängt fest" },
+    ],
+    detail: { mode: "loading", currentWeek: 4, volume: volumeWeeks(),
+      next: ["Mo: Woche 5, Aufbau", "25.10.: Re-Kalibrierung"] },
+  },
+};
+
+/* =========================================================
+   Render: Kopfzeile
+   ========================================================= */
+function renderHeader(scn) {
+  const h = scn.header;
+  const badge = h.phase ? `<span class="badge tone-${h.tone}">${h.phase}</span>` : `<span class="badge">Ohne Plan</span>`;
+  header.innerHTML = `
+    <p class="eyebrow">${h.day}</p>
+    <div class="title-row"><h1>${h.week}</h1>${badge}</div>
+    <p class="countdown">${h.countdown}</p>`;
+}
+
+/* =========================================================
+   Render: "Heute dran"
+   ========================================================= */
+function renderToday(t) {
+  if (t.kind === "ruhe") {
+    return `<div class="today-card k-ruhe">
+      <p class="plain-name">${t.name}</p>
+      ${t.sub ? `<p class="plain-hint">${t.sub}</p>` : ""}
+    </div>`;
+  }
+  if (t.kind === "noplan") {
+    return `<div class="today-card k-noplan">
+      <p class="plain-name">${t.name}</p>
+      <p class="plain-hint">${t.sub}</p>
+      ${t.stravaNote ? `<p class="plain-hint" style="margin-top:8px;color:var(--coral-fg);">${t.stravaNote}</p>` : ""}
+    </div>`;
+  }
+  if (t.kind === "lauf" || t.kind === "long") {
+    const cls = t.kind === "long" ? "k-long" : "k-lauf";
+    return `<div class="today-card ${cls}">
+      <p class="eyebrow2">${t.eyebrow}</p>
+      <p class="name2">${t.name}</p>
+      <p class="sub">${t.sub}</p>
+      ${t.loadingIst ? `<div style="margin-top:8px;">${skelLine("70%","10px")}<p class="sub" style="opacity:0.7;margin-top:4px;">Ist-Werte werden nach dem Lauf aus Strava geladen.</p></div>` : ""}
+    </div>`;
+  }
+  // kraft
+  const rows = (t.exercises || []).map(([n, s]) => `
+    <button type="button" class="ex-row" data-ex-row>
+      <span class="exn">${n}</span>
+      <span class="exs">${s}</span>
+      ${ICONS.chevronRight}
+    </button>`).join("");
+  return `<div class="today-card k-kraft">
+    <div class="top">
+      <div>
+        <p class="eyebrow2">${t.eyebrow}</p>
+        <p class="name2">${t.name}</p>
+        <p class="sub">${t.sub}</p>
+      </div>
+      <button class="start-btn" id="startBtn">Starten</button>
+    </div>
+    <div class="ex-list" id="exList">
+      <div class="row" style="justify-content:flex-end;margin-bottom:4px;"><span class="ex-progress">${t.progress}</span></div>
+      ${rows}
+      <p class="ex-hint">Tippen auf eine Übung öffnet die bestehende Kraft-Tagesansicht (Sätze, Anpassen, Progressionsvorschlag).</p>
+    </div>
+  </div>`;
+}
+
+/* =========================================================
+   Render: Coach-Karte
+   ========================================================= */
+function renderCoach(c) {
+  if (c.mode === "loading") {
+    return `<div class="coach-card">
+      <div class="head">${ICONS.chat}
+        <div style="flex:1;min-width:0;">
+          <p class="label">Coach</p>
+          ${skelLine("92%")}${skelLine("60%")}
+          <p class="sub" style="font-size:11px;color:var(--purple-fg);opacity:0.75;margin-top:4px;">Wird vorbereitet. Das Dashboard wartet nicht darauf.</p>
+        </div>
+      </div>
+    </div>`;
+  }
+  if (c.mode === "noplan") {
+    return `<div class="coach-card">
+      <div class="head">${ICONS.info}
+        <div><p class="label">Coach</p><p class="text">${c.daily}</p></div>
+      </div>
+    </div>`;
+  }
+  const bilanzBlock = c.mode === "daily+expanded"
+    ? `<div class="divider"></div><p class="bilanz-heading">${c.weeklyTitle}</p><p class="bilanz-body">${c.weekly}</p>`
+    : c.mode === "daily+collapsed"
+    ? `<div class="divider"></div>
+       <button class="bilanz-toggle" id="bilanzToggle" aria-expanded="false">Wochenbilanz W${c.collapsedWeek} ${ICONS.chevronDown}</button>
+       <div class="bilanz-body" id="bilanzBody" style="display:none;">Bilanz zu Woche ${c.collapsedWeek}: Laufumfang im Soll, Kraft komplett erledigt, Belastung entspannt. Details wie in der Montags-Wochenbilanz.</div>`
+    : "";
+  return `<div class="coach-card">
+    <div class="head">${ICONS.chat}
+      <div style="flex:1;min-width:0;">
+        <p class="label">Coach</p>
+        <p class="text">${c.daily}</p>
+      </div>
+    </div>
+    ${bilanzBlock}
+  </div>`;
+}
+
+/* =========================================================
+   Render: Ampeln 2x2
+   ========================================================= */
+function renderAmpeln(list) {
+  return `<div class="ampel-grid">${list.map(a => {
+    if (a.status === "loading") {
+      return `<div class="ampel-tile">
+        <div class="row1"><span class="ampel-dot st-grau" style="opacity:0.4;"></span><p class="title">${AMPEL_LABELS[a.key]}</p></div>
+        <div style="margin-top:6px;">${skelLine("80%")}</div>
+      </div>`;
+    }
+    return `<div class="ampel-tile">
+      <div class="row1"><span class="ampel-dot st-${a.status}"></span><p class="title">${AMPEL_LABELS[a.key]}</p>${infoBtn(a.key)}</div>
+      <p class="detail">${a.detail}</p>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+/* =========================================================
+   Render: "Im Detail"
+   ========================================================= */
+function renderDetail(d) {
+  if (d.mode === "onlyAerobe") {
+    return `<p class="section-label">Im Detail</p>${aerobeCard(d.aerobe)}`;
+  }
+  const volLoading = d.mode === "loading";
+  const bars = d.volume.map(w => {
+    const maxV = 40;
+    const sollH = Math.round((w.soll / maxV) * 84);
+    // Zukuenftige Wochen (ist === null) und eine noch bei 0 km stehende
+    // aktuelle Woche zeigen keinen Ist-Stummel, nur den Soll-Umriss. Vorher
+    // erzwang .bar-ist's min-height einen sichtbaren Rest auch bei height:0.
+    const showIst = w.ist != null && w.ist > 0;
+    const istH = showIst ? Math.round((w.ist / maxV) * 84) : 0;
+    const isCurrent = w.w === d.currentWeek;
+    return `<div class="bar-col">
+      <div class="bar-pair">
+        <div class="bar-soll" style="height:${sollH}px"></div>
+        ${volLoading ? `<div class="bar-ist skel" style="height:${Math.round(sollH*0.7)}px"></div>` : showIst ? `<div class="bar-ist" style="height:${istH}px"></div>` : ""}
+      </div>
+      <span class="bar-label ${isCurrent ? "current" : ""}">W${w.w}</span>
+    </div>`;
+  }).join("");
+
+  const adherenceBlock = volLoading
+    ? `<div class="metric-tile"><p class="metric-label">Adhärenz 4 Wo.</p>${skelLine("50%","22px")}${skelLine("100%","5px")}${skelLine("70%")}</div>`
+    : `<div class="metric-tile">
+        <p class="metric-label">Adhärenz 4 Wo.</p>
+        <p class="metric-value">${Math.round(d.adherence.done / d.adherence.planned * 100)} %</p>
+        <div class="metric-bar-track"><div class="metric-bar-fill" style="width:${Math.round(d.adherence.done / d.adherence.planned * 100)}%"></div></div>
+        <p class="metric-sub">${d.adherence.done} von ${d.adherence.planned} Einheiten</p>
+      </div>`;
+
+  return `<p class="section-label">Im Detail</p>
+    <div class="card">
+      <p class="name" style="margin-bottom:4px;">Wochenvolumen · Soll vs. Ist</p>
+      <div class="bar-legend">
+        <span class="lg-item"><span class="lg-swatch lg-soll"></span>Soll</span>
+        <span class="lg-item"><span class="lg-swatch lg-ist"></span>Ist</span>
+      </div>
+      <div class="bars">${bars}</div>
+    </div>
+    ${volLoading
+      ? `<div class="card"><p class="name" style="margin-bottom:6px;">Aerobe Effizienz</p>${skelLine("40%")}<div class="bars" style="height:60px;margin-top:6px;">${skelLine("100%","60px")}</div></div>`
+      : aerobeCard(d.aerobe)}
+    <div class="metric-grid">
+      ${adherenceBlock}
+      <div class="metric-tile">
+        <p class="metric-label">Als Nächstes</p>
+        <p class="metric-sub" style="font-size:12px;color:var(--text-secondary);line-height:1.55;margin-top:6px;">${d.next.join("<br>")}</p>
+      </div>
+    </div>`;
+}
+
+function aerobeCard(a) {
+  const w = 300, hgt = 60, n = a.points.length;
+  const xs = a.points.map((_, i) => 10 + (i * (w - 20) / (n - 1)));
+  const vals = a.points.map(p => paceToSeconds(p[1]));
+  const minV = Math.min(...vals), maxV = Math.max(...vals);
+  const ys = vals.map(v => maxV === minV ? hgt / 2 : 12 + (1 - (v - minV) / (maxV - minV)) * (hgt - 28));
+  const pts = xs.map((x, i) => `${x},${ys[i].toFixed(1)}`).join(" ");
+  const circles = a.points.map((p, i) => `<circle cx="${xs[i]}" cy="${ys[i].toFixed(1)}" r="3.5" fill="var(--coral-fg)"/><text x="${xs[i]}" y="${(ys[i] + 16).toFixed(1)}" font-size="10" text-anchor="${xs[i] > w - 20 ? "end" : xs[i] < 20 ? "start" : "middle"}" fill="var(--text-muted)">${p[1]}</text>`).join("");
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+      <span style="display:inline-flex;align-items:center;gap:5px;min-width:0;"><span class="name" style="font-size:15px;font-weight:600;">Aerobe Effizienz</span>${infoBtn("aerobe")}</span>
+      <p style="font-size:12px;font-weight:600;margin:0;white-space:nowrap;color:${a.good ? "var(--ok-fg)" : "var(--danger-fg)"};">${a.delta}</p>
+    </div>
+    <p class="hint" style="margin:2px 0 6px;">Ø Pace bei Läufen mit HF in der Z2-Zone</p>
+    <svg viewBox="0 0 ${w} ${hgt}" style="width:100%;height:${hgt}px;">
+      <polyline points="${pts}" fill="none" stroke="var(--coral-fg)" stroke-width="2.5" stroke-linecap="round"/>
+      ${circles}
+    </svg>
+  </div>`;
+}
+function paceToSeconds(p) { const [m, s] = p.split(":").map(Number); return m * 60 + (s || 0); }
+
+/* =========================================================
+   Dashboard-Tab zusammensetzen
+   ========================================================= */
+let currentScenario = "s1";
+
+function renderDash() {
+  const scn = SCENARIOS[currentScenario];
+  renderHeader(scn);
+  main.innerHTML = `
+    ${renderToday(scn.today)}
+    ${renderCoach(scn.coach)}
+    ${renderAmpeln(scn.ampeln)}
+    ${renderDetail(scn.detail)}
+  `;
+  document.getElementById("notesText").textContent = scn.note;
+
+  const startBtn = document.getElementById("startBtn");
+  if (startBtn) {
+    startBtn.onclick = () => {
+      const list = document.getElementById("exList");
+      const open = !list.classList.contains("open");
+      list.classList.toggle("open", open);
+      startBtn.textContent = open ? "Schließen" : "Starten";
+    };
+  }
+  document.querySelectorAll("[data-ex-row]").forEach(row => {
+    row.onclick = () => toast("Springt in die Kraft-Tagesansicht (bestehende Ansicht) →");
+  });
+  const bilanzToggle = document.getElementById("bilanzToggle");
+  if (bilanzToggle) {
+    bilanzToggle.onclick = () => {
+      const body = document.getElementById("bilanzBody");
+      const open = body.style.display === "none";
+      body.style.display = open ? "block" : "none";
+      bilanzToggle.setAttribute("aria-expanded", String(open));
+    };
+  }
+}
+
+/* =========================================================
+   Woche-Tab — eigenständig von den Dashboard-Szenarien,
+   demonstriert alle Status-Symbole aus F9.
+   ========================================================= */
+const weeksData = {
+  3: { title: "Woche 3 · Aufbau", range: "14.–20. September", soll: 32, ist: 25, kraft: "1/2", days: [
+    { d: "Mo", dt: "14.9.", kind: "lauf", name: "Easy Run 8 km", target: "6:10–6:35 · HF 148–163", status: "ok", actual: "8,1 km · 6:22 · Ø 156" },
+    { d: "Di", dt: "15.9.", kind: "kraft", name: "Full Body A", target: "8 Übungen · 3x8-10", status: "ok", actual: "8/8 erledigt" },
+    { d: "Mi", dt: "16.9.", kind: "lauf", name: "Easy 9 km + 5x20s", target: "6:10–6:35 · HF 148–163", status: "ok", actual: "9,0 km · 6:19 · Ø 159" },
+    { d: "Do", dt: "17.9.", kind: "kraft", name: "Full Body B", target: "8 Übungen · 3x8-10", status: "missed" },
+    { d: "Fr", dt: "18.9.", kind: "ruhe", name: "Ruhe", target: "Mobility", status: "rest" },
+    { d: "Sa", dt: "19.9.", kind: "long", name: "Long Run 15 km", target: "6:15–6:40 · HF 148–160", status: "ok", actual: "15,1 km · 6:31 · Ø 157" },
+    { d: "So", dt: "20.9.", kind: "ruhe", name: "Ruhe", target: "", status: "rest" },
+  ]},
+  4: { title: "Woche 4 · Entlastung", range: "21.–27. September", soll: 24, ist: 14, kraft: "1/2", days: [
+    { d: "Mo", dt: "21.9.", kind: "lauf", name: "Easy Run 7 km", target: "6:15–6:40 · HF 148–160", status: "ok", actual: "7,1 km · 6:24 · Ø 158" },
+    { d: "Di", dt: "22.9.", kind: "kraft", name: "Full Body A (red.)", target: "8 Übungen · 2 Sätze, ~80 %", status: "ok", actual: "8/8 erledigt" },
+    { d: "Mi", dt: "23.9.", kind: "lauf", name: "Easy Run 7 km", target: "6:15–6:40 · HF 148–160", status: "warn", actual: "7,0 km · 6:05 · Ø 166", note: "Zu schnell: HF über Z2" },
+    { d: "Do", dt: "24.9.", kind: "kraft", name: "Full Body B (red.)", target: "8 Übungen · 2 Sätze, ~80 %", status: "today", actual: "5/8 geloggt" },
+    { d: "Fr", dt: "25.9.", kind: "ruhe", name: "Ruhe", target: "Mobility", status: "rest" },
+    { d: "Sa", dt: "26.9.", kind: "long", name: "Long Run 10 km", target: "6:15–6:40 · HF 148–160", status: "plan" },
+    { d: "So", dt: "27.9.", kind: "ruhe", name: "Ruhe", target: "", status: "rest" },
+  ]},
+  5: { title: "Woche 5 · Aufbau", range: "28. Sep. – 4. Okt.", soll: 30, ist: null, kraft: "0/2", days: [
+    { d: "Mo", dt: "28.9.", kind: "lauf", name: "Easy Run 8 km", target: "6:10–6:35 · HF 148–163", status: "plan" },
+    { d: "Di", dt: "29.9.", kind: "kraft", name: "Full Body A", target: "4x4-6, RPE 8", status: "plan" },
+    { d: "Mi", dt: "30.9.", kind: "lauf", name: "Easy 9 km + 5x20s", target: "6:10–6:35 · HF 148–163", status: "plan" },
+    { d: "Do", dt: "1.10.", kind: "kraft", name: "Full Body B", target: "4x6/Seite · RPE 8", status: "plan" },
+    { d: "Fr", dt: "2.10.", kind: "ruhe", name: "Ruhe", target: "Mobility", status: "rest" },
+    { d: "Sa", dt: "3.10.", kind: "long", name: "Long Run 13 km", target: "6:15–6:40 · HF 148–160", status: "plan" },
+    { d: "So", dt: "4.10.", kind: "lauf", name: "Recovery Run 4 km", target: "> 6:40 · HF < 148", status: "plan" },
+  ]},
+};
+let curWeek = 4;
+
+// Farbe der Tag/Datum-Spalte nach Einheitentyp, wie im Rest der App
+// (Teal Kraft, Koralle Lauf, Lila Long Run) - gibt der Liste auf einen
+// Blick Struktur zurueck, statt einheitlich schwarzen Buchstaben.
+function kindFg(kind) {
+  if (kind === "kraft") return "var(--teal-fg)";
+  if (kind === "lauf") return "var(--coral-fg)";
+  if (kind === "long") return "var(--purple-fg)";
+  return "var(--text-muted)";
+}
+
+function statusIcon(d) {
+  if (d.status === "ok") return `<span class="status-icon" style="color:var(--ok-fg);">${ICONS.check}</span>`;
+  if (d.status === "warn") return `<span class="status-icon" style="color:var(--amber-fg);">${ICONS.warn}</span>`;
+  if (d.status === "missed") return `<span class="missed-pill">verpasst</span>`;
+  // "Heute" und ein Teilfortschritt schliessen sich nicht aus: Kraft kann
+  // heute schon teilweise geloggt sein. Dann beides in einem Badge kombinieren
+  // statt "Heute" durch die Bruchzahl zu ersetzen.
+  if (d.status === "today") return d.actual && d.actual.includes("/") ? `<span class="partial-pill">Heute · ${d.actual.split(" ")[0]}</span>` : `<span class="today-pill">Heute</span>`;
+  if (d.status === "plan") return `<span class="status-icon" style="color:var(--text-muted);">${ICONS.dash}</span>`;
+  return "";
+}
+
+function renderWeek() {
+  const w = weeksData[curWeek];
+  header.innerHTML = `<div class="week-nav">
+    <button id="prevW" ${weeksData[curWeek - 1] ? "" : "disabled"} aria-label="Vorherige Woche">${ICONS.prev}</button>
+    <div class="titles"><p class="t1">${w.title}</p><p class="t2">${w.range}</p></div>
+    <button id="nextW" ${weeksData[curWeek + 1] ? "" : "disabled"} aria-label="Nächste Woche">${ICONS.next}</button>
+  </div>`;
+  const pct = w.ist != null ? Math.min(100, Math.round((w.ist / w.soll) * 100)) : 0;
+  main.innerHTML = `
+    <div class="week-summary">
+      <div class="line"><span style="font-weight:600;">Laufvolumen</span><span style="color:var(--text-secondary);">${w.ist != null ? w.ist + " / " : ""}${w.soll} km</span></div>
+      <div class="track"><div class="fill" style="width:${pct}%"></div></div>
+      <div class="line"><span style="font-weight:600;">Kraft</span><span style="color:var(--text-secondary);">${w.kraft} Einheiten</span></div>
+    </div>
+    ${w.days.map((d, i) => {
+      const rest = d.status === "rest";
+      if (rest) {
+        // Ruhetage: gleiche Aussenmasse wie aktive Tage (Rhythmus bleibt
+        // sauber), aber einzeilig, ohne Symbol, ohne Karten-Hintergrund und
+        // nicht antippbar - das macht sie ruhig statt kaputt wirkend.
+        return `<div class="day-row rest" data-row="${i}">
+          <div class="head">
+            <div class="dcol"><p class="d" style="color:var(--text-muted);">${d.d}</p><p class="dt">${d.dt}</p></div>
+            <div class="mid"><p class="n">${d.name}</p></div>
+          </div>
+        </div>`;
+      }
+      return `<button type="button" class="day-row solid ${d.status === "today" ? "today" : ""}" data-row="${i}">
+        <div class="head">
+          <div class="dcol"><p class="d" style="color:${kindFg(d.kind)};">${d.d}</p><p class="dt">${d.dt}</p></div>
+          <div class="mid"><p class="n">${d.name}</p><p class="s">${d.actual ? "Ist: " + d.actual : "Ziel: " + d.target}</p></div>
+          ${statusIcon(d)}
+        </div>
+        <div class="day-detail" data-detail="${i}">
+          ${d.target ? `<p><span class="muted">Ziel:</span> ${d.target}</p>` : ""}
+          ${d.actual ? `<p><span class="muted">Ist:</span> ${d.actual}</p>` : ""}
+          ${d.note ? `<p style="color:var(--amber-fg);">${d.note}</p>` : ""}
+          ${d.status === "missed" ? `<p style="color:var(--danger-fg);">Nicht geloggt, zählt als verpasst.</p>` : ""}
+        </div>
+      </button>`;
+    }).join("")}
+    <p class="hint" style="text-align:center;margin-top:4px;">Navigation läuft in der echten App von Woche 1 bis 31.</p>`;
+  const prevBtn = document.getElementById("prevW"), nextBtn = document.getElementById("nextW");
+  if (prevBtn) prevBtn.onclick = () => { if (weeksData[curWeek - 1]) { curWeek--; renderWeek(); } };
+  if (nextBtn) nextBtn.onclick = () => { if (weeksData[curWeek + 1]) { curWeek++; renderWeek(); } };
+  document.querySelectorAll("[data-row]").forEach(row => {
+    const i = row.dataset.row;
+    if (weeksData[curWeek].days[i].status === "rest") return;
+    row.onclick = () => {
+      const det = document.querySelector(`[data-detail="${i}"]`);
+      det.classList.toggle("open");
+    };
+  });
+  document.getElementById("notesText").textContent = "Woche-Tab (unabhängig vom Dashboard-Szenario): zeigt alle Status-Symbole aus F9, grüner Haken, gelbes Warnsymbol, rotes „verpasst“, Heute-Badge mit Teal-Rahmen und gestrichelter Kreis für die Zukunft.";
+}
+
+function renderInfo(title, text) {
+  header.innerHTML = `<p class="eyebrow" style="visibility:hidden;">.</p><div class="title-row"><h1>${title}</h1></div>`;
+  main.innerHTML = `<div class="notice-card"><p>${text}</p></div>`;
+  document.getElementById("notesText").textContent = `${title}-Tab: laut Auftrag unverändert, hier nur als Platzhalter-Hinweis dargestellt.`;
+}
+
+/* =========================================================
+   Tab- und Szenario-Steuerung
+   ========================================================= */
+function setActiveTab(tab) {
+  document.querySelectorAll("#tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  if (tab === "dash") renderDash();
+  else if (tab === "woche") renderWeek();
+  else if (tab === "verlauf") renderInfo("Verlauf", "Unverändert: Umschalter Kraft/Lauf mit Trend pro Übung und Pace-Verlauf.");
+  else if (tab === "plan") renderInfo("Trainingsplan", "Unverändert: vier Phasen mit Datumsbereich und Zonentabelle.");
+}
+document.querySelectorAll("#tabbar button").forEach(b => b.onclick = () => setActiveTab(b.dataset.tab));
+
+function renderScenarioBar() {
+  const bar = document.querySelector(".scenario-bar");
+  bar.innerHTML = Object.values(SCENARIOS).map(s => `
+    <button class="scenario-btn ${s.id === currentScenario ? "on" : ""}" data-scn="${s.id}" role="tab" aria-selected="${s.id === currentScenario}">
+      <span class="n">${s.nav}</span>${s.navSub}
+    </button>`).join("");
+  bar.querySelectorAll("[data-scn]").forEach(btn => btn.onclick = () => {
+    currentScenario = btn.dataset.scn;
+    renderScenarioBar();
+    setActiveTab("dash");
+  });
+}
+renderScenarioBar();
+setActiveTab("dash");
+
+/* ---- Theme-Umschalter (nur für die Mockup-Ansicht) ---- */
+document.querySelectorAll("[data-theme-btn]").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll("[data-theme-btn]").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    const mode = btn.dataset.themeBtn;
+    if (mode === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", mode);
+  };
+});
+</script>
+</body>
+</html>

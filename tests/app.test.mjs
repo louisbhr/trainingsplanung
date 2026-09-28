@@ -1,10 +1,15 @@
 import pw from "playwright";
+import { readFileSync } from "node:fs";
 const { chromium } = pw;
 
 const BASE = "http://127.0.0.1:8099";
 const SHOTS = process.env.SHOTS;
 let fails = 0, checks = 0;
 const ok = (cond, msg) => { checks++; if (!cond) { console.log("FAIL:", msg); fails++; } else console.log("ok  :", msg); };
+
+// Für die Plan-Lade-Tests (A1): eine echte, gültige Kopie zum Vorbelegen
+// von localStorage, damit "JSON 404 mit Kopie" nicht künstlich wirkt.
+const REAL_PLAN_JSON = readFileSync(new URL("../plans/hm-2027.json", import.meta.url), "utf8");
 
 const FIREBASE_STUB = `
 const KEY = "test.logs";
@@ -728,6 +733,204 @@ async function noHScroll(page, where) {
   // Der Inhalt füllt die volle Gerätebreite
   const appW = await page.locator("#app").evaluate((el) => el.getBoundingClientRect().width);
   ok(Math.abs(appW - 390) < 1, `Seite füllt die Breite (${Math.round(appW)} von 390)`);
+  await ctx.close();
+}
+
+// ---- 17. Plan-JSON 404, aber eine gültige Kopie in localStorage (A1) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.addInitScript(([planJson]) => {
+    localStorage.setItem("hm-tracker.workerUrl", "https://worker.test");
+    localStorage.setItem("hm-tracker.plan.hm-2027", planJson);
+  }, [REAL_PLAN_JSON]);
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#toast.show");
+  ok((await page.textContent("#toast")).includes("Plan aus letzter Kopie"), "Plan-404 mit Kopie: dezenter Hinweis erscheint");
+  ok((await page.textContent("#header h1")) === "Lauf", "Plan-404 mit Kopie: App läuft normal weiter (Lauftag erkannt)");
+
+  // Satz-Logging funktioniert weiterhin mit der Kopie
+  await page.click('[data-tab="woche"]');
+  await page.click('[data-date="2026-09-08"]');
+  await page.waitForSelector('[data-ex="squats"]');
+  await page.locator('[data-ex="squats"] [data-kg]').fill("80");
+  await page.locator('[data-ex="squats"] [data-reps]').fill("9");
+  await page.click('[data-ex="squats"] [data-action="save"]');
+  await page.waitForSelector('[data-status="squats"].ok');
+  ok((await page.locator('[data-ex="squats"] .status').textContent()) === "Gespeichert.", "Plan-404 mit Kopie: Satz-Logging funktioniert");
+  await shot(page, "19-plan-404-mit-kopie");
+  await ctx.close();
+}
+
+// ---- 18. Plan-JSON 404, keine Kopie vorhanden (A1) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#main .error-card");
+  const txt = await page.textContent("#main");
+  ok(txt.includes("Plan konnte nicht geladen werden"), "Plan-404 ohne Kopie: dauerhafte Fehlerkarte erscheint");
+  ok(!txt.includes("Strava") && !txt.includes("Firebase"), "Plan-404 ohne Kopie: nicht als Strava-/Firebase-Fehler erkennbar");
+  await shot(page, "20-plan-404-ohne-kopie");
+  await ctx.close();
+}
+
+// ---- 19. Plan-JSON kaputt (kein gültiges JSON) — wie 404 behandelt ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: "{ kaputt" }));
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#main .error-card");
+  ok((await page.textContent("#main")).includes("Plan konnte nicht geladen werden"), "Kaputte Plan-JSON: wie 404 behandelt");
+  await ctx.close();
+}
+
+// ---- 19b. Plan-JSON 404 + Kopie mit passender schemaVersion, aber ungültiger Form (K1) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.addInitScript(() => {
+    // schemaVersion passt, aber die Kopie hat keine Wochen — validatePlan
+    // muss das ablehnen, statt die App bei "Plan wird geladen …" hängen
+    // zu lassen (K1).
+    localStorage.setItem("hm-tracker.plan.hm-2027", JSON.stringify({ id: "hm-2027", schemaVersion: 1 }));
+  });
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#main .error-card");
+  ok((await page.textContent("#main")).includes("Plan konnte nicht geladen werden"), "Plan-404 + ungültige Kopie: Fehlerkarte statt Hängenbleiben (K1)");
+  await ctx.close();
+}
+
+// ---- 20. Simuliertes Datum in der Rennlücke -> "Bis zum Rennen" (A8/E7) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  await page.clock.setFixedTime(new Date("2027-04-07T09:00:00Z")); // 07.04.2027 Berlin
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#header h1");
+  ok((await page.textContent("#header h1")) === "Bis zum Rennen", "Rennlücke: kein 'Woche 31', Zustand 'Bis zum Rennen'");
+  await shot(page, "21-bis-zum-rennen");
+  ok(errors.length === 0, "Rennlücke: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 21. Datum nach dem Renntag -> "Kein aktiver Plan" (A8/E7) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  await page.clock.setFixedTime(new Date("2027-04-20T09:00:00Z"));
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#header h1");
+  ok((await page.textContent("#header h1")) === "Kein aktiver Plan", "Nach dem Rennen: 'Kein aktiver Plan'");
+  await shot(page, "22-kein-plan");
+  ok(errors.length === 0, "Nach dem Rennen: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 22. Datum vor Planstart -> Woche 1, nicht Woche 31 (I3) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date("2026-08-25T09:00:00Z")); // vor Planstart 31.08.2026
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#header h1");
+  ok((await page.textContent("#header h1")) === "Kein aktiver Plan", "Vor Planstart: 'Kein aktiver Plan' auf 'Heute'");
+
+  await page.click('[data-tab="woche"]');
+  await page.waitForSelector(".day-grid, .card");
+  ok((await page.textContent("#header h1")).includes("Woche 1"), "Vor Planstart: Wochen-Tab zeigt Woche 1, nicht Woche 31");
+
+  await page.click('[data-tab="plan"]');
+  await page.waitForSelector(".zone-line");
+  ok((await page.textContent("#header .eyebrow")).includes("Woche 1 von 31"), "Vor Planstart: Plan-Tab zeigt Woche 1, nicht Woche 31");
+  ok((await page.textContent("#header .eyebrow")).includes("0% geschafft"), "Vor Planstart: 0% geschafft, nicht 97%");
+  await ctx.close();
+}
+
+// ---- 23. Die Kopie wird beim normalen Laden wirklich geschrieben (I2) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+
+  // 1) Normal laden — writeCache() muss die Kopie wirklich anlegen (nicht
+  // nur behaupten, das zu tun: dieser Test belegt localStorage NICHT
+  // vorab, anders als die 404-Tests weiter oben).
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#main .card");
+  const stored = await page.evaluate(() => localStorage.getItem("hm-tracker.plan.hm-2027"));
+  ok(!!stored, "Normales Laden: es landet wirklich eine Kopie in localStorage");
+  ok(!!stored && JSON.parse(stored).id === "hm-2027", "Geschriebene Kopie hat die erwartete Form (id hm-2027)");
+
+  // 2) Jetzt erst auf 404 umstellen und neu laden — greift die Kopie, die
+  // die App selbst gerade geschrieben hat (nicht eine vorab injizierte)?
+  await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
+  await page.reload();
+  await page.waitForSelector("#toast.show");
+  ok((await page.textContent("#toast")).includes("Plan aus letzter Kopie"), "Nach 404: die selbst geschriebene Kopie greift beim Reload wirklich");
+  ok((await page.textContent("#header h1")) === "Lauf", "Nach 404 mit echter Kopie: App läuft normal weiter");
+  await ctx.close();
+}
+
+// ---- 24. Kopie mit fremder schemaVersion wird ignoriert (I2) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.addInitScript(([planJson]) => {
+    const foreign = { ...JSON.parse(planJson), schemaVersion: 99 };
+    localStorage.setItem("hm-tracker.plan.hm-2027", JSON.stringify(foreign));
+  }, [REAL_PLAN_JSON]);
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#main .error-card");
+  ok((await page.textContent("#main")).includes("Plan konnte nicht geladen werden"), "Kopie mit fremder schemaVersion wird ignoriert -> Fehlerkarte statt falscher Daten");
+  await ctx.close();
+}
+
+// ---- 25. Plan-Hinweis und Strava-Redirect gleichzeitig -> beide Hinweise sichtbar (M4) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
+  await ctx.route("https://worker.test/**", (r) =>
+    r.fulfill({ contentType: "application/json", body: JSON.stringify({
+      access_token: "at-new", refresh_token: "rt-new", expires_at: Math.floor(Date.now() / 1000) + 21600,
+      athlete: { id: 42 } }) }));
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.addInitScript(([planJson]) => {
+    localStorage.setItem("hm-tracker.workerUrl", "https://worker.test");
+    localStorage.setItem("hm-tracker.plan.hm-2027", planJson);
+  }, [REAL_PLAN_JSON]);
+  await page.goto(BASE + "/index.html?code=test-code-123");
+  await page.waitForSelector("#toast.show");
+  const toastText = await page.textContent("#toast");
+  ok(toastText.includes("Plan aus letzter Kopie"), `Beide Hinweise: Plan-Hinweis nicht verschluckt (${toastText})`);
+  ok(toastText.includes("Mit Strava verbunden."), `Beide Hinweise: Strava-Hinweis nicht verschluckt (${toastText})`);
   await ctx.close();
 }
 

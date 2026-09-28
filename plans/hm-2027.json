@@ -1,0 +1,1480 @@
+{
+  "id": "hm-2027",
+  "schemaVersion": 1,
+  "fileVersion": "2026-09-27T16:21",
+  "goal": {
+    "distance": "Halbmarathon",
+    "distanceKm": 21.0975,
+    "targetTime": "1:29:59",
+    "targetPace": "4:16 /km",
+    "raceDate": "2027-04-11",
+    "raceDateConfirmed": false
+  },
+  "start": "2026-08-31",
+  "totalWeeks": 31,
+  "detailedUntilWeek": 8,
+  "recalibrationDates": [
+    "2026-10-25"
+  ],
+  "zones": [
+    {
+      "id": "z1",
+      "zone": "Z1 – Recovery",
+      "hfMin": null,
+      "hfMax": 148,
+      "hf": "< 148",
+      "pace": "> 6:40 /km",
+      "use": "Regeneration",
+      "tone": "sky"
+    },
+    {
+      "id": "z2",
+      "zone": "Z2 – Easy",
+      "hfMin": 148,
+      "hfMax": 163,
+      "hf": "148–163",
+      "pace": "6:10–6:35 /km",
+      "use": "Grundlage",
+      "tone": "teal"
+    },
+    {
+      "id": "z3",
+      "zone": "Z3 – Tempo",
+      "hfMin": 165,
+      "hfMax": 170,
+      "hf": "165–170",
+      "pace": "5:00–5:20 /km",
+      "use": "Marathon-Pace",
+      "tone": "amber"
+    },
+    {
+      "id": "z4",
+      "zone": "Z4 – Schwelle",
+      "hfMin": 172,
+      "hfMax": 181,
+      "hf": "172–181",
+      "pace": "4:35–4:50 /km",
+      "use": "Schwellenläufe",
+      "tone": "coral"
+    },
+    {
+      "id": "z5",
+      "zone": "Z5 – VO2max",
+      "hfMin": 184,
+      "hfMax": null,
+      "hf": "> 184",
+      "pace": "4:05–4:20 /km",
+      "use": "Intervalle",
+      "tone": "purple"
+    }
+  ],
+  "phases": [
+    {
+      "n": 1,
+      "name": "Basis",
+      "weeks": {
+        "from": 1,
+        "to": 8
+      },
+      "focus": "Volumenaufbau, Maximalkraft",
+      "tone": "teal"
+    },
+    {
+      "n": 2,
+      "name": "Aufbau",
+      "weeks": {
+        "from": 9,
+        "to": 18
+      },
+      "focus": "Schwelle, Plyometrie",
+      "tone": "sky"
+    },
+    {
+      "n": 3,
+      "name": "Spezifisch",
+      "weeks": {
+        "from": 19,
+        "to": 27
+      },
+      "focus": "Renntempo, Kraft-Erhalt",
+      "tone": "amber"
+    },
+    {
+      "n": 4,
+      "name": "Taper",
+      "weeks": {
+        "from": 28,
+        "to": 31
+      },
+      "focus": "Volumen runter, Frische",
+      "tone": "purple"
+    }
+  ],
+  "weeks": [
+    {
+      "n": 1,
+      "start": "2026-08-31",
+      "phase": 1,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Volumenaufbau, Maximalkraft",
+      "placeholder": false,
+      "plannedKm": 26,
+      "sessions": [
+        {
+          "date": "2026-08-31",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "7 km",
+          "km": 7,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-09-01",
+          "kind": "kraft",
+          "label": "Kraft A (alter Split)",
+          "shortLabel": "Kraft A",
+          "exercises": [
+            {
+              "name": "Back squat",
+              "soll": "3x8-10",
+              "hint": "Aufwärmsätze, dann Arbeitsgewicht bei RPE 6-7 in Satz 3"
+            },
+            {
+              "name": "Rumänisches Kreuzheben",
+              "soll": "3x8-10",
+              "hint": "Start bei ca. 60-70% des Squat-Gewichts"
+            },
+            {
+              "name": "Bulgarian split squat",
+              "soll": "3x8/Seite",
+              "hint": "Start mit 2 Kurzhanteln à 8-12 kg"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "3x4",
+              "hint": "Kein Zusatzgewicht, langsames Ablassen"
+            },
+            {
+              "name": "Soleus raise",
+              "soll": "3x15/Seite",
+              "hint": "Körpergewicht oder leichte Kurzhantel auf dem Knie"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Leichter bis mittlerer Kabelzug/Band"
+            }
+          ]
+        },
+        {
+          "date": "2026-09-02",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "7 km",
+          "km": 7,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-09-03",
+          "kind": "kraft",
+          "label": "Kraft B (alter Split)",
+          "shortLabel": "Kraft B",
+          "exercises": [
+            {
+              "name": "Klimmzug",
+              "soll": "3x8-10",
+              "hint": "Ohne Zusatzgewicht oder bandunterstützt bei RPE 6-7"
+            },
+            {
+              "name": "Schrägbankdrücken",
+              "soll": "3x8-10",
+              "hint": "Startgewicht bei RPE 6-7 in Satz 3"
+            },
+            {
+              "name": "Langhantelrudern",
+              "soll": "3x8",
+              "hint": "Startgewicht bei RPE 6-7 in Satz 3"
+            },
+            {
+              "name": "Copenhagen plank",
+              "soll": "3x20-30s/Seite",
+              "hint": "Anfangs unteres Knie auf der Bank"
+            },
+            {
+              "name": "Hüftabduktion (Band)",
+              "soll": "3x15/Seite",
+              "hint": "Moderate Bandstärke"
+            },
+            {
+              "name": "Single-leg glute bridge",
+              "soll": "3x10/Seite",
+              "hint": "Körpergewicht"
+            },
+            {
+              "name": "Side plank",
+              "soll": "3x30-45s/Seite",
+              "hint": "Kein Gewicht"
+            }
+          ]
+        },
+        {
+          "date": "2026-09-05",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "12 km",
+          "km": 12,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        }
+      ]
+    },
+    {
+      "n": 2,
+      "start": "2026-09-07",
+      "phase": 1,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Volumenaufbau, Maximalkraft",
+      "placeholder": false,
+      "plannedKm": 29,
+      "sessions": [
+        {
+          "date": "2026-09-07",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "8 km",
+          "km": 8,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-09-08",
+          "kind": "kraft",
+          "label": "Full Body A",
+          "shortLabel": "FB A",
+          "exercises": [
+            {
+              "name": "Squats",
+              "soll": "3x8-10",
+              "hint": "Wie Woche 1, +2.5-5 kg falls RPE klar unter 7"
+            },
+            {
+              "name": "Deadlift",
+              "soll": "3x5",
+              "hint": "Reduziertes Volumen — nach dem Squat begrenzte Reserve"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "3x4",
+              "hint": "Kein Zusatzgewicht, Steigerung über Wdh/Tempo"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "3x6-8",
+              "hint": "Hohe Frequenz bewusst — skill-lastige Bewegung"
+            },
+            {
+              "name": "Brustpresse",
+              "soll": "3x8-10",
+              "hint": "Horizontaler Push"
+            },
+            {
+              "name": "Soleus raises",
+              "soll": "3x15/Seite",
+              "hint": "Steigern wenn 15 Wdh sauber gelingen"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Anti-Rotation, Fokus ruhige Hüfte"
+            },
+            {
+              "name": "Planks (wechselnd)",
+              "soll": "3x30-45s",
+              "hint": "Front-/Seiten-/RKC-Plank abwechselnd"
+            }
+          ]
+        },
+        {
+          "date": "2026-09-09",
+          "kind": "lauf",
+          "type": "Easy run + 4x20s",
+          "shortType": "Easy",
+          "dist": "8 km",
+          "km": 8,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-09-10",
+          "kind": "kraft",
+          "label": "Full Body B",
+          "shortLabel": "FB B",
+          "exercises": [
+            {
+              "name": "Bulgarian split squats",
+              "soll": "3x8/Seite",
+              "hint": "Start moderat, RPE 6-7 in Satz 3"
+            },
+            {
+              "name": "Single leg RDL",
+              "soll": "3x8/Seite",
+              "hint": "Fokus Balance & Hüftstreckung"
+            },
+            {
+              "name": "Hamstring curls (Maschine)",
+              "soll": "3x10-12",
+              "hint": "Konzentrisch, ermüdungsärmer als Nordic Curls"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "3x8-10",
+              "hint": "Etwas höhere Wdh als Dienstag"
+            },
+            {
+              "name": "Schulterpresse",
+              "soll": "3x8-10",
+              "hint": "Vertikaler Push, andere Winkelbelastung als Dienstag"
+            },
+            {
+              "name": "Copenhagen planks",
+              "soll": "3x20-30s/Seite",
+              "hint": "Bein strecken sobald 30s sauber gelingen"
+            },
+            {
+              "name": "Hüftbeuger",
+              "soll": "3x12-15/Seite",
+              "hint": "Band oder Körpergewicht"
+            },
+            {
+              "name": "Crunches",
+              "soll": "3x15-20",
+              "hint": "Hypertrophie-Fokus, nahe Muskelversagen"
+            }
+          ]
+        },
+        {
+          "date": "2026-09-12",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "13 km",
+          "km": 13,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        }
+      ]
+    },
+    {
+      "n": 3,
+      "start": "2026-09-14",
+      "phase": 1,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Volumenaufbau, Maximalkraft",
+      "placeholder": false,
+      "plannedKm": 32,
+      "sessions": [
+        {
+          "date": "2026-09-14",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "8 km",
+          "km": 8,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-09-15",
+          "kind": "kraft",
+          "label": "Full Body A",
+          "shortLabel": "FB A",
+          "exercises": [
+            {
+              "name": "Squats",
+              "soll": "3x8-10",
+              "hint": "+2.5-5 kg falls Woche 2 RPE ≤7, sonst halten"
+            },
+            {
+              "name": "Deadlift",
+              "soll": "3x5",
+              "hint": "Reduziertes Volumen — nach dem Squat begrenzte Reserve"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "3x5",
+              "hint": "Kein Zusatzgewicht, Steigerung über Wdh/Tempo"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "3x6-8",
+              "hint": "Hohe Frequenz bewusst — skill-lastige Bewegung"
+            },
+            {
+              "name": "Brustpresse",
+              "soll": "3x8-10",
+              "hint": "Horizontaler Push"
+            },
+            {
+              "name": "Soleus raises",
+              "soll": "3x15/Seite",
+              "hint": "Steigern wenn 15 Wdh sauber gelingen"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Anti-Rotation, Fokus ruhige Hüfte"
+            },
+            {
+              "name": "Planks (wechselnd)",
+              "soll": "3x30-45s",
+              "hint": "Front-/Seiten-/RKC-Plank abwechselnd"
+            }
+          ]
+        },
+        {
+          "date": "2026-09-16",
+          "kind": "lauf",
+          "type": "Easy run + 5x20s",
+          "shortType": "Easy",
+          "dist": "9 km",
+          "km": 9,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-09-17",
+          "kind": "kraft",
+          "label": "Full Body B",
+          "shortLabel": "FB B",
+          "exercises": [
+            {
+              "name": "Bulgarian split squats",
+              "soll": "3x8/Seite",
+              "hint": "+1-2.5 kg/Hand falls Woche 2 RPE ≤7"
+            },
+            {
+              "name": "Single leg RDL",
+              "soll": "3x8/Seite",
+              "hint": "Fokus Balance & Hüftstreckung"
+            },
+            {
+              "name": "Hamstring curls (Maschine)",
+              "soll": "3x10-12",
+              "hint": "Konzentrisch, ermüdungsärmer als Nordic Curls"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "3x8-10",
+              "hint": "Etwas höhere Wdh als Dienstag"
+            },
+            {
+              "name": "Schulterpresse",
+              "soll": "3x8-10",
+              "hint": "Vertikaler Push, andere Winkelbelastung als Dienstag"
+            },
+            {
+              "name": "Copenhagen planks",
+              "soll": "3x20-30s/Seite",
+              "hint": "Bein strecken sobald 30s sauber gelingen"
+            },
+            {
+              "name": "Hüftbeuger",
+              "soll": "3x12-15/Seite",
+              "hint": "Band oder Körpergewicht"
+            },
+            {
+              "name": "Crunches",
+              "soll": "3x15-20",
+              "hint": "Hypertrophie-Fokus, nahe Muskelversagen"
+            }
+          ]
+        },
+        {
+          "date": "2026-09-19",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "15 km",
+          "km": 15,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        }
+      ]
+    },
+    {
+      "n": 4,
+      "start": "2026-09-21",
+      "phase": 1,
+      "weekType": "Entlastung",
+      "deload": true,
+      "focus": "Volumenaufbau, Maximalkraft",
+      "placeholder": false,
+      "plannedKm": 24,
+      "sessions": [
+        {
+          "date": "2026-09-21",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "7 km",
+          "km": 7,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-09-22",
+          "kind": "kraft",
+          "label": "Full Body A",
+          "shortLabel": "FB A",
+          "exercises": [
+            {
+              "name": "Squats",
+              "soll": "2x8 (Deload)",
+              "hint": "Ca. 80% des Woche-3-Gewichts"
+            },
+            {
+              "name": "Deadlift",
+              "soll": "2x5 (Deload)",
+              "hint": "Reduziertes Volumen — nach dem Squat begrenzte Reserve"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "2x4 (Deload)",
+              "hint": "Kein Zusatzgewicht, Steigerung über Wdh/Tempo"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "2x6 (Deload)",
+              "hint": "Hohe Frequenz bewusst — skill-lastige Bewegung"
+            },
+            {
+              "name": "Brustpresse",
+              "soll": "2x8 (Deload)",
+              "hint": "Horizontaler Push"
+            },
+            {
+              "name": "Soleus raises",
+              "soll": "3x15/Seite",
+              "hint": "Steigern wenn 15 Wdh sauber gelingen"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Anti-Rotation, Fokus ruhige Hüfte"
+            },
+            {
+              "name": "Planks (wechselnd)",
+              "soll": "3x30-45s",
+              "hint": "Front-/Seiten-/RKC-Plank abwechselnd"
+            }
+          ]
+        },
+        {
+          "date": "2026-09-23",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "7 km",
+          "km": 7,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-09-24",
+          "kind": "kraft",
+          "label": "Full Body B",
+          "shortLabel": "FB B",
+          "exercises": [
+            {
+              "name": "Bulgarian split squats",
+              "soll": "2x8/Seite (Deload)",
+              "hint": "Ca. 80% des Woche-3-Gewichts"
+            },
+            {
+              "name": "Single leg RDL",
+              "soll": "2x8/Seite (Deload)",
+              "hint": "Fokus Balance & Hüftstreckung"
+            },
+            {
+              "name": "Hamstring curls (Maschine)",
+              "soll": "2x10 (Deload)",
+              "hint": "Konzentrisch, ermüdungsärmer als Nordic Curls"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "2x8 (Deload)",
+              "hint": "Etwas höhere Wdh als Dienstag"
+            },
+            {
+              "name": "Schulterpresse",
+              "soll": "2x8 (Deload)",
+              "hint": "Vertikaler Push, andere Winkelbelastung als Dienstag"
+            },
+            {
+              "name": "Copenhagen planks",
+              "soll": "3x20-30s/Seite",
+              "hint": "Bein strecken sobald 30s sauber gelingen"
+            },
+            {
+              "name": "Hüftbeuger",
+              "soll": "3x12-15/Seite",
+              "hint": "Band oder Körpergewicht"
+            },
+            {
+              "name": "Crunches",
+              "soll": "3x15-20",
+              "hint": "Hypertrophie-Fokus, nahe Muskelversagen"
+            }
+          ]
+        },
+        {
+          "date": "2026-09-26",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "10 km",
+          "km": 10,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        }
+      ]
+    },
+    {
+      "n": 5,
+      "start": "2026-09-28",
+      "phase": 1,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Volumenaufbau, Maximalkraft",
+      "placeholder": false,
+      "plannedKm": 34,
+      "sessions": [
+        {
+          "date": "2026-09-28",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "8 km",
+          "km": 8,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-09-29",
+          "kind": "kraft",
+          "label": "Full Body A",
+          "shortLabel": "FB A",
+          "exercises": [
+            {
+              "name": "Squats",
+              "soll": "4x4-6",
+              "hint": "Zurück auf Woche-3-Gewicht, jetzt RPE 8 bei weniger Wdh"
+            },
+            {
+              "name": "Deadlift",
+              "soll": "4x3-5",
+              "hint": "Reduziertes Volumen — nach dem Squat begrenzte Reserve"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "3x5",
+              "hint": "Kein Zusatzgewicht, Steigerung über Wdh/Tempo"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x5-7",
+              "hint": "Hohe Frequenz bewusst — skill-lastige Bewegung"
+            },
+            {
+              "name": "Brustpresse",
+              "soll": "4x6-8",
+              "hint": "Horizontaler Push"
+            },
+            {
+              "name": "Soleus raises",
+              "soll": "3x15/Seite",
+              "hint": "Steigern wenn 15 Wdh sauber gelingen"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Anti-Rotation, Fokus ruhige Hüfte"
+            },
+            {
+              "name": "Planks (wechselnd)",
+              "soll": "3x30-45s",
+              "hint": "Front-/Seiten-/RKC-Plank abwechselnd"
+            }
+          ]
+        },
+        {
+          "date": "2026-09-30",
+          "kind": "lauf",
+          "type": "Easy run + 5x20s",
+          "shortType": "Easy",
+          "dist": "9 km",
+          "km": 9,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-10-01",
+          "kind": "kraft",
+          "label": "Full Body B",
+          "shortLabel": "FB B",
+          "exercises": [
+            {
+              "name": "Bulgarian split squats",
+              "soll": "4x6/Seite",
+              "hint": "Zurück auf Woche-3-Gewicht, RPE 8 Zielbereich"
+            },
+            {
+              "name": "Single leg RDL",
+              "soll": "4x6/Seite",
+              "hint": "Fokus Balance & Hüftstreckung"
+            },
+            {
+              "name": "Hamstring curls (Maschine)",
+              "soll": "3x10-12",
+              "hint": "Konzentrisch, ermüdungsärmer als Nordic Curls"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x8-10",
+              "hint": "Etwas höhere Wdh als Dienstag"
+            },
+            {
+              "name": "Schulterpresse",
+              "soll": "4x6-8",
+              "hint": "Vertikaler Push, andere Winkelbelastung als Dienstag"
+            },
+            {
+              "name": "Copenhagen planks",
+              "soll": "3x20-30s/Seite",
+              "hint": "Bein strecken sobald 30s sauber gelingen"
+            },
+            {
+              "name": "Hüftbeuger",
+              "soll": "3x12-15/Seite",
+              "hint": "Band oder Körpergewicht"
+            },
+            {
+              "name": "Crunches",
+              "soll": "3x15-20",
+              "hint": "Hypertrophie-Fokus, nahe Muskelversagen"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-03",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "13 km",
+          "km": 13,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-10-04",
+          "kind": "lauf",
+          "type": "Recovery run",
+          "shortType": "Recovery",
+          "dist": "4 km",
+          "km": 4,
+          "pace": "> 6:40 /km",
+          "hf": "< 148 bpm",
+          "hfMax": 148
+        }
+      ]
+    },
+    {
+      "n": 6,
+      "start": "2026-10-05",
+      "phase": 1,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Volumenaufbau, Maximalkraft",
+      "placeholder": false,
+      "plannedKm": 37,
+      "sessions": [
+        {
+          "date": "2026-10-05",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "9 km",
+          "km": 9,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-10-06",
+          "kind": "kraft",
+          "label": "Full Body A",
+          "shortLabel": "FB A",
+          "exercises": [
+            {
+              "name": "Squats",
+              "soll": "4x4-6",
+              "hint": "+2.5-5 kg falls Woche 5 RPE ≤8, sonst halten"
+            },
+            {
+              "name": "Deadlift",
+              "soll": "4x3-5",
+              "hint": "Reduziertes Volumen — nach dem Squat begrenzte Reserve"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "3x6",
+              "hint": "Kein Zusatzgewicht, Steigerung über Wdh/Tempo"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x5-7",
+              "hint": "Hohe Frequenz bewusst — skill-lastige Bewegung"
+            },
+            {
+              "name": "Brustpresse",
+              "soll": "4x6-8",
+              "hint": "Horizontaler Push"
+            },
+            {
+              "name": "Soleus raises",
+              "soll": "3x15/Seite",
+              "hint": "Steigern wenn 15 Wdh sauber gelingen"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Anti-Rotation, Fokus ruhige Hüfte"
+            },
+            {
+              "name": "Planks (wechselnd)",
+              "soll": "3x30-45s",
+              "hint": "Front-/Seiten-/RKC-Plank abwechselnd"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-07",
+          "kind": "lauf",
+          "type": "Easy run + 6x20s",
+          "shortType": "Easy",
+          "dist": "9 km",
+          "km": 9,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-10-08",
+          "kind": "kraft",
+          "label": "Full Body B",
+          "shortLabel": "FB B",
+          "exercises": [
+            {
+              "name": "Bulgarian split squats",
+              "soll": "4x6/Seite",
+              "hint": "+1-2.5 kg/Hand falls Woche 5 RPE ≤8"
+            },
+            {
+              "name": "Single leg RDL",
+              "soll": "4x6/Seite",
+              "hint": "Fokus Balance & Hüftstreckung"
+            },
+            {
+              "name": "Hamstring curls (Maschine)",
+              "soll": "3x10-12",
+              "hint": "Konzentrisch, ermüdungsärmer als Nordic Curls"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x8-10",
+              "hint": "Etwas höhere Wdh als Dienstag"
+            },
+            {
+              "name": "Schulterpresse",
+              "soll": "4x6-8",
+              "hint": "Vertikaler Push, andere Winkelbelastung als Dienstag"
+            },
+            {
+              "name": "Copenhagen planks",
+              "soll": "3x20-30s/Seite",
+              "hint": "Bein strecken sobald 30s sauber gelingen"
+            },
+            {
+              "name": "Hüftbeuger",
+              "soll": "3x12-15/Seite",
+              "hint": "Band oder Körpergewicht"
+            },
+            {
+              "name": "Crunches",
+              "soll": "3x15-20",
+              "hint": "Hypertrophie-Fokus, nahe Muskelversagen"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "14 km",
+          "km": 14,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "lauf",
+          "type": "Recovery run",
+          "shortType": "Recovery",
+          "dist": "5 km",
+          "km": 5,
+          "pace": "> 6:40 /km",
+          "hf": "< 148 bpm",
+          "hfMax": 148
+        }
+      ]
+    },
+    {
+      "n": 7,
+      "start": "2026-10-12",
+      "phase": 1,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Volumenaufbau, Maximalkraft",
+      "placeholder": false,
+      "plannedKm": 41,
+      "sessions": [
+        {
+          "date": "2026-10-12",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "10 km",
+          "km": 10,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-10-13",
+          "kind": "kraft",
+          "label": "Full Body A",
+          "shortLabel": "FB A",
+          "exercises": [
+            {
+              "name": "Squats",
+              "soll": "4x4-6",
+              "hint": "Höchste Last der Phase, +2.5-5 kg falls RPE ≤8"
+            },
+            {
+              "name": "Deadlift",
+              "soll": "4x3-5",
+              "hint": "Reduziertes Volumen — nach dem Squat begrenzte Reserve"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "3x6",
+              "hint": "Kein Zusatzgewicht, Steigerung über Wdh/Tempo"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x5-7",
+              "hint": "Hohe Frequenz bewusst — skill-lastige Bewegung"
+            },
+            {
+              "name": "Brustpresse",
+              "soll": "4x6-8",
+              "hint": "Horizontaler Push"
+            },
+            {
+              "name": "Soleus raises",
+              "soll": "3x15/Seite",
+              "hint": "Steigern wenn 15 Wdh sauber gelingen"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Anti-Rotation, Fokus ruhige Hüfte"
+            },
+            {
+              "name": "Planks (wechselnd)",
+              "soll": "3x30-45s",
+              "hint": "Front-/Seiten-/RKC-Plank abwechselnd"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "lauf",
+          "type": "Easy run + 6x20s",
+          "shortType": "Easy",
+          "dist": "10 km",
+          "km": 10,
+          "pace": "6:10–6:35 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-10-15",
+          "kind": "kraft",
+          "label": "Full Body B",
+          "shortLabel": "FB B",
+          "exercises": [
+            {
+              "name": "Bulgarian split squats",
+              "soll": "4x6/Seite",
+              "hint": "Höchstes Volumen der Phase"
+            },
+            {
+              "name": "Single leg RDL",
+              "soll": "4x6/Seite",
+              "hint": "Fokus Balance & Hüftstreckung"
+            },
+            {
+              "name": "Hamstring curls (Maschine)",
+              "soll": "3x10-12",
+              "hint": "Konzentrisch, ermüdungsärmer als Nordic Curls"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x8-10",
+              "hint": "Etwas höhere Wdh als Dienstag"
+            },
+            {
+              "name": "Schulterpresse",
+              "soll": "4x6-8",
+              "hint": "Vertikaler Push, andere Winkelbelastung als Dienstag"
+            },
+            {
+              "name": "Copenhagen planks",
+              "soll": "3x20-30s/Seite",
+              "hint": "Bein strecken sobald 30s sauber gelingen"
+            },
+            {
+              "name": "Hüftbeuger",
+              "soll": "3x12-15/Seite",
+              "hint": "Band oder Körpergewicht"
+            },
+            {
+              "name": "Crunches",
+              "soll": "3x15-20",
+              "hint": "Hypertrophie-Fokus, nahe Muskelversagen"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-17",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "16 km",
+          "km": 16,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-10-18",
+          "kind": "lauf",
+          "type": "Recovery run",
+          "shortType": "Recovery",
+          "dist": "5 km",
+          "km": 5,
+          "pace": "> 6:40 /km",
+          "hf": "< 148 bpm",
+          "hfMax": 148
+        }
+      ]
+    },
+    {
+      "n": 8,
+      "start": "2026-10-19",
+      "phase": 1,
+      "weekType": "Entlastung",
+      "deload": true,
+      "focus": "Volumenaufbau, Maximalkraft",
+      "placeholder": false,
+      "plannedKm": 30,
+      "sessions": [
+        {
+          "date": "2026-10-19",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "8 km",
+          "km": 8,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-10-20",
+          "kind": "kraft",
+          "label": "Full Body A",
+          "shortLabel": "FB A",
+          "exercises": [
+            {
+              "name": "Squats",
+              "soll": "2x6 (Deload)",
+              "hint": "Ca. 80% des Woche-7-Gewichts"
+            },
+            {
+              "name": "Deadlift",
+              "soll": "2x5 (Deload)",
+              "hint": "Reduziertes Volumen — nach dem Squat begrenzte Reserve"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "2x5 (Deload)",
+              "hint": "Kein Zusatzgewicht, Steigerung über Wdh/Tempo"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "2x6 (Deload)",
+              "hint": "Hohe Frequenz bewusst — skill-lastige Bewegung"
+            },
+            {
+              "name": "Brustpresse",
+              "soll": "2x6 (Deload)",
+              "hint": "Horizontaler Push"
+            },
+            {
+              "name": "Soleus raises",
+              "soll": "3x15/Seite",
+              "hint": "Steigern wenn 15 Wdh sauber gelingen"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Anti-Rotation, Fokus ruhige Hüfte"
+            },
+            {
+              "name": "Planks (wechselnd)",
+              "soll": "3x30-45s",
+              "hint": "Front-/Seiten-/RKC-Plank abwechselnd"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-21",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "8 km",
+          "km": 8,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-10-22",
+          "kind": "kraft",
+          "label": "Full Body B",
+          "shortLabel": "FB B",
+          "exercises": [
+            {
+              "name": "Bulgarian split squats",
+              "soll": "2x6/Seite (Deload)",
+              "hint": "Ca. 80% des Woche-7-Gewichts"
+            },
+            {
+              "name": "Single leg RDL",
+              "soll": "2x6/Seite (Deload)",
+              "hint": "Fokus Balance & Hüftstreckung"
+            },
+            {
+              "name": "Hamstring curls (Maschine)",
+              "soll": "2x10 (Deload)",
+              "hint": "Konzentrisch, ermüdungsärmer als Nordic Curls"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "2x8 (Deload)",
+              "hint": "Etwas höhere Wdh als Dienstag"
+            },
+            {
+              "name": "Schulterpresse",
+              "soll": "2x6 (Deload)",
+              "hint": "Vertikaler Push, andere Winkelbelastung als Dienstag"
+            },
+            {
+              "name": "Copenhagen planks",
+              "soll": "3x20-30s/Seite",
+              "hint": "Bein strecken sobald 30s sauber gelingen"
+            },
+            {
+              "name": "Hüftbeuger",
+              "soll": "3x12-15/Seite",
+              "hint": "Band oder Körpergewicht"
+            },
+            {
+              "name": "Crunches",
+              "soll": "3x15-20",
+              "hint": "Hypertrophie-Fokus, nahe Muskelversagen"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-24",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "11 km",
+          "km": 11,
+          "pace": "6:15–6:40 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-10-25",
+          "kind": "lauf",
+          "type": "Recovery run",
+          "shortType": "Recovery",
+          "dist": "3 km",
+          "km": 3,
+          "pace": "> 6:40 /km",
+          "hf": "< 148 bpm",
+          "hfMax": 148,
+          "note": "Ende Phase 1 — Re-Kalibrierung fällig"
+        }
+      ]
+    },
+    {
+      "n": 9,
+      "start": "2026-10-26",
+      "phase": 2,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Schwelle, Plyometrie",
+      "placeholder": true
+    },
+    {
+      "n": 10,
+      "start": "2026-11-02",
+      "phase": 2,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Schwelle, Plyometrie",
+      "placeholder": true
+    },
+    {
+      "n": 11,
+      "start": "2026-11-09",
+      "phase": 2,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Schwelle, Plyometrie",
+      "placeholder": true
+    },
+    {
+      "n": 12,
+      "start": "2026-11-16",
+      "phase": 2,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Schwelle, Plyometrie",
+      "placeholder": true
+    },
+    {
+      "n": 13,
+      "start": "2026-11-23",
+      "phase": 2,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Schwelle, Plyometrie",
+      "placeholder": true
+    },
+    {
+      "n": 14,
+      "start": "2026-11-30",
+      "phase": 2,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Schwelle, Plyometrie",
+      "placeholder": true
+    },
+    {
+      "n": 15,
+      "start": "2026-12-07",
+      "phase": 2,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Schwelle, Plyometrie",
+      "placeholder": true
+    },
+    {
+      "n": 16,
+      "start": "2026-12-14",
+      "phase": 2,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Schwelle, Plyometrie",
+      "placeholder": true
+    },
+    {
+      "n": 17,
+      "start": "2026-12-21",
+      "phase": 2,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Schwelle, Plyometrie",
+      "placeholder": true
+    },
+    {
+      "n": 18,
+      "start": "2026-12-28",
+      "phase": 2,
+      "weekType": "Aufbau",
+      "deload": false,
+      "focus": "Schwelle, Plyometrie",
+      "placeholder": true
+    },
+    {
+      "n": 19,
+      "start": "2027-01-04",
+      "phase": 3,
+      "weekType": "Spezifisch",
+      "deload": false,
+      "focus": "Renntempo, Kraft-Erhalt",
+      "placeholder": true
+    },
+    {
+      "n": 20,
+      "start": "2027-01-11",
+      "phase": 3,
+      "weekType": "Spezifisch",
+      "deload": false,
+      "focus": "Renntempo, Kraft-Erhalt",
+      "placeholder": true
+    },
+    {
+      "n": 21,
+      "start": "2027-01-18",
+      "phase": 3,
+      "weekType": "Spezifisch",
+      "deload": false,
+      "focus": "Renntempo, Kraft-Erhalt",
+      "placeholder": true
+    },
+    {
+      "n": 22,
+      "start": "2027-01-25",
+      "phase": 3,
+      "weekType": "Spezifisch",
+      "deload": false,
+      "focus": "Renntempo, Kraft-Erhalt",
+      "placeholder": true
+    },
+    {
+      "n": 23,
+      "start": "2027-02-01",
+      "phase": 3,
+      "weekType": "Spezifisch",
+      "deload": false,
+      "focus": "Renntempo, Kraft-Erhalt",
+      "placeholder": true
+    },
+    {
+      "n": 24,
+      "start": "2027-02-08",
+      "phase": 3,
+      "weekType": "Spezifisch",
+      "deload": false,
+      "focus": "Renntempo, Kraft-Erhalt",
+      "placeholder": true
+    },
+    {
+      "n": 25,
+      "start": "2027-02-15",
+      "phase": 3,
+      "weekType": "Spezifisch",
+      "deload": false,
+      "focus": "Renntempo, Kraft-Erhalt",
+      "placeholder": true
+    },
+    {
+      "n": 26,
+      "start": "2027-02-22",
+      "phase": 3,
+      "weekType": "Spezifisch",
+      "deload": false,
+      "focus": "Renntempo, Kraft-Erhalt",
+      "placeholder": true
+    },
+    {
+      "n": 27,
+      "start": "2027-03-01",
+      "phase": 3,
+      "weekType": "Spezifisch",
+      "deload": false,
+      "focus": "Renntempo, Kraft-Erhalt",
+      "placeholder": true
+    },
+    {
+      "n": 28,
+      "start": "2027-03-08",
+      "phase": 4,
+      "weekType": "Taper",
+      "deload": false,
+      "focus": "Volumen runter, Frische",
+      "placeholder": true
+    },
+    {
+      "n": 29,
+      "start": "2027-03-15",
+      "phase": 4,
+      "weekType": "Taper",
+      "deload": false,
+      "focus": "Volumen runter, Frische",
+      "placeholder": true
+    },
+    {
+      "n": 30,
+      "start": "2027-03-22",
+      "phase": 4,
+      "weekType": "Taper",
+      "deload": false,
+      "focus": "Volumen runter, Frische",
+      "placeholder": true
+    },
+    {
+      "n": 31,
+      "start": "2027-03-29",
+      "phase": 4,
+      "weekType": "Taper",
+      "deload": false,
+      "focus": "Volumen runter, Frische",
+      "placeholder": true
+    }
+  ]
+}

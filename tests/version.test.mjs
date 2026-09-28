@@ -48,6 +48,15 @@ for (const mod of browserModules) {
   }
 }
 
+// plan-store.js: die JSON-URL ist ein fetch() zur Laufzeit, kein ES-Import
+// (A1) — braucht deshalb eine eigene Prüfung.
+if (browserModules.includes("plan-store.js")) {
+  const src = read("plan-store.js");
+  const m = src.match(/\.\/plans\/[a-z0-9-]+\.json\?v=(\d+)/);
+  ok(!!m, "plan-store.js: JSON-URL trägt einen Versionsstempel");
+  if (m) stamps.add(m[1]);
+}
+
 ok(stamps.size === 1, `Überall derselbe Stempel (gefunden: ${[...stamps].join(", ") || "keiner"})`);
 
 console.log(fails ? `\n${fails} FEHLER` : "\nVersionsstempel konsistent");

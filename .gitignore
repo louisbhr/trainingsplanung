@@ -1,2 +1,8 @@
 node_modules/
 shots/
+.pipeline-state.md
+.DS_Store
+.env
+.env.*
+.private/
+.claude/agent-memory/security-checker/project_public_repo_firestore_vuln.md

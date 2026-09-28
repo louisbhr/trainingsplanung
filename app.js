@@ -1,18 +1,19 @@
 import {
-  goal, zones, phases, weeks, exerciseCatalog,
-  PLAN_START, TOTAL_WEEKS,
-  toISO, fromISO, addDays, weekStart, weekDates, weekNumberFor,
-} from "./plan.js?v=202609110905";
+  slug, toISO, fromISO, addDays,
+  weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
+  sessionOn, activePlanFor, planDayState, exerciseCatalog, formatGoal,
+} from "./plan.js?v=202609271917";
+import { loadPlans } from "./plan-store.js?v=202609271917";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs,
-} from "./firebase-init.js?v=202609110905";
+} from "./firebase-init.js?v=202609271917";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202609110905";
-import { suggestProgression, previousEntry } from "./progression.js?v=202609110905";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609110905";
+} from "./strava.js?v=202609271917";
+import { suggestProgression, previousEntry } from "./progression.js?v=202609271917";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609271917";
 
 const ICONS = {
   run: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="4" r="1.5" fill="currentColor" stroke="none"/><path d="M13 7l-2 3 3 2 1 5M11 10l-4 1-2 4M8 14l-3 1M13.5 11l3 1 2-2"/></svg>',
@@ -23,13 +24,16 @@ const ICONS = {
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>',
 };
 
-const STRAVA_SINCE = addDays(PLAN_START, -14); // etwas Vorlauf für den Verlauf
+// Wird erst gesetzt, wenn der Plan geladen ist (A1) — vorher greift jeder
+// Zugriff auf den STRAVA_SINCE-Wert daneben.
+let STRAVA_SINCE = null;
+
+// Alle geladenen Pläne (F0a Punkt 4: Registry statt Einzelplan). In
+// Schritt 1 genau einer; erst mit loadPlans() in init() gefüllt (A1) —
+// Modul-Top-Level-Zugriffe auf Plandaten sind damit ausgeschlossen.
+let plans = [];
 
 // ---------- kleine Helfer ----------
-const slug = (s) =>
-  s.toLowerCase()
-    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
-    .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 const todayISO = () => toISO(new Date());
 const dayNameDE = (iso) => ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][fromISO(iso).getDay()];
 const shortDate = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
@@ -41,18 +45,37 @@ const main = document.getElementById("main");
 
 const state = {
   tab: "heute",
-  weekNo: weekNumberFor(todayISO()),
+  weekNo: 1, // richtiger Wert kommt aus init(), sobald der Plan geladen ist
   selectedDate: null,
   historyMode: "kraft",
-  historyExercise: defaultHistoryExercise(),
+  historyExercise: null,
 };
+
+// Wochennummer für den Wochen-Tab: innerhalb einer Planwoche die echte
+// Nummer, sonst (Rennlücke/kein Plan) ein sinnvoller Randwert, damit die
+// Navigation nicht auf undefined läuft (A8/E7).
+function weekNoForTab(iso) {
+  if (!plans.length) return 1;
+  const plan = activePlanFor(iso, plans) || plans[0];
+  if (planDayState(iso, plans) === "woche") return weekNumberFor(plan, iso);
+  // Außerhalb einer Planwoche (I3): vor dem Planstart Woche 1 zeigen (wie
+  // früher), dahinter (Rennlücke oder ganz ohne Plan) die letzte Woche.
+  return iso < plan.start ? 1 : plan.totalWeeks;
+}
 
 // Vorauswahl im Verlauf: die erste Übung der laufenden Woche — der alte
 // Split aus Woche 1 steht sonst dauerhaft als Standard da.
 function defaultHistoryExercise() {
-  const week = weeks[weekNumberFor(todayISO())];
-  if (week && !week.placeholder) return slug(week.kraft.di.exercises[0].name);
-  return slug(exerciseCatalog[0]?.name || "Squats");
+  const iso = todayISO();
+  const plan = activePlanFor(iso, plans);
+  const w = plan ? weekNumberFor(plan, iso) : null;
+  const week = plan && w != null ? weekOf(plan, w) : null;
+  if (week && !week.placeholder) {
+    const firstKraft = week.sessions.find((s) => s.kind === "kraft");
+    if (firstKraft) return slug(firstKraft.exercises[0].name);
+  }
+  const catalog = plan ? exerciseCatalog(plan) : [];
+  return slug(catalog[0]?.name || "Squats");
 }
 
 // Kraft-Eingaben der gerade sichtbaren Tagesansicht
@@ -89,15 +112,15 @@ function toast(msg, isError = false) {
 }
 
 // ---------- Plan-Zugriff ----------
+// Delegiert an sessionOn(plan, iso) innerhalb eines aktiven Plans; deckt
+// zusätzlich die beiden Zustände außerhalb der Planwochen ab (A8/E7):
+// "bisZumRennen" (Datum liegt zwischen Planende und Renntag) und
+// "keinPlan" (kein Plan deckt das Datum ab).
 function dayInfo(iso) {
-  const w = weekNumberFor(iso);
-  const week = weeks[w];
-  if (!week || week.placeholder) return { kind: "placeholder", week: w, focus: week?.focus };
-  if (week.kraft.di.date === iso) return { kind: "kraft", ...week.kraft.di };
-  if (week.kraft.do.date === iso) return { kind: "kraft", ...week.kraft.do };
-  const run = week.runs.find((r) => r.date === iso);
-  if (run) return { kind: "lauf", ...run };
-  return { kind: "ruhe" };
+  const dayState = planDayState(iso, plans);
+  if (dayState === "keinPlan") return { kind: "keinPlan" };
+  if (dayState === "bisZumRennen") return { kind: "bisZumRennen" };
+  return sessionOn(activePlanFor(iso, plans), iso);
 }
 
 function colorsFor(info) {
@@ -114,11 +137,14 @@ function badgeForKind(info) {
   if (info.kind === "kraft") return badge(info.label, color, bg);
   if (info.kind === "lauf") return badge(info.type, color, bg);
   if (info.kind === "placeholder") return badge("Offen", color, bg);
+  if (info.kind === "bisZumRennen") return badge("Bis zum Rennen", color, bg);
+  if (info.kind === "keinPlan") return badge("Kein Plan", color, bg);
   return badge("Ruhe", color, bg);
 }
 
 // ---------- Rendering ----------
 function render() {
+  if (!plans.length) return; // Plan lädt noch (siehe init()); nichts zu rendern
   try {
     if (state.tab === "heute") return renderDay(todayISO(), { showBack: false });
     if (state.tab === "woche") {
@@ -144,12 +170,20 @@ function loadingCard(msg = "Lädt …") {
 // ---------- Tagesansicht ----------
 async function renderDay(iso, { showBack }) {
   const info = dayInfo(iso);
-  const w = weekNumberFor(iso);
+  const plan = activePlanFor(iso, plans);
+  const w = plan ? weekNumberFor(plan, iso) : null;
   const isToday = iso === todayISO();
 
   header.innerHTML = `
     <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} Woche ${w}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
-    <div class="title-row"><h1>${info.kind === "kraft" ? "Krafttraining" : info.kind === "lauf" ? "Lauf" : info.kind === "placeholder" ? `Woche ${w}` : "Ruhetag"}</h1>${badgeForKind(info)}</div>`;
+    <div class="title-row"><h1>${
+      info.kind === "kraft" ? "Krafttraining"
+      : info.kind === "lauf" ? "Lauf"
+      : info.kind === "placeholder" ? `Woche ${w}`
+      : info.kind === "bisZumRennen" ? "Bis zum Rennen"
+      : info.kind === "keinPlan" ? "Kein aktiver Plan"
+      : "Ruhetag"
+    }</h1>${badgeForKind(info)}</div>`;
 
   if (info.kind !== "kraft") { editMode = false; replaceFor = null; quickAdd = false; }
   if (info.kind === "kraft") return renderKraftDay(info, iso);
@@ -157,6 +191,18 @@ async function renderDay(iso, { showBack }) {
   if (info.kind === "placeholder") {
     main.innerHTML = `<div class="card"><p class="name">Details folgen</p>
       <p class="hint">${esc(info.focus || "")} — die genauen Werte tragen wir nach der Re-Kalibrierung nach.</p></div>`;
+    return;
+  }
+  if (info.kind === "bisZumRennen") {
+    main.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem 1rem;">
+      <p class="name">Bis zum Rennen</p>
+      <p class="hint">Der Plan endet vor dem Renntag — für diesen Tag gibt es keine Einheit mehr.</p></div>`;
+    return;
+  }
+  if (info.kind === "keinPlan") {
+    main.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem 1rem;">
+      <p class="name">Kein aktiver Plan</p>
+      <p class="hint">Für dieses Datum liegt kein Trainingsplan vor.</p></div>`;
     return;
   }
   main.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem 1rem;">
@@ -533,8 +579,16 @@ function saveExercise(slugName, dateISO) {
     return;
   }
 
+  // Woche immer aus Datum + Plan ableiten (F0a Punkt 6). Kraft-Log-Einträge
+  // gibt es nur an Krafttagen einer ausformulierten Woche, deshalb ist hier
+  // immer ein Plan aktiv — die Woche wird trotzdem nie als null geschrieben
+  // (Lücke aus dem Architektur-Review, explizit abgesichert).
+  const planForDate = activePlanFor(dateISO, plans);
+  const week = planForDate ? weekNumberFor(planForDate, dateISO) : null;
+  if (week == null) console.error("Kein Plan/keine Woche für Kraft-Log am " + dateISO + " — sollte nicht vorkommen.");
+
   const payload = {
-    week: weekNumberFor(dateISO),
+    ...(week != null ? { week } : {}),
     name: st.name,
     soll: st.soll,
     custom: st.custom,
@@ -596,13 +650,16 @@ async function loadStrava({ force = false } = {}) {
   return stravaState;
 }
 
-// Alle Lauftage des Plans — Grundlage der Zuordnung
+// Alle Lauftage aller geladenen Pläne — Grundlage der Zuordnung
 function allPlanRunDays() {
   const out = [];
-  for (let w = 1; w <= TOTAL_WEEKS; w++) {
-    const week = weeks[w];
-    if (!week || week.placeholder) continue;
-    for (const r of week.runs) out.push({ date: r.date, distKm: parseFloat(r.dist) || 0 });
+  for (const plan of plans) {
+    for (const week of plan.weeks) {
+      if (week.placeholder) continue;
+      for (const s of week.sessions.filter((x) => x.kind === "lauf")) {
+        out.push({ date: s.date, distKm: s.km });
+      }
+    }
   }
   return out;
 }
@@ -756,21 +813,25 @@ function runPickerHTML(s, iso) {
 }
 
 // ---------- Woche ----------
+// Der Wochen-Tab bleibt in Schritt 1 unverändert und arbeitet deshalb auf
+// dem (einzigen) Plan der Registry — Mehrplan-Unterstützung für diesen Tab
+// ist Teil von M2/Schritt 2, nicht von M1.
 function renderWeek() {
+  const plan = plans[0];
   const w = state.weekNo;
-  const week = weeks[w];
-  const phase = phases.find((p) => p.n === week.phase);
-  const start = weekStart(w);
-  const isCurrent = w === weekNumberFor(todayISO());
+  const week = weekOf(plan, w);
+  const phase = phaseOf(plan, w);
+  const start = weekStart(plan, w);
+  const isCurrent = w === weekNoForTab(todayISO());
 
   header.innerHTML = `
     <p class="eyebrow">Phase ${phase.n} – ${esc(phase.name)} · ${shortDate(start)}–${shortDate(addDays(start, 6))}${week.deload ? " · Deload" : ""}</p>
     <div class="title-row">
-      <h1>Woche ${w} <span class="of">von ${TOTAL_WEEKS}</span></h1>
+      <h1>Woche ${w} <span class="of">von ${plan.totalWeeks}</span></h1>
       <div class="row" style="gap:4px;">
         <button class="icon-btn" data-action="week-prev" ${w <= 1 ? "disabled" : ""} aria-label="Vorherige Woche">${ICONS.prev}</button>
         ${isCurrent ? "" : `<button class="small-btn" data-action="week-today">Heute</button>`}
-        <button class="icon-btn" data-action="week-next" ${w >= TOTAL_WEEKS ? "disabled" : ""} aria-label="Nächste Woche">${ICONS.next}</button>
+        <button class="icon-btn" data-action="week-next" ${w >= plan.totalWeeks ? "disabled" : ""} aria-label="Nächste Woche">${ICONS.next}</button>
       </div>
     </div>`;
 
@@ -781,8 +842,8 @@ function renderWeek() {
   }
 
   const today = todayISO();
-  const days = weekDates(w).map((iso) => {
-    const info = dayInfo(iso);
+  const days = weekDates(plan, w).map((iso) => {
+    const info = sessionOn(plan, iso);
     const [color, bg] = colorsFor(info);
     const label =
       info.kind === "ruhe" ? "Ruhe"
@@ -790,6 +851,8 @@ function renderWeek() {
       : `${info.shortType}\n${info.dist}`;
     return { iso, info, color, bg, label };
   });
+
+  const laufSessions = week.sessions.filter((s) => s.kind === "lauf");
 
   main.innerHTML = `<div class="day-grid">
       ${days.map((d) => `<button class="day-pill${d.iso === today ? " today" : ""}" data-action="open-day" data-date="${d.iso}" style="background:${d.bg};">
@@ -800,12 +863,8 @@ function renderWeek() {
     <p class="center-note">Tag antippen für Details</p>
     <div class="card">
       <p class="name">Wochenumfang Laufen</p>
-      <p class="hint">${week.runs.map((r) => `${r.shortType} ${r.dist}`).join(" · ")} — zusammen ${weekKm(week)} km</p>
+      <p class="hint">${laufSessions.map((r) => `${r.shortType} ${r.dist}`).join(" · ")} — zusammen ${week.plannedKm} km</p>
     </div>`;
-}
-
-function weekKm(week) {
-  return week.runs.reduce((a, r) => a + (parseFloat(r.dist) || 0), 0);
 }
 
 // ---------- Verlauf ----------
@@ -822,7 +881,7 @@ async function renderHistory() {
 }
 
 async function renderKraftHistory() {
-  const options = exerciseCatalog
+  const options = exerciseCatalog(plans[0])
     .map((e) => `<option value="${slug(e.name)}" ${slug(e.name) === state.historyExercise ? "selected" : ""}>${esc(e.name)}</option>`)
     .join("");
 
@@ -955,48 +1014,56 @@ function barsHTML(points, color) {
 }
 
 // ---------- Plan ----------
+// Wie beim Wochen-Tab: der Plan-Tab bleibt in Schritt 1 unverändert und
+// zeigt deshalb den (einzigen) Plan der Registry.
 function renderPlan() {
-  const w = weekNumberFor(todayISO());
+  const plan = plans[0];
+  const today = todayISO();
+  // Heute liegt praktisch immer in einer Planwoche; außerhalb (I3: vor dem
+  // Start Woche 1/0%, nach der letzten Planwoche "fertig") stürzt der
+  // Fortschrittsbalken trotzdem nicht ab.
+  const w = weekNumberFor(plan, today) ?? (today < plan.start ? 1 : plan.totalWeeks);
   const done = Math.max(0, w - 1);
-  const pct = Math.round((done / TOTAL_WEEKS) * 100);
+  const pct = Math.round((done / plan.totalWeeks) * 100);
+  const displayGoal = formatGoal(plan.goal);
 
   header.innerHTML = `<h1>Trainingsplan</h1>
-    <p class="eyebrow" style="margin-top:2px;">Woche ${w} von ${TOTAL_WEEKS} · ${pct}% geschafft</p>`;
+    <p class="eyebrow" style="margin-top:2px;">Woche ${w} von ${plan.totalWeeks} · ${pct}% geschafft</p>`;
 
   main.innerHTML = `
     <div class="card goal-card">
       <p class="metric-label">Ziel</p>
-      <p class="goal-time">${esc(goal.time)}</p>
-      <p class="hint" style="margin-top:4px;">${esc(goal.race)} · Renntempo ${esc(goal.targetPace)}</p>
+      <p class="goal-time">${esc(displayGoal.time)}</p>
+      <p class="hint" style="margin-top:4px;">${esc(displayGoal.race)} · Renntempo ${esc(plan.goal.targetPace)}</p>
       <div class="timeline">
-        ${phases.map((p) => {
-          const len = p.weeks[1] - p.weeks[0] + 1;
+        ${plan.phases.map((p) => {
+          const len = p.weeks.to - p.weeks.from + 1;
           // Anteil dieser Phase, der schon hinter dir liegt
-          const fill = w > p.weeks[1] ? 100 : w < p.weeks[0] ? 0 : ((w - p.weeks[0] + 1) / len) * 100;
+          const fill = w > p.weeks.to ? 100 : w < p.weeks.from ? 0 : ((w - p.weeks.from + 1) / len) * 100;
           return `<div class="seg tone-${p.tone}" style="flex:${len}" title="Phase ${p.n}"><i style="width:${fill}%"></i></div>`;
         }).join("")}
       </div>
-      <div class="timeline-marker"><span>${shortDate(PLAN_START)}</span><span>Wettkampf</span></div>
+      <div class="timeline-marker"><span>${shortDate(plan.start)}</span><span>Wettkampf</span></div>
       <div class="timeline-legend">
-        ${phases.map((p) => `<span class="tone-${p.tone}"><i></i>${esc(p.name)}</span>`).join("")}
+        ${plan.phases.map((p) => `<span class="tone-${p.tone}"><i></i>${esc(p.name)}</span>`).join("")}
       </div>
     </div>
 
-    ${phases.map((p) => {
-      const current = w >= p.weeks[0] && w <= p.weeks[1];
+    ${plan.phases.map((p) => {
+      const current = w >= p.weeks.from && w <= p.weeks.to;
       return `<div class="phase-card tone-${p.tone}${current ? " is-current" : ""}">
         <div class="phase-head">
           <p class="name">Phase ${p.n} – ${esc(p.name)}</p>
-          <span class="phase-weeks">W${p.weeks[0]}–${p.weeks[1]}</span>
+          <span class="phase-weeks">W${p.weeks.from}–${p.weeks.to}</span>
         </div>
-        <p class="hint" style="margin-top:2px;">${esc(p.range)}</p>
+        <p class="hint" style="margin-top:2px;">${esc(phaseRange(plan, p))}</p>
         <p class="hint" style="margin-top:4px;">${esc(p.focus)}${current ? " · läuft gerade" : ""}</p>
       </div>`;
     }).join("")}
 
     <div class="card">
       <p class="name">Trainingsbereiche</p>
-      ${zones.map((z) => {
+      ${plan.zones.map((z) => {
         const [tag, label] = z.zone.split(" – ");
         return `<div class="zone-line tone-${z.tone}">
           <span class="zone-chip">${esc(tag)}</span>
@@ -1017,8 +1084,8 @@ document.getElementById("app").addEventListener("click", async (e) => {
   if (action === "back") { state.selectedDate = null; runPickerFor = null; return render(); }
   if (action === "open-day") { state.selectedDate = target.dataset.date; runPickerFor = null; return render(); }
   if (action === "week-prev") { state.weekNo = Math.max(1, state.weekNo - 1); return render(); }
-  if (action === "week-next") { state.weekNo = Math.min(TOTAL_WEEKS, state.weekNo + 1); return render(); }
-  if (action === "week-today") { state.weekNo = weekNumberFor(todayISO()); return render(); }
+  if (action === "week-next") { state.weekNo = Math.min(plans[0].totalWeeks, state.weekNo + 1); return render(); }
+  if (action === "week-today") { state.weekNo = weekNoForTab(todayISO()); return render(); }
   if (action === "toggle-sets") return toggleSets(target.dataset.slug);
   if (action === "toggle-edit") return toggleEditMode();
   if (action === "remove-exercise") return removeExercise(target.dataset.slug);
@@ -1056,23 +1123,67 @@ document.querySelectorAll("#tabbar button").forEach((btn) => {
     state.tab = btn.dataset.tab;
     state.selectedDate = null;
     runPickerFor = null;
-    if (state.tab === "woche") state.weekNo = weekNumberFor(todayISO());
+    if (state.tab === "woche") state.weekNo = weekNoForTab(todayISO());
     render();
   });
 });
 
 // ---------- Start ----------
 (async function init() {
-  const hasRedirect = /[?&](code|error)=/.test(location.search);
+  // Tab-Leiste zeigt sofort einen Zustand, auch während der Plan noch lädt.
   document.querySelector('[data-tab="heute"]').classList.add("active");
+  main.innerHTML = loadingCard("Plan wird geladen …");
 
+  // A1: Der Plan wird asynchron geladen. Scheitert das ganz (kein Abruf,
+  // keine Kopie), gibt es eine dauerhafte Fehlerkarte statt eines leeren
+  // Bildschirms; alle weiteren Modul-Top-Level-Zugriffe auf Plandaten
+  // stehen deshalb erst hier, nicht mehr oben im Modul.
+  // K1: alles, was auf den geladenen Plan zugreift, gehört mit in den
+  // try-Block — sonst wirft ein Plan, der zwar geladen aber in einer Form
+  // ist, die dieser Code-Stand nicht (mehr) erwartet, eine unbehandelte
+  // Rejection nach dem catch, und der Bildschirm bleibt für immer bei
+  // "Plan wird geladen …" hängen, ohne Fehlerkarte.
+  // M4: Der Hinweis "Plan aus letzter Kopie" darf nicht vom Strava-Toast
+  // verschluckt werden, wenn beides direkt hintereinander passiert (Redirect
+  // nach einer Strava-Verbindung, während gleichzeitig das Funkloch-Fallback
+  // greift) — deshalb erst sammeln, dann gemeinsam anzeigen.
+  let planHint = null;
+  try {
+    const result = await loadPlans();
+    plans = result.plans;
+    planHint = result.hint;
+
+    state.weekNo = weekNoForTab(todayISO());
+    state.historyExercise = defaultHistoryExercise();
+    STRAVA_SINCE = addDays(plans[0].start, -14); // etwas Vorlauf für den Verlauf
+  } catch (err) {
+    console.error(err);
+    header.innerHTML = `<h1>Trainingsplan</h1>`;
+    main.innerHTML = errorCard(err.message);
+    // M3: Ein Strava-Redirect (?code=…) wird hier bewusst nicht mehr
+    // verarbeitet, wenn schon das Plan-Laden scheitert — der Code bleibt
+    // dann in der URL stehen. Das ist kein Datenverlust: der Code ist
+    // einmalig und noch unbenutzt, ein "Neu laden" nach behobenem
+    // Plan-Problem verarbeitet ihn normal.
+    return;
+  }
+
+  let stravaMsg = null;
+  let stravaIsError = false;
+  const hasRedirect = /[?&](code|error)=/.test(location.search);
   if (hasRedirect) {
     header.innerHTML = `<h1>Strava</h1>`;
     main.innerHTML = loadingCard("Strava-Verbindung wird abgeschlossen …");
     const res = await handleAuthRedirect();
-    if (res.status === "connected") toast("Mit Strava verbunden.");
-    else if (res.status !== "none") toast(res.message, true);
+    if (res.status === "connected") stravaMsg = "Mit Strava verbunden.";
+    else if (res.status !== "none") { stravaMsg = res.message; stravaIsError = true; }
   }
+
+  // M4: beide Hinweise zusammenführen statt den einen vom anderen
+  // überschreiben zu lassen.
+  if (planHint && stravaMsg) toast(`${planHint} · ${stravaMsg}`, stravaIsError);
+  else if (planHint) toast(planHint);
+  else if (stravaMsg) toast(stravaMsg, stravaIsError);
 
   // Anmeldung früh anstoßen, damit der erste Firestore-Zugriff nicht wartet.
   ensureSignedIn().catch((err) => {
