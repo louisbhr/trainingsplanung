@@ -25,6 +25,15 @@ export async function loadLogsForDate(d) {
   const out = {}; for (const v of Object.values(read())) if (v.date === d) out[v.exercise] = v; return out;
 }
 export async function loadAllLogs() { return Object.values(read()); }
+export async function loadAllDayPlans() {
+  const out = {};
+  for (const key of Object.keys(localStorage)) {
+    if (!key.startsWith("test.dayplan.")) continue;
+    const d = JSON.parse(localStorage.getItem(key) || "null");
+    out[key.slice("test.dayplan.".length)] = { removed: d?.removed || [], added: d?.added || [] };
+  }
+  return out;
+}
 export async function loadLogsForExercise(slug) {
   return Object.values(read()).filter((v) => v.exercise === slug).sort((a, b) => (a.date < b.date ? -1 : 1));
 }
@@ -414,6 +423,7 @@ async function noHScroll(page, where) {
       export async function loadDayPlan() { boom(); }
       export async function saveDayPlan() { boom(); }
       export async function loadAllLogs() { boom(); }
+      export async function loadAllDayPlans() { boom(); }
       export async function loadRunLinks() { boom(); }
       export async function saveRunLink() { boom(); }
       export async function clearRunLink() { boom(); }`,
@@ -931,6 +941,30 @@ async function noHScroll(page, where) {
   const toastText = await page.textContent("#toast");
   ok(toastText.includes("Plan aus letzter Kopie"), `Beide Hinweise: Plan-Hinweis nicht verschluckt (${toastText})`);
   ok(toastText.includes("Mit Strava verbunden."), `Beide Hinweise: Strava-Hinweis nicht verschluckt (${toastText})`);
+  await ctx.close();
+}
+
+// ---- 26. Strava-Worker lehnt die Herkunft ab (403/CORS) -> Meldung nennt beide Möglichkeiten ----
+// Ein per ALLOWED_ORIGINS abgelehnter Origin sieht aus dem Browser heraus wie
+// ein Netzwerkfehler aus (der Browser blockiert die Antwort schon wegen des
+// fehlenden CORS-Headers, bevor JS den Status sieht) — fetch() wirft in
+// beiden Fällen dieselbe TypeError. route.abort() simuliert genau das.
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
+  await ctx.route("https://worker.test/**", (r) => r.abort("failed"));
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.addInitScript(([planJson]) => {
+    localStorage.setItem("hm-tracker.workerUrl", "https://worker.test");
+    localStorage.setItem("hm-tracker.plan.hm-2027", planJson);
+  }, [REAL_PLAN_JSON]);
+  await page.goto(BASE + "/index.html?code=test-code-123");
+  await page.waitForSelector("#toast.show");
+  const toastText = await page.textContent("#toast");
+  ok(toastText.includes("nicht erreichbar") && toastText.includes("nicht für Strava freigeschaltet"),
+     `Strava-Herkunft abgelehnt: Meldung nennt Netzwerk UND CORS statt nur "nicht erreichbar" (${toastText})`);
   await ctx.close();
 }
 

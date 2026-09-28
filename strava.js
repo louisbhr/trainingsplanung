@@ -1,5 +1,5 @@
-import { saveStravaTokens, loadStravaTokens } from "./firebase-init.js?v=202609271917";
-import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202609271917";
+import { saveStravaTokens, loadStravaTokens } from "./firebase-init.js?v=202609281001";
+import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202609281001";
 
 // Die Client-ID ist unkritisch öffentlich (sie steht ohnehin in der
 // Authorize-URL). Das Client-Secret liegt NICHT hier, sondern nur als
@@ -50,7 +50,20 @@ async function callWorker(path, body) {
       body: JSON.stringify(body),
     });
   } catch {
-    throw new Error("Strava-Worker nicht erreichbar (Netzwerk oder falsche Worker-URL).");
+    // Ein abgelehnter Origin (ALLOWED_ORIGINS im Worker) und ein echter
+    // Netzwerkausfall sehen aus dem Browser heraus identisch aus: Der
+    // Worker antwortet auf einen nicht erlaubten Origin zwar mit 403, aber
+    // ohne einen passenden Access-Control-Allow-Origin-Header — der Browser
+    // blockiert die Antwort dann als CORS-Fehler, bevor JavaScript den
+    // Status 403 überhaupt sieht. fetch() wirft in beiden Fällen dieselbe
+    // undurchsichtige TypeError. Ohne eine Möglichkeit, das zu
+    // unterscheiden, nennt die Meldung beide Ursachen, statt fälschlich nur
+    // "nicht erreichbar" zu behaupten (das hat vorher an einer nicht
+    // freigeschalteten Adresse wie 127.0.0.1 in die Irre geführt).
+    throw new Error(
+      "Strava-Worker nicht erreichbar oder diese Adresse ist nicht für Strava freigeschaltet " +
+        "(Netzwerk- und CORS-Fehler sehen im Browser gleich aus)."
+    );
   }
   const text = await res.text();
   let data = null;
@@ -148,10 +161,18 @@ export async function fetchRecentRuns(sinceISO, { force = false } = {}) {
 
   const after = Math.floor(new Date(sinceISO + "T00:00:00").getTime() / 1000);
   const all = [];
-  for (let page = 1; page <= 4; page++) {
+  // per_page=200 (A6): seit F0 reicht das Fenster bis plan.start-35 Tage
+  // zurück, mit den alten 50/Seite wären das leicht mehr Aktivitäten als
+  // eine Seite. Abbruch erst, wenn eine Seite nicht mehr voll ist — sonst
+  // würde der Abruf nach der ersten (jetzt größeren) Seite fälschlich zu
+  // früh oder zu spät enden. Seitenlimit bewusst auf 5 (= bis zu 1000
+  // Aktivitäten) begrenzt, damit ein Datenfehler nicht endlos paginiert.
+  const PER_PAGE = 200;
+  const MAX_PAGES = 5;
+  for (let page = 1; page <= MAX_PAGES; page++) {
     let res;
     try {
-      res = await fetch(`${API_BASE}/athlete/activities?after=${after}&per_page=50&page=${page}`, {
+      res = await fetch(`${API_BASE}/athlete/activities?after=${after}&per_page=${PER_PAGE}&page=${page}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch {
@@ -162,7 +183,7 @@ export async function fetchRecentRuns(sinceISO, { force = false } = {}) {
     if (!res.ok) throw new Error(`Strava-Abruf fehlgeschlagen (HTTP ${res.status}).`);
     const batch = await res.json();
     all.push(...batch);
-    if (batch.length < 50) break;
+    if (batch.length < PER_PAGE) break;
   }
 
   const runs = all

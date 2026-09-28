@@ -170,6 +170,22 @@ export async function loadAllLogs() {
   return out;
 }
 
+// Alle Tages-Anpassungen (dayplans) auf einmal — für die Ampel "Wochensoll"
+// und die Adhärenz (M2-3): beide brauchen die *effektive* Übungsliste
+// mehrerer Tage, nicht nur des gerade offenen Tages. Rückgabe: { [datum]:
+// { removed, added } }, wie loadDayPlan() pro Tag, nur für alle Tage auf
+// einmal.
+export async function loadAllDayPlans() {
+  await ensureSignedIn();
+  const snap = await fb(() => getDocs(collection(db, "dayplans")));
+  const out = {};
+  snap.forEach((d) => {
+    const data = d.data();
+    out[d.id] = { removed: data.removed || [], added: data.added || [] };
+  });
+  return out;
+}
+
 // --- Zuordnung von Strava-Läufen zu Plan-Lauftagen ---
 // Doc-Id ist das Plan-Datum. activityId null heißt: an dem Tag bewusst
 // kein Lauf, die automatische Zuordnung soll nichts hineinraten.

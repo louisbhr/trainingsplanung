@@ -2,18 +2,18 @@ import {
   slug, toISO, fromISO, addDays,
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, activePlanFor, planDayState, exerciseCatalog, formatGoal,
-} from "./plan.js?v=202609271917";
-import { loadPlans } from "./plan-store.js?v=202609271917";
+} from "./plan.js?v=202609281001";
+import { loadPlans } from "./plan-store.js?v=202609281001";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs,
-} from "./firebase-init.js?v=202609271917";
+} from "./firebase-init.js?v=202609281001";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202609271917";
-import { suggestProgression, previousEntry } from "./progression.js?v=202609271917";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609271917";
+} from "./strava.js?v=202609281001";
+import { suggestProgression, previousEntry } from "./progression.js?v=202609281001";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281001";
 
 const ICONS = {
   run: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="4" r="1.5" fill="currentColor" stroke="none"/><path d="M13 7l-2 3 3 2 1 5M11 10l-4 1-2 4M8 14l-3 1M13.5 11l3 1 2-2"/></svg>',
@@ -1155,7 +1155,9 @@ document.querySelectorAll("#tabbar button").forEach((btn) => {
 
     state.weekNo = weekNoForTab(todayISO());
     state.historyExercise = defaultHistoryExercise();
-    STRAVA_SINCE = addDays(plans[0].start, -14); // etwas Vorlauf für den Verlauf
+    // F0: 35 Tage Vorlauf statt der alten 14 — die Belastungs-Ampel braucht
+    // 28 Tage Historie vor den letzten 7 Tagen (M2-3/A6).
+    STRAVA_SINCE = addDays(plans[0].start, -35);
   } catch (err) {
     console.error(err);
     header.innerHTML = `<h1>Trainingsplan</h1>`;

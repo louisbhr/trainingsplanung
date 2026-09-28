@@ -27,6 +27,7 @@ const MODULES = [
   "app.js",
   "config.js",
   "firebase-init.js",
+  "metrics.js",
   "plan.js",
   "plan-store.js",
   "progression.js",
