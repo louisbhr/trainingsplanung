@@ -25,6 +25,7 @@ const stamp = new Date()
 // Cloudflare und wird nicht über die Seite ausgeliefert.
 const MODULES = [
   "app.js",
+  "coach.js",
   "config.js",
   "firebase-init.js",
   "metrics.js",

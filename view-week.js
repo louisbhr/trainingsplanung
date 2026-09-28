@@ -10,7 +10,7 @@
 // Feinschliff. Die Zeile bleibt deshalb ein einziger Tap direkt in die
 // Tagesansicht (wie vor M2-7), zeigt aber alle neuen Status-Symbole und die
 // Ist/Ziel-Zeile inline in der Reihe selbst.
-import { esc, ICONS } from "./ui.js?v=202609281100";
+import { esc, ICONS } from "./ui.js?v=202609281116";
 
 export function weekNavHTML({ n, weekType, dateRange, hasPrev, hasNext, showToday }) {
   return `<div class="week-nav">

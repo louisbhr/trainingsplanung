@@ -210,6 +210,31 @@ export async function clearRunLink(planDateISO) {
   await fb(() => deleteDoc(doc(db, "runlinks", planDateISO)));
 }
 
+// --- Coach (F6, M2-9/M2-10): coach/{datum}, coachweek/{planId}_W{n} ---
+// Feld-/Limit-Logik (generations, inputHash, ...) lebt in coach.js —
+// hier nur reines Lesen/Schreiben, wie bei den übrigen Sammlungen.
+export async function loadCoach(dateISO) {
+  await ensureSignedIn();
+  const snap = await fb(() => getDoc(doc(db, "coach", dateISO)));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function saveCoach(dateISO, data) {
+  await ensureSignedIn();
+  await fb(() => setDoc(doc(db, "coach", dateISO), data, { merge: true }));
+}
+
+export async function loadCoachWeek(key) {
+  await ensureSignedIn();
+  const snap = await fb(() => getDoc(doc(db, "coachweek", key)));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function saveCoachWeek(key, data) {
+  await ensureSignedIn();
+  await fb(() => setDoc(doc(db, "coachweek", key), data, { merge: true }));
+}
+
 // --- Strava-Tokens ---
 export async function saveStravaTokens(tokens) {
   await ensureSignedIn();

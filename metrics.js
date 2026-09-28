@@ -9,8 +9,8 @@
 // nie über Millisekunden-Differenzen — sonst rechnen die 7/28/42-Tage-
 // Fenster an den beiden Zeitumstellungen im Plan (25.10.2026, 28.03.2027)
 // falsch (A7).
-import { addDays } from "./plan.js?v=202609281100";
-import { parseSoll } from "./progression.js?v=202609281100";
+import { addDays } from "./plan.js?v=202609281116";
+import { parseSoll } from "./progression.js?v=202609281116";
 
 const rank = { grau: 0, gruen: 1, gelb: 2, rot: 3 };
 const worseOf = (a, b) => (rank[b] > rank[a] ? b : a);

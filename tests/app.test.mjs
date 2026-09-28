@@ -57,6 +57,18 @@ export async function loadDayPlan(dateISO) {
 export async function saveDayPlan(dateISO, dp) {
   localStorage.setItem("test.dayplan." + dateISO, JSON.stringify(dp));
 }
+export async function loadCoach(dateISO) {
+  return JSON.parse(localStorage.getItem("test.coach." + dateISO) || "null");
+}
+export async function saveCoach(dateISO, data) {
+  localStorage.setItem("test.coach." + dateISO, JSON.stringify(data));
+}
+export async function loadCoachWeek(key) {
+  return JSON.parse(localStorage.getItem("test.coachweek." + key) || "null");
+}
+export async function saveCoachWeek(key, data) {
+  localStorage.setItem("test.coachweek." + key, JSON.stringify(data));
+}
 export async function saveStravaTokens(t) {
   const cur = JSON.parse(localStorage.getItem("test.strava") || "null") || {};
   localStorage.setItem("test.strava", JSON.stringify({ ...cur, ...t }));
@@ -281,6 +293,93 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
+// ---- 2d. Dashboard: Coach — Cache, Escaping, Fallback (M2-9) ----
+{
+  const { page, ctx, errors } = await newPage({ connected: true });
+  let coachRequests = 0;
+  await ctx.route("https://worker.test/coach", (r) => {
+    coachRequests++;
+    r.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ text: '<img src=x onerror="window.__xss=1">', kind: "daily", model: "m", promptVersion: "v1" }),
+    });
+  });
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForFunction(() => document.querySelector("#coach-slot .text")?.textContent.includes("<img"));
+  const coachTxt = await page.textContent("#coach-slot .text");
+  ok(coachTxt.includes("<img src=x"), `Coach: KI-Text wird als Text angezeigt, nicht ausgeführt (${coachTxt})`);
+  ok((await page.evaluate(() => window.__xss)) === undefined, "Coach: eingebetteter onerror-Handler wird NICHT ausgeführt (A5)");
+  ok(coachRequests === 1, `Coach: genau ein Request beim ersten Laden (${coachRequests})`);
+
+  // Gleicher Hash beim erneuten Aufruf des Dashboards -> kein zweiter Request.
+  await page.click('[data-tab="verlauf"]');
+  await page.click('[data-tab="dashboard"]');
+  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForTimeout(300);
+  ok(coachRequests === 1, `Coach: gleicher Hash löst keinen zweiten Request aus (${coachRequests})`);
+  await shot(page, "02d-dashboard-coach");
+  ok(errors.length === 0, "Coach: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 2e. Coach: abgeschalteter Worker -> Regel-Fallback ----
+{
+  const { page, ctx, errors } = await newPage();
+  await ctx.route("https://worker.test/coach", (r) => r.abort("failed"));
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForFunction(() => (document.querySelector("#coach-slot .text")?.textContent.length ?? 0) > 0);
+  const txt = await page.textContent("#coach-slot .text");
+  ok(txt.length > 0, `Coach: Regel-Fallback erscheint bei abgeschaltetem Worker (${txt})`);
+  // Kein "keine Konsolenfehler"-Check hier: route.abort() erzeugt absichtlich
+  // ein "Failed to load resource"-Netzwerkprotokoll, keinen echten App-Fehler
+  // (wie schon bei der Strava-Herkunfts-Ablehnung in M2-3).
+  await ctx.close();
+}
+
+// ---- 2f. Coach: Dokument nicht lesbar -> kein API-Aufruf (A4) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({
+    contentType: "application/javascript",
+    body: `
+      export const db = {};
+      export async function ensureSignedIn() { return { uid: "t" }; }
+      export async function loadCoach() { throw new Error("Missing or insufficient permissions."); }
+      export async function saveCoach() {}
+      export async function loadCoachWeek() { return null; }
+      export async function saveCoachWeek() {}
+      export async function loadLogsForDate() { return {}; }
+      export async function loadDayPlan() { return { removed: [], added: [] }; }
+      export async function saveDayPlan() {}
+      export async function loadAllLogs() { return []; }
+      export async function loadAllDayPlans() { return {}; }
+      export async function loadLogsForExercise() { return []; }
+      export async function loadRunLinks() { return {}; }
+      export async function saveRunLink() {}
+      export async function clearRunLink() {}
+      export async function saveLog() {}
+      export async function saveStravaTokens() {}
+      export async function loadStravaTokens() { return null; }`,
+  }));
+  let coachRequests = 0;
+  await ctx.route("https://worker.test/coach", (r) => { coachRequests++; r.fulfill({ contentType: "application/json", body: JSON.stringify({ text: "x" }) }); });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.addInitScript(() => localStorage.setItem("hm-tracker.workerUrl", "https://worker.test"));
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForTimeout(300);
+  ok(coachRequests === 0, `Coach: kein API-Aufruf, wenn das Coach-Dokument nicht lesbar ist (${coachRequests})`);
+  ok((await page.locator("#coach-slot .text").count()) === 1, "Coach: trotzdem ein Fallback-Text sichtbar, keine Fehlerkarte");
+  ok(errors.length === 0, "Coach ohne lesbares Dokument: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
 // ---- 3. Woche: Navigation, Tag öffnen (M2-7: neue Tagesliste statt Grid) ----
 {
   const { page, ctx, errors } = await newPage({ connected: true });
@@ -456,7 +555,7 @@ async function noHScroll(page, where) {
   // Zustand deshalb hier gezielt nachstellen.
   await ctx.route(/config\.js/, (r) => r.fulfill({
     contentType: "application/javascript",
-    body: `export const STRAVA_WORKER_URL = ""; export const STRAVA_CLIENT_ID = "277715"; export const isWorkerConfigured = false;
+    body: `export const STRAVA_WORKER_URL = ""; export const STRAVA_CLIENT_ID = "277715"; export const isWorkerConfigured = false; export const COACH_URL = "";
       export const THRESHOLDS = { wochensoll: { gruen: 0.9, gelb: 0.7 }, easy: { gelbMaxOver: 8 },
       belastung: { gruen: 1.3, gelb: 1.5 }, kraft: { windowDays: 42, stallSessions: 2, minExercisesWithData: 3, redAffectedCount: 2, redConsecutiveBelow: 2 }, coach: { dailyLimit: 3, weeklyLimit: 2 } };`,
   }));
@@ -578,6 +677,10 @@ async function noHScroll(page, where) {
       export async function saveDayPlan() { boom(); }
       export async function loadAllLogs() { boom(); }
       export async function loadAllDayPlans() { boom(); }
+      export async function loadCoach() { boom(); }
+      export async function saveCoach() { boom(); }
+      export async function loadCoachWeek() { boom(); }
+      export async function saveCoachWeek() { boom(); }
       export async function loadRunLinks() { boom(); }
       export async function saveRunLink() { boom(); }
       export async function clearRunLink() { boom(); }`,
@@ -1004,14 +1107,19 @@ async function noHScroll(page, where) {
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  let coachRequests = 0;
+  await ctx.route("https://worker.test/coach", (r) => { coachRequests++; r.fulfill({ contentType: "application/json", body: "{}" }); });
   const page = await ctx.newPage();
   const errors = [];
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   await page.clock.setFixedTime(new Date("2027-04-20T09:00:00Z"));
+  await page.addInitScript(() => localStorage.setItem("hm-tracker.workerUrl", "https://worker.test"));
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#header h1");
   ok((await page.textContent("#header h1")) === "Kein aktiver Plan", "Nach dem Rennen: 'Kein aktiver Plan'");
+  await page.waitForTimeout(300);
+  ok(coachRequests === 0, `Nach dem Rennen: kein Coach-API-Aufruf (F7, gezählt: ${coachRequests})`);
   ok((await page.textContent("#header .countdown")).includes("Rennen am 11.04.2027"),
      "Nach dem Rennen: Kopfzeile nennt das vergangene Renndatum");
   ok((await page.textContent("#today-slot")).includes("Läufe werden weiter aus Strava gezeigt"),

@@ -3,25 +3,31 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202609281100";
-import { loadPlans } from "./plan-store.js?v=202609281100";
+} from "./plan.js?v=202609281116";
+import { loadPlans } from "./plan-store.js?v=202609281116";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
-  loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans,
-} from "./firebase-init.js?v=202609281100";
+  loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
+} from "./firebase-init.js?v=202609281116";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202609281100";
-import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202609281100";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281100";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202609281100";
-import * as dash from "./view-dashboard.js?v=202609281100";
-import * as dashWeek from "./view-week.js?v=202609281100";
-import * as metrics from "./metrics.js?v=202609281100";
-import { THRESHOLDS } from "./config.js?v=202609281100";
+} from "./strava.js?v=202609281116";
+import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202609281116";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281116";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202609281116";
+import * as dash from "./view-dashboard.js?v=202609281116";
+import * as dashWeek from "./view-week.js?v=202609281116";
+import * as metrics from "./metrics.js?v=202609281116";
+import * as coach from "./coach.js?v=202609281116";
+import { THRESHOLDS, COACH_URL } from "./config.js?v=202609281116";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
+// Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
+// eigentliche Konstante steht im Worker; ein Auseinanderlaufen ist
+// unkritisch, das Feld dient nur der späteren Auswertung/Migration.
+const COACH_MODEL = "claude-haiku-4-5";
+const COACH_PROMPT_VERSION = "coach-v1";
 
 // Wird erst gesetzt, wenn der Plan geladen ist (A1) — vorher greift jeder
 // Zugriff auf den STRAVA_SINCE-Wert daneben.
@@ -234,6 +240,7 @@ function paintDashboardMain(iso, dayState, plan) {
   fillTodayCard(iso, dayState, plan);
   fillAmpeln(iso, dayState, plan);
   fillDetail(iso, dayState, plan);
+  fillCoach(iso, dayState, plan);
 }
 
 function refreshTodaySlot(iso, dayState, plan) {
@@ -521,6 +528,100 @@ async function fillDetail(iso, dayState, plan) {
       </div>`);
   } catch (err) {
     console.error(err);
+  }
+}
+
+// ---------- Coach (F6, M2-9) ----------
+function todayFieldFor(info, doneToday) {
+  if (info.kind === "kraft") return { type: "Kraft", name: info.label, done: !!doneToday };
+  if (info.kind === "lauf") return { type: "Lauf", name: info.type, done: !!runAssignment[todayISO()]?.run };
+  if (info.kind === "ruhe") return { type: "Ruhe", name: "Ruhe", done: false };
+  return { type: "Offen", name: "Offen", done: false }; // Platzhalterwoche
+}
+
+// Nächste geplante Einheit über alle Planwochen hinweg, kurzgefasst wie
+// "Sa: Long Run 13 km" (F6-Eingabeschema "next").
+function nextSessionLabel(plan, iso) {
+  let next = null;
+  for (const week of plan.weeks) {
+    if (week.placeholder) continue;
+    for (const s of sessionsFor(plan, week.n)) {
+      if (s.date > iso && (!next || s.date < next.date)) next = s;
+    }
+  }
+  if (!next) return "Kein weiteres Training geplant";
+  const label = next.kind === "lauf" ? `${next.type} ${next.dist}` : next.label;
+  return `${dayNameDE(next.date)}: ${label}`;
+}
+
+function patchCoachSlot(html) {
+  if (state.tab !== "dashboard" || state.selectedDate) return;
+  const slot = document.getElementById("coach-slot");
+  if (slot) slot.innerHTML = html;
+}
+
+// Baut die Ampel-Liste + Kraft-heute-erledigt ohne erneuten Strava-/
+// Firestore-Zugriff (nutzt, was fillAmpeln/fillDetail ohnehin schon lädt/
+// cacht) und ruft darüber requestCoach() auf. Fehler landen nie als
+// Fehlerkarte (F6) — im schlimmsten Fall bleibt der Lade-Platzhalter stehen.
+async function fillCoach(iso, dayState, plan) {
+  if (dayState === "keinPlan") return; // fixer Hinweistext steht schon (kein API-Aufruf, F7)
+  if (dayState === "bisZumRennen") {
+    return patchCoachSlot(dash.coachNoPlanHTML(
+      "Zwischen Planende und Rennen macht der Coach eine Pause. Bis zum Start alles Gute!"
+    ));
+  }
+  try {
+    await loadStrava();
+    const weekNo = weekNumberFor(plan, iso);
+    const week = weekOf(plan, weekNo);
+    const info = sessionOn(plan, iso);
+
+    let ampelnList, doneToday = false;
+    if (week.placeholder) {
+      ampelnList = grauAmpeln(iso, "Woche ohne Details");
+    } else {
+      const { logs, dps } = await ensureAllLogsAndDayPlans();
+      ampelnList = computeRealAmpeln(plan, weekNo, iso, logs, dps);
+      if (info.kind === "kraft") {
+        const dp = dps[iso] || { removed: [], added: [] };
+        const exercises = effectiveExercisesFor(info, dp);
+        const done = exercises.filter((ex) => logs.some((l) => l.date === iso && l.exercise === slug(ex.name) && l.completed)).length;
+        doneToday = exercises.length > 0 && done === exercises.length;
+      }
+    }
+
+    const zone = plan.zones.find((z) => z.id === "z2");
+    const aerobe = metrics.aerobeEffizienz(aerobeWeeklyData(plan, weekNo), zone);
+
+    const input = coach.buildDailyInput({
+      iso, week: weekNo, weekType: week.weekType, phase: phaseOf(plan, weekNo).name,
+      goal: plan.goal, today: todayFieldFor(info, doneToday), ampeln: ampelnList,
+      next: nextSessionLabel(plan, iso), aerobeEffizienzTrend: aerobe.deltaText,
+    });
+    const hash = await coach.hashInput(input);
+    const fallbackText = coach.fallbackDaily(ampelnList);
+
+    const result = await coach.requestCoach({
+      hash,
+      loadDoc: () => loadCoach(iso),
+      saveDoc: (data) => saveCoach(iso, data),
+      fetchWorker: () => fetch(COACH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+      limit: THRESHOLDS.coach.dailyLimit,
+      model: COACH_MODEL,
+      promptVersion: COACH_PROMPT_VERSION,
+      fallbackText,
+    });
+
+    patchCoachSlot(dash.coachTextHTML(result.text));
+  } catch (err) {
+    console.error(err);
+    // Nie eine Fehlerkarte (F6) — Platzhalter bleibt stehen, wenn selbst der
+    // Fallback nicht zustande kommt (z. B. Plan-/Zonen-Zugriff schlägt fehl).
   }
 }
 
