@@ -14,13 +14,13 @@
 //   damit der Fehler nicht mit einem Strava- oder Firebase-Problem
 //   verwechselt wird.
 
-import { validatePlan } from "./plan.js?v=202609281043";
+import { validatePlan } from "./plan.js?v=202609281048";
 
 const PLAN_ID = "hm-2027";
 // Von `npm run version` gepflegt (tools/bump-version.mjs) — siehe
 // tests/version.test.mjs, das prüft, dass dieser Stempel mit allen anderen
 // übereinstimmt.
-const PLAN_URL = new URL("./plans/hm-2027.json?v=202609281043", import.meta.url);
+const PLAN_URL = new URL("./plans/hm-2027.json?v=202609281048", import.meta.url);
 
 export class PlanLoadError extends Error {
   constructor(message) {

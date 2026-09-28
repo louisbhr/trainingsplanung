@@ -3,22 +3,22 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202609281043";
-import { loadPlans } from "./plan-store.js?v=202609281043";
+} from "./plan.js?v=202609281048";
+import { loadPlans } from "./plan-store.js?v=202609281048";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans,
-} from "./firebase-init.js?v=202609281043";
+} from "./firebase-init.js?v=202609281048";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202609281043";
-import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202609281043";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281043";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202609281043";
-import * as dash from "./view-dashboard.js?v=202609281043";
-import * as metrics from "./metrics.js?v=202609281043";
-import { THRESHOLDS } from "./config.js?v=202609281043";
+} from "./strava.js?v=202609281048";
+import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202609281048";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281048";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202609281048";
+import * as dash from "./view-dashboard.js?v=202609281048";
+import * as metrics from "./metrics.js?v=202609281048";
+import { THRESHOLDS } from "./config.js?v=202609281048";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 
@@ -232,6 +232,7 @@ function paintDashboardMain(iso, dayState, plan) {
     <div id="detail-slot">${dash.detailPlaceholderHTML()}</div>`;
   fillTodayCard(iso, dayState, plan);
   fillAmpeln(iso, dayState, plan);
+  fillDetail(iso, dayState, plan);
 }
 
 function refreshTodaySlot(iso, dayState, plan) {
@@ -385,6 +386,138 @@ async function fillAmpeln(iso, dayState, plan) {
       const slot = document.getElementById("ampel-slot");
       if (slot) slot.innerHTML = dash.ampelGridHTML(list);
     }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// ---------- "Im Detail" (F8, M2-6) ----------
+function weeksOfCurrentPhase(plan, weekNo) {
+  const phase = phaseOf(plan, weekNo);
+  return plan.weeks.filter((w) => w.n >= phase.weeks.from && w.n <= phase.weeks.to);
+}
+
+// Ist-km einer Woche aus den zugeordneten Läufen (runAssignment deckt schon
+// den ganzen Plan ab, nicht nur die aktuelle Woche). 0 ist ein gültiger
+// Wert (kein Lauf zugeordnet) — nur künftige Wochen bleiben null, damit dort
+// kein Ist-Balken gezeichnet wird (D2).
+function actualKmForWeek(plan, weekNo, currentWeekNo) {
+  const week = weekOf(plan, weekNo);
+  if (!week || week.placeholder || weekNo > currentWeekNo) return null;
+  let total = 0;
+  for (const s of sessionsFor(plan, weekNo).filter((x) => x.kind === "lauf")) {
+    const a = runAssignment[s.date];
+    if (a?.run) total += a.run.distanceKm;
+  }
+  return total;
+}
+
+// Zugeordnete Läufe je Woche (1..bis) für die aerobe Effizienz — auch aus
+// Wochen außerhalb der aktuellen Phase, deshalb unabhängig von
+// weeksOfCurrentPhase.
+function aerobeWeeklyData(plan, uptoWeekNo) {
+  const out = [];
+  for (let n = 1; n <= uptoWeekNo; n++) {
+    const week = weekOf(plan, n);
+    if (!week || week.placeholder) continue;
+    const runs = sessionsFor(plan, n)
+      .filter((s) => s.kind === "lauf")
+      .map((s) => runAssignment[s.date]?.run)
+      .filter(Boolean)
+      .map((r) => ({ paceSecPerKm: r.paceSecPerKm, avgHr: r.avgHr }));
+    out.push({ week: n, runs });
+  }
+  return out;
+}
+
+// Adhärenz 4 Wochen: erledigte vs. geplante Einheiten (Ruhetage sind in
+// sessions[] ohnehin nicht enthalten) der letzten 28 Tage über alle Wochen.
+function adherence4wData(plan, iso, logs, dayPlans) {
+  const from = addDays(iso, -27);
+  let planned = 0, done = 0;
+  for (const week of plan.weeks) {
+    if (week.placeholder) continue;
+    for (const s of sessionsFor(plan, week.n)) {
+      if (s.date < from || s.date > iso) continue;
+      planned++;
+      if (s.kind === "lauf") {
+        if (runAssignment[s.date]?.run) done++;
+      } else if (s.kind === "kraft") {
+        const dp = dayPlans[s.date] || { removed: [], added: [] };
+        const exercises = effectiveExercisesFor(s, dp);
+        const doneCount = exercises.filter((ex) =>
+          logs.some((l) => l.date === s.date && l.exercise === slug(ex.name) && l.completed)
+        ).length;
+        if (exercises.length > 0 && doneCount === exercises.length) done++;
+      }
+    }
+  }
+  return metrics.adherence4w(done, planned);
+}
+
+// "Als Nächstes": nächster Long Run, Typ der nächsten Woche, nächste
+// Re-Kalibrierung.
+function nextUpLines(plan, iso, currentWeekNo) {
+  let nextLong = null;
+  for (const week of plan.weeks) {
+    if (week.placeholder) continue;
+    for (const s of sessionsFor(plan, week.n).filter((x) => x.kind === "lauf" && x.shortType === "Long")) {
+      if (s.date >= iso && (!nextLong || s.date < nextLong.date)) nextLong = s;
+    }
+  }
+  const nextWeek = weekOf(plan, currentWeekNo + 1);
+  const nextRecal = (plan.recalibrationDates || []).find((d) => d >= iso);
+  return [
+    nextLong ? `Nächster Long Run: ${dayNameDE(nextLong.date)} ${shortDate(nextLong.date)}, ${nextLong.dist}` : "Kein weiterer Long Run geplant",
+    nextWeek ? `Nächste Woche: ${nextWeek.weekType}` : "Letzte Planwoche",
+    nextRecal ? `Re-Kalibrierung: ${shortDate(nextRecal)}` : "Keine weitere Re-Kalibrierung geplant",
+  ];
+}
+
+function patchDetailSlot(html) {
+  if (state.tab !== "dashboard" || state.selectedDate) return;
+  const slot = document.getElementById("detail-slot");
+  if (slot) slot.innerHTML = html;
+}
+
+async function fillDetail(iso, dayState, plan) {
+  try {
+    await loadStrava();
+    if (dayState !== "woche") {
+      // F7: nach Planende/in der Rennlücke/ohne Plan bleibt höchstens die
+      // Aerobe-Effizienz-Karte übrig, kein "Im Detail"-Label, kein Rest.
+      let html = "";
+      if (plan) {
+        const zone = plan.zones.find((z) => z.id === "z2");
+        const aerobe = metrics.aerobeEffizienz(aerobeWeeklyData(plan, plan.totalWeeks), zone);
+        html = dash.aerobeCardHTML(aerobe);
+      }
+      patchDetailSlot(html);
+      return;
+    }
+    const weekNo = weekNumberFor(plan, iso);
+    const week = weekOf(plan, weekNo);
+    if (week.placeholder) {
+      patchDetailSlot(dash.detailPlaceholderHTML());
+      return;
+    }
+    const { logs, dps } = await ensureAllLogsAndDayPlans();
+    const phaseWeeks = weeksOfCurrentPhase(plan, weekNo);
+    const actualKmByWeek = {};
+    for (const w of phaseWeeks) actualKmByWeek[w.n] = actualKmForWeek(plan, w.n, weekNo);
+    const volume = metrics.weeklyVolume(phaseWeeks, actualKmByWeek, weekNo);
+    const zone = plan.zones.find((z) => z.id === "z2");
+    const aerobe = metrics.aerobeEffizienz(aerobeWeeklyData(plan, weekNo), zone);
+    const adherence = adherence4wData(plan, iso, logs, dps);
+    const nextLines = nextUpLines(plan, iso, weekNo);
+
+    patchDetailSlot(`<p class="section-label">Im Detail</p>
+      ${dash.volumeCardHTML(volume)}
+      ${dash.aerobeCardHTML(aerobe)}
+      <div class="metric-grid">
+        ${dash.adherenceTileHTML(adherence)}
+        ${dash.nextUpTileHTML(nextLines)}
+      </div>`);
   } catch (err) {
     console.error(err);
   }

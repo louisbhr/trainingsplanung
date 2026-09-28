@@ -133,7 +133,9 @@ async function noHScroll(page, where) {
   ok(today.includes("Ist-Werte werden nach dem Lauf aus Strava geladen"), "Dashboard: Lauftag wartet sichtbar auf Strava, blockiert aber nicht");
   ok((await page.locator("#coach-slot .coach-card").count()) === 1, "Dashboard: Coach-Platzhalter rendert sofort");
   ok((await page.locator("#ampel-slot .ampel-tile").count()) === 4, "Dashboard: vier Ampel-Kacheln (Platzhalter) sofort da");
-  ok((await page.locator("#detail-slot .card").count()) === 1, "Dashboard: 'Im Detail'-Platzhalter sofort da");
+  // Placeholder oder (falls das schnelle Nachladen inzwischen durch ist)
+  // schon die echten "Im Detail"-Karten — beides zeigt: nichts blockiert.
+  ok((await page.locator("#detail-slot .card").count()) >= 1, "Dashboard: 'Im Detail' rendert sofort etwas, blockiert nicht");
   await shot(page, "01-dashboard-nicht-verbunden");
   await noHScroll(page, "Dashboard");
   ok(errors.length === 0, "Dashboard: keine Konsolenfehler " + JSON.stringify(errors));
@@ -243,6 +245,21 @@ async function noHScroll(page, where) {
      `Ampel Kraft-Progression: Detailtext nennt die schlechteste Übung zuerst (${byTitle["Kraft-Progression"].detail})`);
   ok(["st-gruen", "st-gelb", "st-rot", "st-grau"].includes(byTitle["Easy-Disziplin"].status),
      `Ampel Easy-Disziplin: rechnet, ohne hängen zu bleiben (${byTitle["Easy-Disziplin"].status})`);
+
+  // "Im Detail" (F8, M2-6): Wochenvolumen der aktuellen Phase (Woche 1–8),
+  // Aerobe Effizienz, Adhärenz 4 Wochen, "Als Nächstes".
+  await page.waitForSelector("#detail-slot .si-bar-col");
+  ok((await page.locator("#detail-slot .si-bar-col").count()) === 8, "Im Detail: Wochenvolumen zeigt alle 8 Wochen der Phase 'Basis'");
+  ok((await page.textContent("#detail-slot .si-bar-label.current")) === "W2", "Im Detail: aktuelle Woche im Wochenvolumen hervorgehoben");
+  ok((await page.locator("#detail-slot .si-bar-col").nth(2).locator(".si-bar-ist").count()) === 0,
+     "Im Detail: künftige Woche (W3) zeigt keinen Ist-Balken");
+  const detailTxt = await page.textContent("#detail-slot");
+  ok(detailTxt.includes("-15 s/km seit Woche 1"), `Im Detail: Aerobe Effizienz nennt das Delta seit der ersten Woche mit Daten (${detailTxt.match(/[-+]\d+ s\/km[^.]*/)?.[0]})`);
+  ok(detailTxt.includes("50 %") && detailTxt.includes("3 von 6 Einheiten"),
+     `Im Detail: Adhärenz 4 Wochen (${detailTxt.match(/\d+ %/)?.[0]}, ${detailTxt.match(/\d+ von \d+ Einheiten/)?.[0]})`);
+  ok(detailTxt.includes("Nächster Long Run: Sa 12.09., 13 km"), "Im Detail: nächster Long Run");
+  ok(detailTxt.includes("Nächste Woche: Aufbau"), "Im Detail: Typ der nächsten Woche");
+  ok(detailTxt.includes("Re-Kalibrierung: 25.10."), "Im Detail: nächste Re-Kalibrierung aus dem Plan-Objekt");
 
   // Info-Sheet (D1): öffnen per Klick, Grenzwerte aus THRESHOLDS im Text,
   // per Escape schließen, Fokus kehrt zum Info-Knopf zurück.
