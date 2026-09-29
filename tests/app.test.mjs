@@ -178,6 +178,13 @@ async function noHScroll(page, where) {
 // ---- 2b. Dashboard, Krafttag: Starten -> Übung -> Kraft-Tagesansicht -> zurück (F4) ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   const page = await ctx.newPage();
   const errors = [];
@@ -293,33 +300,91 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
-// ---- 2d. Dashboard: Coach — Cache, Escaping, Fallback (M2-9) ----
+// ---- 2d. Dashboard: Coach — Cache, Escaping, Fallback (M2-9/M2-10) ----
+// 07.09.2026 ist ein Montag (Woche 2) mit einer echten Vorwoche (Woche 1,
+// nicht platzhaltergefüllt) — hier lösen also sowohl der Tagessatz als auch
+// die Wochenbilanz je einen eigenen /coach-Request aus (unterschieden über
+// das "kind"-Feld im Request-Body, wie im Worker-Schema).
 {
   const { page, ctx, errors } = await newPage({ connected: true });
-  let coachRequests = 0;
+  const requestKinds = [];
   await ctx.route("https://worker.test/coach", (r) => {
-    coachRequests++;
+    const body = JSON.parse(r.request().postData() || "{}");
+    requestKinds.push(body.kind);
     r.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ text: '<img src=x onerror="window.__xss=1">', kind: "daily", model: "m", promptVersion: "v1" }),
+      body: JSON.stringify({ text: '<img src=x onerror="window.__xss=1">', kind: body.kind, model: "m", promptVersion: "v1" }),
     });
   });
+  const countKind = (k) => requestKinds.filter((x) => x === k).length;
+
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#coach-slot .coach-card");
   await page.waitForFunction(() => document.querySelector("#coach-slot .text")?.textContent.includes("<img"));
   const coachTxt = await page.textContent("#coach-slot .text");
   ok(coachTxt.includes("<img src=x"), `Coach: KI-Text wird als Text angezeigt, nicht ausgeführt (${coachTxt})`);
   ok((await page.evaluate(() => window.__xss)) === undefined, "Coach: eingebetteter onerror-Handler wird NICHT ausgeführt (A5)");
-  ok(coachRequests === 1, `Coach: genau ein Request beim ersten Laden (${coachRequests})`);
 
-  // Gleicher Hash beim erneuten Aufruf des Dashboards -> kein zweiter Request.
+  // Montag -> Wochenbilanz automatisch ausgeklappt (F6/D4), gleiche Escaping-Regel.
+  await page.waitForSelector("#coach-slot .bilanz-heading");
+  await page.waitForFunction(() => document.querySelector("#coach-slot .bilanz-body")?.textContent.includes("<img"));
+  ok((await page.evaluate(() => window.__xss)) === undefined, "Wochenbilanz: eingebetteter onerror-Handler wird NICHT ausgeführt (A5)");
+  ok(countKind("daily") === 1, `Coach: genau ein daily-Request beim ersten Laden (${JSON.stringify(requestKinds)})`);
+  ok(countKind("weekly") === 1, `Coach: genau ein weekly-Request für die Wochenbilanz (${JSON.stringify(requestKinds)})`);
+
+  // Gleicher Hash beim erneuten Aufruf des Dashboards -> kein zweiter Request je kind.
   await page.click('[data-tab="verlauf"]');
   await page.click('[data-tab="dashboard"]');
   await page.waitForSelector("#coach-slot .coach-card");
   await page.waitForTimeout(300);
-  ok(coachRequests === 1, `Coach: gleicher Hash löst keinen zweiten Request aus (${coachRequests})`);
+  ok(countKind("daily") === 1, `Coach: gleicher Hash löst keinen zweiten daily-Request aus (${JSON.stringify(requestKinds)})`);
+  ok(countKind("weekly") === 1, `Coach: gleicher Hash löst keinen zweiten weekly-Request aus (${JSON.stringify(requestKinds)})`);
   await shot(page, "02d-dashboard-coach");
   ok(errors.length === 0, "Coach: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 2d-2. Wochenbilanz an einem anderen Wochentag: eingeklappt, per Tap auf (M2-10) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => {
+    const page = new URL(r.request().url()).searchParams.get("page");
+    r.fulfill({ contentType: "application/json", body: JSON.stringify(page === "1" ? ACTIVITIES : []) });
+  });
+  await ctx.route("https://worker.test/coach", (r) => {
+    const body = JSON.parse(r.request().postData() || "{}");
+    r.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ text: body.kind === "weekly" ? "Wochenbilanz-Text." : "Tagessatz.", kind: body.kind, model: "m", promptVersion: "v1" }),
+    });
+  });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  await page.clock.setFixedTime(new Date("2026-09-08T09:00:00Z")); // Dienstag, Woche 2
+  await page.addInitScript(() => {
+    localStorage.setItem("hm-tracker.workerUrl", "https://worker.test");
+    localStorage.setItem("test.strava", JSON.stringify({ refresh_token: "rt", access_token: "at", expires_at: Math.floor(Date.now() / 1000) + 3600 }));
+  });
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForSelector('[data-action="toggle-bilanz"]');
+  const label = await page.textContent('[data-action="toggle-bilanz"]');
+  ok(label.includes("Wochenbilanz W1"), `Wochenbilanz: Kurzform nennt die bilanzierte Woche (${label.trim()})`);
+  ok((await page.locator("#bilanzBody").isVisible()) === false, "Wochenbilanz: an einem anderen Tag als Montag eingeklappt");
+  await page.click('[data-action="toggle-bilanz"]');
+  await page.waitForSelector("#bilanzBody:not([hidden])");
+  ok((await page.textContent("#bilanzBody")).includes("Wochenbilanz-Text."), "Wochenbilanz: per Tap aufklappbar");
+  await noHScroll(page, "Wochenbilanz eingeklappt");
+  ok(errors.length === 0, "Wochenbilanz eingeklappt: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
@@ -341,6 +406,13 @@ async function noHScroll(page, where) {
 // ---- 2f. Coach: Dokument nicht lesbar -> kein API-Aufruf (A4) ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({
     contentType: "application/javascript",
     body: `
@@ -536,6 +608,13 @@ async function noHScroll(page, where) {
 // ---- 7. Zeitzonen-Regression: 00:30 Berlin = Vortag in UTC ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-08T22:30:00Z")); // = 09.09. 00:30 Berlin
@@ -550,6 +629,13 @@ async function noHScroll(page, where) {
 // ---- 8. Worker nicht konfiguriert -> klarer Hinweis statt Hänger ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   // config.js hat inzwischen eine echte Worker-URL — den unkonfigurierten
   // Zustand deshalb hier gezielt nachstellen.
@@ -658,6 +744,13 @@ async function noHScroll(page, where) {
 // ---- 9. Firestore verweigert Zugriff: als Firebase-Problem erkennbar ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({
     contentType: "application/javascript",
     body: `
@@ -1010,6 +1103,13 @@ async function noHScroll(page, where) {
 // ---- 17. Plan-JSON 404, aber eine gültige Kopie in localStorage (A1) ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
   const page = await ctx.newPage();
@@ -1039,6 +1139,13 @@ async function noHScroll(page, where) {
 // ---- 18. Plan-JSON 404, keine Kopie vorhanden (A1) ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
   const page = await ctx.newPage();
@@ -1055,6 +1162,13 @@ async function noHScroll(page, where) {
 // ---- 19. Plan-JSON kaputt (kein gültiges JSON) — wie 404 behandelt ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: "{ kaputt" }));
   const page = await ctx.newPage();
@@ -1068,6 +1182,13 @@ async function noHScroll(page, where) {
 // ---- 19b. Plan-JSON 404 + Kopie mit passender schemaVersion, aber ungültiger Form (K1) ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
   const page = await ctx.newPage();
@@ -1087,6 +1208,13 @@ async function noHScroll(page, where) {
 // ---- 20. Simuliertes Datum in der Rennlücke -> "Bis zum Rennen" (A8/E7) ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   const page = await ctx.newPage();
   const errors = [];
@@ -1106,6 +1234,13 @@ async function noHScroll(page, where) {
 // ---- 21. Datum nach dem Renntag -> "Kein aktiver Plan" (A8/E7) ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   let coachRequests = 0;
   await ctx.route("https://worker.test/coach", (r) => { coachRequests++; r.fulfill({ contentType: "application/json", body: "{}" }); });
@@ -1134,6 +1269,13 @@ async function noHScroll(page, where) {
 // ---- 22. Datum vor Planstart -> Woche 1, nicht Woche 31 (I3) ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-08-25T09:00:00Z")); // vor Planstart 31.08.2026
@@ -1155,6 +1297,13 @@ async function noHScroll(page, where) {
 // ---- 23. Die Kopie wird beim normalen Laden wirklich geschrieben (I2) ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
@@ -1181,6 +1330,13 @@ async function noHScroll(page, where) {
 // ---- 24. Kopie mit fremder schemaVersion wird ignoriert (I2) ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
   const page = await ctx.newPage();
@@ -1198,6 +1354,13 @@ async function noHScroll(page, where) {
 // ---- 25. Plan-Hinweis und Strava-Redirect gleichzeitig -> beide Hinweise sichtbar (M4) ----
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
   await ctx.route("https://worker.test/**", (r) =>
@@ -1225,6 +1388,13 @@ async function noHScroll(page, where) {
 // beiden Fällen dieselbe TypeError. route.abort() simuliert genau das.
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
+  // den produktiven Worker, falls dieser Testkontext keine eigene
+  // Worker-URL/​eigenen /coach-Stub setzt — das Dashboard ruft jetzt auf
+  // jedem Render fillCoach()/fillWeeklyBilanz() auf. fulfill() statt
+  // abort(), damit kein "Failed to load resource"-Netzwerkprotokoll
+  // bestehende "keine Konsolenfehler"-Prüfungen anderer Tests verfälscht.
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
   await ctx.route("https://worker.test/**", (r) => r.abort("failed"));

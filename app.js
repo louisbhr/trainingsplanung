@@ -3,24 +3,25 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202609281116";
-import { loadPlans } from "./plan-store.js?v=202609281116";
+} from "./plan.js?v=202609290821";
+import { loadPlans } from "./plan-store.js?v=202609290821";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
-} from "./firebase-init.js?v=202609281116";
+  loadCoachWeek, saveCoachWeek,
+} from "./firebase-init.js?v=202609290821";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202609281116";
-import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202609281116";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609281116";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202609281116";
-import * as dash from "./view-dashboard.js?v=202609281116";
-import * as dashWeek from "./view-week.js?v=202609281116";
-import * as metrics from "./metrics.js?v=202609281116";
-import * as coach from "./coach.js?v=202609281116";
-import { THRESHOLDS, COACH_URL } from "./config.js?v=202609281116";
+} from "./strava.js?v=202609290821";
+import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202609290821";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609290821";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202609290821";
+import * as dash from "./view-dashboard.js?v=202609290821";
+import * as dashWeek from "./view-week.js?v=202609290821";
+import * as metrics from "./metrics.js?v=202609290821";
+import * as coach from "./coach.js?v=202609290821";
+import { THRESHOLDS, COACH_URL } from "./config.js?v=202609290821";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -51,6 +52,7 @@ const state = {
   historyMode: "kraft",
   historyExercise: null,
   todayExpanded: false, // "Heute dran" (Kraft): Übungsliste auf-/zugeklappt
+  bilanzExpanded: false, // Wochenbilanz Di–So: eingeklappt, per Tap aufklappbar (Mo startet automatisch offen)
 };
 
 // Wochennummer für den Wochen-Tab: innerhalb einer Planwoche die echte
@@ -232,6 +234,10 @@ function todayCardSlotHTML(iso, dayState, plan) {
 }
 
 function paintDashboardMain(iso, dayState, plan) {
+  // Neuer Tag/neue Woche: kein Rest vom vorigen Coach-Render übernehmen.
+  coachDailyText = null;
+  coachBilanzInfo = null;
+  state.bilanzExpanded = false;
   main.innerHTML = `
     <div id="today-slot">${todayCardSlotHTML(iso, dayState, plan)}</div>
     <div id="coach-slot">${dayState === "keinPlan" ? dash.coachNoPlanHTML(COACH_NO_PLAN_TEXT) : dash.coachPlaceholderHTML()}</div>
@@ -241,6 +247,7 @@ function paintDashboardMain(iso, dayState, plan) {
   fillAmpeln(iso, dayState, plan);
   fillDetail(iso, dayState, plan);
   fillCoach(iso, dayState, plan);
+  fillWeeklyBilanz(iso, dayState, plan);
 }
 
 function refreshTodaySlot(iso, dayState, plan) {
@@ -560,6 +567,24 @@ function patchCoachSlot(html) {
   if (slot) slot.innerHTML = html;
 }
 
+// Tagessatz und Wochenbilanz laufen als zwei unabhängige, unterschiedlich
+// schnelle Anfragen (fillCoach/fillWeeklyBilanz) gegen denselben Slot —
+// beide schreiben deshalb nie direkt, sondern nur über renderCoachSlot(),
+// das den jeweils aktuellen Stand beider Teile kombiniert. Ohne das würde
+// die zuerst fertige Anfrage von der zweiten überschrieben, statt ergänzt.
+let coachDailyText = null;
+let coachBilanzInfo = null; // { weekN, text, expanded } | null
+
+function renderCoachSlot() {
+  if (coachDailyText == null) return; // Tagessatz noch nicht da — nichts überschreiben
+  const bilanzHTML = !coachBilanzInfo
+    ? ""
+    : coachBilanzInfo.expanded
+    ? dash.bilanzExpandedHTML(coachBilanzInfo.weekN, coachBilanzInfo.text)
+    : dash.bilanzCollapsedHTML(coachBilanzInfo.weekN, state.bilanzExpanded, coachBilanzInfo.text);
+  patchCoachSlot(dash.coachTextHTML(coachDailyText, bilanzHTML));
+}
+
 // Baut die Ampel-Liste + Kraft-heute-erledigt ohne erneuten Strava-/
 // Firestore-Zugriff (nutzt, was fillAmpeln/fillDetail ohnehin schon lädt/
 // cacht) und ruft darüber requestCoach() auf. Fehler landen nie als
@@ -617,11 +642,112 @@ async function fillCoach(iso, dayState, plan) {
       fallbackText,
     });
 
-    patchCoachSlot(dash.coachTextHTML(result.text));
+    coachDailyText = result.text;
+    renderCoachSlot();
   } catch (err) {
     console.error(err);
     // Nie eine Fehlerkarte (F6) — Platzhalter bleibt stehen, wenn selbst der
     // Fallback nicht zustande kommt (z. B. Plan-/Zonen-Zugriff schlägt fehl).
+  }
+}
+
+// ---------- Wochenbilanz montags (F6, M2-10) ----------
+function weeklyRunData(plan, weekNo) {
+  const laufSessions = sessionsFor(plan, weekNo).filter((s) => s.kind === "lauf");
+  const plannedKm = laufSessions.reduce((a, s) => a + s.km, 0);
+  let actualKm = 0, sessionsDone = 0;
+  const easyOverLimit = [];
+  for (const s of laufSessions) {
+    const a = runAssignment[s.date];
+    if (!a?.run) continue;
+    actualKm += a.run.distanceKm;
+    sessionsDone++;
+    if (a.run.avgHr != null && a.run.avgHr > s.hfMax) {
+      easyOverLimit.push({ day: dayNameDE(s.date), avgHr: Math.round(a.run.avgHr), limit: s.hfMax });
+    }
+  }
+  return {
+    plannedKm, actualKm: Math.round(actualKm * 10) / 10,
+    sessionsPlanned: laufSessions.length, sessionsDone,
+    easyOverLimit: easyOverLimit.slice(0, 7),
+  };
+}
+
+function weeklyKraftData(plan, weekNo, logs, dps, kraftAmpelResults) {
+  const kraftSessions = sessionsFor(plan, weekNo).filter((s) => s.kind === "kraft");
+  let sessionsDone = 0;
+  for (const s of kraftSessions) {
+    const dp = dps[s.date] || { removed: [], added: [] };
+    const exercises = effectiveExercisesFor(s, dp);
+    const done = exercises.filter((ex) => logs.some((l) => l.date === s.date && l.exercise === slug(ex.name) && l.completed)).length;
+    if (exercises.length > 0 && done === exercises.length) sessionsDone++;
+  }
+  // metrics.kraftProgression kennt nur "ok"/"stagniert"/"unterSoll" (reicht
+  // für die Ampel); die Wochenbilanz braucht die feinere Worker-Enum
+  // steigt/haelt/stagniert/unterSoll — "ok" wird vereinfachend als "steigt"
+  // gemeldet (bewusste Vereinfachung, siehe Bericht des coders).
+  const progression = (kraftAmpelResults || []).slice(0, 12).map((r) => ({
+    exercise: r.name,
+    status: r.status === "unterSoll" ? "unterSoll" : r.status === "stagniert" ? "stagniert" : "steigt",
+    detail: `${r.reps.split("/").length}× ${r.topKg} kg`,
+  }));
+  return { sessionsPlanned: kraftSessions.length, sessionsDone, progression };
+}
+
+// Wird erst ausgelöst, sobald Strava geladen ist, und nur, wenn es eine
+// zurückliegende (nicht platzhaltergefüllte) Planwoche zu bilanzieren gibt.
+async function fillWeeklyBilanz(iso, dayState, plan) {
+  if (dayState !== "woche") return;
+  try {
+    await loadStrava();
+    const weekNo = weekNumberFor(plan, iso);
+    if (!coach.weeklyDue({ weekNo, hasStrava: !!stravaState.connected })) return;
+
+    const summarizedWeekNo = weekNo - 1;
+    const summarizedWeek = weekOf(plan, summarizedWeekNo);
+    if (!summarizedWeek || summarizedWeek.placeholder) return;
+
+    const { logs, dps } = await ensureAllLogsAndDayPlans();
+    const kraftResult = metrics.kraftProgression(kraftHistoryByExercise(logs, iso, THRESHOLDS.kraft.windowDays), THRESHOLDS);
+    const belastungResult = metrics.belastung(stravaState.runs || [], iso, THRESHOLDS);
+    const zone = plan.zones.find((z) => z.id === "z2");
+    const aerobe = metrics.aerobeEffizienz(aerobeWeeklyData(plan, weekNo), zone);
+    const adherence = adherence4wData(plan, iso, logs, dps);
+    const currentWeek = weekOf(plan, weekNo);
+
+    const input = coach.buildWeeklyInput({
+      goal: plan.goal, week: summarizedWeekNo, weekType: summarizedWeek.weekType,
+      phase: phaseOf(plan, summarizedWeekNo).name,
+      run: weeklyRunData(plan, summarizedWeekNo),
+      kraft: weeklyKraftData(plan, summarizedWeekNo, logs, dps, kraftResult.results),
+      belastung: { ratio: belastungResult.ratio ?? 0, status: belastungResult.status },
+      aerobeEffizienzTrend: aerobe.deltaText,
+      adherence4w: adherence,
+      nextWeek: { n: weekNo, type: currentWeek?.weekType ?? "-", keySession: nextSessionLabel(plan, iso) },
+    });
+    const hash = await coach.hashInput(input);
+    const key = `${plan.id}_W${summarizedWeekNo}`;
+    const fallbackText = coach.fallbackWeekly(input);
+
+    const result = await coach.requestCoach({
+      hash,
+      loadDoc: () => loadCoachWeek(key),
+      saveDoc: (data) => saveCoachWeek(key, data),
+      fetchWorker: () => fetch(COACH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+      limit: THRESHOLDS.coach.weeklyLimit,
+      model: COACH_MODEL,
+      promptVersion: COACH_PROMPT_VERSION,
+      fallbackText,
+    });
+
+    coachBilanzInfo = { weekN: summarizedWeekNo, text: result.text, expanded: dayNameDE(iso) === "Mo" };
+    renderCoachSlot();
+  } catch (err) {
+    console.error(err);
   }
 }
 
@@ -1658,6 +1784,7 @@ document.getElementById("app").addEventListener("click", async (e) => {
     return;
   }
   if (action === "close-info") return closeInfo();
+  if (action === "toggle-bilanz") { state.bilanzExpanded = !state.bilanzExpanded; return renderCoachSlot(); }
   if (action === "week-prev") { state.weekNo = Math.max(1, state.weekNo - 1); return render(); }
   if (action === "week-next") { state.weekNo = Math.min(plans[0].totalWeeks, state.weekNo + 1); return render(); }
   if (action === "week-today") { state.weekNo = weekNoForTab(todayISO()); return render(); }

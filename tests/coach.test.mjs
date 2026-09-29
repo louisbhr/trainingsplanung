@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildDailyInput, hashInput, decideGeneration, fallbackDaily, requestCoach } from "../coach.js";
+import { buildDailyInput, hashInput, decideGeneration, fallbackDaily, requestCoach, weeklyDue, fallbackWeekly } from "../coach.js";
 
 const GOAL = { distance: "Halbmarathon", targetTime: "1:29:59", raceDate: "2027-04-11", raceDateConfirmed: false };
 
@@ -183,6 +183,36 @@ test("requestCoach: Worker antwortet nicht ok -> Fallback", async () => {
     limit: 3, model: "m", promptVersion: "v1", fallbackText: "Fallback-Satz.",
   });
   assert.equal(result.source, "fallback");
+});
+
+// ---------- weeklyDue (M2-10) ----------
+// Der Wochentag entscheidet nur über ein-/ausgeklappt (F6), nicht über
+// weeklyDue selbst — "ab Montag der neuen Woche" heißt: den ganzen
+// Rest der Woche fällig, falls Montag übersprungen wurde.
+test("weeklyDue: Montag der neuen Woche, mit Strava -> fällig", () => {
+  assert.equal(weeklyDue({ weekNo: 5, hasStrava: true }), true);
+});
+test("weeklyDue: später in der Woche (Montag übersprungen), mit Strava -> weiterhin fällig", () => {
+  assert.equal(weeklyDue({ weekNo: 5, hasStrava: true }), true);
+});
+test("weeklyDue: ohne Strava -> nicht fällig", () => {
+  assert.equal(weeklyDue({ weekNo: 5, hasStrava: false }), false);
+});
+test("weeklyDue: Woche 1 hat keine vorherige Woche zu bilanzieren -> nicht fällig", () => {
+  assert.equal(weeklyDue({ weekNo: 1, hasStrava: true }), false);
+});
+
+// ---------- fallbackWeekly ----------
+test("fallbackWeekly: nennt Laufumfang, Kraft-Trend und den Schwerpunkt der neuen Woche", () => {
+  const text = fallbackWeekly({
+    run: { plannedKm: 24, actualKm: 24.3, sessionsPlanned: 3, sessionsDone: 3, easyOverLimit: [] },
+    kraft: { sessionsPlanned: 2, sessionsDone: 2, progression: [{ exercise: "Squats", status: "stagniert", detail: "3× 60 kg" }] },
+    belastung: { ratio: 0.72, status: "gruen" },
+    nextWeek: { n: 5, type: "Aufbau", keySession: "Sa: Long Run 13 km" },
+  });
+  assert.match(text, /24.3 von 24 km/);
+  assert.match(text, /Squats/);
+  assert.match(text, /Aufbau/);
 });
 
 test("requestCoach: Dokument nicht schreibbar -> Fallback, kein API-Aufruf (Limit sonst wirkungslos)", async () => {

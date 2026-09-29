@@ -4,7 +4,7 @@
 // (loadCoach/saveCoach) und der HTTP-Aufruf werden von außen als Funktionen
 // hereingereicht (requestCoach), damit sich alles ohne Browser testen lässt
 // (tests/coach.test.mjs).
-import { worstStatus } from "./metrics.js?v=202609281116";
+import { worstStatus } from "./metrics.js?v=202609290821";
 
 // ---------- Eingabeschema "daily" (F6) ----------
 // goal hier ist das Plan-Objekt-goal ({ distance, raceDate, targetTime,
@@ -140,6 +140,16 @@ export function fallbackWeekly({ run, kraft, belastung, nextWeek }) {
   }
   parts.push(`Nächste Woche: ${nextWeek.type}, Schlüsseleinheit ${nextWeek.keySession}.`);
   return parts.join(" ");
+}
+
+// ---------- Wochenbilanz-Auslösung (F6, M2-10) ----------
+// Der Wochentag entscheidet nur, ob die Bilanz aus-/eingeklappt startet
+// (in app.js: dayNameDE(iso) === "Mo") — weeklyDue selbst ist absichtlich
+// wochentagsunabhängig: "ab Montag der neuen Woche" heißt, dass sie den
+// ganzen Rest der Woche fällig bleibt, falls Montag übersprungen wurde.
+// Woche 1 hat keine vorherige Planwoche zu bilanzieren.
+export function weeklyDue({ weekNo, hasStrava }) {
+  return !!hasStrava && weekNo > 1;
 }
 
 // ---------- Worker-Aufruf mit Firestore-Cache (A4) ----------
