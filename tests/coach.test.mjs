@@ -215,6 +215,30 @@ test("fallbackWeekly: nennt Laufumfang, Kraft-Trend und den Schwerpunkt der neue
   assert.match(text, /Aufbau/);
 });
 
+// M2 (Code-Review M2 Runde 1): "grau" ist auch "!== gruen" — ohne die
+// explizite Prüfung auf gelb/rot meldete der Fallback fälschlich "Gelb
+// (Verhältnis 0)" bei grauer Belastung.
+test("fallbackWeekly: bei grauer Belastung keine Belastungszeile (M2 Minor)", () => {
+  const text = fallbackWeekly({
+    run: { plannedKm: 24, actualKm: 24.3, sessionsPlanned: 3, sessionsDone: 3, easyOverLimit: [] },
+    kraft: { sessionsPlanned: 2, sessionsDone: 2, progression: [] },
+    belastung: { ratio: 0, status: "grau" },
+    nextWeek: { n: 5, type: "Aufbau", keySession: "Sa: Long Run 13 km" },
+  });
+  assert.ok(!/[Bb]elastung/.test(text), text);
+});
+
+test("fallbackWeekly: Verhältnis im Komma-Format bei roter Belastung (M2 Minor)", () => {
+  const text = fallbackWeekly({
+    run: { plannedKm: 24, actualKm: 24.3, sessionsPlanned: 3, sessionsDone: 3, easyOverLimit: [] },
+    kraft: { sessionsPlanned: 2, sessionsDone: 2, progression: [] },
+    belastung: { ratio: 1.67, status: "rot" },
+    nextWeek: { n: 5, type: "Aufbau", keySession: "Sa: Long Run 13 km" },
+  });
+  assert.match(text, /Verhältnis 1,67/);
+  assert.ok(!text.includes("1.67"), text);
+});
+
 test("requestCoach: Dokument nicht schreibbar -> Fallback, kein API-Aufruf (Limit sonst wirkungslos)", async () => {
   let fetchCalled = false;
   const result = await requestCoach({
@@ -226,4 +250,79 @@ test("requestCoach: Dokument nicht schreibbar -> Fallback, kein API-Aufruf (Limi
   });
   assert.equal(fetchCalled, false);
   assert.equal(result.source, "fallback");
+});
+
+// ---------- K2 (Code-Review M2 Runde 1): fehlgeschlagener Aufruf vergiftet
+// den Cache nicht ----------
+// Simuliert zwei echte Ladevorgänge über einen persistenten In-Memory-
+// "Firestore"-Zustand (merge:true wie firebase-init.js) statt mit
+// handgebauten Einzel-Dokumenten — genau das Szenario, das der Reviewer mit
+// dem echten Worker reproduziert hat: nach einem Fehlschlag hing die
+// Coach-Karte beim nächsten Laden dauerhaft im Platzhalter.
+test("requestCoach: ein fehlgeschlagener Aufruf schreibt weder inputHash noch Text — der nächste Aufruf mit demselben Hash versucht es erneut statt einen leeren Text zu cachen (K2)", async () => {
+  let store = null;
+  const merge = (patch) => { store = { ...(store || {}), ...patch }; };
+  let fetchCalls = 0;
+  const makeArgs = (shouldFail) => ({
+    hash: "h1",
+    loadDoc: async () => store,
+    saveDoc: async (data) => merge(data),
+    fetchWorker: async () => {
+      fetchCalls++;
+      if (shouldFail) throw new Error("worker down");
+      return { ok: true, json: async () => ({ text: "Echter Text." }) };
+    },
+    limit: 3, model: "m", promptVersion: "v1", fallbackText: "Fallback-Satz.",
+  });
+
+  const first = await requestCoach(makeArgs(true));
+  assert.equal(first.source, "fallback");
+  assert.equal(store.generations, 1);
+  assert.equal(store.text, undefined, "nach einem Fehlschlag darf kein Text im Dokument stehen");
+  assert.equal(store.inputHash, undefined, "nach einem Fehlschlag darf kein inputHash im Dokument stehen");
+
+  const second = await requestCoach(makeArgs(false));
+  assert.equal(fetchCalls, 2, "der zweite Aufruf mit demselben Hash muss es erneut versuchen statt zu cachen");
+  assert.equal(second.source, "api");
+  assert.equal(second.text, "Echter Text.");
+  assert.equal(store.text, "Echter Text.");
+  assert.equal(store.inputHash, "h1");
+});
+
+test("requestCoach: ein vorhandener alter Text bleibt nach einem Fehlschlag erhalten (merge:true), geht nicht verloren (K2)", async () => {
+  // Simuliert: gestern erfolgreich generiert (Hash h-alt), heute ändert
+  // sich der Input (Hash h-neu) und der Worker ist gerade nicht erreichbar.
+  let store = { inputHash: "h-alt", text: "Gestriger Text.", generations: 1, generatedAt: 1, model: "m", promptVersion: "v1" };
+  const merge = (patch) => { store = { ...store, ...patch }; };
+  const result = await requestCoach({
+    hash: "h-neu",
+    loadDoc: async () => store,
+    saveDoc: async (data) => merge(data),
+    fetchWorker: async () => { throw new Error("worker down"); },
+    limit: 3, model: "m", promptVersion: "v1", fallbackText: "Fallback-Satz.",
+  });
+  assert.equal(result.source, "fallback");
+  assert.equal(store.text, "Gestriger Text.", "der alte Text darf durch den Versuchs-Schreibvorgang nicht überschrieben werden");
+  assert.equal(store.inputHash, "h-alt", "der alte Hash darf nicht vorzeitig auf den neuen Input zeigen");
+});
+
+test("requestCoach: nach 3 Fehlschlägen in Folge kommt der Fallback, kein vierter Aufruf mehr (A4-Limit über echten Zustand)", async () => {
+  let store = null;
+  const merge = (patch) => { store = { ...(store || {}), ...patch }; };
+  let fetchCalls = 0;
+  const call = () => requestCoach({
+    hash: "h1",
+    loadDoc: async () => store,
+    saveDoc: async (data) => merge(data),
+    fetchWorker: async () => { fetchCalls++; throw new Error("worker down"); },
+    limit: 3, model: "m", promptVersion: "v1", fallbackText: "Fallback-Satz.",
+  });
+  await call();
+  await call();
+  await call();
+  assert.equal(fetchCalls, 3);
+  const fourth = await call();
+  assert.equal(fetchCalls, 3, "nach dem Limit folgt kein vierter Aufruf");
+  assert.equal(fourth.source, "fallback");
+  assert.equal(fourth.text, "Fallback-Satz.");
 });

@@ -4,7 +4,7 @@
 // (loadCoach/saveCoach) und der HTTP-Aufruf werden von außen als Funktionen
 // hereingereicht (requestCoach), damit sich alles ohne Browser testen lässt
 // (tests/coach.test.mjs).
-import { worstStatus } from "./metrics.js?v=202610020758";
+import { worstStatus } from "./metrics.js?v=202610020844";
 
 // ---------- Eingabeschema "daily" (F6) ----------
 // goal hier ist das Plan-Objekt-goal ({ distance, raceDate, targetTime,
@@ -88,8 +88,14 @@ export async function hashInput(input) {
 // doc: das aktuelle Firestore-Dokument (coach/{datum} bzw.
 // coachweek/{planId}_W{n}) oder null. Gibt nie selbst einen API-Aufruf
 // aus — das entscheidet requestCoach() anhand von action === "call".
+// "reuse" braucht zusätzlich einen vorhandenen Text (K2, Code-Review M2
+// Runde 1): requestCoach() schreibt vor dem Aufruf nur noch den
+// Versuchszähler, nie schon den (noch unbekannten) Text oder den Hash — ein
+// Dokument mit passendem Hash aber ohne Text ist also ein fehlgeschlagener
+// Versuch, kein gültiger Cache-Treffer. Ohne diese Prüfung hing die
+// Coach-Karte nach einem einzigen Worker-Fehler dauerhaft im Platzhalter.
 export function decideGeneration(doc, currentHash, limit) {
-  if (doc && doc.inputHash === currentHash) return { action: "reuse", text: doc.text };
+  if (doc && doc.inputHash === currentHash && doc.text) return { action: "reuse", text: doc.text };
   if (doc && doc.generations >= limit) return { action: "limited", text: doc.text };
   return { action: "call" };
 }
@@ -135,8 +141,12 @@ export function fallbackWeekly({ run, kraft, belastung, nextWeek }) {
       ? `Bei der Kraft hängt ${stuck[0].exercise} gerade fest.`
       : "Bei der Kraft geht es voran, nichts hängt fest."
   );
-  if (belastung.status !== "gruen") {
-    parts.push(`Die Belastung steht auf ${belastung.status === "rot" ? "Rot" : "Gelb"} (Verhältnis ${belastung.ratio}).`);
+  // M2 (Code-Review M2 Runde 1): nur bei gelb/rot erwähnen — belastung.status
+  // "grau" ist auch "!== gruen" und wurde vorher fälschlich als "Gelb"
+  // gemeldet. Komma-Format statt JS-Zahl ("0,72" statt "0.72").
+  if (belastung.status === "gelb" || belastung.status === "rot") {
+    const ratioText = Number(belastung.ratio ?? 0).toFixed(2).replace(".", ",");
+    parts.push(`Die Belastung steht auf ${belastung.status === "rot" ? "Rot" : "Gelb"} (Verhältnis ${ratioText}).`);
   }
   parts.push(`Nächste Woche: ${nextWeek.type}, Schlüsseleinheit ${nextWeek.keySession}.`);
   return parts.join(" ");
@@ -173,17 +183,25 @@ export async function requestCoach({ hash, loadDoc, saveDoc, fetchWorker, limit,
   }
 
   const generations = (doc?.generations ?? 0) + 1;
+  // K2: hier NUR den Versuch zählen — kein inputHash, kein text. saveDoc
+  // merged (Firestore merge:true), ein vorhandener alter Text bzw. Hash
+  // bleibt also unangetastet liegen. Schlägt der Aufruf unten fehl, sieht
+  // das nächste Laden mit demselben Hash deshalb KEIN "reuse" mit leerem
+  // Text (das war K2: die Coach-Karte hing danach dauerhaft im
+  // Platzhalter, bzw. zeigte bei vorhandenem alten Text fälschlich
+  // null/"wird vorbereitet" statt des alten Textes) — stattdessen wird bis
+  // zum Limit erneut versucht.
   try {
-    await saveDoc({ inputHash: hash, generations, generatedAt: Date.now(), text: doc?.text ?? null, model, promptVersion });
+    await saveDoc({ generations, attemptAt: Date.now(), model, promptVersion });
   } catch {
     return { text: fallbackText, source: "fallback" };
   }
 
-  let text;
+  let text, data;
   try {
     const res = await fetchWorker();
     if (!res.ok) throw new Error("worker not ok");
-    const data = await res.json();
+    data = await res.json();
     text = data?.text;
     if (!text) throw new Error("empty text");
   } catch {
@@ -191,7 +209,18 @@ export async function requestCoach({ hash, loadDoc, saveDoc, fetchWorker, limit,
   }
 
   try {
-    await saveDoc({ inputHash: hash, generations, generatedAt: Date.now(), text, model, promptVersion });
+    // M6: model/promptVersion aus der Worker-Antwort übernehmen, wenn
+    // vorhanden — die tatsächlich verwendete Konstante steht nur im Worker
+    // (A10), der hier übergebene Wert ist nur ein Platzhalter für den
+    // Versuchs-Schreibvorgang oben, bevor die Antwort bekannt ist.
+    await saveDoc({
+      inputHash: hash,
+      generations,
+      generatedAt: Date.now(),
+      text,
+      model: data.model ?? model,
+      promptVersion: data.promptVersion ?? promptVersion,
+    });
   } catch {
     // Text kam an, aber der Cache-Schreibvorgang schlägt fehl — trotzdem
     // anzeigen (das Dashboard wartet nie auf den Coach, siehe F6).
