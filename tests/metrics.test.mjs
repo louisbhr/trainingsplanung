@@ -7,12 +7,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   wochensoll, easyDisziplin, belastung, kraftProgression,
-  adherence4w, aerobeEffizienz, weeklyVolume, worstStatus,
+  adherence4w, aerobeEffizienz, weeklyVolume, worstStatus, kraftHistoryByExercise,
 } from "../metrics.js";
+import { suggestProgression } from "../progression.js";
 
 const THRESHOLDS = {
   wochensoll: { gruen: 0.9, gelb: 0.7 },
-  belastung: { gruen: 1.3, gelb: 1.5 },
+  easy: { gelbMaxOver: 8 },
+  belastung: { gruen: 1.3, gelb: 1.5, minHistoryDays: 28 },
   kraft: { windowDays: 42, stallSessions: 2, minExercisesWithData: 3, redAffectedCount: 2, redConsecutiveBelow: 2 },
 };
 
@@ -94,6 +96,17 @@ test("easyDisziplin: grau bei weniger als 1 zugeordnetem Lauf", () => {
   assert.equal(easyDisziplin([], THRESHOLDS).status, "grau");
 });
 
+// I5 (Code-Review M2 Runde 1): easy.gelbMaxOver stand vorher fest im Code
+// (metrics.js:68 `r.over > 8`) statt aus THRESHOLDS zu kommen — eine
+// geänderte Schwelle musste den Status kippen, tat es aber nicht.
+test("easyDisziplin: eine geänderte THRESHOLDS-Schwelle (gelbMaxOver) kippt gelb zu rot", () => {
+  const runs = [{ avgHr: 166, hfMax: 160, dayLabel: "Mi" }]; // over = 6
+  const normal = easyDisziplin(runs, { easy: { gelbMaxOver: 8 } });
+  const strict = easyDisziplin(runs, { easy: { gelbMaxOver: 5 } });
+  assert.equal(normal.status, "gelb");
+  assert.equal(strict.status, "rot");
+});
+
 // ---------- Ampel 3: Belastung (A7: DST-Fenster) ----------
 function shift(iso, days) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -139,6 +152,61 @@ test("belastung: Fenster rechnet korrekt über die Zeitumstellung 28.03.2027", (
   const runs = runsAround("2027-03-30", { km7: 20, km28: 80 });
   const r = belastung(runs, "2027-03-30", THRESHOLDS);
   assert.equal(r.status, "gruen");
+});
+
+// I5 (Code-Review M2 Runde 1): die bisherigen DST-Tests legten die Läufe
+// 3 bzw. 33 Tage vor "heute" — weit weg von den echten Fenstergrenzen
+// (−6/−7 für die 7 Tage, −34/−35 für die 28 Tage). Ein Off-by-one an genau
+// diesen Grenzen wäre dort nicht aufgefallen. Diese Tests legen Läufe
+// GENAU auf die Grenze, einmal über jede der beiden Zeitumstellungen.
+function boundaryTests(center) {
+  test(`belastung: 7-Tage-Grenze (heute−6 zählt dazu, heute−7 nicht mehr) über ${center}`, () => {
+    // hist liegt sicher im 28-Tage-Fenster (−33), unabhängig vom Grenzfall.
+    const hist = { date: shift(center, -33), distanceKm: 28 };
+    const atMinus6 = belastung([hist, { date: shift(center, -6), distanceKm: 28 }], center, THRESHOLDS);
+    const atMinus7 = belastung([hist, { date: shift(center, -7), distanceKm: 28 }], center, THRESHOLDS);
+    // −6: zählt zu den 7 Tagen -> km7=28, km28=28 (nur hist) -> ratio 4.0 -> rot.
+    // −7: zählt NUR zu den 28 Tagen -> km7=0, km28=56 -> ratio 0 -> gruen.
+    // Ein Off-by-one (Grenze um einen Tag verschoben) würde beide Fälle
+    // gleich ausfallen lassen.
+    assert.equal(atMinus6.status, "rot", `heute−6 muss zu den 7 Tagen zählen (${JSON.stringify(atMinus6)})`);
+    assert.equal(atMinus7.status, "gruen", `heute−7 darf NICHT mehr zu den 7 Tagen zählen (${JSON.stringify(atMinus7)})`);
+  });
+
+  test(`belastung: 28-Tage-Grenze (heute−34 zählt dazu, heute−35 nicht mehr) über ${center}`, () => {
+    const near = { date: shift(center, -3), distanceKm: 7 }; // konstant in beiden Fällen, im 7-Tage-Fenster
+    const atMinus34 = belastung([near, { date: shift(center, -34), distanceKm: 28 }], center, THRESHOLDS);
+    const atMinus35 = belastung([near, { date: shift(center, -35), distanceKm: 28 }], center, THRESHOLDS);
+    // −34: zählt noch zu den 28 Tagen -> km28=28, weeklyAvg=7, km7=7 -> ratio 1.0 -> gruen.
+    // −35: zählt NICHT mehr -> km28=0 -> ratio unendlich (km7>0) -> rot.
+    assert.equal(atMinus34.status, "gruen", `heute−34 muss noch zu den 28 Tagen zählen (${JSON.stringify(atMinus34)})`);
+    assert.equal(atMinus35.status, "rot", `heute−35 darf NICHT mehr zu den 28 Tagen zählen (${JSON.stringify(atMinus35)})`);
+  });
+}
+boundaryTests("2026-10-28"); // Zeitumstellung 25.10.2026
+boundaryTests("2027-03-30"); // Zeitumstellung 28.03.2027
+
+test("belastung: eine geänderte THRESHOLDS-Schwelle (gruen/gelb) kippt den Status", () => {
+  const runs = runsAround("2026-09-30", { km7: 10, km28: 32 }); // ratio = 10/8 = 1.25
+  const normal = belastung(runs, "2026-09-30", { belastung: { gruen: 1.3, gelb: 1.5, minHistoryDays: 28 } });
+  const strict = belastung(runs, "2026-09-30", { belastung: { gruen: 1.0, gelb: 1.2, minHistoryDays: 28 } });
+  assert.equal(normal.status, "gruen");
+  assert.equal(strict.status, "rot");
+});
+
+// K1 (Code-Review M2 Runde 1): ein unendliches Verhältnis (Läufe in den
+// letzten 7 Tagen, aber keine Historie in den 28 Tagen davor) darf weder
+// `Infinity` zurückgeben (wird beim JSON.stringify zu `null`, der Worker
+// lehnt den weekly-Body dann ab) noch "∞" im Detailtext (nicht auf der
+// Zeichen-Whitelist des Workers, siehe worker.js STR_CHAR_RE).
+test("belastung: unendliches Verhältnis liefert ratio:null statt Infinity und einen Whitelist-tauglichen Text ohne '∞'", () => {
+  const runs = [{ date: "2026-09-20", distanceKm: 20 }]; // nur in den letzten 7 Tagen
+  const r = belastung(runs, "2026-09-24", { belastung: { gruen: 1.3, gelb: 1.5, minHistoryDays: 1 } });
+  assert.equal(r.status, "rot");
+  assert.equal(r.ratio, null);
+  assert.ok(JSON.parse(JSON.stringify(r)).ratio === null, "Infinity würde zu null, aber über einen Umweg, der leicht übersehen wird");
+  assert.ok(!r.detail.includes("∞"), r.detail);
+  assert.match(r.detail, /^[\p{L}0-9 .,:;/()+\-–×%°'·]*$/u, "Detail muss die Worker-Zeichen-Whitelist erfüllen: " + r.detail);
 });
 
 // ---------- Ampel 4: Kraft-Progression ----------
@@ -211,6 +279,57 @@ test("kraftProgression: eine geänderte THRESHOLDS-Schwelle kippt den Status", (
   const strict = kraftProgression(map, { kraft: { ...THRESHOLDS.kraft, redAffectedCount: 1 } });
   assert.equal(normal.status, "gelb");
   assert.equal(strict.status, "rot");
+});
+
+// I5 (Code-Review M2 Runde 1, S1): kraftHistoryByExercise filtert Deload-
+// Einheiten heraus, bevor kraftProgression sie sieht — das stand vorher
+// nirgends im Test (die Funktion lebte unexportiert in app.js). Eine echte
+// Deload-Einheit mit abweichendem Soll ("2x8 (Deload)") darf weder in der
+// Historie landen noch eine bestehende Stagnation unterbrechen.
+test("kraftHistoryByExercise: eine echte Deload-Einheit wird übersprungen, Stagnation bleibt ununterbrochen", () => {
+  const ok3 = [{ date: "2026-09-01", exercise: "bench", name: "Bench", completed: true, soll: "3x8-10", topKg: 50, totalReps: 27, sets: [{ reps: 9 }, { reps: 9 }, { reps: 9 }] }];
+  const ok4 = [{ date: "2026-09-01", exercise: "deadlift", name: "Deadlift", completed: true, soll: "3x8-10", topKg: 80, totalReps: 27, sets: [{ reps: 9 }, { reps: 9 }, { reps: 9 }] }];
+  const squatsLogs = [
+    { date: "2026-08-31", exercise: "squats", name: "Squats", completed: true, soll: "3x8-10", topKg: 60, totalReps: 27, sets: [{ reps: 9 }, { reps: 9 }, { reps: 9 }] },
+    { date: "2026-09-07", exercise: "squats", name: "Squats", completed: true, soll: "2x8 (Deload)", topKg: 40, totalReps: 16, sets: [{ reps: 8 }, { reps: 8 }] },
+    { date: "2026-09-14", exercise: "squats", name: "Squats", completed: true, soll: "3x8-10", topKg: 60, totalReps: 27, sets: [{ reps: 9 }, { reps: 9 }, { reps: 9 }] },
+  ];
+  const map = kraftHistoryByExercise([...squatsLogs, ...ok3, ...ok4], "2026-09-14", 42);
+  const squats = map.get("Squats");
+  assert.equal(squats.length, 2, "die Deload-Einheit darf nicht in der Historie stehen");
+  assert.ok(squats.every((e) => !/deload/i.test(e.soll)), "keine Deload-Einheit in der gefilterten Historie: " + JSON.stringify(squats));
+
+  const r = kraftProgression(map, THRESHOLDS);
+  const squatsResult = r.results.find((x) => x.name === "Squats");
+  assert.equal(squatsResult.status, "stagniert", "gleiches Schema/topKg/Gesamt-Wdh vor und nach dem übersprungenen Deload -> Stagnation bleibt sichtbar");
+});
+
+// I5 (Code-Review M2 Runde 1): suggestProgression (progression.js) und
+// kraftProgression (metrics.js) klassifizieren unabhängig voneinander —
+// sie dürfen sich bei "unter Soll" nicht widersprechen. Ausnahme bewusst
+// ausgeklammert (siehe M3 im Code-Review): Sätze mit reps:0 behandeln
+// beide unterschiedlich, deshalb nur reps > 0 in diesem Test.
+test("Konsistenz: suggestProgression level 'down' <-> kraftProgression Status 'unterSoll'", () => {
+  const entry = (date, soll, topKg, reps) => ({
+    date, soll, topKg, totalReps: reps.reduce((a, b) => a + b, 0), sets: reps.map((r) => ({ reps: r, kg: topKg })),
+  });
+  const cases = {
+    ImRahmen: [entry("2026-09-01", "3x8-10", 60, [9, 9, 9])],
+    UnterSoll: [entry("2026-09-01", "3x8-10", 60, [5, 5, 5])],
+    AmOberenEnde: [entry("2026-09-01", "3x8-10", 60, [10, 10, 10])],
+  };
+  const r = kraftProgression(entries(cases), THRESHOLDS);
+  assert.equal(r.results.length, 3);
+  for (const result of r.results) {
+    const last = cases[result.name][cases[result.name].length - 1];
+    const progression = suggestProgression(last.soll, { sets: last.sets, date: last.date });
+    const ampelSaysUnter = result.status === "unterSoll";
+    const progressionSaysDown = progression?.level === "down";
+    assert.equal(
+      ampelSaysUnter, progressionSaysDown,
+      `${result.name}: Ampel=${result.status}, suggestProgression=${progression?.level}`
+    );
+  }
 });
 
 // ---------- Adhärenz / Effizienz / Wochenvolumen / worstStatus ----------

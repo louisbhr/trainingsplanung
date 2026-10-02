@@ -9,8 +9,8 @@
 // nie über Millisekunden-Differenzen — sonst rechnen die 7/28/42-Tage-
 // Fenster an den beiden Zeitumstellungen im Plan (25.10.2026, 28.03.2027)
 // falsch (A7).
-import { addDays } from "./plan.js?v=202610020758";
-import { parseSoll } from "./progression.js?v=202610020758";
+import { addDays } from "./plan.js?v=202610020844";
+import { parseSoll } from "./progression.js?v=202610020844";
 
 const rank = { grau: 0, gruen: 1, gelb: 2, rot: 3 };
 const worseOf = (a, b) => (rank[b] > rank[a] ? b : a);
@@ -65,7 +65,7 @@ export function easyDisziplin(runs, THRESHOLDS) {
 
   const withOver = runs.map((r) => ({ ...r, over: (r.avgHr ?? 0) - r.hfMax }));
   const overCount = withOver.filter((r) => r.over > 0).length;
-  const bigOver = withOver.some((r) => r.over > 8);
+  const bigOver = withOver.some((r) => r.over > THRESHOLDS.easy.gelbMaxOver);
 
   let status;
   if (overCount === 0) status = "gruen";
@@ -83,7 +83,7 @@ export function easyDisziplin(runs, THRESHOLDS) {
 // allRuns: alle Strava-Läufe (auch ungeplante), je { date, distanceKm }.
 export function belastung(allRuns, todayISO, THRESHOLDS) {
   const earliest = allRuns.reduce((min, r) => (!min || r.date < min ? r.date : min), null);
-  const hasHistory = earliest && earliest <= addDays(todayISO, -27);
+  const hasHistory = earliest && earliest <= addDays(todayISO, -(THRESHOLDS.belastung.minHistoryDays - 1));
   if (!hasHistory) return { status: "grau", detail: "noch zu wenig Daten" };
 
   const kmBetween = (from, to) =>
@@ -95,8 +95,36 @@ export function belastung(allRuns, todayISO, THRESHOLDS) {
   const ratio = weeklyAvg > 0 ? km7 / weeklyAvg : km7 > 0 ? Infinity : 0;
 
   const status = ratio <= THRESHOLDS.belastung.gruen ? "gruen" : ratio <= THRESHOLDS.belastung.gelb ? "gelb" : "rot";
-  const ratioText = isFinite(ratio) ? ratio.toFixed(2).replace(".", ",") : "∞";
-  return { status, ratio: isFinite(ratio) ? Math.round(ratio * 100) / 100 : ratio, detail: `Verhältnis ${ratioText}` };
+  // Ein unendliches Verhältnis (keine Historie in den 28 Tagen, aber Läufe
+  // in den letzten 7) darf weder als `Infinity` (wird zu `null` beim
+  // JSON.stringify, K1) noch als "∞" (nicht auf der Zeichen-Whitelist des
+  // Workers) nach außen gehen — "ratio: null" + Text ohne Sonderzeichen.
+  const finite = isFinite(ratio);
+  const ratioRounded = finite ? Math.round(ratio * 100) / 100 : null;
+  const ratioText = finite ? ratioRounded.toFixed(2).replace(".", ",") : "über 9,99";
+  return { status, ratio: ratioRounded, detail: `Verhältnis ${ratioText}` };
+}
+
+// Gewichtsübungen der letzten windowDays Tage, gruppiert nach Übungsname,
+// aufsteigend sortiert — Deload-Einheiten und Zeit-/Körpergewichtsübungen
+// fallen schon hier raus (F5 Ampel 4). Verschoben von app.js hierher (I5,
+// Code-Review M2 Runde 1), damit die Deload-/Fenster-Filterung ohne Browser
+// testbar ist — vorher stand sie nirgends im Test.
+export function kraftHistoryByExercise(logs, iso, windowDays) {
+  const cutoff = addDays(iso, -(windowDays - 1));
+  const byExercise = new Map();
+  for (const log of logs) {
+    if (!log.completed || !log.sets?.length) continue;
+    if (log.date < cutoff || log.date > iso) continue;
+    const spec = parseSoll(log.soll);
+    if (!spec || spec.timeBased || spec.deload) continue;
+    if (!(log.topKg > 0)) continue;
+    const key = log.name || log.exercise;
+    if (!byExercise.has(key)) byExercise.set(key, []);
+    byExercise.get(key).push({ date: log.date, soll: log.soll, topKg: log.topKg, totalReps: log.totalReps, sets: log.sets });
+  }
+  for (const entries of byExercise.values()) entries.sort((a, b) => (a.date < b.date ? -1 : 1));
+  return byExercise;
 }
 
 // ---------- Ampel 4: Kraft-Progression ----------
