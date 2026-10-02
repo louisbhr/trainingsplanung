@@ -1522,6 +1522,174 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
+// ---- 27. loadStrava dedupliziert parallele Aufrufe (I3) ----
+// paintDashboardMain startet fünf fill*-Funktionen, jede ruft loadStrava()
+// auf. Ohne ein gemerktes In-Flight-Promise lösen diese fünf parallelen
+// Aufrufe fünf echte Abrufe von /athlete/activities aus.
+{
+  const { page, ctx, errors } = await newPage({ connected: true });
+  let activityCalls = 0;
+  await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => {
+    activityCalls++;
+    const p = new URL(r.request().url()).searchParams.get("page");
+    r.fulfill({ contentType: "application/json", body: JSON.stringify(p === "1" ? ACTIVITIES : []) });
+  });
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#today-slot .metric-value");
+  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
+  await page.waitForTimeout(300); // Zeit für eventuelle, fälschlich parallele Abrufe
+  ok(activityCalls === 1, `loadStrava: genau ein Abruf von /athlete/activities pro Dashboard-Start, nicht fünf (${activityCalls})`);
+  ok(errors.length === 0, "loadStrava-Dedup: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 28. Strava verbunden, aber der Abruf schlägt fehl -> Lauf-Ampeln grau statt falschem Rot, keine Wochenbilanz-Anfrage (I2) ----
+{
+  const { page, ctx } = await newPage({ connected: true });
+  await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => r.fulfill({ status: 500, body: "boom" }));
+  const coachKinds = [];
+  await ctx.route("https://worker.test/coach", (r) => {
+    coachKinds.push(JSON.parse(r.request().postData()).kind);
+    r.fulfill({ contentType: "application/json", body: JSON.stringify({ text: "x" }) });
+  });
+  // Donnerstag W3 (17.09.2026): Montag + Mittwoch (Easy-Läufe) liegen schon
+  // in der Vergangenheit, ohne Strava-Daten wäre das Wochensoll sonst "rot"
+  // statt grau/neutral (Review-Beleg: "computeRealAmpeln rechnet das
+  // Wochensoll mit 0 km" -> Rot). Wochenbilanz ist tagunabhängig fällig
+  // (weeklyDue), wäre ohne den I2-Fix also auch hier ausgelöst worden.
+  await page.clock.setFixedTime(new Date("2026-09-17T09:00:00Z"));
+  await page.goto(BASE + "/index.html");
+  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
+  const tiles = await page.locator("#ampel-slot .ampel-tile").evaluateAll((els) =>
+    els.map((el) => ({
+      title: el.querySelector(".title").textContent.trim(),
+      status: [...el.querySelector(".ampel-dot").classList].find((c) => c.startsWith("st-")),
+    })));
+  const byTitle = Object.fromEntries(tiles.map((t) => [t.title, t]));
+  ok(byTitle["Wochensoll"].status !== "st-rot", `Ampel Wochensoll: ohne Strava-Daten nicht fälschlich rot (${byTitle["Wochensoll"].status})`);
+  ok(byTitle["Easy-Disziplin"].status === "st-grau", `Ampel Easy-Disziplin: grau bei Strava-Abrufsfehler statt falschem Rot (${byTitle["Easy-Disziplin"].status})`);
+  ok(byTitle["Belastung"].status === "st-grau", `Ampel Belastung: grau bei Strava-Abrufsfehler statt falschem Rot (${byTitle["Belastung"].status})`);
+  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForTimeout(500); // Zeit für eine mögliche (falsche) Wochenbilanz-Anfrage
+  ok(!coachKinds.includes("weekly"), `Wochenbilanz: keine Anfrage ohne echte Strava-Daten (${JSON.stringify(coachKinds)})`);
+  await ctx.close();
+}
+
+// ---- 29. Firestore-Ausfall (Logs/Dayplans/Coach) -> Kraft-Ampel grau, Rest rechnet normal, Coach zeigt Text statt Dauer-Skelett (I1) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  // Nur die Logs-/Dayplan-/Coach-Pfade fallen aus — Strava bleibt bewusst
+  // funktionsfähig, damit sich I1 (Firestore) sauber von I2 (Strava) trennen
+  // lässt: "Easy-Disziplin und Belastung rechnen normal" lässt sich nur
+  // zeigen, wenn Strava tatsächlich echte Daten liefert.
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({
+    contentType: "application/javascript",
+    body: `
+      export const db = {};
+      export async function ensureSignedIn() { return { uid: "t" }; }
+      export async function loadAllLogs() { throw new Error("Missing or insufficient permissions."); }
+      export async function loadAllDayPlans() { throw new Error("Missing or insufficient permissions."); }
+      export async function loadCoach() { throw new Error("Missing or insufficient permissions."); }
+      export async function saveCoach() {}
+      export async function loadCoachWeek() { throw new Error("Missing or insufficient permissions."); }
+      export async function saveCoachWeek() {}
+      export async function loadLogsForDate() { return {}; }
+      export async function loadDayPlan() { return { removed: [], added: [] }; }
+      export async function saveDayPlan() {}
+      export async function loadLogsForExercise() { return []; }
+      export async function loadRunLinks() { return {}; }
+      export async function saveRunLink() {}
+      export async function clearRunLink() {}
+      export async function saveLog() {}
+      export async function saveStravaTokens() {}
+      export async function loadStravaTokens() {
+        return { refresh_token: "rt", access_token: "at", expires_at: Math.floor(Date.now() / 1000) + 3600 };
+      }`,
+  }));
+  await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => {
+    const p = new URL(r.request().url()).searchParams.get("page");
+    r.fulfill({ contentType: "application/json", body: JSON.stringify(p === "1" ? ACTIVITIES : []) });
+  });
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
+  await ctx.route("https://worker.test/**", (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
+  const page = await ctx.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (e) => pageErrors.push("pageerror: " + e.message));
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.addInitScript(() => localStorage.setItem("hm-tracker.workerUrl", "https://worker.test"));
+  await page.goto(BASE + "/index.html");
+
+  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
+  const tiles = await page.locator("#ampel-slot .ampel-tile").evaluateAll((els) =>
+    els.map((el) => ({
+      title: el.querySelector(".title").textContent.trim(),
+      status: [...el.querySelector(".ampel-dot").classList].find((c) => c.startsWith("st-")),
+      detail: el.querySelector(".detail")?.textContent.trim(),
+    })));
+  const byTitle = Object.fromEntries(tiles.map((t) => [t.title, t]));
+  ok(byTitle["Kraft-Progression"].status === "st-grau", `Firestore-Ausfall: Kraft-Ampel grau (${byTitle["Kraft-Progression"].status})`);
+  ok(byTitle["Kraft-Progression"].detail === "Kraftdaten nicht geladen",
+     `Firestore-Ausfall: eigener Hinweistext statt "noch zu wenig Daten" (${byTitle["Kraft-Progression"].detail})`);
+  ok(["st-gruen", "st-gelb", "st-rot"].includes(byTitle["Easy-Disziplin"].status),
+     `Firestore-Ausfall: Easy-Disziplin rechnet weiter normal statt grau zu werden (${byTitle["Easy-Disziplin"].status})`);
+
+  // "Im Detail": Adhärenz-Kachel grau/"nicht geladen", Volumen + Effizienz rendern trotzdem.
+  await page.waitForSelector("#detail-slot .si-bar-col");
+  const detailTxt = await page.textContent("#detail-slot");
+  ok(detailTxt.includes("Adhärenz 4 Wo.") && detailTxt.includes("Daten nicht geladen"),
+     `Firestore-Ausfall: Adhärenz-Kachel zeigt "Daten nicht geladen" statt einer falschen 0%-Zahl (${detailTxt})`);
+
+  // Coach: direkter Regel-Fallback, kein dauerhaftes Skelett (requestCoach()
+  // würde ohnehin an loadCoach() scheitern — fillCoach spart sich den
+  // Umweg und zeigt den Fallback sofort).
+  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForFunction(() => (document.querySelector("#coach-slot .text")?.textContent.length ?? 0) > 0, { timeout: 5000 });
+  ok((await page.locator("#coach-slot .skel").count()) === 0, "Firestore-Ausfall: kein dauerhaftes Coach-Skelett");
+
+  await noHScroll(page, "Firestore-Ausfall");
+  ok(pageErrors.length === 0, "Firestore-Ausfall: keine unbehandelten Fehler " + JSON.stringify(pageErrors));
+  await ctx.close();
+}
+
+// ---- 30. Strava-Paginierung: 200 + 13 Aktivitäten -> genau 2 Seiten (A6, I5) ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
+  const page1 = Array.from({ length: 200 }, (_, i) => ({
+    id: 1000 + i, type: "Run", name: `Run ${i}`, start_date_local: "2026-09-01T07:00:00Z", distance: 5000, moving_time: 1500,
+  }));
+  const page2 = Array.from({ length: 13 }, (_, i) => ({
+    id: 2000 + i, type: "Run", name: `Run B${i}`, start_date_local: "2026-09-02T07:00:00Z", distance: 5000, moving_time: 1500,
+  }));
+  let activityCalls = 0;
+  await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => {
+    activityCalls++;
+    const p = new URL(r.request().url()).searchParams.get("page");
+    r.fulfill({ contentType: "application/json", body: JSON.stringify(p === "1" ? page1 : p === "2" ? page2 : []) });
+  });
+  await ctx.route("https://worker.test/**", (r) =>
+    r.fulfill({ contentType: "application/json", body: JSON.stringify({
+      access_token: "at-new", refresh_token: "rt-new", expires_at: Math.floor(Date.now() / 1000) + 21600,
+      athlete: { id: 42 } }) }));
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.addInitScript(() => {
+    localStorage.setItem("hm-tracker.workerUrl", "https://worker.test");
+    localStorage.setItem("test.strava", JSON.stringify({
+      refresh_token: "rt", access_token: "at", expires_at: Math.floor(Date.now() / 1000) + 3600 }));
+  });
+  await page.goto(BASE + "/index.html");
+  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
+  await page.waitForTimeout(300);
+  ok(activityCalls === 2, `Strava-Paginierung: 200+13 Aktivitäten brauchen genau 2 Seiten (${activityCalls})`);
+  ok(errors.length === 0, "Strava-Paginierung: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
 await browser.close();
 console.log(`\n${checks - fails}/${checks} Browser-Checks bestanden`);
 process.exit(fails ? 1 : 0);
