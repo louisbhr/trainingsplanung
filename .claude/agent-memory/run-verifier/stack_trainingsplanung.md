@@ -30,23 +30,27 @@ one-off verification script needs to be run from inside the app directory (e.g. 
 in temporarily, run, then delete) or from a path where `node_modules/playwright` is
 resolvable, rather than from an arbitrary tmp job directory.
 
-**Coverage note:** `tests/app.test.mjs` (225 checks as of 2026-09-29, M2) is thorough but
-still doesn't explicitly exercise: the full Wochen-Tab placeholder-week text (9/31), the
-5-viewport x light/dark layout matrix, or opening all 4 info-sheets + Aerobe Effizienz in
-sequence (only "kraft" is covered). Check before writing a redundant one-off script.
+**Coverage note:** `tests/app.test.mjs` (249 checks as of 2026-10-02, M2 Correction-Loop
+round 1) now also covers the info-sheet stale-timer regression, the Wochen-Tab accordion
+(open/close, aria-expanded, rest days non-actionable), and tab-active-state after internal
+jumps. Still doesn't explicitly exercise: the full Wochen-Tab placeholder-week text
+(9/31) or the 5-viewport x light/dark layout matrix with all rows expanded — those stay
+one-off-script territory. Check before writing a redundant one-off script.
 
-**Known real bug found 2026-09-29 (M2 run-verifier pass, still open at handoff):**
-`ui.js` `openInfo()`/`closeInfo()` (info-sheet, D1) has a stale-`setTimeout` race: closing
-a sheet schedules `sheet.hidden = true` after 200ms; if a *different* info-sheet is opened
-within that window, `closeInfo()`'s `if (sheet.hidden) return;` guard later reads a stale
-`hidden` flag and silently no-ops, leaving the sheet permanently un-closeable (Escape and
-the × button stop working until full reload) even though visually it may look closed.
-Reproducible by opening/closing two different `[data-info]` buttons back-to-back with no
-delay (real users tapping through the 4 ampel info buttons quickly will hit this). Minimal
-fix direction: track the pending timeout id in a module variable and `clearTimeout` it at
-the top of both `openInfo()` and `closeInfo()` before scheduling a new one, instead of
-trusting `sheet.hidden` as the sole guard. Did not fix this myself (out of scope for
-run-verifier) — routed to debugger via the correction loop instead of checking off M2 step 8.
+**Bug found 2026-09-29, fixed+verified 2026-10-02 (M2 Correction-Loop round 1):**
+`ui.js` `openInfo()`/`closeInfo()` (info-sheet, D1) had a stale-`setTimeout` race: closing
+a sheet scheduled `sheet.hidden = true` after 200ms; if a *different* info-sheet was opened
+within that window, `closeInfo()`'s `if (sheet.hidden) return;` guard later read a stale
+`hidden` flag and silently no-opped, leaving the sheet permanently un-closeable (Escape and
+the × button stopped working until full reload) even though visually it could look closed.
+Fixed in commit `2f0ced7`: a module-level `infoHideTimer` id is now `clearTimeout`'d at the
+top of both `openInfo()` and `closeInfo()`, and `closeInfo()` now guards on the `.open`
+class instead of the lagging `hidden` attribute; `openInfo()` also forces a synchronous
+reflow instead of `requestAnimationFrame` so there's no open-but-not-`.open` window for a
+fast Escape to land in. Re-verified independently (own minimal repro: close sheet A, open
+sheet B with zero delay, wait 300ms past the old timer, confirm B is still open and
+Escape still closes it) — no longer reproduces. `tests/app.test.mjs` also gained a
+permanent regression test for this (search "2c-2" / "Stale-Timeout").
 
 **Test-data gotcha:** kraft log fixtures must use the exercise's *own* slug for that
 specific session (`slug(name)` from `plan.js`, e.g. "squats"/"deadlift" only exist in
