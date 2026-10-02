@@ -392,3 +392,13 @@ test("wochensoll: Dienstag mit verpasstem Montagslauf -> rot", () => {
   const sessions = [{ date: "2026-09-21", kind: "lauf", km: 7 }, { date: "2026-09-23", kind: "lauf", km: 7 }];
   assert.equal(wochensoll(sessions, {}, {}, "2026-09-22", THRESHOLDS).status, "rot");
 });
+
+test("kraftProgression: Trend steigt/haelt für die Wochenbilanz", () => {
+  const T = { ...THRESHOLDS, kraft: { ...THRESHOLDS.kraft, minExercisesWithData: 1 } };
+  const e = (date, kg, reps) => ({ date, soll: "3x8-10", topKg: kg, totalReps: reps * 3, sets: [{ kg, reps }, { kg, reps }, { kg, reps }] });
+  const steigt = kraftProgression(new Map([["Squats", [e("2026-09-01", 60, 9), e("2026-09-08", 62.5, 9)]]]), T);
+  assert.equal(steigt.results[0].trend, "steigt");
+  const haelt = kraftProgression(new Map([["Squats", [e("2026-09-01", 62.5, 9), e("2026-09-08", 60, 10)]]]), T);
+  assert.equal(haelt.results[0].status, "ok");
+  assert.equal(haelt.results[0].trend, "haelt");
+});

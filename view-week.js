@@ -6,7 +6,7 @@
 // Lauf-Zuordnung und Satz-Eingabe. Die Zeile ist deshalb kein Button,
 // sondern ein Container mit zwei Knöpfen, damit keine Buttons geschachtelt
 // werden.
-import { esc, ICONS } from "./ui.js?v=202610020844";
+import { esc, ICONS } from "./ui.js?v=202610020916";
 
 export function weekNavHTML({ n, weekType, dateRange, hasPrev, hasNext, showToday }) {
   return `<div class="week-nav">
@@ -17,7 +17,7 @@ export function weekNavHTML({ n, weekType, dateRange, hasPrev, hasNext, showToda
     </div>
     <button type="button" class="icon-btn" data-action="week-next" ${hasNext ? "" : "disabled"} aria-label="Nächste Woche">${ICONS.next}</button>
   </div>
-  ${showToday ? `<button type="button" class="small-btn" data-action="week-today" style="display:block;margin:8px auto 0;">Heute</button>` : ""}`;
+  ${showToday ? `<button type="button" class="small-btn week-today-btn" data-action="week-today">Heute</button>` : ""}`;
 }
 
 export function weekSummaryHTML({ ist, soll, pct, kraftDone, kraftPlanned }) {
@@ -57,7 +57,7 @@ export function dayRowHTML(day) {
     </button>
     <div class="day-detail" id="${detailId}">
       ${lines}
-      <button type="button" class="small-btn day-open" data-action="open-day" data-date="${day.iso}">Tag öffnen</button>
+      <button type="button" class="small-btn day-open" data-action="open-day" data-date="${day.iso}">Tag öffnen ${ICONS.chevronRight}</button>
     </div>
   </div>`;
 }
@@ -71,5 +71,5 @@ export const statusPartialHTML = (done, total, isToday = false) =>
 export const statusFutureHTML = () => `<span class="status-icon" style="color:var(--text-muted);">${ICONS.dash}</span>`;
 
 export function planBeendetHintHTML(lastWeek) {
-  return `<p class="hint center">Plan beendet – zeigt Woche ${lastWeek}.</p>`;
+  return `<p class="hint center">Plan beendet. Zeigt Woche ${lastWeek}.</p>`;
 }

@@ -164,6 +164,10 @@ button:active { transform: scale(0.97); }
 .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .metric-label { font-size: 11px; color: var(--text-muted); margin: 0; }
 .metric-value { font-size: 20px; font-weight: 700; margin: 2px 0 0; }
+/* Kleinere Variante für dichtere Raster (z. B. Ist-Werte-Grid im Dashboard,
+   4 Spalten statt 2) — M2-11, ersetzt die bisherigen inline style="font-
+   size:18px" (Review-Minor M5, docs/review-code-m2.md). */
+.metric-value.sm { font-size: 18px; }
 
 .bars { display: flex; align-items: flex-end; gap: 6px; height: 100px; }
 .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -435,6 +439,14 @@ select {
 .section-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 6px 0 0; text-transform: uppercase; letter-spacing: 0.04em; }
 .countdown { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
 
+/* Kleine Abstands-Utilities für Stellen im Dashboard, an denen sich eine
+   eigene Komponentenklasse nicht lohnt (M2-11, Review-Minor M5,
+   docs/review-code-m2.md) — bewusst nur diese zwei, keine größere
+   Utility-Sammlung: die übrigen Abstände im Dashboard hängen an echten
+   Komponentenklassen (.today-card, .ampel-tile, .coach-card …). */
+.mt-6 { margin-top: 6px; }
+.mt-8 { margin-top: 8px; }
+
 /* ---- Coach-Karte ---- */
 .coach-card { background: var(--purple-bg); border-radius: 12px; padding: 0.85rem 1rem; }
 .coach-card .head { display: flex; gap: 9px; align-items: flex-start; }
@@ -444,7 +456,7 @@ select {
 .coach-card p.text { font-size: 13px; color: var(--purple-fg); margin: 0; line-height: 1.5; }
 .coach-card p.note { font-size: 11px; color: var(--purple-fg); opacity: 0.75; margin: 4px 0 0; }
 .coach-card .divider { border-top: 0.5px solid rgba(83, 74, 183, 0.25); margin: 10px 0 8px; }
-.bilanz-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; background: transparent; border: none; padding: 4px 0; color: var(--purple-fg); font-size: 12.5px; font-weight: 700; cursor: pointer; min-height: 36px; }
+.bilanz-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; background: transparent; border: none; padding: 4px 0; color: var(--purple-fg); font-size: 12.5px; font-weight: 700; cursor: pointer; min-height: 44px; }
 .bilanz-toggle svg { width: 16px; height: 16px; transition: transform 0.18s ease; flex-shrink: 0; }
 .bilanz-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
 .bilanz-body { font-size: 13px; color: var(--purple-fg); line-height: 1.55; margin: 6px 0 0; }
@@ -510,7 +522,7 @@ select {
 .today-card.k-kraft, .today-card.k-kraft .eyebrow2, .today-card.k-kraft .name2, .today-card.k-kraft .sub { color: var(--teal-fg); }
 .today-card.k-lauf, .today-card.k-lauf .eyebrow2, .today-card.k-lauf .name2, .today-card.k-lauf .sub { color: var(--coral-fg); }
 .today-card.k-long, .today-card.k-long .eyebrow2, .today-card.k-long .name2, .today-card.k-long .sub { color: var(--purple-fg); }
-.start-btn { font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 8px; border: none; background: var(--teal-fg); color: #fff; cursor: pointer; flex-shrink: 0; min-height: 36px; }
+.start-btn { font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 8px; border: none; background: var(--teal-fg); color: #fff; cursor: pointer; flex-shrink: 0; min-height: 44px; }
 .start-btn:active { transform: scale(0.96); }
 .ex-list { display: none; margin-top: 10px; border-top: 0.5px solid rgba(15, 110, 86, 0.25); padding-top: 8px; }
 .ex-list.open { display: block; }
@@ -578,7 +590,6 @@ select {
 .day-row.rest { cursor: default; }
 .day-row.solid { background: var(--surface-1); cursor: default; }
 .day-row.today { box-shadow: inset 0 0 0 1.5px var(--teal-fg); }
-.day-row:focus-visible { outline: 2.5px solid var(--teal-fg); outline-offset: 2px; }
 .day-row .head { display: flex; align-items: center; gap: 10px; }
 .day-row .dcol { width: 36px; flex-shrink: 0; }
 .day-row .dcol .d { font-size: 12px; font-weight: 700; margin: 0; }
@@ -609,6 +620,9 @@ select {
 .week-nav .titles p.t2 { font-size: 12px; color: var(--text-muted); margin: 2px 0 0; }
 .week-nav button.icon-btn { border-radius: 10px; }
 .week-nav button svg { width: 18px; height: 18px; }
+/* "Heute"-Sprungknopf unter der Wochen-Navigation — ersetzt das bisherige
+   Inline-style="display:block;margin:8px auto 0" (M2-11, Review-Minor M5). */
+.week-today-btn { display: block; margin: 8px auto 0; }
 
 /* ---- Skeleton / Ladezustand (Dashboard rendert sofort, wartet nicht auf
    Strava/Coach — Platzhalter statt leerer Fläche). ---- */
@@ -619,7 +633,11 @@ select {
   .skel::after { animation: none; opacity: 0.5; }
 }
 .skel-line { height: 10px; margin: 6px 0; }
-.skel-tile-body { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+/* height:90px war bisher ein Inline-Style (Review-Minor M5); der einzelne
+   .skel-bar darin trägt flex:1 und füllt die Höhe ohnehin komplett aus,
+   ein zusätzliches Inline-height:60% auf ihm blieb deshalb wirkungslos
+   (M2-11, keine optische Änderung ggü. vorher). */
+.skel-tile-body { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; height: 90px; }
 .skel-bar { flex: 1; background: var(--border); border-radius: 3px 3px 0 0; }
 
 /* Wochenzeile: Kopf ist ein eigener Knopf (Details auf/zu), die Zeile selbst
@@ -629,6 +647,14 @@ select {
   font: inherit; color: inherit; text-align: left; cursor: pointer; min-height: 44px;
 }
 .day-row .day-toggle:focus-visible { outline: 2.5px solid var(--teal-fg); outline-offset: 4px; border-radius: 8px; }
+/* Sichtbares Hover-Feedback auf Desktop/Trackpad — die Zeile selbst ist
+   seit dem Umbau auf Kopf-Knopf + "Tag öffnen" kein eigener Button mehr
+   (siehe .day-row.solid { cursor: default } oben), nur .day-toggle ist es
+   wirklich (M2-11, "jedes interaktive Element sieht interaktiv aus"). */
+.day-row .day-toggle:hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); border-radius: 10px; }
 .day-row .day-toggle .d, .day-row .day-toggle .dt,
 .day-row .day-toggle .n, .day-row .day-toggle .s { display: block; }
-.day-row .day-open { margin-top: 6px; }
+/* ≥44px Trefferfläche (vorher ~25px über die geerbte .small-btn-Größe) und
+   Platz für das Chevron-Icon (M2-11). */
+.day-row .day-open { margin-top: 8px; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
+.day-row .day-open svg { width: 14px; height: 14px; flex-shrink: 0; }

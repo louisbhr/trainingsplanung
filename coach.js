@@ -4,7 +4,7 @@
 // (loadCoach/saveCoach) und der HTTP-Aufruf werden von außen als Funktionen
 // hereingereicht (requestCoach), damit sich alles ohne Browser testen lässt
 // (tests/coach.test.mjs).
-import { worstStatus } from "./metrics.js?v=202610020844";
+import { worstStatus } from "./metrics.js?v=202610020916";
 
 // ---------- Eingabeschema "daily" (F6) ----------
 // goal hier ist das Plan-Objekt-goal ({ distance, raceDate, targetTime,
@@ -107,23 +107,23 @@ const DAILY_TIE_ORDER = ["belastung", "easy", "wochensoll", "kraft"];
 
 const DAILY_FALLBACK_LINES = {
   wochensoll: {
-    gelb: "Dein Wochensoll hinkt gerade hinterher — hol es bei der nächsten Einheit bewusst auf.",
-    rot: "Dein Wochensoll liegt deutlich zurück — die nächste geplante Einheit hat jetzt Vorrang.",
+    gelb: "Dein Wochensoll hinkt gerade hinterher, hol es bei der nächsten Einheit bewusst auf.",
+    rot: "Dein Wochensoll liegt deutlich zurück, die nächste geplante Einheit hat jetzt Vorrang.",
   },
   easy: {
     gelb: "Dein letzter lockerer Lauf lag über der Zielzone, beim nächsten bewusst langsamer starten.",
-    rot: "Mehrere lockere Läufe lagen zuletzt über der Zone — nimm den nächsten Easy Run bewusst ruhiger.",
+    rot: "Mehrere lockere Läufe lagen zuletzt über der Zone, nimm den nächsten Easy Run bewusst ruhiger.",
   },
   belastung: {
-    gelb: "Deine Belastung steigt gerade recht schnell — nimm den nächsten Lauf eine Stufe leichter.",
-    rot: "Deine Belastung ist deutlich hochgeschossen — heute lieber kürzer oder langsamer laufen.",
+    gelb: "Deine Belastung steigt gerade recht schnell, nimm den nächsten Lauf eine Stufe leichter.",
+    rot: "Deine Belastung ist deutlich hochgeschossen, heute lieber kürzer oder langsamer laufen.",
   },
   kraft: {
-    gelb: "Eine Kraftübung hängt gerade fest — bei der nächsten Einheit bewusst auf die Ausführung achten.",
-    rot: "Mehrere Kraftübungen hängen fest — Gewichte halten und erst die Wiederholungen ausbauen.",
+    gelb: "Eine Kraftübung hängt gerade fest, bei der nächsten Einheit bewusst auf die Ausführung achten.",
+    rot: "Mehrere Kraftübungen hängen fest, Gewichte halten und erst die Wiederholungen ausbauen.",
   },
 };
-const GREEN_LINE = "Guter Rhythmus diese Woche — weiter so.";
+const GREEN_LINE = "Guter Rhythmus diese Woche, weiter so.";
 
 export function fallbackDaily(ampeln) {
   const worst = worstStatus(ampeln, DAILY_TIE_ORDER);

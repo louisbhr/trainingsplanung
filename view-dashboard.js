@@ -3,8 +3,8 @@
 // Datenzugriff (Firestore, Strava, Plan) bleiben in app.js. Keine eigenen
 // Styles — alle Klassen kommen aus style.css (D0), siehe
 // docs/ui-markup-dashboard-v2.md für die genaue Markup-Referenz.
-import { esc, ICONS, skelLine } from "./ui.js?v=202610020844";
-import { formatDuration } from "./strava.js?v=202610020844";
+import { esc, ICONS, skelLine } from "./ui.js?v=202610020916";
+import { formatDuration } from "./strava.js?v=202610020916";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
 
@@ -61,7 +61,7 @@ export function laufLoadingHTML() {
 }
 export function laufNotConnectedHTML() {
   return `<p class="sub">Strava ist nicht verbunden, deshalb fehlen die Ist-Werte.</p>
-    <button type="button" class="small-btn" data-action="connect-strava" style="margin-top:8px;">Mit Strava verbinden</button>`;
+    <button type="button" class="small-btn mt-8" data-action="connect-strava">Mit Strava verbinden</button>`;
 }
 export function laufErrorHTML() {
   return `<p class="sub">Strava-Daten konnten nicht geladen werden.</p>`;
@@ -69,11 +69,11 @@ export function laufErrorHTML() {
 export function laufActualHTML(a) {
   if (!a || !a.run) return `<p class="sub loading-hint">Noch kein Lauf zugeordnet.</p>`;
   const m = a.run;
-  return `<div class="metric-grid" style="margin-top:8px;">
-      <div><p class="metric-label">Distanz</p><p class="metric-value" style="font-size:18px;">${m.distanceKm.toFixed(1)} km</p></div>
-      <div><p class="metric-label">Pace</p><p class="metric-value" style="font-size:18px;">${esc(m.paceLabel)}</p></div>
-      <div><p class="metric-label">Dauer</p><p class="metric-value" style="font-size:18px;">${esc(formatDuration(m.movingTimeSec))}</p></div>
-      <div><p class="metric-label">Ø HF</p><p class="metric-value" style="font-size:18px;">${m.avgHr ? m.avgHr + " bpm" : "–"}</p></div>
+  return `<div class="metric-grid mt-8">
+      <div><p class="metric-label">Distanz</p><p class="metric-value sm">${m.distanceKm.toFixed(1)} km</p></div>
+      <div><p class="metric-label">Pace</p><p class="metric-value sm">${esc(m.paceLabel)}</p></div>
+      <div><p class="metric-label">Dauer</p><p class="metric-value sm">${esc(formatDuration(m.movingTimeSec))}</p></div>
+      <div><p class="metric-label">Ø HF</p><p class="metric-value sm">${m.avgHr ? m.avgHr + " bpm" : "–"}</p></div>
     </div>${a.offset !== 0 ? `<p class="sub">nachgeholt</p>` : ""}`;
 }
 
@@ -91,7 +91,7 @@ export function todayCardNoPlanHTML(stravaSummary) {
   </div>`;
 }
 export function todayCardBisZumRennenHTML() {
-  return `<div class="card notice"><p class="name">Bis zum Rennen</p><p class="hint">Der Plan endet vor dem Renntag — für diesen Tag gibt es keine Einheit mehr.</p></div>`;
+  return `<div class="card notice"><p class="name">Bis zum Rennen</p><p class="hint">Der Plan endet vor dem Renntag, für diesen Tag gibt es keine Einheit mehr.</p></div>`;
 }
 
 // ---------- Coach (F6) ----------
@@ -132,7 +132,7 @@ export function ampelPlaceholderGridHTML() {
       ([, label]) => `
     <div class="ampel-tile">
       <div class="row1"><span class="ampel-dot st-loading"></span><p class="title">${esc(label)}</p></div>
-      <div style="margin-top:6px;">${skelLine("80%")}</div>
+      <div class="mt-6">${skelLine("80%")}</div>
     </div>`
     )
     .join("")}</div>`;
@@ -207,7 +207,7 @@ export function infoContent(THRESHOLDS) {
 // Aerobe Effizienz, Adhärenz, Als Nächstes) kommen mit M2-6.
 export function detailPlaceholderHTML() {
   return `<p class="section-label">Im Detail</p>
-    <div class="card">${skelLine("40%")}<div class="skel-tile-body" style="height:90px;"><div class="skel-bar" style="height:60%;"></div></div></div>`;
+    <div class="card">${skelLine("40%")}<div class="skel-tile-body"><div class="skel-bar"></div></div></div>`;
 }
 
 export function volumeCardHTML(weeks) {

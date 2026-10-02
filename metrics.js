@@ -9,8 +9,8 @@
 // nie über Millisekunden-Differenzen — sonst rechnen die 7/28/42-Tage-
 // Fenster an den beiden Zeitumstellungen im Plan (25.10.2026, 28.03.2027)
 // falsch (A7).
-import { addDays } from "./plan.js?v=202610020844";
-import { parseSoll } from "./progression.js?v=202610020844";
+import { addDays } from "./plan.js?v=202610020916";
+import { parseSoll } from "./progression.js?v=202610020916";
 
 const rank = { grau: 0, gruen: 1, gelb: 2, rot: 3 };
 const worseOf = (a, b) => (rank[b] > rank[a] ? b : a);
@@ -164,6 +164,11 @@ function classifyExercise(entries, KRAFT) {
   }
 
   const status = belowNow ? "unterSoll" : stagnates ? "stagniert" : "ok";
+  // Für die Wochenbilanz: bei "ok" unterscheiden, ob seit der vorigen
+  // Einheit Gewicht oder Wiederholungen zugelegt haben oder alles gleich blieb.
+  const prev = entries.length >= 2 ? entries[entries.length - 2] : null;
+  const trend = !prev || last.topKg > prev.topKg || (last.topKg === prev.topKg && last.totalReps > prev.totalReps)
+    ? "steigt" : "haelt";
   return {
     name: last.name,
     status,
@@ -172,6 +177,7 @@ function classifyExercise(entries, KRAFT) {
     topKg: last.topKg,
     reps: last.sets.map((s) => s.reps).join("/"),
     soll: last.soll,
+    trend,
   };
 }
 

@@ -3,25 +3,25 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202610020844";
-import { loadPlans } from "./plan-store.js?v=202610020844";
+} from "./plan.js?v=202610020916";
+import { loadPlans } from "./plan-store.js?v=202610020916";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek,
-} from "./firebase-init.js?v=202610020844";
+} from "./firebase-init.js?v=202610020916";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202610020844";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610020844";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610020844";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610020844";
-import * as dash from "./view-dashboard.js?v=202610020844";
-import * as dashWeek from "./view-week.js?v=202610020844";
-import * as metrics from "./metrics.js?v=202610020844";
-import * as coach from "./coach.js?v=202610020844";
-import { THRESHOLDS, COACH_URL } from "./config.js?v=202610020844";
+} from "./strava.js?v=202610020916";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610020916";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610020916";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610020916";
+import * as dash from "./view-dashboard.js?v=202610020916";
+import * as dashWeek from "./view-week.js?v=202610020916";
+import * as metrics from "./metrics.js?v=202610020916";
+import * as coach from "./coach.js?v=202610020916";
+import { THRESHOLDS, COACH_URL } from "./config.js?v=202610020916";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -398,7 +398,19 @@ function computeRealAmpeln(plan, weekNo, iso, logs, dayPlans, logsOk = true) {
   const wochensollSessions = sessions.filter(
     (s) => (s.kind === "kraft" && logsOk) || (s.kind === "lauf" && stravaOk)
   );
-  const wochensollResult = metrics.wochensoll(wochensollSessions, actualKmByDate, kraftDoneByDate, iso, THRESHOLDS);
+  let wochensollResult = metrics.wochensoll(wochensollSessions, actualKmByDate, kraftDoneByDate, iso, THRESHOLDS);
+  // Fehlt eine Datenquelle, die fehlende Hälfte benennen statt "0 / 0 km"
+  // zu zeigen; fehlen beide, ist die Ampel grau statt scheinbar grün.
+  if (!stravaOk || !logsOk) {
+    const sollKm = sessions.filter((x) => x.kind === "lauf").reduce((a, x) => a + (x.km || 0), 0);
+    const laufPart = stravaOk ? `${Math.round(wochensollResult.istKm * 10) / 10} / ${sollKm} km` : "Lauf: Strava fehlt";
+    const kraftPart = logsOk ? `Kraft ${wochensollResult.kraftDone}/${wochensollResult.kraftPlanned}` : "Kraft: Daten fehlen";
+    wochensollResult = {
+      ...wochensollResult,
+      status: !stravaOk && !logsOk ? "grau" : wochensollResult.status,
+      detail: `${laufPart} · ${kraftPart}`,
+    };
+  }
 
   const easyResult = stravaOk
     ? metrics.easyDisziplin(lastAssignedEasyRuns(plan, 3), THRESHOLDS)
@@ -721,13 +733,11 @@ function weeklyKraftData(plan, weekNo, logs, dps, kraftAmpelResults) {
   for (const s of kraftSessions) {
     if (kraftProgressOn(s, dps[s.date], logs).complete) sessionsDone++;
   }
-  // metrics.kraftProgression kennt nur "ok"/"stagniert"/"unterSoll" (reicht
-  // für die Ampel); die Wochenbilanz braucht die feinere Worker-Enum
-  // steigt/haelt/stagniert/unterSoll — "ok" wird vereinfachend als "steigt"
-  // gemeldet (bewusste Vereinfachung, siehe Bericht des coders).
+  // Die Ampel kennt nur ok/stagniert/unterSoll; für die Wochenbilanz wird
+  // "ok" über den Trend zur vorigen Einheit in steigt/haelt aufgeteilt.
   const progression = (kraftAmpelResults || []).slice(0, 12).map((r) => ({
     exercise: r.name,
-    status: r.status === "unterSoll" ? "unterSoll" : r.status === "stagniert" ? "stagniert" : "steigt",
+    status: r.status === "unterSoll" ? "unterSoll" : r.status === "stagniert" ? "stagniert" : r.trend || "steigt",
     detail: `${r.reps.split("/").length}× ${r.topKg} kg`,
   }));
   return { sessionsPlanned: kraftSessions.length, sessionsDone, progression };
@@ -866,18 +876,18 @@ async function renderDay(iso, { showBack, backLabel }) {
     return;
   }
   if (info.kind === "bisZumRennen") {
-    main.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem 1rem;">
+    main.innerHTML = `<div class="card notice">
       <p class="name">Bis zum Rennen</p>
-      <p class="hint">Der Plan endet vor dem Renntag — für diesen Tag gibt es keine Einheit mehr.</p></div>`;
+      <p class="hint">Der Plan endet vor dem Renntag, für diesen Tag gibt es keine Einheit mehr.</p></div>`;
     return;
   }
   if (info.kind === "keinPlan") {
-    main.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem 1rem;">
+    main.innerHTML = `<div class="card notice">
       <p class="name">Kein aktiver Plan</p>
       <p class="hint">Für dieses Datum liegt kein Trainingsplan vor.</p></div>`;
     return;
   }
-  main.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem 1rem;">
+  main.innerHTML = `<div class="card notice">
     <p class="name">Ruhetag</p><p class="hint">Mobility, Foam Rolling, Beine hoch.</p></div>`;
 }
 

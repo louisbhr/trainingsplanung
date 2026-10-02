@@ -22,12 +22,15 @@ npm test           # muss komplett grün sein, bevor irgendetwas gepusht wird
 Node 22. Kein Build-Schritt: die Dateien im Repo-Wurzelverzeichnis sind
 exakt das, was der Browser lädt.
 
-`npm test` läuft siebenmal: Prüfungen der Plandaten gegen `plans/hm-2027.json`
+`npm test` läuft zehnmal: Prüfungen der Plandaten gegen `plans/hm-2027.json`
 plus der reinen Logik aus `plan.js` (`plan.test.mjs`), ein Tag-für-Tag-
 Vergleich der neuen gegen die eingefrorene alte Plan-Logik
 (`plan-golden.test.mjs`, Sicherheitsnetz für den M1-Umbau), ein Stub-Wächter
 (`stubs.test.mjs`), die Lauf-Zuordnung, die Progressionslogik und der
-Versionsstempel (alle ohne Browser), dazu die Browser-Checks in Chromium.
+Versionsstempel, dazu `metrics.test.mjs` (Ampeln), `coach.test.mjs`
+(Coach-Cache und Fallback) und `worker.test.mjs` (`/coach` inkl.
+Vertragstest gegen die echten App-Eingaben), alle ohne Browser, und
+zuletzt die Browser-Checks in Chromium.
 Für die Browser-Tests muss `npm run serve` laufen; Firebase und Strava sind
 darin gestubbt, es braucht also keine echten Konten.
 
@@ -48,7 +51,7 @@ braucht Zugang.
 | System | Wo | Was dort liegt |
 | --- | --- | --- |
 | Firebase | Projekt `trainingsplanung-2c6c0` | Firestore + anonyme Anmeldung. Config steht offen in `firebase-init.js`, das ist bei Firebase so vorgesehen; abgesichert wird über `firestore.rules`. |
-| Cloudflare Worker | `trainingsplanung-auth` | Strava-Token-Austausch. Hält `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `ALLOWED_ORIGINS` als Worker-Secrets. |
+| Cloudflare Worker | `trainingsplanung-auth` | Strava-Token-Austausch. Hält `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `ALLOWED_ORIGINS` und `ANTHROPIC_API_KEY` (eigener Workspace, Monatslimit) als Worker-Secrets. Endpunkte `/exchange`, `/refresh`, `/coach`. |
 | Strava | strava.com/settings/api | Client-ID öffentlich in `config.js`. Callback-Domain muss `louisbhr.github.io` sein. |
 | GitHub Pages | Repo-Einstellungen | Deployt `main`, Ordner `/`. |
 
@@ -100,7 +103,7 @@ nicht wiederverwenden.
   `progression.js`) statt in `app.js`.
 - Neue Tests gegenprüfen: einmal absichtlich kaputt machen und sehen,
   dass sie rot werden. Ein Test, der nicht fehlschlagen kann, ist keiner.
-- Vor dem Commit alle sieben Testläufe grün.
+- Vor dem Commit alle zehn Testläufe grün.
 - Handy zuerst: Tests laufen gegen 390×844, und es darf nichts seitlich
   aus dem Bild ragen.
 

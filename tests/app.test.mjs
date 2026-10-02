@@ -1564,9 +1564,11 @@ async function noHScroll(page, where) {
     els.map((el) => ({
       title: el.querySelector(".title").textContent.trim(),
       status: [...el.querySelector(".ampel-dot").classList].find((c) => c.startsWith("st-")),
+      detail: el.querySelector(".detail")?.textContent.trim(),
     })));
   const byTitle = Object.fromEntries(tiles.map((t) => [t.title, t]));
   ok(byTitle["Wochensoll"].status !== "st-rot", `Ampel Wochensoll: ohne Strava-Daten nicht fälschlich rot (${byTitle["Wochensoll"].status})`);
+  ok((byTitle["Wochensoll"].detail || "").includes("Lauf: Strava fehlt"), `Ampel Wochensoll: benennt die fehlende Quelle statt "0 / 0 km" (${byTitle["Wochensoll"].detail})`);
   ok(byTitle["Easy-Disziplin"].status === "st-grau", `Ampel Easy-Disziplin: grau bei Strava-Abrufsfehler statt falschem Rot (${byTitle["Easy-Disziplin"].status})`);
   ok(byTitle["Belastung"].status === "st-grau", `Ampel Belastung: grau bei Strava-Abrufsfehler statt falschem Rot (${byTitle["Belastung"].status})`);
   await page.waitForSelector("#coach-slot .coach-card");
