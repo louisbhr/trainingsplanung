@@ -3,25 +3,25 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202609290821";
-import { loadPlans } from "./plan-store.js?v=202609290821";
+} from "./plan.js?v=202610020758";
+import { loadPlans } from "./plan-store.js?v=202610020758";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek,
-} from "./firebase-init.js?v=202609290821";
+} from "./firebase-init.js?v=202610020758";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202609290821";
-import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202609290821";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609290821";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202609290821";
-import * as dash from "./view-dashboard.js?v=202609290821";
-import * as dashWeek from "./view-week.js?v=202609290821";
-import * as metrics from "./metrics.js?v=202609290821";
-import * as coach from "./coach.js?v=202609290821";
-import { THRESHOLDS, COACH_URL } from "./config.js?v=202609290821";
+} from "./strava.js?v=202610020758";
+import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202610020758";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610020758";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610020758";
+import * as dash from "./view-dashboard.js?v=202610020758";
+import * as dashWeek from "./view-week.js?v=202610020758";
+import * as metrics from "./metrics.js?v=202610020758";
+import * as coach from "./coach.js?v=202610020758";
+import { THRESHOLDS, COACH_URL } from "./config.js?v=202610020758";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -227,7 +227,11 @@ function todayCardSlotHTML(iso, dayState, plan) {
     return dash.todayCardKraftHTML(info, { expanded: state.todayExpanded, progressText: "… geloggt", exercises });
   }
   if (info.kind === "lauf") {
-    const actualHTML = stravaState.connected ? dash.laufActualHTML(runAssignment[iso]) : dash.laufLoadingHTML();
+    const actualHTML =
+      stravaState.error ? dash.laufErrorHTML()
+      : stravaState.connected === false ? dash.laufNotConnectedHTML()
+      : stravaState.connected ? dash.laufActualHTML(runAssignment[iso])
+      : dash.laufLoadingHTML(); // null = Prüfung läuft noch
     return dash.todayCardLaufHTML(info, actualHTML);
   }
   return dash.todayCardRuheHTML();
@@ -760,8 +764,16 @@ function renderDashboard() {
 }
 
 // ---------- Rendering ----------
+// Markierung in der Tableiste immer aus dem Zustand ableiten, nicht nur beim
+// Tab-Klick: sonst zeigt sie nach internen Sprüngen den falschen Tab.
+function syncTabbar() {
+  document.querySelectorAll("#tabbar button").forEach((b) =>
+    b.classList.toggle("active", b.dataset.tab === state.tab));
+}
+
 function render() {
   if (!plans.length) return; // Plan lädt noch (siehe init()); nichts zu rendern
+  syncTabbar();
   try {
     if (state.tab === "dashboard") {
       return state.selectedDate ? renderDay(state.selectedDate, { showBack: true, backLabel: "Dashboard" }) : renderDashboard();
@@ -1858,8 +1870,6 @@ document.addEventListener("keydown", (e) => {
 
 document.querySelectorAll("#tabbar button").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll("#tabbar button").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
     state.tab = btn.dataset.tab;
     state.selectedDate = null;
     runPickerFor = null;

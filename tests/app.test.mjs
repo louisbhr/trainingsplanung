@@ -149,7 +149,12 @@ async function noHScroll(page, where) {
   ok((await page.textContent("#header .countdown")).includes("Datum offen"), "Dashboard: Countdown 'Datum offen' ohne bestätigtes Renndatum");
   const today = await page.textContent("#today-slot");
   ok(today.includes("Easy run") && today.includes("8 km"), "Dashboard: 'Heute dran' zeigt den Lauftag (Easy run, 8 km)");
-  ok(today.includes("Ist-Werte werden nach dem Lauf aus Strava geladen"), "Dashboard: Lauftag wartet sichtbar auf Strava, blockiert aber nicht");
+  // Je nach Tempo der Strava-Prüfung steht hier schon der Endzustand
+  ok(today.includes("Ist-Werte werden nach dem Lauf aus Strava geladen") || today.includes("Strava ist nicht verbunden"),
+    "Dashboard: Lauftag wartet sichtbar auf Strava, blockiert aber nicht");
+  // Sobald feststeht, dass Strava nicht verbunden ist: klarer Hinweis statt Dauer-Laden
+  await page.waitForSelector('#today-slot [data-action="connect-strava"]', { timeout: 5000 });
+  ok((await page.textContent("#today-slot")).includes("Strava ist nicht verbunden"), "Dashboard: Lauf-Karte nennt 'nicht verbunden' statt dauerhaft zu laden");
   ok((await page.locator("#coach-slot .coach-card").count()) === 1, "Dashboard: Coach-Platzhalter rendert sofort");
   ok((await page.locator("#ampel-slot .ampel-tile").count()) === 4, "Dashboard: vier Ampel-Kacheln (Platzhalter) sofort da");
   // Placeholder oder (falls das schnelle Nachladen inzwischen durch ist)
@@ -365,6 +370,32 @@ async function noHScroll(page, where) {
   ok(detail.includes("Squats:") && detail.includes("60 kg · 27 Wdh"), "Woche: Details zeigen geloggte Werte je Übung");
   ok(detail.includes("Nordic hamstring curl:") && detail.includes("–"), "Woche: noch nicht geloggte Übung mit Strich");
   ok(errors.length === 0, "Woche Teilfortschritt: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 2c-4. Tableiste folgt immer dem angezeigten Tab (Korrekturrunde 1) ----
+{
+  const { page, ctx, errors } = await newPage();
+  await page.clock.setFixedTime(new Date("2026-09-08T09:00:00Z")); // Di = Krafttag
+  await page.goto(BASE + "/index.html");
+  const active = () => page.locator("#tabbar button.active").getAttribute("data-tab");
+  await page.waitForSelector("#today-slot .today-card");
+  ok((await active()) === "dashboard", "Tableiste: Start auf Dashboard markiert");
+  await page.click('[data-tab="woche"]');
+  await page.waitForSelector(".week-summary");
+  ok((await active()) === "woche", "Tableiste: Woche markiert im Wochen-Tab");
+  await openDay(page, "2026-09-08");
+  await page.waitForSelector("[data-ex]");
+  ok((await active()) === "woche", "Tableiste: Tagesansicht aus der Woche bleibt bei Woche");
+  await page.click('[data-tab="dashboard"]');
+  await page.click('[data-action="toggle-today-exercises"]');
+  await page.locator("#todayExList .ex-row").first().click();
+  await page.waitForSelector("[data-ex]");
+  ok((await active()) === "dashboard", "Tableiste: Tagesansicht aus dem Dashboard bleibt bei Dashboard");
+  await page.click('[data-action="back"]');
+  await page.waitForSelector("#today-slot .today-card");
+  ok((await page.locator("#tabbar button.active").count()) === 1 && (await active()) === "dashboard", "Tableiste: nach Zurück genau ein aktiver Tab");
+  ok(errors.length === 0, "Tableiste: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 

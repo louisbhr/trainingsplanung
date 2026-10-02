@@ -3,8 +3,8 @@
 // Datenzugriff (Firestore, Strava, Plan) bleiben in app.js. Keine eigenen
 // Styles — alle Klassen kommen aus style.css (D0), siehe
 // docs/ui-markup-dashboard-v2.md für die genaue Markup-Referenz.
-import { esc, ICONS, skelLine } from "./ui.js?v=202609290821";
-import { formatDuration } from "./strava.js?v=202609290821";
+import { esc, ICONS, skelLine } from "./ui.js?v=202610020758";
+import { formatDuration } from "./strava.js?v=202610020758";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
 
@@ -58,6 +58,13 @@ export function todayCardLaufHTML(session, actualHTML) {
 }
 export function laufLoadingHTML() {
   return `<p class="sub loading-hint">Ist-Werte werden nach dem Lauf aus Strava geladen.</p><div class="skel skel-line" style="width:70%;height:10px;"></div>`;
+}
+export function laufNotConnectedHTML() {
+  return `<p class="sub">Strava ist nicht verbunden, deshalb fehlen die Ist-Werte.</p>
+    <button type="button" class="small-btn" data-action="connect-strava" style="margin-top:8px;">Mit Strava verbinden</button>`;
+}
+export function laufErrorHTML() {
+  return `<p class="sub">Strava-Daten konnten nicht geladen werden.</p>`;
 }
 export function laufActualHTML(a) {
   if (!a || !a.run) return `<p class="sub loading-hint">Noch kein Lauf zugeordnet.</p>`;

@@ -9,8 +9,8 @@
 // nie über Millisekunden-Differenzen — sonst rechnen die 7/28/42-Tage-
 // Fenster an den beiden Zeitumstellungen im Plan (25.10.2026, 28.03.2027)
 // falsch (A7).
-import { addDays } from "./plan.js?v=202609290821";
-import { parseSoll } from "./progression.js?v=202609290821";
+import { addDays } from "./plan.js?v=202610020758";
+import { parseSoll } from "./progression.js?v=202610020758";
 
 const rank = { grau: 0, gruen: 1, gelb: 2, rot: 3 };
 const worseOf = (a, b) => (rank[b] > rank[a] ? b : a);
@@ -30,7 +30,10 @@ export function wochensoll(sessions, actualKmByDate, kraftDoneByDate, todayISO, 
 
   // Status nach dem Anteil bis heute, Anzeige aber über die gesamte Woche
   // (F5: "Wochensoll gesamt, nicht anteilig").
-  const laufBisHeute = laufSessions.filter((s) => s.date <= todayISO);
+  // Der Lauf von heute zählt erst, wenn er gelaufen ist; sonst wäre jeder
+  // Morgen eines Lauftags rot, obwohl noch nichts versäumt ist.
+  const laufBisHeute = laufSessions.filter(
+    (s) => s.date < todayISO || (s.date === todayISO && actualKmByDate[s.date] > 0));
   const sollBisHeute = laufBisHeute.reduce((a, s) => a + (s.km || 0), 0);
   const istBisHeute = laufBisHeute.reduce((a, s) => a + (actualKmByDate[s.date] || 0), 0);
   const laufPct = sollBisHeute > 0 ? istBisHeute / sollBisHeute : 1;

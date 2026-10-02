@@ -251,3 +251,25 @@ test("worstStatus: rot vor gelb vor grün, bei Gleichstand nach tieOrder", () =>
   const w = worstStatus(list, ["belastung", "easy", "wochensoll", "kraft"]);
   assert.equal(w.key, "easy");
 });
+
+test("wochensoll: Montagmorgen, Lauf von heute noch offen -> nicht rot", () => {
+  const sessions = [
+    { date: "2026-09-21", kind: "lauf", km: 7 }, { date: "2026-09-22", kind: "kraft" },
+    { date: "2026-09-23", kind: "lauf", km: 7 }, { date: "2026-09-24", kind: "kraft" },
+    { date: "2026-09-26", kind: "lauf", km: 10 },
+  ];
+  const r = wochensoll(sessions, {}, {}, "2026-09-21", THRESHOLDS);
+  assert.equal(r.status, "gruen");
+  assert.equal(r.detail, "0 / 24 km · Kraft 0/2");
+});
+
+test("wochensoll: Montag nach dem Lauf zählt der heutige Lauf mit", () => {
+  const sessions = [{ date: "2026-09-21", kind: "lauf", km: 7 }, { date: "2026-09-23", kind: "lauf", km: 7 }];
+  assert.equal(wochensoll(sessions, { "2026-09-21": 7.1 }, {}, "2026-09-21", THRESHOLDS).status, "gruen");
+  assert.equal(wochensoll(sessions, { "2026-09-21": 4 }, {}, "2026-09-21", THRESHOLDS).status, "rot");
+});
+
+test("wochensoll: Dienstag mit verpasstem Montagslauf -> rot", () => {
+  const sessions = [{ date: "2026-09-21", kind: "lauf", km: 7 }, { date: "2026-09-23", kind: "lauf", km: 7 }];
+  assert.equal(wochensoll(sessions, {}, {}, "2026-09-22", THRESHOLDS).status, "rot");
+});
