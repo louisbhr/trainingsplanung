@@ -98,3 +98,50 @@ gaps):**
 See also `docs/plan-dashboard-v2.md` (M2-3..M2-10 acceptance criteria) and
 `docs/review-architecture-dashboard-v2.md` (A1–A10) — this memory maps to
 the code, it doesn't replace those docs.
+
+**Update after Code-Review M2 Runde 1 → Korrekturrunde 2 (docs/review-code-m2.md),
+02.10.2026 — fixed K1/K2/I1/I2/I3/I5 + I4 "jetzt":**
+- `metrics.kraftHistoryByExercise` moved here from app.js (was unexported,
+  untestable without a browser) — same signature `(logs, iso, windowDays)`,
+  same Deload-/Zeitbasiert-/topKg-Filterung. Callers in app.js now say
+  `metrics.kraftHistoryByExercise(...)`, not a bare local call.
+- `metrics.easyDisziplin`/`metrics.belastung` now genuinely read
+  `THRESHOLDS.easy.gelbMaxOver` / `THRESHOLDS.belastung.minHistoryDays`
+  (used to be hardcoded `8` / `-27`) — any test THRESHOLDS fixture must
+  include both or these two functions throw/misbehave.
+- `metrics.belastung()` never returns `ratio: Infinity` or a detail
+  containing "∞" anymore — an unendliches Verhältnis is `ratio: null` +
+  `"Verhältnis über 9,99"` (JSON-safe, worker-whitelist-safe). Callers that
+  need a finite number for the worker body (weekly `belastung.ratio`) do
+  `ratio ?? 9.99`, not `?? 0` — 0 would misrepresent a genuinely very high
+  load as low.
+- `app.js` has one `kraftProgressOn(session, dp, logs) → {exercises,
+  withLogs, done, total, complete}` helper now — this is THE "ist die
+  Krafteinheit komplett geloggt" check, used by `computeRealAmpeln`,
+  `adherence4wData`, `fillCoach`, `weeklyKraftData`, `buildWeekDayRow`,
+  `renderWeek`. Don't reintroduce a seventh inline copy; extend this
+  function instead (e.g. for 1b's "eigene Übungen" edge cases).
+- `ensureAllLogsAndDayPlans()` **never throws** anymore — it returns
+  `{ logs, dps, ok }`, where `ok:false` means Firestore failed and
+  `logs:[]`/`dps:{}` are safe empty fallbacks, not real data. Every caller
+  must branch on `ok` if it cares about showing a "nicht geladen" state
+  instead of silently treating empty data as "nothing done" — see
+  `computeRealAmpeln`'s `logsOk` param and `fillCoach`'s early return.
+- New `stravaReady()` (`connected === true && Array.isArray(runs) &&
+  !error`) and `stravaUnavailableDetail()` — `stravaState.connected` alone
+  is NOT enough to know Strava data is usable (a failed `fetchRecentRuns`
+  leaves `connected: true` but `runs: null`). Any new code reading
+  `stravaState.runs` for ampel/coach/bilanz purposes should gate on
+  `stravaReady()`, not `stravaState.connected`.
+- `loadStrava()` now dedupes concurrent non-`force` calls via a
+  module-level `stravaLoading` promise — `paintDashboardMain`'s five
+  parallel `fill*` calls share one real fetch. `{force:true}` (manual
+  refresh) always bypasses this.
+- `coach.decideGeneration(doc, hash, limit)` now requires `doc.text` to be
+  truthy for `"reuse"`, not just a matching `inputHash` — `requestCoach()`
+  writes **only** `{generations, attemptAt, model, promptVersion}` before
+  the worker call (no `inputHash`/`text`), so a failed attempt can't be
+  mistaken for a valid cache hit with an empty text on the next load. If
+  you touch `requestCoach`/`decideGeneration` again, preserve this
+  invariant — it's the fix for a critical bug (K2) where the coach card
+  hung in the placeholder forever after one worker failure.
