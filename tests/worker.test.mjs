@@ -9,6 +9,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import worker from "../worker.js";
+import { belastung, adherence4w, kraftProgression } from "../metrics.js";
+import { buildWeeklyInput } from "../coach.js";
 
 const ORIGIN = "https://louisbhr.github.io";
 const ENV = {
@@ -240,6 +242,62 @@ test("/coach: 200 im Normalfall liefert text/kind/model/promptVersion", async ()
   assert.equal(data.kind, "daily");
   assert.equal(data.model, "claude-haiku-4-5");
   assert.equal(typeof data.promptVersion, "string");
+});
+
+// ---------- Vertragstest (K1, Code-Review M2 Runde 1) ----------
+// Der weekly-Body wurde über app.js IMMER mit 400 abgelehnt: adherence4w
+// enthielt das Zusatzfeld `pct` (nicht auf der Worker-Whitelist), und ein
+// unendliches Belastungsverhältnis wurde als `Infinity`/"∞" verschickt.
+// Dieser Test baut den Body aus den ECHTEN Rückgaben von metrics.js
+// zusammen (so, wie app.js es nach dem Fix tut) statt mit einem
+// handgebauten, bereits korrekten Fixture — er hätte den Bug also wirklich
+// gefangen.
+test("Vertrag: adherence4w mit dem rohen pct-Feld wird vom Worker abgelehnt (belegt K1)", async () => {
+  mockClaudeText("x");
+  const body = validWeekly({ adherence4w: { ...adherence4w(11, 12) } }); // enthält pct
+  const res = await worker.fetch(req("/coach", { body }), ENV);
+  assert.equal(res.status, 400);
+});
+
+test("Vertrag: buildWeeklyInput mit echten metrics-Rückgaben (inkl. ∞-Belastung) wird vom Worker angenommen (K1)", async () => {
+  mockClaudeText("Wochenbilanz-Text.");
+
+  const adherence = adherence4w(11, 12); // { pct, done, planned } — pct darf NICHT mitgeschickt werden
+  const belastungResult = belastung(
+    [
+      { date: "2026-08-15", distanceKm: 20 }, // erfüllt die 4-Wochen-Historie, liegt aber VOR dem 28-Tage-Fenster
+      { date: "2026-09-21", distanceKm: 7 }, // nur in den letzten 7 Tagen -> km28 bleibt 0 -> unendliches Verhältnis
+    ],
+    "2026-09-24",
+    { belastung: { gruen: 1.3, gelb: 1.5, minHistoryDays: 28 } }
+  );
+  const mk = (kg) => [{ date: "2026-09-01", soll: "3x8-10", topKg: kg, totalReps: 27, sets: [{ reps: 9 }, { reps: 9 }, { reps: 9 }] }];
+  const kraftMap = new Map([["Squats", mk(60)], ["Deadlift", mk(70)], ["Bench", mk(50)]]);
+  const kraftResults = kraftProgression(kraftMap, {
+    kraft: { windowDays: 42, stallSessions: 2, minExercisesWithData: 3, redAffectedCount: 2, redConsecutiveBelow: 2 },
+  }).results;
+
+  const input = buildWeeklyInput({
+    goal: { distance: "Halbmarathon", targetTime: "1:29:59", raceDate: "2027-04-11", raceDateConfirmed: false },
+    week: 4, weekType: "Entlastung", phase: "Basis",
+    run: { plannedKm: 24, actualKm: 24.3, sessionsPlanned: 3, sessionsDone: 3, easyOverLimit: [] },
+    kraft: {
+      sessionsPlanned: 2, sessionsDone: 2,
+      progression: kraftResults.map((r) => ({
+        exercise: r.name,
+        status: r.status === "unterSoll" ? "unterSoll" : r.status === "stagniert" ? "stagniert" : "steigt",
+        detail: `${r.reps.split("/").length}× ${r.topKg} kg`,
+      })),
+    },
+    belastung: { ratio: belastungResult.ratio ?? 9.99, status: belastungResult.status },
+    aerobeEffizienzTrend: null,
+    adherence4w: { done: adherence.done, planned: adherence.planned },
+    nextWeek: { n: 5, type: "Aufbau", keySession: "Sa: Long Run 13 km" },
+  });
+
+  const res = await worker.fetch(req("/coach", { body: input }), ENV);
+  const payload = await res.clone().json().catch(() => null);
+  assert.equal(res.status, 200, JSON.stringify(payload));
 });
 
 // ---------- /exchange, /refresh unverändert ----------
