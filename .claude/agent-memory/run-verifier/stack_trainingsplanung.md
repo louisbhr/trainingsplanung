@@ -30,7 +30,32 @@ one-off verification script needs to be run from inside the app directory (e.g. 
 in temporarily, run, then delete) or from a path where `node_modules/playwright` is
 resolvable, rather than from an arbitrary tmp job directory.
 
-**Coverage note:** `tests/app.test.mjs` (151 checks as of 2026-09-27) is thorough but
-didn't (as of M1) explicitly exercise: week-nav across weeks 4/8/9/31, a Ruhetag or
-Platzhaltertag (week 9+) day view, or the 1280px desktop width. Worth checking if a
-future coder pass added these before writing a redundant one-off script.
+**Coverage note:** `tests/app.test.mjs` (225 checks as of 2026-09-29, M2) is thorough but
+still doesn't explicitly exercise: the full Wochen-Tab placeholder-week text (9/31), the
+5-viewport x light/dark layout matrix, or opening all 4 info-sheets + Aerobe Effizienz in
+sequence (only "kraft" is covered). Check before writing a redundant one-off script.
+
+**Known real bug found 2026-09-29 (M2 run-verifier pass, still open at handoff):**
+`ui.js` `openInfo()`/`closeInfo()` (info-sheet, D1) has a stale-`setTimeout` race: closing
+a sheet schedules `sheet.hidden = true` after 200ms; if a *different* info-sheet is opened
+within that window, `closeInfo()`'s `if (sheet.hidden) return;` guard later reads a stale
+`hidden` flag and silently no-ops, leaving the sheet permanently un-closeable (Escape and
+the × button stop working until full reload) even though visually it may look closed.
+Reproducible by opening/closing two different `[data-info]` buttons back-to-back with no
+delay (real users tapping through the 4 ampel info buttons quickly will hit this). Minimal
+fix direction: track the pending timeout id in a module variable and `clearTimeout` it at
+the top of both `openInfo()` and `closeInfo()` before scheduling a new one, instead of
+trusting `sheet.hidden` as the sole guard. Did not fix this myself (out of scope for
+run-verifier) — routed to debugger via the correction loop instead of checking off M2 step 8.
+
+**Test-data gotcha:** kraft log fixtures must use the exercise's *own* slug for that
+specific session (`slug(name)` from `plan.js`, e.g. "squats"/"deadlift" only exist in
+"Full Body A", not "Full Body B" — check `plans/hm-2027.json` per date before seeding
+`test.logs`, otherwise `done` silently stays 0 and status logic looks broken when it isn't.
+
+**Desktop-width layout is intentionally phone-width-capped**, not a bug or a fluid-
+responsive violation: at 1280px the app renders a centered ~390-430px column with empty
+margin on both sides (matches `docs/mockup-dashboard-v2.html`'s own "Handy-Schale" framing
+comment). No horizontal scroll, no clipping — confirmed via `clientHeight>=scrollHeight`
+checks on `#main` children and `.day-row` across 390x844/390x640/768x1000/1280x720/1280x900
+x light/dark (10 combos, all green). Don't flag the narrow desktop column as a deviation.

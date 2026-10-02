@@ -300,6 +300,42 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
+// ---- 2c-2. Info-Sheet: schnelles Schließen + ein ANDERES Sheet öffnen (Korrekturrunde 1, Bug 1) ----
+// closeInfo() setzte sheet.hidden erst nach 200ms; öffnete man währenddessen
+// ein anderes Sheet, feuerte der alte Timer trotzdem noch und versteckte das
+// gerade erst geöffnete neue Sheet wieder — Escape/× wirkten danach nicht
+// mehr, weil closeInfo() sheet.hidden fälschlich als "schon zu" las.
+{
+  const { page, ctx, errors } = await newPage({ connected: true });
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector('[data-info="wochensoll"]');
+  await page.click('[data-info="wochensoll"]');
+  await page.waitForSelector("#infoSheet.open");
+  await page.click("#infoSheetClose"); // schließt sofort, startet den 200ms-Timer
+  await page.click('[data-info="kraft"]'); // noch innerhalb der 200ms ein ANDERES Sheet öffnen
+  await page.waitForSelector("#infoSheet.open");
+  await page.waitForTimeout(300); // der alte Timer wäre jetzt längst gefeuert
+  ok(await page.locator("#infoSheet.open").isVisible(), "Info-Sheet: bleibt nach dem alten Timeout weiterhin sichtbar offen");
+  ok((await page.textContent("#infoSheetTitle")) === "Kraft-Progression", "Info-Sheet: zeigt das zuletzt geöffnete Sheet");
+  await page.keyboard.press("Escape");
+  // Kurzes Timeout statt unbegrenzt warten: bei einer Regression hängt
+  // closeInfo() sonst (stale hidden-Zustand lässt Escape verpuffen).
+  let escapeWorked = true;
+  try {
+    await page.waitForSelector("#infoSheet:not(.open)", { timeout: 3000 });
+  } catch {
+    escapeWorked = false;
+  }
+  ok(escapeWorked, "Info-Sheet: Escape schließt weiterhin zuverlässig (kein stale-Zustand)");
+  if (escapeWorked) {
+    // hidden folgt der Ausblendzeit (200ms) — darauf warten, nicht sofort zählen
+    const hid = await page.waitForSelector("#infoSheet[hidden]", { state: "attached", timeout: 2000 }).then(() => true, () => false);
+    ok(hid, "Info-Sheet: nach Escape auch tatsächlich hidden");
+  }
+  ok(errors.length === 0, "Info-Sheet Stale-Timeout: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
 // ---- 2d. Dashboard: Coach — Cache, Escaping, Fallback (M2-9/M2-10) ----
 // 07.09.2026 ist ein Montag (Woche 2) mit einer echten Vorwoche (Woche 1,
 // nicht platzhaltergefüllt) — hier lösen also sowohl der Tagessatz als auch

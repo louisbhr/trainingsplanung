@@ -75,30 +75,40 @@ export function skelLine(width, height) {
 // Ein gemeinsames Element in index.html (#infoSheet/#infoBackdrop), wird
 // hier nur geöffnet/geschlossen, nicht pro Ampel neu erzeugt.
 let infoReturnFocus = null;
+// Ausblende-Timer des letzten Schließens. Wird beim Öffnen verworfen, sonst
+// versteckt ein alter Timer ein inzwischen neu geöffnetes Sheet.
+let infoHideTimer = null;
 
 export function openInfo(title, bodyParagraphs, triggerEl) {
   const sheet = document.getElementById("infoSheet");
   const backdrop = document.getElementById("infoBackdrop");
   if (!sheet || !backdrop) return;
+  clearTimeout(infoHideTimer);
+  infoHideTimer = null;
   infoReturnFocus = triggerEl || null;
   document.getElementById("infoSheetTitle").textContent = title;
   document.getElementById("infoSheetBody").innerHTML = bodyParagraphs.map((p) => `<p>${esc(p)}</p>`).join("");
   sheet.hidden = false;
-  requestAnimationFrame(() => {
-    backdrop.classList.add("open");
-    sheet.classList.add("open");
-  });
+  // Reflow erzwingen statt requestAnimationFrame: so ist das Sheet sofort
+  // "offen" und ein schnelles Escape findet keinen Zwischenzustand vor.
+  void sheet.offsetWidth;
+  backdrop.classList.add("open");
+  sheet.classList.add("open");
   document.getElementById("infoSheetClose")?.focus();
 }
 
 export function closeInfo() {
   const sheet = document.getElementById("infoSheet");
   const backdrop = document.getElementById("infoBackdrop");
-  if (!sheet || sheet.hidden) return;
+  // Zustand über die .open-Klasse prüfen, nicht über hidden: hidden hinkt
+  // dem Schließen um die Ausblendzeit hinterher.
+  if (!sheet || !sheet.classList.contains("open")) return;
   backdrop.classList.remove("open");
   sheet.classList.remove("open");
-  setTimeout(() => {
+  clearTimeout(infoHideTimer);
+  infoHideTimer = setTimeout(() => {
     sheet.hidden = true;
+    infoHideTimer = null;
   }, 200);
   if (infoReturnFocus) infoReturnFocus.focus();
 }
