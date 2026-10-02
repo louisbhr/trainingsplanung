@@ -1453,9 +1453,21 @@ function buildWeekDayRow(plan, iso, today, logs, dps) {
     let statusHTML;
     if (isFuture) statusHTML = dashWeek.statusFutureHTML();
     else if (total > 0 && done === total) statusHTML = dashWeek.statusCheckHTML();
-    else if (done > 0) statusHTML = dashWeek.statusPartialHTML(done, total);
+    else if (done > 0) statusHTML = dashWeek.statusPartialHTML(done, total, isToday);
     else if (isToday) statusHTML = dashWeek.statusTodayHTML();
     else statusHTML = dashWeek.statusMissedHTML();
+
+    // Details: Übungsliste mit dem, was geloggt wurde
+    const detailLines = [{ label: "Ziel:", text: `${total} Übungen` }];
+    for (const ex of exercises) {
+      const log = logs.find((l) => l.date === iso && l.exercise === slug(ex.name) && l.completed);
+      const value = !log ? "–"
+        : log.topKg > 0 ? `${log.topKg} kg · ${log.totalReps ?? 0} Wdh`
+        : `${log.totalReps ?? 0} Wdh`;
+      detailLines.push({ label: ex.name + ":", text: value });
+    }
+    if (!isFuture && !isToday && done === 0) detailLines.push({ cls: "danger-text", text: "Nicht geloggt, zählt als verpasst." });
+    else if (!isFuture && !isToday && done < total) detailLines.push({ cls: "warn-text", text: `Teilweise geloggt (${done}/${total}).` });
 
     return {
       isRest: false, iso, d, dt, isToday, kindColorVar,
@@ -1464,6 +1476,7 @@ function buildWeekDayRow(plan, iso, today, logs, dps) {
       hasActual: done > 0,
       actualText: `${done}/${total} geloggt`,
       statusHTML,
+      detailLines,
     };
   }
 
@@ -1480,6 +1493,17 @@ function buildWeekDayRow(plan, iso, today, logs, dps) {
     ? `${run.distanceKm.toFixed(1)} km · ${run.paceLabel}${a.offset !== 0 ? " (nachgeholt)" : ""}`
     : "";
 
+  const detailLines = [{ label: "Ziel:", text: `${info.dist} · ${info.pace} · HF ${info.hf}` }];
+  if (run) {
+    detailLines.push({ label: "Ist:", text: `${run.distanceKm.toFixed(1)} km · ${run.paceLabel}${run.avgHr ? ` · Ø ${run.avgHr} bpm` : ""}` });
+    if (run.avgHr != null && run.avgHr > info.hfMax) {
+      detailLines.push({ cls: "warn-text", text: `Zu schnell: Ø ${run.avgHr} bpm über der Obergrenze von ${info.hfMax}.` });
+    }
+    if (a.offset !== 0) detailLines.push({ text: `${dayNameDE(run.date)}, ${shortDate(run.date)}: ${offsetLabel(a.offset)}` });
+  } else if (!isFuture && !isToday) {
+    detailLines.push({ cls: "danger-text", text: "Kein Lauf zugeordnet, zählt als verpasst." });
+  }
+
   return {
     isRest: false, iso, d, dt, isToday, kindColorVar,
     sessionName: info.type,
@@ -1487,6 +1511,7 @@ function buildWeekDayRow(plan, iso, today, logs, dps) {
     hasActual: !!run,
     actualText,
     statusHTML,
+    detailLines,
   };
 }
 
@@ -1776,6 +1801,14 @@ document.getElementById("app").addEventListener("click", async (e) => {
 
   if (action === "reload") return location.reload();
   if (action === "back") { state.selectedDate = null; runPickerFor = null; return render(); }
+  if (action === "toggle-day-detail") {
+    const row = target.closest(".day-row");
+    const detail = row?.querySelector(".day-detail");
+    if (!detail) return;
+    const open = detail.classList.toggle("open");
+    target.setAttribute("aria-expanded", String(open));
+    return;
+  }
   if (action === "open-day") { state.selectedDate = target.dataset.date; runPickerFor = null; return render(); }
   if (action === "toggle-today-exercises") { state.todayExpanded = !state.todayExpanded; return render(); }
   if (action === "open-info") {

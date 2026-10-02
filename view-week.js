@@ -1,15 +1,11 @@
 // Rendering des Wochen-Tabs (F9, M2-7). Reine Render-Funktionen wie
 // view-dashboard.js — Datenzugriff und Klick-Verdrahtung bleiben in app.js.
 //
-// Abweichung vom vorgeschlagenen Markup (docs/ui-markup-dashboard-v2.md
-// Abschnitt 6, bewusst): Dort klappt Antippen zuerst eine Detailzeile auf
-// (zweiter Tipp führt weiter in die Tagesansicht). Das hätte in praktisch
-// jedem bestehenden Browser-Test einen `[data-date="…"]`-Klick betroffen,
-// der heute direkt in die Tagesansicht öffnet (Kraft-Log, Strava-Zuordnung
-// usw.) — ein großer, riskanter Umbau für einen reinen Interaktions-
-// Feinschliff. Die Zeile bleibt deshalb ein einziger Tap direkt in die
-// Tagesansicht (wie vor M2-7), zeigt aber alle neuen Status-Symbole und die
-// Ist/Ziel-Zeile inline in der Reihe selbst.
+// Antippen klappt die Details der Zeile auf (Ziel, Ist, Hinweis, bei Kraft
+// die Übungsliste); "Tag öffnen" führt von dort in die Tagesansicht mit
+// Lauf-Zuordnung und Satz-Eingabe. Die Zeile ist deshalb kein Button,
+// sondern ein Container mit zwei Knöpfen, damit keine Buttons geschachtelt
+// werden.
 import { esc, ICONS } from "./ui.js?v=202609290821";
 
 export function weekNavHTML({ n, weekType, dateRange, hasPrev, hasNext, showToday }) {
@@ -44,24 +40,34 @@ export function restRowHTML(d, dt) {
 }
 
 export function dayRowHTML(day) {
-  return `<button type="button" class="day-row solid${day.isToday ? " today" : ""}"
-    data-action="open-day" data-date="${day.iso}">
-    <div class="head">
-      <div class="dcol"><p class="d" style="color:${day.kindColorVar}">${esc(day.d)}</p><p class="dt">${esc(day.dt)}</p></div>
-      <div class="mid">
-        <p class="n">${esc(day.sessionName)}</p>
-        <p class="s">${day.hasActual ? "Ist: " + esc(day.actualText) : "Ziel: " + esc(day.targetText)}</p>
-      </div>
-      ${day.statusHTML}
+  const detailId = `dayDetail-${day.iso}`;
+  const lines = day.detailLines
+    .map((l) => `<p${l.cls ? ` class="${l.cls}"` : ""}>${l.label ? `<span class="muted">${esc(l.label)}</span> ` : ""}${esc(l.text)}</p>`)
+    .join("");
+  return `<div class="day-row solid${day.isToday ? " today" : ""}" data-date="${day.iso}">
+    <button type="button" class="day-toggle" data-action="toggle-day-detail" aria-expanded="false" aria-controls="${detailId}">
+      <span class="head">
+        <span class="dcol"><span class="d" style="color:${day.kindColorVar}">${esc(day.d)}</span><span class="dt">${esc(day.dt)}</span></span>
+        <span class="mid">
+          <span class="n">${esc(day.sessionName)}</span>
+          <span class="s">${day.hasActual ? "Ist: " + esc(day.actualText) : "Ziel: " + esc(day.targetText)}</span>
+        </span>
+        ${day.statusHTML}
+      </span>
+    </button>
+    <div class="day-detail" id="${detailId}">
+      ${lines}
+      <button type="button" class="small-btn day-open" data-action="open-day" data-date="${day.iso}">Tag öffnen</button>
     </div>
-  </button>`;
+  </div>`;
 }
 
 export const statusCheckHTML = () => `<span class="status-icon" style="color:var(--ok-fg);">${ICONS.check}</span>`;
 export const statusWarnHTML = () => `<span class="status-icon" style="color:var(--amber-fg);">${ICONS.warn}</span>`;
 export const statusMissedHTML = () => `<span class="missed-pill">verpasst</span>`;
 export const statusTodayHTML = () => `<span class="today-pill">Heute</span>`;
-export const statusPartialHTML = (done, total) => `<span class="partial-pill">${done}/${total}</span>`;
+export const statusPartialHTML = (done, total, isToday = false) =>
+  `<span class="partial-pill">${isToday ? "Heute · " : ""}${done}/${total}</span>`;
 export const statusFutureHTML = () => `<span class="status-icon" style="color:var(--text-muted);">${ICONS.dash}</span>`;
 
 export function planBeendetHintHTML(lastWeek) {

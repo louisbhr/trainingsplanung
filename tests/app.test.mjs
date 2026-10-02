@@ -119,6 +119,13 @@ async function newPage({ connected = false, tz = "Europe/Berlin" } = {}) {
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true }); };
 
 // Kein horizontales Scrollen: sonst laufen Karten/Eingabefelder aus dem Bild.
+// Wochen-Tab: Zeile aufklappen und über "Tag öffnen" in die Tagesansicht
+async function openDay(page, iso) {
+  const row = page.locator(`.day-row[data-date="${iso}"]`);
+  await row.locator('[data-action="toggle-day-detail"]').click();
+  await row.locator('[data-action="open-day"]').click();
+}
+
 async function noHScroll(page, where) {
   const { doc, over } = await page.evaluate(() => ({
     doc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -153,7 +160,7 @@ async function noHScroll(page, where) {
   ok(errors.length === 0, "Dashboard: keine Konsolenfehler " + JSON.stringify(errors));
 
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-07"]');
+  await openDay(page, "2026-09-07");
   await page.waitForSelector('[data-action="connect-strava"]');
   ok(true, "Wochen-Tab: 'Mit Strava verbinden' erscheint ohne Tokens (unverändert aus M1)");
   await ctx.close();
@@ -333,6 +340,31 @@ async function noHScroll(page, where) {
     ok(hid, "Info-Sheet: nach Escape auch tatsächlich hidden");
   }
   ok(errors.length === 0, "Info-Sheet Stale-Timeout: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 2c-3. Wochen-Tab: heutiger Krafttag mit Teilfortschritt (Korrekturrunde 1) ----
+{
+  const { page, ctx, errors } = await newPage({ connected: true });
+  await page.clock.setFixedTime(new Date("2026-09-08T09:00:00Z")); // Di = Full Body A
+  await page.addInitScript(() => {
+    localStorage.setItem("test.logs", JSON.stringify({
+      "2026-09-08_squats": { date: "2026-09-08", exercise: "squats", name: "Squats", soll: "3x8-10", topKg: 60, totalReps: 27, completed: true, sets: [{ kg: 60, reps: 9 }, { kg: 60, reps: 9 }, { kg: 60, reps: 9 }] },
+      "2026-09-08_deadlift": { date: "2026-09-08", exercise: "deadlift", name: "Deadlift", soll: "3x5", topKg: 80, totalReps: 15, completed: true, sets: [{ kg: 80, reps: 5 }, { kg: 80, reps: 5 }, { kg: 80, reps: 5 }] },
+    }));
+  });
+  await page.goto(BASE + "/index.html");
+  await page.click('[data-tab="woche"]');
+  const row = page.locator('.day-row[data-date="2026-09-08"]');
+  await row.waitFor();
+  const pill = (await row.locator(".partial-pill").textContent()).trim();
+  ok(pill === "Heute · 2/8", `Woche: heutiger Krafttag zeigt "Heute · 2/8" (${pill})`);
+  ok(await row.evaluate((el) => el.classList.contains("today")), "Woche: heutiger Tag behält den Teal-Rahmen");
+  await row.locator('[data-action="toggle-day-detail"]').click();
+  const detail = await row.locator(".day-detail").textContent();
+  ok(detail.includes("Squats:") && detail.includes("60 kg · 27 Wdh"), "Woche: Details zeigen geloggte Werte je Übung");
+  ok(detail.includes("Nordic hamstring curl:") && detail.includes("–"), "Woche: noch nicht geloggte Übung mit Strich");
+  ok(errors.length === 0, "Woche Teilfortschritt: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
@@ -521,9 +553,20 @@ async function noHScroll(page, where) {
   const monday = page.locator('.day-row[data-date="2026-09-07"]');
   ok((await monday.locator(".mid .s").textContent()).startsWith("Ist:"), "Woche: bereits gelaufener Tag zeigt Ist statt Ziel");
 
-  // Dienstag = Krafttag öffnen (ein Tap direkt in die Tagesansicht, siehe
-  // Kommentar in view-week.js zur bewussten Abweichung vom Akkordeon-Vorschlag)
-  await page.click('[data-date="2026-09-08"]');
+  // Antippen klappt Details auf, ohne die Ansicht zu wechseln
+  const tue = page.locator('.day-row[data-date="2026-09-08"]');
+  ok(!(await tue.locator(".day-detail").isVisible()), "Woche: Details zunächst zu");
+  await tue.locator('[data-action="toggle-day-detail"]').click();
+  ok(await tue.locator(".day-detail").isVisible(), "Woche: Antippen klappt die Details auf");
+  ok((await tue.locator('[data-action="toggle-day-detail"]').getAttribute("aria-expanded")) === "true", "Woche: aria-expanded folgt dem Zustand");
+  ok((await tue.locator(".day-detail").textContent()).includes("Übungen"), "Woche: Kraft-Details zeigen die Übungsliste");
+  ok((await page.locator(".week-summary").count()) === 1, "Woche: Aufklappen bleibt im Wochen-Tab");
+  ok((await page.locator('.day-row.rest [data-action]').count()) === 0, "Woche: Ruhetage sind nicht antippbar");
+  await tue.locator('[data-action="toggle-day-detail"]').click();
+  ok(!(await tue.locator(".day-detail").isVisible()), "Woche: zweites Antippen klappt wieder zu");
+
+  // Dienstag = Krafttag über "Tag öffnen" in die Tagesansicht
+  await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex]');
   ok((await page.textContent("#header h1")) === "Krafttraining", "Tagesansicht: Krafttag geöffnet");
   ok((await page.locator("[data-ex]").count()) === 8, "Krafttag: 8 Übungen");
@@ -539,7 +582,7 @@ async function noHScroll(page, where) {
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-08"]');
+  await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="squats"]');
 
   const squats = page.locator('[data-ex="squats"]');
@@ -569,7 +612,7 @@ async function noHScroll(page, where) {
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-08"]');
+  await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="squats"]');
   const sq2 = page.locator('[data-ex="squats"]');
   ok((await sq2.locator(".set-row").count()) === 3, "Kraft: nach Reload wieder Einzelsatz-Ansicht (Werte unterschiedlich)");
@@ -687,7 +730,7 @@ async function noHScroll(page, where) {
   // Der "Strava noch nicht eingerichtet"-Hinweis erscheint in der
   // Tagesansicht (Wochen-Tab), nicht mehr auf dem Dashboard-Starttab.
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-07"]');
+  await openDay(page, "2026-09-07");
   await page.waitForSelector("#strava-slot .card");
   ok((await page.textContent("#strava-slot")).includes("Strava noch nicht eingerichtet"),
      "Setup: fehlender Worker wird erklärt statt zu hängen");
@@ -700,7 +743,7 @@ async function noHScroll(page, where) {
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-08"]');
+  await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="squats"]');
   ok((await page.locator("[data-ex]").count()) === 8, "Anpassen: Ausgangslage 8 Übungen");
 
@@ -755,7 +798,7 @@ async function noHScroll(page, where) {
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-08"]');
+  await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="beinpresse"]');
   ok((await page.locator('[data-ex="deadlift"]').count()) === 0, "Anpassen: Entfernung überlebt den Reload");
   ok((await page.locator('[data-ex="beinpresse"] [data-kg]').inputValue()) === "120", "Anpassen: Werte der eigenen Übung bleiben");
@@ -770,7 +813,7 @@ async function noHScroll(page, where) {
   // Andere Tage bleiben unberührt
   await page.click('[data-action="toggle-edit"]');
   await page.click('[data-action="back"]');
-  await page.click('[data-date="2026-09-10"]');
+  await openDay(page, "2026-09-10");
   await page.waitForSelector("[data-ex]");
   ok((await page.locator('[data-ex="beinpresse"]').count()) === 0, "Anpassen: gilt nur für den bearbeiteten Tag");
   ok(errors.length === 0, "Anpassen: keine Konsolenfehler " + JSON.stringify(errors));
@@ -822,7 +865,7 @@ async function noHScroll(page, where) {
   // Der Fehler-Karten-Vergleich (Firebase vs. Strava) lebt in der
   // Tagesansicht (#strava-slot), nicht auf dem Dashboard-Starttab.
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-07"]');
+  await openDay(page, "2026-09-07");
   await page.waitForSelector("#strava-slot .error-card");
   const runTxt = await page.textContent("#strava-slot");
   ok(runTxt.includes("Daten-Problem (Firebase)"), "Fehlerquelle: Firestore-Fehler wird nicht als Strava-Problem gezeigt");
@@ -834,7 +877,7 @@ async function noHScroll(page, where) {
 
   // Krafttag: Meldung muss stehen bleiben, nicht als Toast verschwinden
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-08"]');
+  await openDay(page, "2026-09-08");
   await page.waitForSelector("#main .error-card");
   ok((await page.textContent("#main")).includes("Gespeicherte Sätze nicht geladen"),
      "Krafttag: Ladefehler als dauerhafte Karte");
@@ -850,7 +893,7 @@ async function noHScroll(page, where) {
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-09"]'); // Mi = Easy run + 4x20s
+  await openDay(page, "2026-09-09"); // Mi = Easy run + 4x20s
   await page.waitForSelector("#strava-slot .card");
   const txt = await page.textContent("#strava-slot");
   ok(txt.includes("Erfasst (Strava)"), "Verschoben: Lauf wird trotzdem gefunden");
@@ -862,14 +905,14 @@ async function noHScroll(page, where) {
 
   // Der Montagslauf darf davon unberührt bleiben
   await page.click('[data-action="back"]');
-  await page.click('[data-date="2026-09-07"]');
+  await openDay(page, "2026-09-07");
   await page.waitForSelector("#strava-slot .card");
   const mo = await page.textContent("#strava-slot");
   ok(mo.includes("8.0 km") && !mo.includes("nachgeholt"), "Verschoben: exakter Treffer bleibt exakt");
 
   // "Passt nicht" -> Automatik aus, Angebot zur Zuordnung
   await page.click('[data-action="back"]');
-  await page.click('[data-date="2026-09-09"]');
+  await openDay(page, "2026-09-09");
   await page.waitForSelector('[data-action="ignore-run"]');
   await page.click('[data-action="ignore-run"]');
   await page.waitForSelector('[data-action="pick-run"]');
@@ -893,7 +936,7 @@ async function noHScroll(page, where) {
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-09"]');
+  await openDay(page, "2026-09-09");
   await page.waitForSelector("#strava-slot .card");
   ok((await page.textContent("#strava-slot")).includes("Nachgeholt"), "Zuordnung überlebt den Reload");
 
@@ -911,7 +954,7 @@ async function noHScroll(page, where) {
   const { page, ctx } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-08"]'); // Krafttag, lange Liste
+  await openDay(page, "2026-09-08"); // Krafttag, lange Liste
   await page.waitForSelector("[data-ex]");
 
   const vh = 844;
@@ -950,7 +993,7 @@ async function noHScroll(page, where) {
   });
   await page.goto(BASE + "/index.html");
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-08"]');
+  await openDay(page, "2026-09-08");
   await page.waitForSelector(".tip");
 
   const squats = await page.textContent('[data-ex="squats"] .tip');
@@ -989,7 +1032,7 @@ async function noHScroll(page, where) {
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-08"]');
+  await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="squats"]');
 
   // Hinzufügen ohne Umweg über den Bearbeitungsmodus
@@ -1026,7 +1069,7 @@ async function noHScroll(page, where) {
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-08"]');
+  await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="kurzhantelbank"]');
   ok((await page.locator('[data-ex="brustpresse"]').count()) === 0, "Ersetzen: überlebt den Reload");
 
@@ -1045,7 +1088,7 @@ async function noHScroll(page, where) {
   const { page, ctx } = await newPage();
   await page.goto(BASE + "/index.html");
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-08"]');
+  await openDay(page, "2026-09-08");
   await page.waitForSelector("[data-ex]");
 
   const bar = await page.locator("#tabbar").evaluate((el) => {
@@ -1095,7 +1138,7 @@ async function noHScroll(page, where) {
   // darunter zoomt iOS Safari hinein und die Seite lässt sich danach
   // seitlich schieben.
   const views = [
-    ["Krafttag", async () => { await page.click('[data-tab="woche"]'); await page.click('[data-date="2026-09-08"]'); await page.waitForSelector("[data-ex]"); }],
+    ["Krafttag", async () => { await page.click('[data-tab="woche"]'); await openDay(page, "2026-09-08"); await page.waitForSelector("[data-ex]"); }],
     ["Übung hinzufügen", async () => { await page.click('[data-action="quick-add"]'); await page.waitForSelector("#new-ex-name"); }],
     ["Verlauf", async () => { await page.click('[data-tab="verlauf"]'); await page.waitForSelector("#ex-picker"); }],
   ];
@@ -1161,7 +1204,7 @@ async function noHScroll(page, where) {
 
   // Satz-Logging funktioniert weiterhin mit der Kopie
   await page.click('[data-tab="woche"]');
-  await page.click('[data-date="2026-09-08"]');
+  await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="squats"]');
   await page.locator('[data-ex="squats"] [data-kg]').fill("80");
   await page.locator('[data-ex="squats"] [data-reps]').fill("9");
