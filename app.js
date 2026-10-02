@@ -1,28 +1,34 @@
 import {
   slug, toISO, fromISO, addDays,
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
-  sessionOn, activePlanFor, planDayState, exerciseCatalog, formatGoal,
-} from "./plan.js?v=202609271917";
-import { loadPlans } from "./plan-store.js?v=202609271917";
+  sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
+  monthLabel, germanDate,
+} from "./plan.js?v=202610020916";
+import { loadPlans } from "./plan-store.js?v=202610020916";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
-  loadRunLinks, saveRunLink, clearRunLink, loadAllLogs,
-} from "./firebase-init.js?v=202609271917";
+  loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
+  loadCoachWeek, saveCoachWeek,
+} from "./firebase-init.js?v=202610020916";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202609271917";
-import { suggestProgression, previousEntry } from "./progression.js?v=202609271917";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202609271917";
+} from "./strava.js?v=202610020916";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610020916";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610020916";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610020916";
+import * as dash from "./view-dashboard.js?v=202610020916";
+import * as dashWeek from "./view-week.js?v=202610020916";
+import * as metrics from "./metrics.js?v=202610020916";
+import * as coach from "./coach.js?v=202610020916";
+import { THRESHOLDS, COACH_URL } from "./config.js?v=202610020916";
 
-const ICONS = {
-  run: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="4" r="1.5" fill="currentColor" stroke="none"/><path d="M13 7l-2 3 3 2 1 5M11 10l-4 1-2 4M8 14l-3 1M13.5 11l3 1 2-2"/></svg>',
-  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>',
-  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>',
-  prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>',
-  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>',
-  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>',
-};
+const INFO_CONTENT = dash.infoContent(THRESHOLDS);
+// Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
+// eigentliche Konstante steht im Worker; ein Auseinanderlaufen ist
+// unkritisch, das Feld dient nur der späteren Auswertung/Migration.
+const COACH_MODEL = "claude-haiku-4-5";
+const COACH_PROMPT_VERSION = "coach-v1";
 
 // Wird erst gesetzt, wenn der Plan geladen ist (A1) — vorher greift jeder
 // Zugriff auf den STRAVA_SINCE-Wert daneben.
@@ -35,20 +41,18 @@ let plans = [];
 
 // ---------- kleine Helfer ----------
 const todayISO = () => toISO(new Date());
-const dayNameDE = (iso) => ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][fromISO(iso).getDay()];
-const shortDate = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
-  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const header = document.getElementById("header");
 const main = document.getElementById("main");
 
 const state = {
-  tab: "heute",
+  tab: "dashboard",
   weekNo: 1, // richtiger Wert kommt aus init(), sobald der Plan geladen ist
   selectedDate: null,
   historyMode: "kraft",
   historyExercise: null,
+  todayExpanded: false, // "Heute dran" (Kraft): Übungsliste auf-/zugeklappt
+  bilanzExpanded: false, // Wochenbilanz Di–So: eingeklappt, per Tap aufklappbar (Mo startet automatisch offen)
 };
 
 // Wochennummer für den Wochen-Tab: innerhalb einer Planwoche die echte
@@ -93,23 +97,7 @@ let runAssignment = {};
 let runLinks = {};
 let runPickerFor = null; // Plan-Datum, für das gerade die Auswahl offen ist
 let allLogs = null; // Kraft-Verlauf, für die Progressionsvorschläge
-
-function badge(text, color, bg) {
-  return `<span class="badge" style="background:${bg};color:${color}">${esc(text)}</span>`;
-}
-
-function toast(msg, isError = false) {
-  let box = document.getElementById("toast");
-  if (!box) {
-    box = document.createElement("div");
-    box.id = "toast";
-    document.getElementById("app").appendChild(box);
-  }
-  box.textContent = msg;
-  box.className = isError ? "show error" : "show";
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => (box.className = ""), isError ? 6000 : 3000);
-}
+let allDayPlans = null; // Tages-Anpassungen aller Tage, für die Wochensoll-Ampel (M2-5)
 
 // ---------- Plan-Zugriff ----------
 // Delegiert an sessionOn(plan, iso) innerhalb eines aktiven Plans; deckt
@@ -142,11 +130,712 @@ function badgeForKind(info) {
   return badge("Ruhe", color, bg);
 }
 
+// ---------- Dashboard (F1–F8) ----------
+// M2-4: Kopfzeile + "Heute dran" sind fertig; Coach/Ampeln/"Im Detail" sind
+// bewusst Platzhalter (siehe view-dashboard.js) — echte Werte kommen mit
+// M2-5/M2-6/M2-9/M2-10.
+const COACH_NO_PLAN_TEXT =
+  "Dein Plan ist beendet. Ein neues Ziel legst du im Plan-Tab an, sobald es feststeht. " +
+  "Bis dahin zeigt dir das Dashboard weiter deine Strava-Läufe und die Belastung.";
+
+// Letzter geladener dayplans-Stand für den heutigen Krafttag (M2-4) — bleibt
+// über Toggle-Klicks erhalten, damit "Starten" nicht jedes Mal auf die
+// Plan-Rohliste zurückfällt, bevor der frische Fetch durch ist.
+let todayDayPlanCache = { removed: [], added: [] };
+
+// Wie effectiveExercises(info), aber mit explizit übergebenem dayPlan statt
+// dem Modul-Global — Dashboard und Ampeln (M2-5) brauchen das für Tage, die
+// nicht die gerade offene Kraft-Tagesansicht sind.
+function effectiveExercisesFor(info, dp) {
+  const removed = new Set(dp.removed);
+  const replacements = new Map();
+  for (const ex of dp.added) if (ex.replaces) replacements.set(ex.replaces, ex);
+  const out = [];
+  for (const ex of info.exercises) {
+    const sl = slug(ex.name);
+    const rep = replacements.get(sl);
+    if (rep) { out.push({ ...rep, custom: true }); continue; }
+    if (removed.has(sl)) continue;
+    out.push(ex);
+  }
+  for (const ex of dp.added) if (!ex.replaces) out.push({ ...ex, custom: true });
+  return out;
+}
+
+function todayStravaSummary(iso) {
+  if (!stravaState.runs) return null;
+  const todays = stravaState.runs.filter((r) => r.date === iso);
+  if (!todays.length) return null;
+  const best = todays.reduce((a, b) => (b.distanceKm > a.distanceKm ? b : a));
+  return `${best.name} · ${best.distanceKm.toFixed(1)} km`;
+}
+
+// F2: "Datum offen" ohne bestätigtes Renndatum, sonst Wochen/Tage bis zum
+// Rennen (letzte Planwoche bzw. Rennlücke zeigt Tage statt Wochen).
+function countdownText(plan, iso, dayState) {
+  if (!plan.goal.raceDateConfirmed) {
+    return `Rennen ca. ${monthLabel(plan.goal.raceDate)} · Datum offen`;
+  }
+  const days = daysBetween(iso, plan.goal.raceDate);
+  if (days <= 0) return "Rennen heute!";
+  const lastStretch = dayState === "bisZumRennen" || weekNumberFor(plan, iso) === plan.totalWeeks;
+  if (lastStretch || days <= 7) return `Noch ${days} ${days === 1 ? "Tag" : "Tage"}`;
+  const weeks = Math.ceil(days / 7);
+  return `Noch ${weeks} ${weeks === 1 ? "Woche" : "Wochen"} bis zum Rennen`;
+}
+
+function paintDashboardHeader(iso, dayState, plan) {
+  if (dayState === "keinPlan") {
+    const race = plans[0]?.goal;
+    const past = race && race.raceDate < iso;
+    header.innerHTML = dash.headerHTML({
+      eyebrow: longDateDE(iso),
+      title: "Kein aktiver Plan",
+      badge: dash.noPlanBadgeHTML(),
+      countdown: past ? `Rennen am ${germanDate(race.raceDate)}` : "",
+    });
+    return;
+  }
+  if (dayState === "bisZumRennen") {
+    header.innerHTML = dash.headerHTML({
+      eyebrow: longDateDE(iso),
+      title: "Bis zum Rennen",
+      badge: dash.noPlanBadgeHTML(),
+      countdown: countdownText(plan, iso, dayState),
+    });
+    return;
+  }
+  const w = weekNumberFor(plan, iso);
+  const week = weekOf(plan, w);
+  const phase = phaseOf(plan, w);
+  header.innerHTML = dash.headerHTML({
+    eyebrow: longDateDE(iso),
+    title: `Woche ${w} · ${week.weekType}`,
+    badge: dash.phaseBadgeHTML(phase.n, phase.name, phase.tone),
+    countdown: countdownText(plan, iso, dayState),
+  });
+}
+
+function todayCardSlotHTML(iso, dayState, plan) {
+  if (dayState === "keinPlan") return dash.todayCardNoPlanHTML(todayStravaSummary(iso));
+  if (dayState === "bisZumRennen") return dash.todayCardBisZumRennenHTML();
+
+  const info = sessionOn(plan, iso);
+  if (info.kind === "placeholder") return dash.todayCardPlaceholderHTML(phaseOf(plan, info.week)?.n, info.focus);
+  if (info.kind === "kraft") {
+    const exercises = effectiveExercisesFor(info, todayDayPlanCache);
+    return dash.todayCardKraftHTML(info, { expanded: state.todayExpanded, progressText: "… geloggt", exercises });
+  }
+  if (info.kind === "lauf") {
+    const actualHTML =
+      stravaState.error ? dash.laufErrorHTML()
+      : stravaState.connected === false ? dash.laufNotConnectedHTML()
+      : stravaState.connected ? dash.laufActualHTML(runAssignment[iso])
+      : dash.laufLoadingHTML(); // null = Prüfung läuft noch
+    return dash.todayCardLaufHTML(info, actualHTML);
+  }
+  return dash.todayCardRuheHTML();
+}
+
+function paintDashboardMain(iso, dayState, plan) {
+  // Neuer Tag/neue Woche: kein Rest vom vorigen Coach-Render übernehmen.
+  coachDailyText = null;
+  coachBilanzInfo = null;
+  state.bilanzExpanded = false;
+  main.innerHTML = `
+    <div id="today-slot">${todayCardSlotHTML(iso, dayState, plan)}</div>
+    <div id="coach-slot">${dayState === "keinPlan" ? dash.coachNoPlanHTML(COACH_NO_PLAN_TEXT) : dash.coachPlaceholderHTML()}</div>
+    <div id="ampel-slot">${dash.ampelPlaceholderGridHTML()}</div>
+    <div id="detail-slot">${dash.detailPlaceholderHTML()}</div>`;
+  fillTodayCard(iso, dayState, plan);
+  fillAmpeln(iso, dayState, plan);
+  fillDetail(iso, dayState, plan);
+  fillCoach(iso, dayState, plan);
+  fillWeeklyBilanz(iso, dayState, plan);
+}
+
+function refreshTodaySlot(iso, dayState, plan) {
+  // Kann inzwischen weitergeklickt haben (anderer Tab, Tagesansicht offen) —
+  // dann nicht mehr in die aktuelle Ansicht schreiben.
+  if (state.tab !== "dashboard" || state.selectedDate) return;
+  const slot = document.getElementById("today-slot");
+  if (slot) slot.innerHTML = todayCardSlotHTML(iso, dayState, plan);
+}
+
+// Lädt nach, was die Synchron-Ansicht noch nicht hatte (Strava-Ist-Werte,
+// Kraft-Fortschritt) — das Dashboard selbst wartet darauf nicht (F3/F7).
+async function fillTodayCard(iso, dayState, plan) {
+  if (dayState === "woche") {
+    const info = sessionOn(plan, iso);
+    if (info.kind === "kraft") {
+      try {
+        const [saved, dp] = await Promise.all([loadLogsForDate(iso), loadDayPlan(iso)]);
+        todayDayPlanCache = dp;
+        const exercises = effectiveExercisesFor(info, dp);
+        const done = exercises.filter((ex) => saved[slug(ex.name)]?.completed).length;
+        if (state.tab === "dashboard" && !state.selectedDate) {
+          const slot = document.getElementById("today-slot");
+          if (slot) {
+            slot.innerHTML = dash.todayCardKraftHTML(info, {
+              expanded: state.todayExpanded,
+              progressText: `${done}/${exercises.length} geloggt`,
+              exercises,
+            });
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      return;
+    }
+  }
+  // Lauftag, "kein Plan" (Strava-Fallback) oder "bis zum Rennen": Strava
+  // laden, dann die Karte mit den Ist-Werten aktualisieren.
+  try {
+    await loadStrava();
+    refreshTodaySlot(iso, dayState, plan);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// ---------- Ampeln (F5, M2-5) ----------
+// Wirft nie (I1, Code-Review M2 Runde 1): fillAmpeln/fillDetail/fillCoach
+// sollen bei einem Firestore-Ausfall mit leeren, aber validen Daten
+// weiterrechnen (Kraft-Ampel grau, Rest normal) statt dauerhaft im
+// Lade-Platzhalter hängen zu bleiben. ok=false zeigt den Aufrufern, dass
+// logs/dps nur ein sicherer Leerwert sind, keine echten Daten.
+async function ensureAllLogsAndDayPlans() {
+  try {
+    const [logs, dps] = await Promise.all([
+      allLogs ? Promise.resolve(allLogs) : loadAllLogs(),
+      allDayPlans ? Promise.resolve(allDayPlans) : loadAllDayPlans(),
+    ]);
+    allLogs = logs;
+    allDayPlans = dps;
+    return { logs, dps, ok: true };
+  } catch (err) {
+    console.error(err);
+    return { logs: [], dps: {}, ok: false };
+  }
+}
+
+// Letzte (max n) über assignRuns zugeordnete Easy/Long/Recovery-Läufe über
+// alle Planwochen hinweg (nicht nur die aktuelle Woche) — F5 Ampel 2.
+function lastAssignedEasyRuns(plan, n) {
+  const candidates = [];
+  for (const week of plan.weeks) {
+    if (week.placeholder) continue;
+    for (const s of week.sessions.filter((x) => x.kind === "lauf" && ["Easy", "Long", "Recovery"].includes(x.shortType))) {
+      const a = runAssignment[s.date];
+      if (a?.run) candidates.push({ avgHr: a.run.avgHr, hfMax: s.hfMax, dayLabel: dayNameDE(s.date), date: s.date });
+    }
+  }
+  candidates.sort((a, b) => (a.date < b.date ? 1 : -1)); // neueste zuerst
+  return candidates.slice(0, n);
+}
+
+// "Kraft erledigt" (F5/F8): alle Übungen der effektiven Liste (inkl. eigener
+// Ergänzungen/Entfernungen aus dayplans) sind für diesen Tag geloggt. Diese
+// Regel stand vorher sechsfach fast gleich da (I4, Code-Review M2 Runde 1) —
+// ändert sie sich einmal (z. B. eigene Übungen, Schritt 1b), reicht diese
+// eine Stelle. logs darf leer sein (Firestore-Ausfall, I1) — dann ist
+// einfach nichts geloggt, kein Fehler.
+function kraftProgressOn(session, dp, logs) {
+  const exercises = effectiveExercisesFor(session, dp || { removed: [], added: [] });
+  const withLogs = exercises.map((ex) => ({
+    ex,
+    log: logs.find((l) => l.date === session.date && l.exercise === slug(ex.name) && l.completed) || null,
+  }));
+  const done = withLogs.filter((e) => e.log).length;
+  return { exercises, withLogs, done, total: exercises.length, complete: exercises.length > 0 && done === exercises.length };
+}
+
+// Strava "bereit" heißt mehr als nur "verbunden" (I2): ein Abrufsfehler
+// setzt connected weiterhin true, aber runs bleibt null und error ist
+// gesetzt — ohne diese Prüfung würde ein 500er-Abruf als "0 km gelaufen"
+// gewertet (falsches Rot auf den Lauf-Ampeln, eine Wochenbilanz ohne
+// Strava-Daten).
+function stravaReady() {
+  return stravaState.connected === true && Array.isArray(stravaState.runs) && !stravaState.error;
+}
+function stravaUnavailableDetail() {
+  return stravaState.connected === false ? "Strava nicht verbunden" : "Strava nicht geladen";
+}
+
+function grauAmpeln(iso, detail) {
+  const b = stravaReady()
+    ? metrics.belastung(stravaState.runs || [], iso, THRESHOLDS)
+    : { status: "grau", detail: stravaUnavailableDetail() };
+  return [
+    { key: "wochensoll", status: "grau", detail },
+    { key: "easy", status: "grau", detail },
+    { key: "belastung", status: b.status, detail: b.detail },
+    { key: "kraft", status: "grau", detail },
+  ];
+}
+
+// logsOk=false (I1, Firestore-Ausfall): die Kraft-Ampel wird grau mit einem
+// eigenen Hinweis statt "noch zu wenig Daten", und der Kraftteil des
+// Wochensolls zählt nicht mit (weder Lob noch Tadel aus Daten, die gar nicht
+// da sind). stravaReady()=false (I2): Easy- und Belastungs-Ampel werden
+// grau, der Laufteil des Wochensolls zählt nicht mit.
+function computeRealAmpeln(plan, weekNo, iso, logs, dayPlans, logsOk = true) {
+  const sessions = sessionsFor(plan, weekNo);
+  const stravaOk = stravaReady();
+
+  const actualKmByDate = {};
+  if (stravaOk) {
+    for (const s of sessions.filter((x) => x.kind === "lauf")) {
+      const a = runAssignment[s.date];
+      if (a?.run) actualKmByDate[s.date] = a.run.distanceKm;
+    }
+  }
+  const kraftDoneByDate = {};
+  for (const s of sessions.filter((x) => x.kind === "kraft")) {
+    kraftDoneByDate[s.date] = kraftProgressOn(s, dayPlans[s.date], logs).complete;
+  }
+  const wochensollSessions = sessions.filter(
+    (s) => (s.kind === "kraft" && logsOk) || (s.kind === "lauf" && stravaOk)
+  );
+  let wochensollResult = metrics.wochensoll(wochensollSessions, actualKmByDate, kraftDoneByDate, iso, THRESHOLDS);
+  // Fehlt eine Datenquelle, die fehlende Hälfte benennen statt "0 / 0 km"
+  // zu zeigen; fehlen beide, ist die Ampel grau statt scheinbar grün.
+  if (!stravaOk || !logsOk) {
+    const sollKm = sessions.filter((x) => x.kind === "lauf").reduce((a, x) => a + (x.km || 0), 0);
+    const laufPart = stravaOk ? `${Math.round(wochensollResult.istKm * 10) / 10} / ${sollKm} km` : "Lauf: Strava fehlt";
+    const kraftPart = logsOk ? `Kraft ${wochensollResult.kraftDone}/${wochensollResult.kraftPlanned}` : "Kraft: Daten fehlen";
+    wochensollResult = {
+      ...wochensollResult,
+      status: !stravaOk && !logsOk ? "grau" : wochensollResult.status,
+      detail: `${laufPart} · ${kraftPart}`,
+    };
+  }
+
+  const easyResult = stravaOk
+    ? metrics.easyDisziplin(lastAssignedEasyRuns(plan, 3), THRESHOLDS)
+    : { status: "grau", detail: stravaUnavailableDetail() };
+  const belastungResult = stravaOk
+    ? metrics.belastung(stravaState.runs || [], iso, THRESHOLDS)
+    : { status: "grau", detail: stravaUnavailableDetail() };
+  const kraftResult = logsOk
+    ? metrics.kraftProgression(metrics.kraftHistoryByExercise(logs, iso, THRESHOLDS.kraft.windowDays), THRESHOLDS)
+    : { status: "grau", detail: "Kraftdaten nicht geladen" };
+
+  return [
+    { key: "wochensoll", status: wochensollResult.status, detail: wochensollResult.detail },
+    { key: "easy", status: easyResult.status, detail: easyResult.detail },
+    { key: "belastung", status: belastungResult.status, detail: belastungResult.detail },
+    { key: "kraft", status: kraftResult.status, detail: kraftResult.detail },
+  ];
+}
+
+async function fillAmpeln(iso, dayState, plan) {
+  try {
+    await loadStrava(); // idempotent/gecacht — Zuordnung + Belastung brauchen es
+    let list;
+    if (dayState !== "woche") {
+      list = grauAmpeln(iso, "kein aktiver Plan");
+    } else {
+      const weekNo = weekNumberFor(plan, iso);
+      const week = weekOf(plan, weekNo);
+      if (week.placeholder) {
+        list = grauAmpeln(iso, "Woche ohne Details");
+      } else {
+        const { logs, dps, ok } = await ensureAllLogsAndDayPlans();
+        list = computeRealAmpeln(plan, weekNo, iso, logs, dps, ok);
+      }
+    }
+    if (state.tab === "dashboard" && !state.selectedDate) {
+      const slot = document.getElementById("ampel-slot");
+      if (slot) slot.innerHTML = dash.ampelGridHTML(list);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// ---------- "Im Detail" (F8, M2-6) ----------
+function weeksOfCurrentPhase(plan, weekNo) {
+  const phase = phaseOf(plan, weekNo);
+  return plan.weeks.filter((w) => w.n >= phase.weeks.from && w.n <= phase.weeks.to);
+}
+
+// Ist-km einer Woche aus den zugeordneten Läufen (runAssignment deckt schon
+// den ganzen Plan ab, nicht nur die aktuelle Woche). 0 ist ein gültiger
+// Wert (kein Lauf zugeordnet) — nur künftige Wochen bleiben null, damit dort
+// kein Ist-Balken gezeichnet wird (D2).
+function actualKmForWeek(plan, weekNo, currentWeekNo) {
+  const week = weekOf(plan, weekNo);
+  if (!week || week.placeholder || weekNo > currentWeekNo) return null;
+  let total = 0;
+  for (const s of sessionsFor(plan, weekNo).filter((x) => x.kind === "lauf")) {
+    const a = runAssignment[s.date];
+    if (a?.run) total += a.run.distanceKm;
+  }
+  return total;
+}
+
+// Zugeordnete Läufe je Woche (1..bis) für die aerobe Effizienz — auch aus
+// Wochen außerhalb der aktuellen Phase, deshalb unabhängig von
+// weeksOfCurrentPhase.
+function aerobeWeeklyData(plan, uptoWeekNo) {
+  const out = [];
+  for (let n = 1; n <= uptoWeekNo; n++) {
+    const week = weekOf(plan, n);
+    if (!week || week.placeholder) continue;
+    const runs = sessionsFor(plan, n)
+      .filter((s) => s.kind === "lauf")
+      .map((s) => runAssignment[s.date]?.run)
+      .filter(Boolean)
+      .map((r) => ({ paceSecPerKm: r.paceSecPerKm, avgHr: r.avgHr }));
+    out.push({ week: n, runs });
+  }
+  return out;
+}
+
+// Adhärenz 4 Wochen: erledigte vs. geplante Einheiten (Ruhetage sind in
+// sessions[] ohnehin nicht enthalten) der letzten 28 Tage über alle Wochen.
+function adherence4wData(plan, iso, logs, dayPlans) {
+  const from = addDays(iso, -27);
+  let planned = 0, done = 0;
+  for (const week of plan.weeks) {
+    if (week.placeholder) continue;
+    for (const s of sessionsFor(plan, week.n)) {
+      if (s.date < from || s.date > iso) continue;
+      planned++;
+      if (s.kind === "lauf") {
+        if (runAssignment[s.date]?.run) done++;
+      } else if (s.kind === "kraft") {
+        if (kraftProgressOn(s, dayPlans[s.date], logs).complete) done++;
+      }
+    }
+  }
+  return metrics.adherence4w(done, planned);
+}
+
+// "Als Nächstes": nächster Long Run, Typ der nächsten Woche, nächste
+// Re-Kalibrierung.
+function nextUpLines(plan, iso, currentWeekNo) {
+  let nextLong = null;
+  for (const week of plan.weeks) {
+    if (week.placeholder) continue;
+    for (const s of sessionsFor(plan, week.n).filter((x) => x.kind === "lauf" && x.shortType === "Long")) {
+      if (s.date >= iso && (!nextLong || s.date < nextLong.date)) nextLong = s;
+    }
+  }
+  const nextWeek = weekOf(plan, currentWeekNo + 1);
+  const nextRecal = (plan.recalibrationDates || []).find((d) => d >= iso);
+  return [
+    nextLong ? `Nächster Long Run: ${dayNameDE(nextLong.date)} ${shortDate(nextLong.date)}, ${nextLong.dist}` : "Kein weiterer Long Run geplant",
+    nextWeek ? `Nächste Woche: ${nextWeek.weekType}` : "Letzte Planwoche",
+    nextRecal ? `Re-Kalibrierung: ${shortDate(nextRecal)}` : "Keine weitere Re-Kalibrierung geplant",
+  ];
+}
+
+function patchDetailSlot(html) {
+  if (state.tab !== "dashboard" || state.selectedDate) return;
+  const slot = document.getElementById("detail-slot");
+  if (slot) slot.innerHTML = html;
+}
+
+async function fillDetail(iso, dayState, plan) {
+  try {
+    await loadStrava();
+    if (dayState !== "woche") {
+      // F7: nach Planende/in der Rennlücke/ohne Plan bleibt höchstens die
+      // Aerobe-Effizienz-Karte übrig, kein "Im Detail"-Label, kein Rest.
+      let html = "";
+      if (plan) {
+        const zone = plan.zones.find((z) => z.id === "z2");
+        const aerobe = metrics.aerobeEffizienz(aerobeWeeklyData(plan, plan.totalWeeks), zone);
+        html = dash.aerobeCardHTML(aerobe);
+      }
+      patchDetailSlot(html);
+      return;
+    }
+    const weekNo = weekNumberFor(plan, iso);
+    const week = weekOf(plan, weekNo);
+    if (week.placeholder) {
+      patchDetailSlot(dash.detailPlaceholderHTML());
+      return;
+    }
+    const { logs, dps, ok } = await ensureAllLogsAndDayPlans();
+    const phaseWeeks = weeksOfCurrentPhase(plan, weekNo);
+    const actualKmByWeek = {};
+    for (const w of phaseWeeks) actualKmByWeek[w.n] = actualKmForWeek(plan, w.n, weekNo);
+    const volume = metrics.weeklyVolume(phaseWeeks, actualKmByWeek, weekNo);
+    const zone = plan.zones.find((z) => z.id === "z2");
+    const aerobe = metrics.aerobeEffizienz(aerobeWeeklyData(plan, weekNo), zone);
+    // I1: ohne lesbare Logs bleibt die Adhärenz-Kachel grau statt eine
+    // 0%-Zahl aus leeren Daten vorzutäuschen; Volumen/Effizienz brauchen
+    // keine Logs und rendern unverändert.
+    const adherence = ok ? adherence4wData(plan, iso, logs, dps) : null;
+    const nextLines = nextUpLines(plan, iso, weekNo);
+
+    patchDetailSlot(`<p class="section-label">Im Detail</p>
+      ${dash.volumeCardHTML(volume)}
+      ${dash.aerobeCardHTML(aerobe)}
+      <div class="metric-grid">
+        ${dash.adherenceTileHTML(adherence)}
+        ${dash.nextUpTileHTML(nextLines)}
+      </div>`);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// ---------- Coach (F6, M2-9) ----------
+function todayFieldFor(info, doneToday) {
+  if (info.kind === "kraft") return { type: "Kraft", name: info.label, done: !!doneToday };
+  if (info.kind === "lauf") return { type: "Lauf", name: info.type, done: !!runAssignment[todayISO()]?.run };
+  if (info.kind === "ruhe") return { type: "Ruhe", name: "Ruhe", done: false };
+  return { type: "Offen", name: "Offen", done: false }; // Platzhalterwoche
+}
+
+// Nächste geplante Einheit über alle Planwochen hinweg, kurzgefasst wie
+// "Sa: Long Run 13 km" (F6-Eingabeschema "next").
+function nextSessionLabel(plan, iso) {
+  let next = null;
+  for (const week of plan.weeks) {
+    if (week.placeholder) continue;
+    for (const s of sessionsFor(plan, week.n)) {
+      if (s.date > iso && (!next || s.date < next.date)) next = s;
+    }
+  }
+  if (!next) return "Kein weiteres Training geplant";
+  const label = next.kind === "lauf" ? `${next.type} ${next.dist}` : next.label;
+  return `${dayNameDE(next.date)}: ${label}`;
+}
+
+function patchCoachSlot(html) {
+  if (state.tab !== "dashboard" || state.selectedDate) return;
+  const slot = document.getElementById("coach-slot");
+  if (slot) slot.innerHTML = html;
+}
+
+// Tagessatz und Wochenbilanz laufen als zwei unabhängige, unterschiedlich
+// schnelle Anfragen (fillCoach/fillWeeklyBilanz) gegen denselben Slot —
+// beide schreiben deshalb nie direkt, sondern nur über renderCoachSlot(),
+// das den jeweils aktuellen Stand beider Teile kombiniert. Ohne das würde
+// die zuerst fertige Anfrage von der zweiten überschrieben, statt ergänzt.
+let coachDailyText = null;
+let coachBilanzInfo = null; // { weekN, text, expanded } | null
+
+function renderCoachSlot() {
+  if (coachDailyText == null) return; // Tagessatz noch nicht da — nichts überschreiben
+  const bilanzHTML = !coachBilanzInfo
+    ? ""
+    : coachBilanzInfo.expanded
+    ? dash.bilanzExpandedHTML(coachBilanzInfo.weekN, coachBilanzInfo.text)
+    : dash.bilanzCollapsedHTML(coachBilanzInfo.weekN, state.bilanzExpanded, coachBilanzInfo.text);
+  patchCoachSlot(dash.coachTextHTML(coachDailyText, bilanzHTML));
+}
+
+// Baut die Ampel-Liste + Kraft-heute-erledigt ohne erneuten Strava-/
+// Firestore-Zugriff (nutzt, was fillAmpeln/fillDetail ohnehin schon lädt/
+// cacht) und ruft darüber requestCoach() auf. Fehler landen nie als
+// Fehlerkarte (F6) — im schlimmsten Fall bleibt der Lade-Platzhalter stehen.
+async function fillCoach(iso, dayState, plan) {
+  if (dayState === "keinPlan") return; // fixer Hinweistext steht schon (kein API-Aufruf, F7)
+  if (dayState === "bisZumRennen") {
+    return patchCoachSlot(dash.coachNoPlanHTML(
+      "Zwischen Planende und Rennen macht der Coach eine Pause. Bis zum Start alles Gute!"
+    ));
+  }
+  try {
+    await loadStrava();
+    const weekNo = weekNumberFor(plan, iso);
+    const week = weekOf(plan, weekNo);
+    const info = sessionOn(plan, iso);
+
+    let ampelnList, doneToday = false;
+    if (week.placeholder) {
+      ampelnList = grauAmpeln(iso, "Woche ohne Details");
+    } else {
+      const { logs, dps, ok } = await ensureAllLogsAndDayPlans();
+      if (!ok) {
+        // I1: ist das Coach-Dokument ohnehin nicht lesbar, gäbe es sowieso
+        // keinen Aufruf (requestCoach() scheitert selbst an loadDoc) — hier
+        // sparen wir ihn uns direkt und zeigen den Regel-Fallback sofort,
+        // statt mit Platzhalterdaten eine echte Anfrage zu starten.
+        ampelnList = computeRealAmpeln(plan, weekNo, iso, [], {}, false);
+        coachDailyText = coach.fallbackDaily(ampelnList);
+        renderCoachSlot();
+        return;
+      }
+      ampelnList = computeRealAmpeln(plan, weekNo, iso, logs, dps);
+      if (info.kind === "kraft") {
+        doneToday = kraftProgressOn(info, dps[iso], logs).complete;
+      }
+    }
+
+    const zone = plan.zones.find((z) => z.id === "z2");
+    const aerobe = metrics.aerobeEffizienz(aerobeWeeklyData(plan, weekNo), zone);
+
+    const input = coach.buildDailyInput({
+      iso, week: weekNo, weekType: week.weekType, phase: phaseOf(plan, weekNo).name,
+      goal: plan.goal, today: todayFieldFor(info, doneToday), ampeln: ampelnList,
+      next: nextSessionLabel(plan, iso), aerobeEffizienzTrend: aerobe.deltaText,
+    });
+    const hash = await coach.hashInput(input);
+    const fallbackText = coach.fallbackDaily(ampelnList);
+
+    const result = await coach.requestCoach({
+      hash,
+      loadDoc: () => loadCoach(iso),
+      saveDoc: (data) => saveCoach(iso, data),
+      fetchWorker: () => fetch(COACH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+      limit: THRESHOLDS.coach.dailyLimit,
+      model: COACH_MODEL,
+      promptVersion: COACH_PROMPT_VERSION,
+      fallbackText,
+    });
+
+    coachDailyText = result.text;
+    renderCoachSlot();
+  } catch (err) {
+    console.error(err);
+    // Nie eine Fehlerkarte (F6) — Platzhalter bleibt stehen, wenn selbst der
+    // Fallback nicht zustande kommt (z. B. Plan-/Zonen-Zugriff schlägt fehl).
+  }
+}
+
+// ---------- Wochenbilanz montags (F6, M2-10) ----------
+function weeklyRunData(plan, weekNo) {
+  const laufSessions = sessionsFor(plan, weekNo).filter((s) => s.kind === "lauf");
+  const plannedKm = laufSessions.reduce((a, s) => a + s.km, 0);
+  let actualKm = 0, sessionsDone = 0;
+  const easyOverLimit = [];
+  for (const s of laufSessions) {
+    const a = runAssignment[s.date];
+    if (!a?.run) continue;
+    actualKm += a.run.distanceKm;
+    sessionsDone++;
+    if (a.run.avgHr != null && a.run.avgHr > s.hfMax) {
+      easyOverLimit.push({ day: dayNameDE(s.date), avgHr: Math.round(a.run.avgHr), limit: s.hfMax });
+    }
+  }
+  return {
+    plannedKm, actualKm: Math.round(actualKm * 10) / 10,
+    sessionsPlanned: laufSessions.length, sessionsDone,
+    easyOverLimit: easyOverLimit.slice(0, 7),
+  };
+}
+
+function weeklyKraftData(plan, weekNo, logs, dps, kraftAmpelResults) {
+  const kraftSessions = sessionsFor(plan, weekNo).filter((s) => s.kind === "kraft");
+  let sessionsDone = 0;
+  for (const s of kraftSessions) {
+    if (kraftProgressOn(s, dps[s.date], logs).complete) sessionsDone++;
+  }
+  // Die Ampel kennt nur ok/stagniert/unterSoll; für die Wochenbilanz wird
+  // "ok" über den Trend zur vorigen Einheit in steigt/haelt aufgeteilt.
+  const progression = (kraftAmpelResults || []).slice(0, 12).map((r) => ({
+    exercise: r.name,
+    status: r.status === "unterSoll" ? "unterSoll" : r.status === "stagniert" ? "stagniert" : r.trend || "steigt",
+    detail: `${r.reps.split("/").length}× ${r.topKg} kg`,
+  }));
+  return { sessionsPlanned: kraftSessions.length, sessionsDone, progression };
+}
+
+// Wird erst ausgelöst, sobald Strava geladen ist, und nur, wenn es eine
+// zurückliegende (nicht platzhaltergefüllte) Planwoche zu bilanzieren gibt.
+async function fillWeeklyBilanz(iso, dayState, plan) {
+  if (dayState !== "woche") return;
+  try {
+    await loadStrava();
+    const weekNo = weekNumberFor(plan, iso);
+    // I2: ein Strava-Abrufsfehler bei verbundenem Konto darf nicht als "0 km
+    // gelaufen" in die Bilanz einfließen — ohne echte Strava-Daten gibt es
+    // gar keine Wochenbilanz-Anfrage (verbraucht sonst eine Generation mit
+    // einer falschen Bilanz).
+    if (!coach.weeklyDue({ weekNo, hasStrava: stravaReady() })) return;
+
+    const summarizedWeekNo = weekNo - 1;
+    const summarizedWeek = weekOf(plan, summarizedWeekNo);
+    if (!summarizedWeek || summarizedWeek.placeholder) return;
+
+    const { logs, dps, ok } = await ensureAllLogsAndDayPlans();
+    if (!ok) return; // kein verlässliches Bild der Woche -> lieber keine Bilanz als eine falsche
+    const kraftResult = metrics.kraftProgression(metrics.kraftHistoryByExercise(logs, iso, THRESHOLDS.kraft.windowDays), THRESHOLDS);
+    const belastungResult = metrics.belastung(stravaState.runs || [], iso, THRESHOLDS);
+    const zone = plan.zones.find((z) => z.id === "z2");
+    const aerobe = metrics.aerobeEffizienz(aerobeWeeklyData(plan, weekNo), zone);
+    const adherence = adherence4wData(plan, iso, logs, dps);
+    const currentWeek = weekOf(plan, weekNo);
+
+    const input = coach.buildWeeklyInput({
+      goal: plan.goal, week: summarizedWeekNo, weekType: summarizedWeek.weekType,
+      phase: phaseOf(plan, summarizedWeekNo).name,
+      run: weeklyRunData(plan, summarizedWeekNo),
+      kraft: weeklyKraftData(plan, summarizedWeekNo, logs, dps, kraftResult.results),
+      // K1: metrics.belastung() liefert bei ∞ jetzt ratio:null statt
+      // Infinity (das würde der Worker als 400 ablehnen, siehe
+      // docs/review-code-m2.md) — fürs Worker-Schema auf 9,99 kappen statt
+      // auf 0, damit eine wirklich sehr hohe Belastung nicht als niedrig
+      // ankommt.
+      belastung: { ratio: belastungResult.ratio ?? 9.99, status: belastungResult.status },
+      aerobeEffizienzTrend: aerobe.deltaText,
+      // K1: metrics.adherence4w() liefert zusätzlich `pct` — das Worker-
+      // Schema erlaubt nur done/planned, ein ungefiltertes Durchreichen
+      // ließ die Wochenbilanz bisher IMMER mit 400 scheitern.
+      adherence4w: { done: adherence.done, planned: adherence.planned },
+      nextWeek: { n: weekNo, type: currentWeek?.weekType ?? "-", keySession: nextSessionLabel(plan, iso) },
+    });
+    const hash = await coach.hashInput(input);
+    const key = `${plan.id}_W${summarizedWeekNo}`;
+    const fallbackText = coach.fallbackWeekly(input);
+
+    const result = await coach.requestCoach({
+      hash,
+      loadDoc: () => loadCoachWeek(key),
+      saveDoc: (data) => saveCoachWeek(key, data),
+      fetchWorker: () => fetch(COACH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+      limit: THRESHOLDS.coach.weeklyLimit,
+      model: COACH_MODEL,
+      promptVersion: COACH_PROMPT_VERSION,
+      fallbackText,
+    });
+
+    coachBilanzInfo = { weekN: summarizedWeekNo, text: result.text, expanded: dayNameDE(iso) === "Mo" };
+    renderCoachSlot();
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function renderDashboard() {
+  const iso = todayISO();
+  const dayState = planDayState(iso, plans);
+  const plan = activePlanFor(iso, plans);
+  paintDashboardHeader(iso, dayState, plan);
+  paintDashboardMain(iso, dayState, plan);
+}
+
 // ---------- Rendering ----------
+// Markierung in der Tableiste immer aus dem Zustand ableiten, nicht nur beim
+// Tab-Klick: sonst zeigt sie nach internen Sprüngen den falschen Tab.
+function syncTabbar() {
+  document.querySelectorAll("#tabbar button").forEach((b) =>
+    b.classList.toggle("active", b.dataset.tab === state.tab));
+}
+
 function render() {
   if (!plans.length) return; // Plan lädt noch (siehe init()); nichts zu rendern
+  syncTabbar();
   try {
-    if (state.tab === "heute") return renderDay(todayISO(), { showBack: false });
+    if (state.tab === "dashboard") {
+      return state.selectedDate ? renderDay(state.selectedDate, { showBack: true, backLabel: "Dashboard" }) : renderDashboard();
+    }
     if (state.tab === "woche") {
       return state.selectedDate ? renderDay(state.selectedDate, { showBack: true }) : renderWeek();
     }
@@ -159,23 +848,16 @@ function render() {
   }
 }
 
-function errorCard(msg) {
-  return `<div class="card error-card"><p class="name">Problem</p><p class="hint">${esc(msg)}</p>
-    <button data-action="reload" style="margin-top:8px;">Neu laden</button></div>`;
-}
-function loadingCard(msg = "Lädt …") {
-  return `<p class="center-note">${esc(msg)}</p>`;
-}
-
 // ---------- Tagesansicht ----------
-async function renderDay(iso, { showBack }) {
+async function renderDay(iso, { showBack, backLabel }) {
   const info = dayInfo(iso);
   const plan = activePlanFor(iso, plans);
   const w = plan ? weekNumberFor(plan, iso) : null;
   const isToday = iso === todayISO();
+  const label = backLabel ?? `Woche ${w}`;
 
   header.innerHTML = `
-    <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} Woche ${w}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
+    <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} ${esc(label)}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
     <div class="title-row"><h1>${
       info.kind === "kraft" ? "Krafttraining"
       : info.kind === "lauf" ? "Lauf"
@@ -194,18 +876,18 @@ async function renderDay(iso, { showBack }) {
     return;
   }
   if (info.kind === "bisZumRennen") {
-    main.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem 1rem;">
+    main.innerHTML = `<div class="card notice">
       <p class="name">Bis zum Rennen</p>
-      <p class="hint">Der Plan endet vor dem Renntag — für diesen Tag gibt es keine Einheit mehr.</p></div>`;
+      <p class="hint">Der Plan endet vor dem Renntag, für diesen Tag gibt es keine Einheit mehr.</p></div>`;
     return;
   }
   if (info.kind === "keinPlan") {
-    main.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem 1rem;">
+    main.innerHTML = `<div class="card notice">
       <p class="name">Kein aktiver Plan</p>
       <p class="hint">Für dieses Datum liegt kein Trainingsplan vor.</p></div>`;
     return;
   }
-  main.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem 1rem;">
+  main.innerHTML = `<div class="card notice">
     <p class="name">Ruhetag</p><p class="hint">Mobility, Foam Rolling, Beine hoch.</p></div>`;
 }
 
@@ -626,28 +1308,47 @@ function saveExercise(slugName, dateISO) {
 }
 
 // ---------- Lauftag ----------
+// I3: paintDashboardMain startet fünf fill*-Funktionen, und jede ruft
+// loadStrava() auf. Der Wächter oben (stravaState.connected !== null) greift
+// erst, wenn der ERSTE Aufruf fertig ist — ohne das Promise hier zu merken,
+// laufen alle fünf parallel los (5× /athlete/activities, bei abgelaufenem
+// Token zusätzlich 5× /refresh mit demselben Refresh-Token). force-Aufrufe
+// (z. B. "Aktualisieren") laufen bewusst nicht durch den Cache.
+let stravaLoading = null;
 async function loadStrava({ force = false } = {}) {
   if (!force && stravaState.connected !== null) return stravaState;
-  stravaState.error = null;
-  stravaState.errorSource = null;
-  try {
-    const connected = await isAuthorized();
-    stravaState.connected = connected;
-    stravaState.runs = connected ? await fetchRecentRuns(STRAVA_SINCE, { force }) : null;
-    if (connected) {
-      runLinks = await loadRunLinks();
-      recomputeAssignment();
+  if (!force && stravaLoading) return stravaLoading;
+
+  const run = async () => {
+    stravaState.error = null;
+    stravaState.errorSource = null;
+    try {
+      const connected = await isAuthorized();
+      stravaState.connected = connected;
+      stravaState.runs = connected ? await fetchRecentRuns(STRAVA_SINCE, { force }) : null;
+      if (connected) {
+        runLinks = await loadRunLinks();
+        recomputeAssignment();
+      }
+    } catch (err) {
+      console.error(err);
+      stravaState.error = err.message;
+      // Ein Firestore-Fehler ist kein Strava-Fehler — sonst sucht man an
+      // der falschen Stelle.
+      stravaState.errorSource = err.source === "firebase" ? "firebase" : "strava";
+      stravaState.runs = null;
+      if (stravaState.errorSource === "firebase") stravaState.connected = null;
     }
-  } catch (err) {
-    console.error(err);
-    stravaState.error = err.message;
-    // Ein Firestore-Fehler ist kein Strava-Fehler — sonst sucht man an
-    // der falschen Stelle.
-    stravaState.errorSource = err.source === "firebase" ? "firebase" : "strava";
-    stravaState.runs = null;
-    if (stravaState.errorSource === "firebase") stravaState.connected = null;
+    return stravaState;
+  };
+
+  const promise = run();
+  if (!force) stravaLoading = promise;
+  try {
+    return await promise;
+  } finally {
+    if (stravaLoading === promise) stravaLoading = null;
   }
-  return stravaState;
 }
 
 // Alle Lauftage aller geladenen Pläne — Grundlage der Zuordnung
@@ -816,55 +1517,153 @@ function runPickerHTML(s, iso) {
 // Der Wochen-Tab bleibt in Schritt 1 unverändert und arbeitet deshalb auf
 // dem (einzigen) Plan der Registry — Mehrplan-Unterstützung für diesen Tab
 // ist Teil von M2/Schritt 2, nicht von M1.
-function renderWeek() {
+// Baut die Zeile eines aktiven Tags (Kraft/Lauf) für die neue
+// Wochen-Tab-Tagesliste (F9, M2-7): Status-Symbol nach Priorität
+// Zukunft > Heute > Vergangenheit, Ist/Ziel-Zeile, Nachgeholt-Hinweis.
+function buildWeekDayRow(plan, iso, today, logs, dps) {
+  const info = sessionOn(plan, iso);
+  const d = dayNameDE(iso);
+  const dt = shortDate(iso);
+  if (info.kind === "ruhe") return { isRest: true, d, dt };
+
+  const isToday = iso === today;
+  const isFuture = iso > today;
+  const kindColorVar =
+    info.kind === "kraft" ? "var(--teal-fg)"
+    : info.kind === "lauf" ? (info.shortType === "Long" ? "var(--purple-fg)" : "var(--coral-fg)")
+    : "var(--text-muted)";
+
+  if (info.kind === "kraft") {
+    const { exercises, withLogs, done, total } = kraftProgressOn(info, dps[iso], logs);
+
+    let statusHTML;
+    if (isFuture) statusHTML = dashWeek.statusFutureHTML();
+    else if (total > 0 && done === total) statusHTML = dashWeek.statusCheckHTML();
+    else if (done > 0) statusHTML = dashWeek.statusPartialHTML(done, total, isToday);
+    else if (isToday) statusHTML = dashWeek.statusTodayHTML();
+    else statusHTML = dashWeek.statusMissedHTML();
+
+    // Details: Übungsliste mit dem, was geloggt wurde
+    const detailLines = [{ label: "Ziel:", text: `${total} Übungen` }];
+    for (const { ex, log } of withLogs) {
+      const value = !log ? "–"
+        : log.topKg > 0 ? `${log.topKg} kg · ${log.totalReps ?? 0} Wdh`
+        : `${log.totalReps ?? 0} Wdh`;
+      detailLines.push({ label: ex.name + ":", text: value });
+    }
+    if (!isFuture && !isToday && done === 0) detailLines.push({ cls: "danger-text", text: "Nicht geloggt, zählt als verpasst." });
+    else if (!isFuture && !isToday && done < total) detailLines.push({ cls: "warn-text", text: `Teilweise geloggt (${done}/${total}).` });
+
+    return {
+      isRest: false, iso, d, dt, isToday, kindColorVar,
+      sessionName: info.label,
+      targetText: `${total} Übungen`,
+      hasActual: done > 0,
+      actualText: `${done}/${total} geloggt`,
+      statusHTML,
+      detailLines,
+    };
+  }
+
+  // Lauf
+  const a = runAssignment[iso];
+  const run = a?.run;
+  let statusHTML;
+  if (isFuture) statusHTML = dashWeek.statusFutureHTML();
+  else if (!run) statusHTML = isToday ? dashWeek.statusTodayHTML() : dashWeek.statusMissedHTML();
+  else if (run.avgHr != null && run.avgHr > info.hfMax) statusHTML = dashWeek.statusWarnHTML();
+  else statusHTML = isToday ? dashWeek.statusTodayHTML() : dashWeek.statusCheckHTML();
+
+  const actualText = run
+    ? `${run.distanceKm.toFixed(1)} km · ${run.paceLabel}${a.offset !== 0 ? " (nachgeholt)" : ""}`
+    : "";
+
+  const detailLines = [{ label: "Ziel:", text: `${info.dist} · ${info.pace} · HF ${info.hf}` }];
+  if (run) {
+    detailLines.push({ label: "Ist:", text: `${run.distanceKm.toFixed(1)} km · ${run.paceLabel}${run.avgHr ? ` · Ø ${run.avgHr} bpm` : ""}` });
+    if (run.avgHr != null && run.avgHr > info.hfMax) {
+      detailLines.push({ cls: "warn-text", text: `Zu schnell: Ø ${run.avgHr} bpm über der Obergrenze von ${info.hfMax}.` });
+    }
+    if (a.offset !== 0) detailLines.push({ text: `${dayNameDE(run.date)}, ${shortDate(run.date)}: ${offsetLabel(a.offset)}` });
+  } else if (!isFuture && !isToday) {
+    detailLines.push({ cls: "danger-text", text: "Kein Lauf zugeordnet, zählt als verpasst." });
+  }
+
+  return {
+    isRest: false, iso, d, dt, isToday, kindColorVar,
+    sessionName: info.type,
+    targetText: `${info.dist} · ${info.pace}`,
+    hasActual: !!run,
+    actualText,
+    statusHTML,
+    detailLines,
+  };
+}
+
+async function renderWeek() {
   const plan = plans[0];
   const w = state.weekNo;
   const week = weekOf(plan, w);
-  const phase = phaseOf(plan, w);
-  const start = weekStart(plan, w);
   const isCurrent = w === weekNoForTab(todayISO());
+  const start = weekStart(plan, w);
 
-  header.innerHTML = `
-    <p class="eyebrow">Phase ${phase.n} – ${esc(phase.name)} · ${shortDate(start)}–${shortDate(addDays(start, 6))}${week.deload ? " · Deload" : ""}</p>
-    <div class="title-row">
-      <h1>Woche ${w} <span class="of">von ${plan.totalWeeks}</span></h1>
-      <div class="row" style="gap:4px;">
-        <button class="icon-btn" data-action="week-prev" ${w <= 1 ? "disabled" : ""} aria-label="Vorherige Woche">${ICONS.prev}</button>
-        ${isCurrent ? "" : `<button class="small-btn" data-action="week-today">Heute</button>`}
-        <button class="icon-btn" data-action="week-next" ${w >= plan.totalWeeks ? "disabled" : ""} aria-label="Nächste Woche">${ICONS.next}</button>
-      </div>
-    </div>`;
+  header.innerHTML = dashWeek.weekNavHTML({
+    n: w,
+    weekType: week.weekType,
+    dateRange: `${shortDate(start)}–${shortDate(addDays(start, 6))}`,
+    hasPrev: w > 1,
+    hasNext: w < plan.totalWeeks,
+    showToday: !isCurrent,
+  });
 
   if (week.placeholder) {
+    const phase = phaseOf(plan, w);
     main.innerHTML = `<div class="card"><p class="name">${esc(phase.name)}</p>
-      <p class="hint">${esc(phase.focus)}. Details folgen nach der Re-Kalibrierung.</p></div>`;
+      <p class="hint">${esc(week.focus)}. Details folgen nach der Re-Kalibrierung.</p></div>`;
     return;
   }
 
+  main.innerHTML = loadingCard("Woche wird geladen …");
+  // Ein Firestore-/Strava-Ausfall darf die Wochenliste nicht leer lassen
+  // (analog zum Dashboard, F7-Prinzip): mit leeren Daten weiterrendern statt
+  // die Ansicht dauerhaft bei "Woche wird geladen …" hängen zu lassen — die
+  // einzelnen Tage führen trotzdem in die Tagesansicht, die ihre eigenen
+  // Fehlerkarten zeigt (z. B. #strava-slot).
+  let logs = [], dps = {};
+  try {
+    await loadStrava();
+    ({ logs, dps } = await ensureAllLogsAndDayPlans());
+  } catch (err) {
+    console.error(err);
+  }
+  // Zwischenzeitlich weitergeklickt (anderer Tab/andere Woche)? Dann nicht
+  // mehr in die falsche Ansicht schreiben.
+  if (state.tab !== "woche" || state.selectedDate || state.weekNo !== w) return;
+
   const today = todayISO();
-  const days = weekDates(plan, w).map((iso) => {
-    const info = sessionOn(plan, iso);
-    const [color, bg] = colorsFor(info);
-    const label =
-      info.kind === "ruhe" ? "Ruhe"
-      : info.kind === "kraft" ? info.shortLabel
-      : `${info.shortType}\n${info.dist}`;
-    return { iso, info, color, bg, label };
-  });
+  const days = weekDates(plan, w).map((iso) => buildWeekDayRow(plan, iso, today, logs, dps));
 
   const laufSessions = week.sessions.filter((s) => s.kind === "lauf");
+  const sollKm = laufSessions.reduce((a, s) => a + s.km, 0);
+  const istKm = laufSessions.reduce((a, s) => a + (runAssignment[s.date]?.run?.distanceKm || 0), 0);
+  const kraftSessions = week.sessions.filter((s) => s.kind === "kraft");
+  const kraftDone = kraftSessions.filter((s) => kraftProgressOn(s, dps[s.date], logs).complete).length;
 
-  main.innerHTML = `<div class="day-grid">
-      ${days.map((d) => `<button class="day-pill${d.iso === today ? " today" : ""}" data-action="open-day" data-date="${d.iso}" style="background:${d.bg};">
-        <p class="d" style="color:${d.color}">${dayNameDE(d.iso)}</p>
-        <p class="t" style="color:${d.color}">${esc(d.label).replace("\n", "<br>")}</p>
-      </button>`).join("")}
-    </div>
-    <p class="center-note">Tag antippen für Details</p>
-    <div class="card">
-      <p class="name">Wochenumfang Laufen</p>
-      <p class="hint">${laufSessions.map((r) => `${r.shortType} ${r.dist}`).join(" · ")} — zusammen ${week.plannedKm} km</p>
-    </div>`;
+  // F9/E7: Ist heute außerhalb der Planwochen (Rennlücke oder danach), gilt
+  // die letzte Planwoche als Endpunkt — dort erscheint der Hinweis.
+  const todayState = planDayState(today, plans);
+  const planIsOver = todayState === "bisZumRennen" || (todayState === "keinPlan" && today > plan.start);
+
+  main.innerHTML =
+    dashWeek.weekSummaryHTML({
+      ist: Math.round(istKm * 10) / 10,
+      soll: sollKm,
+      pct: sollKm > 0 ? Math.min(100, Math.round((istKm / sollKm) * 100)) : 0,
+      kraftDone,
+      kraftPlanned: kraftSessions.length,
+    }) +
+    days.map((d) => (d.isRest ? dashWeek.restRowHTML(d.d, d.dt) : dashWeek.dayRowHTML(d))).join("") +
+    (planIsOver && w === plan.totalWeeks ? dashWeek.planBeendetHintHTML(plan.totalWeeks) : "");
 }
 
 // ---------- Verlauf ----------
@@ -1082,7 +1881,23 @@ document.getElementById("app").addEventListener("click", async (e) => {
 
   if (action === "reload") return location.reload();
   if (action === "back") { state.selectedDate = null; runPickerFor = null; return render(); }
+  if (action === "toggle-day-detail") {
+    const row = target.closest(".day-row");
+    const detail = row?.querySelector(".day-detail");
+    if (!detail) return;
+    const open = detail.classList.toggle("open");
+    target.setAttribute("aria-expanded", String(open));
+    return;
+  }
   if (action === "open-day") { state.selectedDate = target.dataset.date; runPickerFor = null; return render(); }
+  if (action === "toggle-today-exercises") { state.todayExpanded = !state.todayExpanded; return render(); }
+  if (action === "open-info") {
+    const c = INFO_CONTENT[target.dataset.info];
+    if (c) openInfo(c.title, c.body, target);
+    return;
+  }
+  if (action === "close-info") return closeInfo();
+  if (action === "toggle-bilanz") { state.bilanzExpanded = !state.bilanzExpanded; return renderCoachSlot(); }
   if (action === "week-prev") { state.weekNo = Math.max(1, state.weekNo - 1); return render(); }
   if (action === "week-next") { state.weekNo = Math.min(plans[0].totalWeeks, state.weekNo + 1); return render(); }
   if (action === "week-today") { state.weekNo = weekNoForTab(todayISO()); return render(); }
@@ -1116,10 +1931,13 @@ function currentDateISO() {
   return state.tab === "woche" && state.selectedDate ? state.selectedDate : todayISO();
 }
 
+// Info-Sheet (D1): Escape schließt, unabhängig davon, wo der Fokus liegt.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeInfo();
+});
+
 document.querySelectorAll("#tabbar button").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll("#tabbar button").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
     state.tab = btn.dataset.tab;
     state.selectedDate = null;
     runPickerFor = null;
@@ -1131,7 +1949,7 @@ document.querySelectorAll("#tabbar button").forEach((btn) => {
 // ---------- Start ----------
 (async function init() {
   // Tab-Leiste zeigt sofort einen Zustand, auch während der Plan noch lädt.
-  document.querySelector('[data-tab="heute"]').classList.add("active");
+  document.querySelector('[data-tab="dashboard"]').classList.add("active");
   main.innerHTML = loadingCard("Plan wird geladen …");
 
   // A1: Der Plan wird asynchron geladen. Scheitert das ganz (kein Abruf,
@@ -1155,7 +1973,9 @@ document.querySelectorAll("#tabbar button").forEach((btn) => {
 
     state.weekNo = weekNoForTab(todayISO());
     state.historyExercise = defaultHistoryExercise();
-    STRAVA_SINCE = addDays(plans[0].start, -14); // etwas Vorlauf für den Verlauf
+    // F0: 35 Tage Vorlauf statt der alten 14 — die Belastungs-Ampel braucht
+    // 28 Tage Historie vor den letzten 7 Tagen (M2-3/A6).
+    STRAVA_SINCE = addDays(plans[0].start, -35);
   } catch (err) {
     console.error(err);
     header.innerHTML = `<h1>Trainingsplan</h1>`;

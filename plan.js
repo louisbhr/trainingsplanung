@@ -122,13 +122,16 @@ const MONTHS_DE = [
   "Januar", "Februar", "März", "April", "Mai", "Juni",
   "Juli", "August", "September", "Oktober", "November", "Dezember",
 ];
-function monthLabel(iso) {
+// Exportiert (M2, Dashboard-Kopfzeile F2): "Rennen ca. Mitte April 2027"
+// braucht denselben Monats-Text wie formatGoal(), aber ohne die Distanz.
+export function monthLabel(iso) {
   const day = Number(iso.slice(8, 10));
   const month = MONTHS_DE[Number(iso.slice(5, 7)) - 1];
   const bucket = day <= 10 ? "Anfang" : day <= 20 ? "Mitte" : "Ende";
   return `${bucket} ${month} ${iso.slice(0, 4)}`;
 }
-function germanDate(iso) {
+// Exportiert (M2, F7): "Rennen am 11.04.2027" nach Planende.
+export function germanDate(iso) {
   return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 }
 // Ersetzt die frühere hartkodierte goal.time/goal.race-Konstante. Solange

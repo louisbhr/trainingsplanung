@@ -4,8 +4,11 @@ Statische Web-App (Vanilla JS, kein Build-Step) für den 31-Wochen-Plan
 Richtung 1:29:59 h. Krafteinheiten werden von Hand eingetragen und in
 Firestore gespeichert, Läufe kommen automatisch aus Strava.
 
-- **Heute** — die heutige Einheit, mit Eingabefeldern bzw. Strava-Daten
-- **Woche** — Wochenübersicht, vor/zurück blätterbar, Tag antippen für Details
+- **Dashboard** — was heute dran ist, KI-Coach (täglich zwei Sätze, montags
+  Wochenbilanz), vier Ampeln (Wochensoll, Easy-Disziplin, Belastung,
+  Kraft-Progression) mit Info-Knöpfen und „Im Detail“
+- **Woche** — Tagesliste mit Status, vor/zurück blätterbar; Tag antippen
+  klappt Details auf, „Tag öffnen“ führt in die Tagesansicht
 - **Verlauf** — Gewichtsverlauf je Übung, Distanz/Pace der letzten Läufe
 - **Plan** — Phasen, Zeitraum, HF- und Pace-Zonen
 
@@ -49,14 +52,17 @@ Cloudflare Worker, der nur den Token-Austausch übernimmt. Alles andere
 
 *CLI:* `npx wrangler deploy` (nutzt `wrangler.toml`).
 
-**b) Secrets im Worker setzen** (Settings → Variables and Secrets, oder
-`npx wrangler secret put <NAME>`):
+**b) Werte im Worker:** Öffentliches steht in `wrangler.toml` unter `[vars]`
+(`STRAVA_CLIENT_ID`, `ALLOWED_ORIGINS`). Geheimes nur per
+`npx wrangler secret put <NAME>`:
 
 | Name | Wert |
 | --- | --- |
-| `STRAVA_CLIENT_ID` | die Client-ID aus strava.com/settings/api |
-| `STRAVA_CLIENT_SECRET` | das Client-Secret von dort |
-| `ALLOWED_ORIGINS` | optional, aber empfohlen: `https://<dein-name>.github.io` |
+| `STRAVA_CLIENT_SECRET` | das Client-Secret aus strava.com/settings/api |
+| `ANTHROPIC_API_KEY` | Key aus einem eigenen Workspace mit Monatslimit, nur für den Coach (`/coach`) |
+
+Achtung: Variablen, die nur im Cloudflare-Dashboard und nicht in
+`wrangler.toml` stehen, löscht `wrangler deploy`. Secrets bleiben erhalten.
 
 Ohne `ALLOWED_ORIGINS` nimmt der Worker Anfragen von jeder Herkunft an.
 
@@ -112,9 +118,12 @@ Details siehe `tests/README.md`.
 | `plan.js` | Reine Trainingsplan-**Logik**; nimmt den Plan (aus `plans/`) als Parameter entgegen, enthält selbst keine Plandaten |
 | `plan-store.js` | Lädt `plans/hm-2027.json` per `fetch`, validiert sie und hält eine Kopie in `localStorage` fürs Funkloch |
 | `runmatch.js` | Zuordnung von Strava-Läufen zu Plan-Lauftagen |
+| `metrics.js` | Ampeln und Kennzahlen des Dashboards (ohne Browser testbar), Grenzwerte aus `THRESHOLDS` in `config.js` |
+| `coach.js` | Coach im Browser: Eingabe bauen, Cache in Firestore (`coach/`, `coachweek/`), Tageslimits, Regel-Fallback |
+| `ui.js`, `view-dashboard.js`, `view-week.js` | Gemeinsame UI-Helfer und die Ansichten von Dashboard und Wochen-Tab |
 | `firebase-init.js` | Firestore + anonyme Anmeldung, mit Offline-Cache |
 | `strava.js` | Strava-Anbindung |
-| `worker.js`, `wrangler.toml` | Cloudflare Worker für den Token-Austausch |
+| `worker.js`, `wrangler.toml` | Cloudflare Worker: Strava-Token-Austausch und Coach-Endpunkt `/coach` (Claude API) |
 | `tools/bump-version.mjs` | Setzt den Versionsstempel gegen Browser-Cache (auch auf die JSON-URL in `plan-store.js`) |
 | `firestore.rules` | Firestore-Regeln |
 | `manifest.webmanifest`, `icon.png` | „Zum Home-Bildschirm" auf dem Handy |

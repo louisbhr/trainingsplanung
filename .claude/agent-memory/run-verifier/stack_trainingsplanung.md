@@ -30,7 +30,36 @@ one-off verification script needs to be run from inside the app directory (e.g. 
 in temporarily, run, then delete) or from a path where `node_modules/playwright` is
 resolvable, rather than from an arbitrary tmp job directory.
 
-**Coverage note:** `tests/app.test.mjs` (151 checks as of 2026-09-27) is thorough but
-didn't (as of M1) explicitly exercise: week-nav across weeks 4/8/9/31, a Ruhetag or
-Platzhaltertag (week 9+) day view, or the 1280px desktop width. Worth checking if a
-future coder pass added these before writing a redundant one-off script.
+**Coverage note:** `tests/app.test.mjs` (249 checks as of 2026-10-02, M2 Correction-Loop
+round 1) now also covers the info-sheet stale-timer regression, the Wochen-Tab accordion
+(open/close, aria-expanded, rest days non-actionable), and tab-active-state after internal
+jumps. Still doesn't explicitly exercise: the full Wochen-Tab placeholder-week text
+(9/31) or the 5-viewport x light/dark layout matrix with all rows expanded — those stay
+one-off-script territory. Check before writing a redundant one-off script.
+
+**Bug found 2026-09-29, fixed+verified 2026-10-02 (M2 Correction-Loop round 1):**
+`ui.js` `openInfo()`/`closeInfo()` (info-sheet, D1) had a stale-`setTimeout` race: closing
+a sheet scheduled `sheet.hidden = true` after 200ms; if a *different* info-sheet was opened
+within that window, `closeInfo()`'s `if (sheet.hidden) return;` guard later read a stale
+`hidden` flag and silently no-opped, leaving the sheet permanently un-closeable (Escape and
+the × button stopped working until full reload) even though visually it could look closed.
+Fixed in commit `2f0ced7`: a module-level `infoHideTimer` id is now `clearTimeout`'d at the
+top of both `openInfo()` and `closeInfo()`, and `closeInfo()` now guards on the `.open`
+class instead of the lagging `hidden` attribute; `openInfo()` also forces a synchronous
+reflow instead of `requestAnimationFrame` so there's no open-but-not-`.open` window for a
+fast Escape to land in. Re-verified independently (own minimal repro: close sheet A, open
+sheet B with zero delay, wait 300ms past the old timer, confirm B is still open and
+Escape still closes it) — no longer reproduces. `tests/app.test.mjs` also gained a
+permanent regression test for this (search "2c-2" / "Stale-Timeout").
+
+**Test-data gotcha:** kraft log fixtures must use the exercise's *own* slug for that
+specific session (`slug(name)` from `plan.js`, e.g. "squats"/"deadlift" only exist in
+"Full Body A", not "Full Body B" — check `plans/hm-2027.json` per date before seeding
+`test.logs`, otherwise `done` silently stays 0 and status logic looks broken when it isn't.
+
+**Desktop-width layout is intentionally phone-width-capped**, not a bug or a fluid-
+responsive violation: at 1280px the app renders a centered ~390-430px column with empty
+margin on both sides (matches `docs/mockup-dashboard-v2.html`'s own "Handy-Schale" framing
+comment). No horizontal scroll, no clipping — confirmed via `clientHeight>=scrollHeight`
+checks on `#main` children and `.day-row` across 390x844/390x640/768x1000/1280x720/1280x900
+x light/dark (10 combos, all green). Don't flag the narrow desktop column as a deviation.

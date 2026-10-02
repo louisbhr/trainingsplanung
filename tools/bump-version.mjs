@@ -25,13 +25,18 @@ const stamp = new Date()
 // Cloudflare und wird nicht über die Seite ausgeliefert.
 const MODULES = [
   "app.js",
+  "coach.js",
   "config.js",
   "firebase-init.js",
+  "metrics.js",
   "plan.js",
   "plan-store.js",
   "progression.js",
   "runmatch.js",
   "strava.js",
+  "ui.js",
+  "view-dashboard.js",
+  "view-week.js",
 ];
 const ASSETS = ["style.css", "app.js", "manifest.webmanifest"];
 

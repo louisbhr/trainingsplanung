@@ -170,6 +170,22 @@ export async function loadAllLogs() {
   return out;
 }
 
+// Alle Tages-Anpassungen (dayplans) auf einmal — für die Ampel "Wochensoll"
+// und die Adhärenz (M2-3): beide brauchen die *effektive* Übungsliste
+// mehrerer Tage, nicht nur des gerade offenen Tages. Rückgabe: { [datum]:
+// { removed, added } }, wie loadDayPlan() pro Tag, nur für alle Tage auf
+// einmal.
+export async function loadAllDayPlans() {
+  await ensureSignedIn();
+  const snap = await fb(() => getDocs(collection(db, "dayplans")));
+  const out = {};
+  snap.forEach((d) => {
+    const data = d.data();
+    out[d.id] = { removed: data.removed || [], added: data.added || [] };
+  });
+  return out;
+}
+
 // --- Zuordnung von Strava-Läufen zu Plan-Lauftagen ---
 // Doc-Id ist das Plan-Datum. activityId null heißt: an dem Tag bewusst
 // kein Lauf, die automatische Zuordnung soll nichts hineinraten.
@@ -192,6 +208,31 @@ export async function saveRunLink(planDateISO, activityId) {
 export async function clearRunLink(planDateISO) {
   await ensureSignedIn();
   await fb(() => deleteDoc(doc(db, "runlinks", planDateISO)));
+}
+
+// --- Coach (F6, M2-9/M2-10): coach/{datum}, coachweek/{planId}_W{n} ---
+// Feld-/Limit-Logik (generations, inputHash, ...) lebt in coach.js —
+// hier nur reines Lesen/Schreiben, wie bei den übrigen Sammlungen.
+export async function loadCoach(dateISO) {
+  await ensureSignedIn();
+  const snap = await fb(() => getDoc(doc(db, "coach", dateISO)));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function saveCoach(dateISO, data) {
+  await ensureSignedIn();
+  await fb(() => setDoc(doc(db, "coach", dateISO), data, { merge: true }));
+}
+
+export async function loadCoachWeek(key) {
+  await ensureSignedIn();
+  const snap = await fb(() => getDoc(doc(db, "coachweek", key)));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function saveCoachWeek(key, data) {
+  await ensureSignedIn();
+  await fb(() => setDoc(doc(db, "coachweek", key), data, { merge: true }));
 }
 
 // --- Strava-Tokens ---
