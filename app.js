@@ -3,25 +3,25 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202610020758";
-import { loadPlans } from "./plan-store.js?v=202610020758";
+} from "./plan.js?v=202610020844";
+import { loadPlans } from "./plan-store.js?v=202610020844";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek,
-} from "./firebase-init.js?v=202610020758";
+} from "./firebase-init.js?v=202610020844";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202610020758";
-import { suggestProgression, previousEntry, parseSoll } from "./progression.js?v=202610020758";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610020758";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610020758";
-import * as dash from "./view-dashboard.js?v=202610020758";
-import * as dashWeek from "./view-week.js?v=202610020758";
-import * as metrics from "./metrics.js?v=202610020758";
-import * as coach from "./coach.js?v=202610020758";
-import { THRESHOLDS, COACH_URL } from "./config.js?v=202610020758";
+} from "./strava.js?v=202610020844";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610020844";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610020844";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610020844";
+import * as dash from "./view-dashboard.js?v=202610020844";
+import * as dashWeek from "./view-week.js?v=202610020844";
+import * as metrics from "./metrics.js?v=202610020844";
+import * as coach from "./coach.js?v=202610020844";
+import { THRESHOLDS, COACH_URL } from "./config.js?v=202610020844";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -300,14 +300,24 @@ async function fillTodayCard(iso, dayState, plan) {
 }
 
 // ---------- Ampeln (F5, M2-5) ----------
+// Wirft nie (I1, Code-Review M2 Runde 1): fillAmpeln/fillDetail/fillCoach
+// sollen bei einem Firestore-Ausfall mit leeren, aber validen Daten
+// weiterrechnen (Kraft-Ampel grau, Rest normal) statt dauerhaft im
+// Lade-Platzhalter hängen zu bleiben. ok=false zeigt den Aufrufern, dass
+// logs/dps nur ein sicherer Leerwert sind, keine echten Daten.
 async function ensureAllLogsAndDayPlans() {
-  const [logs, dps] = await Promise.all([
-    allLogs ? Promise.resolve(allLogs) : loadAllLogs(),
-    allDayPlans ? Promise.resolve(allDayPlans) : loadAllDayPlans(),
-  ]);
-  allLogs = logs;
-  allDayPlans = dps;
-  return { logs, dps };
+  try {
+    const [logs, dps] = await Promise.all([
+      allLogs ? Promise.resolve(allLogs) : loadAllLogs(),
+      allDayPlans ? Promise.resolve(allDayPlans) : loadAllDayPlans(),
+    ]);
+    allLogs = logs;
+    allDayPlans = dps;
+    return { logs, dps, ok: true };
+  } catch (err) {
+    console.error(err);
+    return { logs: [], dps: {}, ok: false };
+  }
 }
 
 // Letzte (max n) über assignRuns zugeordnete Easy/Long/Recovery-Läufe über
@@ -325,28 +335,38 @@ function lastAssignedEasyRuns(plan, n) {
   return candidates.slice(0, n);
 }
 
-// Gewichtsübungen der letzten windowDays Tage, gruppiert nach Übungsname,
-// aufsteigend sortiert — Deload-Einheiten und Zeit-/Körpergewichtsübungen
-// fallen schon hier raus (F5 Ampel 4).
-function kraftHistoryByExercise(logs, iso, windowDays) {
-  const cutoff = addDays(iso, -(windowDays - 1));
-  const byExercise = new Map();
-  for (const log of logs) {
-    if (!log.completed || !log.sets?.length) continue;
-    if (log.date < cutoff || log.date > iso) continue;
-    const spec = parseSoll(log.soll);
-    if (!spec || spec.timeBased || spec.deload) continue;
-    if (!(log.topKg > 0)) continue;
-    const key = log.name || log.exercise;
-    if (!byExercise.has(key)) byExercise.set(key, []);
-    byExercise.get(key).push({ date: log.date, soll: log.soll, topKg: log.topKg, totalReps: log.totalReps, sets: log.sets });
-  }
-  for (const entries of byExercise.values()) entries.sort((a, b) => (a.date < b.date ? -1 : 1));
-  return byExercise;
+// "Kraft erledigt" (F5/F8): alle Übungen der effektiven Liste (inkl. eigener
+// Ergänzungen/Entfernungen aus dayplans) sind für diesen Tag geloggt. Diese
+// Regel stand vorher sechsfach fast gleich da (I4, Code-Review M2 Runde 1) —
+// ändert sie sich einmal (z. B. eigene Übungen, Schritt 1b), reicht diese
+// eine Stelle. logs darf leer sein (Firestore-Ausfall, I1) — dann ist
+// einfach nichts geloggt, kein Fehler.
+function kraftProgressOn(session, dp, logs) {
+  const exercises = effectiveExercisesFor(session, dp || { removed: [], added: [] });
+  const withLogs = exercises.map((ex) => ({
+    ex,
+    log: logs.find((l) => l.date === session.date && l.exercise === slug(ex.name) && l.completed) || null,
+  }));
+  const done = withLogs.filter((e) => e.log).length;
+  return { exercises, withLogs, done, total: exercises.length, complete: exercises.length > 0 && done === exercises.length };
+}
+
+// Strava "bereit" heißt mehr als nur "verbunden" (I2): ein Abrufsfehler
+// setzt connected weiterhin true, aber runs bleibt null und error ist
+// gesetzt — ohne diese Prüfung würde ein 500er-Abruf als "0 km gelaufen"
+// gewertet (falsches Rot auf den Lauf-Ampeln, eine Wochenbilanz ohne
+// Strava-Daten).
+function stravaReady() {
+  return stravaState.connected === true && Array.isArray(stravaState.runs) && !stravaState.error;
+}
+function stravaUnavailableDetail() {
+  return stravaState.connected === false ? "Strava nicht verbunden" : "Strava nicht geladen";
 }
 
 function grauAmpeln(iso, detail) {
-  const b = metrics.belastung(stravaState.runs || [], iso, THRESHOLDS);
+  const b = stravaReady()
+    ? metrics.belastung(stravaState.runs || [], iso, THRESHOLDS)
+    : { status: "grau", detail: stravaUnavailableDetail() };
   return [
     { key: "wochensoll", status: "grau", detail },
     { key: "easy", status: "grau", detail },
@@ -355,27 +375,40 @@ function grauAmpeln(iso, detail) {
   ];
 }
 
-function computeRealAmpeln(plan, weekNo, iso, logs, dayPlans) {
+// logsOk=false (I1, Firestore-Ausfall): die Kraft-Ampel wird grau mit einem
+// eigenen Hinweis statt "noch zu wenig Daten", und der Kraftteil des
+// Wochensolls zählt nicht mit (weder Lob noch Tadel aus Daten, die gar nicht
+// da sind). stravaReady()=false (I2): Easy- und Belastungs-Ampel werden
+// grau, der Laufteil des Wochensolls zählt nicht mit.
+function computeRealAmpeln(plan, weekNo, iso, logs, dayPlans, logsOk = true) {
   const sessions = sessionsFor(plan, weekNo);
+  const stravaOk = stravaReady();
 
   const actualKmByDate = {};
-  for (const s of sessions.filter((x) => x.kind === "lauf")) {
-    const a = runAssignment[s.date];
-    if (a?.run) actualKmByDate[s.date] = a.run.distanceKm;
+  if (stravaOk) {
+    for (const s of sessions.filter((x) => x.kind === "lauf")) {
+      const a = runAssignment[s.date];
+      if (a?.run) actualKmByDate[s.date] = a.run.distanceKm;
+    }
   }
   const kraftDoneByDate = {};
   for (const s of sessions.filter((x) => x.kind === "kraft")) {
-    const dp = dayPlans[s.date] || { removed: [], added: [] };
-    const exercises = effectiveExercisesFor(s, dp);
-    const done = exercises.filter((ex) =>
-      logs.some((l) => l.date === s.date && l.exercise === slug(ex.name) && l.completed)
-    ).length;
-    kraftDoneByDate[s.date] = exercises.length > 0 && done === exercises.length;
+    kraftDoneByDate[s.date] = kraftProgressOn(s, dayPlans[s.date], logs).complete;
   }
-  const wochensollResult = metrics.wochensoll(sessions, actualKmByDate, kraftDoneByDate, iso, THRESHOLDS);
-  const easyResult = metrics.easyDisziplin(lastAssignedEasyRuns(plan, 3), THRESHOLDS);
-  const belastungResult = metrics.belastung(stravaState.runs || [], iso, THRESHOLDS);
-  const kraftResult = metrics.kraftProgression(kraftHistoryByExercise(logs, iso, THRESHOLDS.kraft.windowDays), THRESHOLDS);
+  const wochensollSessions = sessions.filter(
+    (s) => (s.kind === "kraft" && logsOk) || (s.kind === "lauf" && stravaOk)
+  );
+  const wochensollResult = metrics.wochensoll(wochensollSessions, actualKmByDate, kraftDoneByDate, iso, THRESHOLDS);
+
+  const easyResult = stravaOk
+    ? metrics.easyDisziplin(lastAssignedEasyRuns(plan, 3), THRESHOLDS)
+    : { status: "grau", detail: stravaUnavailableDetail() };
+  const belastungResult = stravaOk
+    ? metrics.belastung(stravaState.runs || [], iso, THRESHOLDS)
+    : { status: "grau", detail: stravaUnavailableDetail() };
+  const kraftResult = logsOk
+    ? metrics.kraftProgression(metrics.kraftHistoryByExercise(logs, iso, THRESHOLDS.kraft.windowDays), THRESHOLDS)
+    : { status: "grau", detail: "Kraftdaten nicht geladen" };
 
   return [
     { key: "wochensoll", status: wochensollResult.status, detail: wochensollResult.detail },
@@ -390,15 +423,15 @@ async function fillAmpeln(iso, dayState, plan) {
     await loadStrava(); // idempotent/gecacht — Zuordnung + Belastung brauchen es
     let list;
     if (dayState !== "woche") {
-      list = grauAmpeln(iso, dayState === "keinPlan" ? "kein aktiver Plan" : "kein aktiver Plan");
+      list = grauAmpeln(iso, "kein aktiver Plan");
     } else {
       const weekNo = weekNumberFor(plan, iso);
       const week = weekOf(plan, weekNo);
       if (week.placeholder) {
         list = grauAmpeln(iso, "Woche ohne Details");
       } else {
-        const { logs, dps } = await ensureAllLogsAndDayPlans();
-        list = computeRealAmpeln(plan, weekNo, iso, logs, dps);
+        const { logs, dps, ok } = await ensureAllLogsAndDayPlans();
+        list = computeRealAmpeln(plan, weekNo, iso, logs, dps, ok);
       }
     }
     if (state.tab === "dashboard" && !state.selectedDate) {
@@ -462,12 +495,7 @@ function adherence4wData(plan, iso, logs, dayPlans) {
       if (s.kind === "lauf") {
         if (runAssignment[s.date]?.run) done++;
       } else if (s.kind === "kraft") {
-        const dp = dayPlans[s.date] || { removed: [], added: [] };
-        const exercises = effectiveExercisesFor(s, dp);
-        const doneCount = exercises.filter((ex) =>
-          logs.some((l) => l.date === s.date && l.exercise === slug(ex.name) && l.completed)
-        ).length;
-        if (exercises.length > 0 && doneCount === exercises.length) done++;
+        if (kraftProgressOn(s, dayPlans[s.date], logs).complete) done++;
       }
     }
   }
@@ -520,14 +548,17 @@ async function fillDetail(iso, dayState, plan) {
       patchDetailSlot(dash.detailPlaceholderHTML());
       return;
     }
-    const { logs, dps } = await ensureAllLogsAndDayPlans();
+    const { logs, dps, ok } = await ensureAllLogsAndDayPlans();
     const phaseWeeks = weeksOfCurrentPhase(plan, weekNo);
     const actualKmByWeek = {};
     for (const w of phaseWeeks) actualKmByWeek[w.n] = actualKmForWeek(plan, w.n, weekNo);
     const volume = metrics.weeklyVolume(phaseWeeks, actualKmByWeek, weekNo);
     const zone = plan.zones.find((z) => z.id === "z2");
     const aerobe = metrics.aerobeEffizienz(aerobeWeeklyData(plan, weekNo), zone);
-    const adherence = adherence4wData(plan, iso, logs, dps);
+    // I1: ohne lesbare Logs bleibt die Adhärenz-Kachel grau statt eine
+    // 0%-Zahl aus leeren Daten vorzutäuschen; Volumen/Effizienz brauchen
+    // keine Logs und rendern unverändert.
+    const adherence = ok ? adherence4wData(plan, iso, logs, dps) : null;
     const nextLines = nextUpLines(plan, iso, weekNo);
 
     patchDetailSlot(`<p class="section-label">Im Detail</p>
@@ -610,13 +641,20 @@ async function fillCoach(iso, dayState, plan) {
     if (week.placeholder) {
       ampelnList = grauAmpeln(iso, "Woche ohne Details");
     } else {
-      const { logs, dps } = await ensureAllLogsAndDayPlans();
+      const { logs, dps, ok } = await ensureAllLogsAndDayPlans();
+      if (!ok) {
+        // I1: ist das Coach-Dokument ohnehin nicht lesbar, gäbe es sowieso
+        // keinen Aufruf (requestCoach() scheitert selbst an loadDoc) — hier
+        // sparen wir ihn uns direkt und zeigen den Regel-Fallback sofort,
+        // statt mit Platzhalterdaten eine echte Anfrage zu starten.
+        ampelnList = computeRealAmpeln(plan, weekNo, iso, [], {}, false);
+        coachDailyText = coach.fallbackDaily(ampelnList);
+        renderCoachSlot();
+        return;
+      }
       ampelnList = computeRealAmpeln(plan, weekNo, iso, logs, dps);
       if (info.kind === "kraft") {
-        const dp = dps[iso] || { removed: [], added: [] };
-        const exercises = effectiveExercisesFor(info, dp);
-        const done = exercises.filter((ex) => logs.some((l) => l.date === iso && l.exercise === slug(ex.name) && l.completed)).length;
-        doneToday = exercises.length > 0 && done === exercises.length;
+        doneToday = kraftProgressOn(info, dps[iso], logs).complete;
       }
     }
 
@@ -681,10 +719,7 @@ function weeklyKraftData(plan, weekNo, logs, dps, kraftAmpelResults) {
   const kraftSessions = sessionsFor(plan, weekNo).filter((s) => s.kind === "kraft");
   let sessionsDone = 0;
   for (const s of kraftSessions) {
-    const dp = dps[s.date] || { removed: [], added: [] };
-    const exercises = effectiveExercisesFor(s, dp);
-    const done = exercises.filter((ex) => logs.some((l) => l.date === s.date && l.exercise === slug(ex.name) && l.completed)).length;
-    if (exercises.length > 0 && done === exercises.length) sessionsDone++;
+    if (kraftProgressOn(s, dps[s.date], logs).complete) sessionsDone++;
   }
   // metrics.kraftProgression kennt nur "ok"/"stagniert"/"unterSoll" (reicht
   // für die Ampel); die Wochenbilanz braucht die feinere Worker-Enum
@@ -705,14 +740,19 @@ async function fillWeeklyBilanz(iso, dayState, plan) {
   try {
     await loadStrava();
     const weekNo = weekNumberFor(plan, iso);
-    if (!coach.weeklyDue({ weekNo, hasStrava: !!stravaState.connected })) return;
+    // I2: ein Strava-Abrufsfehler bei verbundenem Konto darf nicht als "0 km
+    // gelaufen" in die Bilanz einfließen — ohne echte Strava-Daten gibt es
+    // gar keine Wochenbilanz-Anfrage (verbraucht sonst eine Generation mit
+    // einer falschen Bilanz).
+    if (!coach.weeklyDue({ weekNo, hasStrava: stravaReady() })) return;
 
     const summarizedWeekNo = weekNo - 1;
     const summarizedWeek = weekOf(plan, summarizedWeekNo);
     if (!summarizedWeek || summarizedWeek.placeholder) return;
 
-    const { logs, dps } = await ensureAllLogsAndDayPlans();
-    const kraftResult = metrics.kraftProgression(kraftHistoryByExercise(logs, iso, THRESHOLDS.kraft.windowDays), THRESHOLDS);
+    const { logs, dps, ok } = await ensureAllLogsAndDayPlans();
+    if (!ok) return; // kein verlässliches Bild der Woche -> lieber keine Bilanz als eine falsche
+    const kraftResult = metrics.kraftProgression(metrics.kraftHistoryByExercise(logs, iso, THRESHOLDS.kraft.windowDays), THRESHOLDS);
     const belastungResult = metrics.belastung(stravaState.runs || [], iso, THRESHOLDS);
     const zone = plan.zones.find((z) => z.id === "z2");
     const aerobe = metrics.aerobeEffizienz(aerobeWeeklyData(plan, weekNo), zone);
@@ -724,9 +764,17 @@ async function fillWeeklyBilanz(iso, dayState, plan) {
       phase: phaseOf(plan, summarizedWeekNo).name,
       run: weeklyRunData(plan, summarizedWeekNo),
       kraft: weeklyKraftData(plan, summarizedWeekNo, logs, dps, kraftResult.results),
-      belastung: { ratio: belastungResult.ratio ?? 0, status: belastungResult.status },
+      // K1: metrics.belastung() liefert bei ∞ jetzt ratio:null statt
+      // Infinity (das würde der Worker als 400 ablehnen, siehe
+      // docs/review-code-m2.md) — fürs Worker-Schema auf 9,99 kappen statt
+      // auf 0, damit eine wirklich sehr hohe Belastung nicht als niedrig
+      // ankommt.
+      belastung: { ratio: belastungResult.ratio ?? 9.99, status: belastungResult.status },
       aerobeEffizienzTrend: aerobe.deltaText,
-      adherence4w: adherence,
+      // K1: metrics.adherence4w() liefert zusätzlich `pct` — das Worker-
+      // Schema erlaubt nur done/planned, ein ungefiltertes Durchreichen
+      // ließ die Wochenbilanz bisher IMMER mit 400 scheitern.
+      adherence4w: { done: adherence.done, planned: adherence.planned },
       nextWeek: { n: weekNo, type: currentWeek?.weekType ?? "-", keySession: nextSessionLabel(plan, iso) },
     });
     const hash = await coach.hashInput(input);
@@ -1250,28 +1298,47 @@ function saveExercise(slugName, dateISO) {
 }
 
 // ---------- Lauftag ----------
+// I3: paintDashboardMain startet fünf fill*-Funktionen, und jede ruft
+// loadStrava() auf. Der Wächter oben (stravaState.connected !== null) greift
+// erst, wenn der ERSTE Aufruf fertig ist — ohne das Promise hier zu merken,
+// laufen alle fünf parallel los (5× /athlete/activities, bei abgelaufenem
+// Token zusätzlich 5× /refresh mit demselben Refresh-Token). force-Aufrufe
+// (z. B. "Aktualisieren") laufen bewusst nicht durch den Cache.
+let stravaLoading = null;
 async function loadStrava({ force = false } = {}) {
   if (!force && stravaState.connected !== null) return stravaState;
-  stravaState.error = null;
-  stravaState.errorSource = null;
-  try {
-    const connected = await isAuthorized();
-    stravaState.connected = connected;
-    stravaState.runs = connected ? await fetchRecentRuns(STRAVA_SINCE, { force }) : null;
-    if (connected) {
-      runLinks = await loadRunLinks();
-      recomputeAssignment();
+  if (!force && stravaLoading) return stravaLoading;
+
+  const run = async () => {
+    stravaState.error = null;
+    stravaState.errorSource = null;
+    try {
+      const connected = await isAuthorized();
+      stravaState.connected = connected;
+      stravaState.runs = connected ? await fetchRecentRuns(STRAVA_SINCE, { force }) : null;
+      if (connected) {
+        runLinks = await loadRunLinks();
+        recomputeAssignment();
+      }
+    } catch (err) {
+      console.error(err);
+      stravaState.error = err.message;
+      // Ein Firestore-Fehler ist kein Strava-Fehler — sonst sucht man an
+      // der falschen Stelle.
+      stravaState.errorSource = err.source === "firebase" ? "firebase" : "strava";
+      stravaState.runs = null;
+      if (stravaState.errorSource === "firebase") stravaState.connected = null;
     }
-  } catch (err) {
-    console.error(err);
-    stravaState.error = err.message;
-    // Ein Firestore-Fehler ist kein Strava-Fehler — sonst sucht man an
-    // der falschen Stelle.
-    stravaState.errorSource = err.source === "firebase" ? "firebase" : "strava";
-    stravaState.runs = null;
-    if (stravaState.errorSource === "firebase") stravaState.connected = null;
+    return stravaState;
+  };
+
+  const promise = run();
+  if (!force) stravaLoading = promise;
+  try {
+    return await promise;
+  } finally {
+    if (stravaLoading === promise) stravaLoading = null;
   }
-  return stravaState;
 }
 
 // Alle Lauftage aller geladenen Pläne — Grundlage der Zuordnung
@@ -1457,10 +1524,7 @@ function buildWeekDayRow(plan, iso, today, logs, dps) {
     : "var(--text-muted)";
 
   if (info.kind === "kraft") {
-    const dp = dps[iso] || { removed: [], added: [] };
-    const exercises = effectiveExercisesFor(info, dp);
-    const total = exercises.length;
-    const done = exercises.filter((ex) => logs.some((l) => l.date === iso && l.exercise === slug(ex.name) && l.completed)).length;
+    const { exercises, withLogs, done, total } = kraftProgressOn(info, dps[iso], logs);
 
     let statusHTML;
     if (isFuture) statusHTML = dashWeek.statusFutureHTML();
@@ -1471,8 +1535,7 @@ function buildWeekDayRow(plan, iso, today, logs, dps) {
 
     // Details: Übungsliste mit dem, was geloggt wurde
     const detailLines = [{ label: "Ziel:", text: `${total} Übungen` }];
-    for (const ex of exercises) {
-      const log = logs.find((l) => l.date === iso && l.exercise === slug(ex.name) && l.completed);
+    for (const { ex, log } of withLogs) {
       const value = !log ? "–"
         : log.topKg > 0 ? `${log.topKg} kg · ${log.totalReps ?? 0} Wdh`
         : `${log.totalReps ?? 0} Wdh`;
@@ -1574,12 +1637,7 @@ async function renderWeek() {
   const sollKm = laufSessions.reduce((a, s) => a + s.km, 0);
   const istKm = laufSessions.reduce((a, s) => a + (runAssignment[s.date]?.run?.distanceKm || 0), 0);
   const kraftSessions = week.sessions.filter((s) => s.kind === "kraft");
-  const kraftDone = kraftSessions.filter((s) => {
-    const dp = dps[s.date] || { removed: [], added: [] };
-    const exercises = effectiveExercisesFor(s, dp);
-    const done = exercises.filter((ex) => logs.some((l) => l.date === s.date && l.exercise === slug(ex.name) && l.completed)).length;
-    return exercises.length > 0 && done === exercises.length;
-  }).length;
+  const kraftDone = kraftSessions.filter((s) => kraftProgressOn(s, dps[s.date], logs).complete).length;
 
   // F9/E7: Ist heute außerhalb der Planwochen (Rennlücke oder danach), gilt
   // die letzte Planwoche als Endpunkt — dort erscheint der Hinweis.

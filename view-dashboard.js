@@ -3,8 +3,8 @@
 // Datenzugriff (Firestore, Strava, Plan) bleiben in app.js. Keine eigenen
 // Styles — alle Klassen kommen aus style.css (D0), siehe
 // docs/ui-markup-dashboard-v2.md für die genaue Markup-Referenz.
-import { esc, ICONS, skelLine } from "./ui.js?v=202610020758";
-import { formatDuration } from "./strava.js?v=202610020758";
+import { esc, ICONS, skelLine } from "./ui.js?v=202610020844";
+import { formatDuration } from "./strava.js?v=202610020844";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
 
@@ -266,7 +266,17 @@ export function aerobeCardHTML({ points, deltaText, good }) {
   </div>`;
 }
 
-export function adherenceTileHTML({ pct, done, planned }) {
+// a === null (I1, Firestore-Ausfall): keine 0%-Zahl aus leeren Daten
+// vortäuschen, stattdessen derselbe "nicht geladen"-Hinweis wie bei den
+// Ampeln.
+export function adherenceTileHTML(a) {
+  if (!a) {
+    return `<div class="metric-tile">
+      <p class="metric-label">Adhärenz 4 Wo.</p>
+      <p class="metric-sub">Daten nicht geladen</p>
+    </div>`;
+  }
+  const { pct, done, planned } = a;
   return `<div class="metric-tile">
     <p class="metric-label">Adhärenz 4 Wo.</p>
     <p class="metric-value">${pct} %</p>
