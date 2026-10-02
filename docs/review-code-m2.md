@@ -332,3 +332,78 @@ M2-3: „eine Änderung in THRESHOLDS kippt den Status“).**
 Pflicht vor erneutem Review: K1, K2, I1, I2, I3, I5 sowie I4 Teil „jetzt“ (Hilfsfunktion für
 „Kraft erledigt“ und reine Input-Builder). Jeder Punkt bekommt mindestens einen Test, der vor
 dem Fix rot gewesen wäre. Die Minor-Punkte sind freiwillig, sinnvoll gebündelt mit M2-11.
+
+---
+
+## Runde 2 (02.10.2026) — Diff `1e7d65a..09778be` (15f0047 … 09778be)
+
+**Urteil: freigegeben.** K1, K2 und I1–I5 sind behoben. Das habe ich im Code geprüft und mit
+denselben Wegwerf-Proben wie in Runde 1 bestätigt (danach gelöscht). Offen sind nur noch
+Minor-Punkte.
+
+### Selbst geprüft
+
+- `npm test` mit `npm run serve` selbst laufen lassen: Alle Node-Suiten sind grün,
+  Browser 264/264 (vorher 249), Exit 0.
+- **K1:** Die echten Client-Bodies aus einem Dashboard-Lauf habe ich durch `worker.fetch`
+  geschickt. `daily` → 200, `weekly` → 200. Im ∞-Fall stehen jetzt `"Verhältnis über 9,99"`
+  bzw. `ratio: 9.99` im Body, `adherence4w` hat nur noch `{done, planned}`.
+- **K2:** Der Worker bricht jeden Aufruf ab, ich habe viermal neu geladen. Die Coach-Karte
+  zeigt jedes Mal den Fallback, kein Skelett. Es gab genau 5 Requests (3 täglich und 2
+  Wochenbilanz, die Limits greifen). Danach kamen keine weiteren. Das Dokument enthält nur
+  `generations`/`attemptAt`/`model`/`promptVersion`, also keinen Hash und keinen `null`-Text.
+- **I1:** Mit dem Firestore-Stub „boom“ (verbunden und nicht verbunden):
+  - Ampeln, „Im Detail“ und Coach sind ohne Skelett gerendert.
+  - Kraft ist grau („Kraftdaten nicht geladen“), die Adhärenz zeigt „Daten nicht
+    geladen“.
+  - Der Coach zeigt den Fallback und stellt 0 Requests.
+- **I2:** Strava liefert 500 bzw. ist nicht verbunden. Easy und Belastung sind grau
+  („Strava nicht geladen/verbunden“), das Wochensoll ist nicht rot. Eine `weekly`-Anfrage
+  gibt es nicht.
+- **I3:** Ein Dashboard-Start ergibt genau 1 Abruf von `/athlete/activities`. Bei
+  abgelaufenem Token kommt genau 1 `/refresh`. Ein Tab-Wechsel löst keinen weiteren Abruf
+  aus.
+- **I4 (Teil „jetzt“):** `kraftProgressOn` ersetzt alle sechs Kopien. `kraftHistoryByExercise`
+  liegt jetzt in `metrics.js` und ist getestet. Die Input-Builder sind **nicht** als reine
+  Funktionen ausgelagert, siehe N2.
+- **I5:** `gelbMaxOver` und `minHistoryDays` kommen aus `THRESHOLDS`. Neu getestet sind:
+  - Schwellwert-Kipptests für Easy und Belastung;
+  - Fenstergrenzen −6/−7 und −34/−35 über beide Zeitumstellungen;
+  - eine echte Deload-Einheit;
+  - Konsistenz zwischen `suggestProgression` und Ampel;
+  - Paginierung 200 + 13 → 2 Seiten (Browser).
+- **Minor:** M2, M6, M8 und S2 sind erledigt (`wrangler.toml` nennt `ANTHROPIC_API_KEY`).
+  Der K2-Fix hält auch der Merge-Semantik stand: Ein alter Text bleibt nach einem
+  Fehlschlag erhalten, und bei erreichtem Limit erscheint der letzte KI-Text (A4).
+
+### Neue Minor-Befunde
+
+- **N1 Wochensoll ohne Datenquelle:** Fehlt Strava, steht `"0 / 0 km · Kraft 0/2"` (das
+  Soll ist 0 km). Fehlen Strava **und** Firestore, wird die Ampel grün mit
+  `"0 / 0 km · Kraft 0/0"`. Ursache: `metrics.wochensoll([])` bewertet eine leere Liste als
+  100 %. Fix:
+  - Fehlt die Lauf- bzw. Kraft-Quelle, den Teil im Detail benennen („Lauf: Strava fehlt“),
+    statt 0 km anzuzeigen.
+  - Sind beide Quellen weg, wird die Ampel grau.
+  - Die Folgen sind gering, denn ein grünes Wochensoll lenkt den Coach nicht in die Irre.
+    Gehört zu M2-11.
+- **N2 Der Vertragstest spiegelt die Zuordnung in `app.js` nur nach**
+  (`tests/worker.test.mjs`, `status`-Mapping, `ratio ?? 9.99`, `{done, planned}` von Hand
+  nachgebaut). Weicht `fillWeeklyBilanz` künftig davon ab, bemerkt der Test das nicht.
+  Fix: Mit der späteren Auslagerung nach `dashboard-data.js` (I4 „später“) reine
+  `dailyInputFrom`/`weeklyInputFrom` exportieren und im Vertragstest direkt aufrufen.
+  Bis dahin deckt meine Probe den echten Body ab.
+
+### Weiter offen (Minor, bewusst zurückgestellt)
+
+- **Aus Runde 1:**
+  - M1: Hash der Wochenbilanz und `keySession`.
+  - M3: `reps: 0`. Die Konsistenz zwischen Ampel und Vorschlag ist jetzt getestet, der
+    0-Wdh-Sonderfall noch nicht.
+  - M4: „ok“ wird als „steigt“ gemeldet.
+  - M5: Inline-Styles.
+  - M7: „Starten“ rendert das ganze Dashboard neu.
+  - M9–M11.
+- **S4:** Doku in M2-11.
+- **I4 „später“:** `dashboard-data.js` mit Louis' OK vor 1b. `app.js` hat jetzt rund
+  2000 Zeilen. Bis dahin als bekannte Schuld in HANDOFF festhalten.
