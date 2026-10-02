@@ -2,6 +2,7 @@
 # Danach einmalig die Secrets setzen:
 #   npx wrangler secret put STRAVA_CLIENT_ID
 #   npx wrangler secret put STRAVA_CLIENT_SECRET
+#   npx wrangler secret put ANTHROPIC_API_KEY    # eigener Workspace, Limit ~5 USD (E2, M2)
 # Optional (empfohlen), begrenzt, wer den Worker nutzen darf:
 #   npx wrangler secret put ALLOWED_ORIGINS      # z. B. https://<name>.github.io
 name = "trainingsplanung-auth"
