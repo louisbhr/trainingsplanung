@@ -17,4 +17,7 @@ Verify, don't trust self-reports: run `npm run serve` (:8099) + `npm test` mysel
 - Reviewer has no Agent tool: correction loop = hand back to caller with concrete coder fix list; don't check off step 10 while critical is open.
 - Review doc goes to docs/review-code-<milestone>.md (German, like the rest of the app docs); later rounds are appended as "Runde N" sections, and the reviewer commits the doc + own memory (never pushes; .pipeline-state.md is gitignored).
 - Deferred-by-decision items (e.g. M1 validatePlan session shape "vor 26.10.") stay Minor; re-raise when weeks 9–31 are actually written into plans/hm-2027.json.
+- Client↔Worker contract: browser tests stub /coach (accepts anything) and worker tests use hand-built bodies — so ALWAYS capture real client bodies (Playwright route) and replay them through `worker.fetch` in node. M2 found weekly always 400 (`adherence4w.pct` extra key) this way.
+- Cache/limit logic: probe "fail once → reload" with persistent stub state; a pre-call write that sets inputHash with text null poisoned the cache (M2 K2). Also count parallel Strava fetches per boot (concurrent fill* calls).
+- Degraded-dependency probes on the dashboard: Firestore "boom" stub and Strava 500 while connected — skeletons must resolve, run-based ampeln must not show false red.
 - Useful probe for round 2: a copy that passes validatePlan but has a kraft session without `exercises` — must show error card, not hang.
