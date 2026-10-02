@@ -1,10 +1,17 @@
 # Deploy mit:  npx wrangler deploy
-# Danach einmalig die Secrets setzen:
-#   npx wrangler secret put STRAVA_CLIENT_ID
+# Geheimes nur als Secret setzen (einmalig, bleibt bei jedem Deploy erhalten):
 #   npx wrangler secret put STRAVA_CLIENT_SECRET
 #   npx wrangler secret put ANTHROPIC_API_KEY    # eigener Workspace, Limit ~5 USD (E2, M2)
-# Optional (empfohlen), begrenzt, wer den Worker nutzen darf:
-#   npx wrangler secret put ALLOWED_ORIGINS      # z. B. https://<name>.github.io
+# Öffentliche Werte (Client-ID, erlaubte Herkunft) stehen unten unter [vars].
 name = "trainingsplanung-auth"
 main = "worker.js"
 compatibility_date = "2024-11-01"
+
+# Öffentliche Werte als [vars] im Repo: `wrangler deploy` löscht sonst
+# Variablen, die nur im Cloudflare-Dashboard gesetzt sind. Geheimes
+# (STRAVA_CLIENT_SECRET, ANTHROPIC_API_KEY) bleibt `wrangler secret put`.
+preview_urls = false
+
+[vars]
+STRAVA_CLIENT_ID = "277715"
+ALLOWED_ORIGINS = "https://louisbhr.github.io"

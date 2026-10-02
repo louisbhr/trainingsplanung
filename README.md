@@ -52,15 +52,17 @@ Cloudflare Worker, der nur den Token-Austausch übernimmt. Alles andere
 
 *CLI:* `npx wrangler deploy` (nutzt `wrangler.toml`).
 
-**b) Secrets im Worker setzen** (Settings → Variables and Secrets, oder
-`npx wrangler secret put <NAME>`):
+**b) Werte im Worker:** Öffentliches steht in `wrangler.toml` unter `[vars]`
+(`STRAVA_CLIENT_ID`, `ALLOWED_ORIGINS`). Geheimes nur per
+`npx wrangler secret put <NAME>`:
 
 | Name | Wert |
 | --- | --- |
-| `STRAVA_CLIENT_ID` | die Client-ID aus strava.com/settings/api |
-| `STRAVA_CLIENT_SECRET` | das Client-Secret von dort |
-| `ALLOWED_ORIGINS` | optional, aber empfohlen: `https://<dein-name>.github.io` (für `/coach` Pflicht) |
+| `STRAVA_CLIENT_SECRET` | das Client-Secret aus strava.com/settings/api |
 | `ANTHROPIC_API_KEY` | Key aus einem eigenen Workspace mit Monatslimit, nur für den Coach (`/coach`) |
+
+Achtung: Variablen, die nur im Cloudflare-Dashboard und nicht in
+`wrangler.toml` stehen, löscht `wrangler deploy`. Secrets bleiben erhalten.
 
 Ohne `ALLOWED_ORIGINS` nimmt der Worker Anfragen von jeder Herkunft an.
 
