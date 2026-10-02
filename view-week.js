@@ -6,7 +6,7 @@
 // Lauf-Zuordnung und Satz-Eingabe. Die Zeile ist deshalb kein Button,
 // sondern ein Container mit zwei Knöpfen, damit keine Buttons geschachtelt
 // werden.
-import { esc, ICONS } from "./ui.js?v=202610020758";
+import { esc, ICONS } from "./ui.js?v=202610020844";
 
 export function weekNavHTML({ n, weekType, dateRange, hasPrev, hasNext, showToday }) {
   return `<div class="week-nav">
