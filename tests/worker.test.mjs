@@ -318,7 +318,7 @@ test("/coach daily: höchstens zwei Sätze, Gedankenstriche werden zu Kommas", a
   assert.equal(res.status, 200);
   const { text, promptVersion } = await res.json();
   assert.equal(text, "Dein Easy-Pace war zu schnell, 166 statt 163 bpm. Beim nächsten Lauf langsamer starten.");
-  assert.equal(promptVersion, "coach-v2");
+  assert.equal(promptVersion, "coach-v3");
 });
 
 test("/coach weekly: höchstens sechs Sätze", async () => {
@@ -333,4 +333,5 @@ test("/coach: Systemprompt verbietet Tempo-Empfehlungen für Easy, Long und Reco
   const system = lastUpstreamCall.body.system;
   assert.match(system, /Easy-, Long- und Recovery-Läufe gehören immer in ihre Zielzone/);
   assert.match(system, /Keine Gedankenstriche/);
+  assert.match(system, /höchstens\s+35 Wörter/);
 });

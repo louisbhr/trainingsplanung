@@ -416,9 +416,11 @@ async function noHScroll(page, where) {
 {
   const { page, ctx, errors } = await newPage({ connected: true });
   const requestKinds = [];
+  let dailyBody = null;
   await ctx.route("https://worker.test/coach", (r) => {
     const body = JSON.parse(r.request().postData() || "{}");
     requestKinds.push(body.kind);
+    if (body.kind === "daily") dailyBody = body;
     r.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ text: '<img src=x onerror="window.__xss=1">', kind: body.kind, model: "m", promptVersion: "v1" }),
@@ -438,6 +440,7 @@ async function noHScroll(page, where) {
   await page.waitForFunction(() => document.querySelector("#coach-slot .bilanz-body")?.textContent.includes("<img"));
   ok((await page.evaluate(() => window.__xss)) === undefined, "Wochenbilanz: eingebetteter onerror-Handler wird NICHT ausgeführt (A5)");
   ok(countKind("daily") === 1, `Coach: genau ein daily-Request beim ersten Laden (${JSON.stringify(requestKinds)})`);
+  ok(dailyBody?.today?.name === "Easy run 8 km · HF bis 163", `Coach: Lauftag schickt Distanz und HF-Obergrenze mit (${dailyBody?.today?.name})`);
   ok(countKind("weekly") === 1, `Coach: genau ein weekly-Request für die Wochenbilanz (${JSON.stringify(requestKinds)})`);
 
   // Gleicher Hash beim erneuten Aufruf des Dashboards -> kein zweiter Request je kind.
