@@ -3,32 +3,32 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202610030944";
-import { loadPlans } from "./plan-store.js?v=202610030944";
+} from "./plan.js?v=202610031016";
+import { loadPlans } from "./plan-store.js?v=202610031016";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek,
-} from "./firebase-init.js?v=202610030944";
+} from "./firebase-init.js?v=202610031016";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202610030944";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610030944";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610030944";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610030944";
-import * as dash from "./view-dashboard.js?v=202610030944";
-import * as dashWeek from "./view-week.js?v=202610030944";
-import * as metrics from "./metrics.js?v=202610030944";
-import * as coach from "./coach.js?v=202610030944";
-import { THRESHOLDS, COACH_URL } from "./config.js?v=202610030944";
+} from "./strava.js?v=202610031016";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610031016";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610031016";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610031016";
+import * as dash from "./view-dashboard.js?v=202610031016";
+import * as dashWeek from "./view-week.js?v=202610031016";
+import * as metrics from "./metrics.js?v=202610031016";
+import * as coach from "./coach.js?v=202610031016";
+import { THRESHOLDS, COACH_URL } from "./config.js?v=202610031016";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
 // eigentliche Konstante steht im Worker; ein Auseinanderlaufen ist
 // unkritisch, das Feld dient nur der späteren Auswertung/Migration.
 const COACH_MODEL = "claude-haiku-4-5";
-const COACH_PROMPT_VERSION = "coach-v2";
+const COACH_PROMPT_VERSION = "coach-v3";
 
 // Wird erst gesetzt, wenn der Plan geladen ist (A1) — vorher greift jeder
 // Zugriff auf den STRAVA_SINCE-Wert daneben.
@@ -588,7 +588,12 @@ async function fillDetail(iso, dayState, plan) {
 // ---------- Coach (F6, M2-9) ----------
 function todayFieldFor(info, doneToday) {
   if (info.kind === "kraft") return { type: "Kraft", name: info.label, done: !!doneToday };
-  if (info.kind === "lauf") return { type: "Lauf", name: info.type, done: !!runAssignment[todayISO()]?.run };
+  // Distanz und HF-Obergrenze mitschicken, sonst nennt der Coach für den
+  // Long Run die Easy-Grenze (coach-v3).
+  if (info.kind === "lauf") {
+    const name = `${info.type} ${info.dist} · HF bis ${info.hfMax}`.slice(0, 60);
+    return { type: "Lauf", name, done: !!runAssignment[todayISO()]?.run };
+  }
   if (info.kind === "ruhe") return { type: "Ruhe", name: "Ruhe", done: false };
   return { type: "Offen", name: "Offen", done: false }; // Platzhalterwoche
 }

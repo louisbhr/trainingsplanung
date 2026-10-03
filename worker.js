@@ -32,7 +32,7 @@ const TOKEN_URL = "https://www.strava.com/oauth/token";
 // vorzuziehen (von der Referenz empfohlen, kein Stabilitätsnachteil).
 const MODEL = "claude-haiku-4-5";
 const ANTHROPIC_VERSION = "2023-06-01";
-const PROMPT_VERSION = "coach-v2";
+const PROMPT_VERSION = "coach-v3";
 const MAX_BODY_BYTES = 8192;
 const MAX_TOKENS_DAILY = 200;
 const MAX_TOKENS_WEEKLY = 450;
@@ -166,7 +166,8 @@ Lauftraining mit Krafteinheiten.
 
 Du bekommst ein JSON mit dem heutigen Tag, vier Ampel-Checkpoints und
 Trends. Schreibe daraus genau ein bis zwei kurze Sätze auf Deutsch, in
-der Du-Form, im Ton eines ruhigen, direkten Trainers.
+der Du-Form, im Ton eines ruhigen, direkten Trainers. Zusammen höchstens
+35 Wörter: ein Befund, eine konkrete Handlung, kein Zusatz.
 
 ${RULES_TEXT}`;
 }
@@ -177,7 +178,8 @@ Wochenbilanz für Louis. ${goalSentence(goal)} Sein Plan kombiniert
 Lauftraining mit Krafteinheiten.
 
 Du bekommst ein JSON mit der zurückliegenden Planwoche. Schreibe daraus
-vier bis sechs kurze Sätze auf Deutsch, in der Du-Form, in dieser
+vier bis sechs kurze Sätze auf Deutsch (zusammen höchstens 90 Wörter),
+in der Du-Form, in dieser
 Reihenfolge: (1) Laufumfang Soll/Ist und erledigte Einheiten, (2)
 Easy-Disziplin der Woche, (3) Kraft-Trend (welche Übungen steigen,
 welche hängen), (4) Belastung und aerobe Effizienz nur, wenn auffällig,

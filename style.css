@@ -1,4 +1,4 @@
-/* impeccable-disable side-tab: Phasen-Karten und nachgeholte Läufe, von Louis am 28.09.2026 bestätigt */
+/* impeccable-disable side-tab: nachgeholte Läufe (Tagesansicht), von Louis am 28.09.2026 bestätigt; Phasen-Karten seit 03.10.2026 ohne Streifen */
 :root {
   --teal: #0f6e56;
   --teal-bg: #e1f5ee;
@@ -372,7 +372,7 @@ select {
 
 /* ---- Plan-Tab ---- */
 .phase-card {
-  background: var(--tone-bg); border-left: 4px solid var(--tone);
+  background: var(--tone-bg);
   border-radius: 12px; padding: 0.85rem 1rem;
 }
 .phase-card .name { color: var(--tone); }
