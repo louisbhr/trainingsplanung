@@ -3,32 +3,32 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202610020916";
-import { loadPlans } from "./plan-store.js?v=202610020916";
+} from "./plan.js?v=202610030944";
+import { loadPlans } from "./plan-store.js?v=202610030944";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek,
-} from "./firebase-init.js?v=202610020916";
+} from "./firebase-init.js?v=202610030944";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202610020916";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610020916";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610020916";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610020916";
-import * as dash from "./view-dashboard.js?v=202610020916";
-import * as dashWeek from "./view-week.js?v=202610020916";
-import * as metrics from "./metrics.js?v=202610020916";
-import * as coach from "./coach.js?v=202610020916";
-import { THRESHOLDS, COACH_URL } from "./config.js?v=202610020916";
+} from "./strava.js?v=202610030944";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610030944";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610030944";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610030944";
+import * as dash from "./view-dashboard.js?v=202610030944";
+import * as dashWeek from "./view-week.js?v=202610030944";
+import * as metrics from "./metrics.js?v=202610030944";
+import * as coach from "./coach.js?v=202610030944";
+import { THRESHOLDS, COACH_URL } from "./config.js?v=202610030944";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
 // eigentliche Konstante steht im Worker; ein Auseinanderlaufen ist
 // unkritisch, das Feld dient nur der späteren Auswertung/Migration.
 const COACH_MODEL = "claude-haiku-4-5";
-const COACH_PROMPT_VERSION = "coach-v1";
+const COACH_PROMPT_VERSION = "coach-v2";
 
 // Wird erst gesetzt, wenn der Plan geladen ist (A1) — vorher greift jeder
 // Zugriff auf den STRAVA_SINCE-Wert daneben.
@@ -167,7 +167,7 @@ function todayStravaSummary(iso) {
   const todays = stravaState.runs.filter((r) => r.date === iso);
   if (!todays.length) return null;
   const best = todays.reduce((a, b) => (b.distanceKm > a.distanceKm ? b : a));
-  return `${best.name} · ${best.distanceKm.toFixed(1)} km`;
+  return `${best.name} · ${metrics.formatKm1(best.distanceKm)} km`;
 }
 
 // F2: "Datum offen" ohne bestätigtes Renndatum, sonst Wochen/Tage bis zum
@@ -403,7 +403,7 @@ function computeRealAmpeln(plan, weekNo, iso, logs, dayPlans, logsOk = true) {
   // zu zeigen; fehlen beide, ist die Ampel grau statt scheinbar grün.
   if (!stravaOk || !logsOk) {
     const sollKm = sessions.filter((x) => x.kind === "lauf").reduce((a, x) => a + (x.km || 0), 0);
-    const laufPart = stravaOk ? `${Math.round(wochensollResult.istKm * 10) / 10} / ${sollKm} km` : "Lauf: Strava fehlt";
+    const laufPart = stravaOk ? `${metrics.formatKm(wochensollResult.istKm)} / ${metrics.formatKm(sollKm)} km` : "Lauf: Strava fehlt";
     const kraftPart = logsOk ? `Kraft ${wochensollResult.kraftDone}/${wochensollResult.kraftPlanned}` : "Kraft: Daten fehlen";
     wochensollResult = {
       ...wochensollResult,
@@ -1472,7 +1472,7 @@ function stravaResultHTML(s, iso) {
       ? `<p class="shift-note">${dayNameDE(m.date)}, ${shortDate(m.date)} · ${esc(offsetLabel(a.offset))}</p>`
       : ""}
     <div class="metric-grid" style="margin-top:8px;">
-      <div><p class="metric-label">Distanz</p><p class="metric-value">${m.distanceKm.toFixed(1)} km</p></div>
+      <div><p class="metric-label">Distanz</p><p class="metric-value">${metrics.formatKm1(m.distanceKm)} km</p></div>
       <div><p class="metric-label">Pace</p><p class="metric-value" style="font-size:18px;">${esc(m.paceLabel)}</p></div>
       <div><p class="metric-label">Dauer</p><p class="metric-value" style="font-size:18px;">${esc(formatDuration(m.movingTimeSec))}</p></div>
       <div><p class="metric-label">Ø HF</p><p class="metric-value" style="font-size:18px;">${m.avgHr ? m.avgHr + " bpm" : "–"}</p></div>
@@ -1506,7 +1506,7 @@ function runPickerHTML(s, iso) {
       return `<button class="pick-row${String(r.id) === String(current) ? " on" : ""}"
           data-action="assign-run" data-date="${iso}" data-run="${r.id}">
         <span class="pick-main">${dayNameDE(r.date)}, ${shortDate(r.date)}${off ? ` · ${off > 0 ? "+" : ""}${off} ${Math.abs(off) === 1 ? "Tag" : "Tage"}` : " · am Plantag"}</span>
-        <span class="pick-sub">${esc(r.name)} · ${r.distanceKm.toFixed(1)} km · ${esc(r.paceLabel)}</span>
+        <span class="pick-sub">${esc(r.name)} · ${metrics.formatKm1(r.distanceKm)} km · ${esc(r.paceLabel)}</span>
       </button>`;
     }).join("")}
     <button data-action="ignore-run" data-date="${iso}" style="width:100%;margin-top:8px;">Kein Lauf an diesem Tag</button>
@@ -1575,12 +1575,12 @@ function buildWeekDayRow(plan, iso, today, logs, dps) {
   else statusHTML = isToday ? dashWeek.statusTodayHTML() : dashWeek.statusCheckHTML();
 
   const actualText = run
-    ? `${run.distanceKm.toFixed(1)} km · ${run.paceLabel}${a.offset !== 0 ? " (nachgeholt)" : ""}`
+    ? `${metrics.formatKm1(run.distanceKm)} km · ${run.paceLabel}${a.offset !== 0 ? " (nachgeholt)" : ""}`
     : "";
 
   const detailLines = [{ label: "Ziel:", text: `${info.dist} · ${info.pace} · HF ${info.hf}` }];
   if (run) {
-    detailLines.push({ label: "Ist:", text: `${run.distanceKm.toFixed(1)} km · ${run.paceLabel}${run.avgHr ? ` · Ø ${run.avgHr} bpm` : ""}` });
+    detailLines.push({ label: "Ist:", text: `${metrics.formatKm1(run.distanceKm)} km · ${run.paceLabel}${run.avgHr ? ` · Ø ${run.avgHr} bpm` : ""}` });
     if (run.avgHr != null && run.avgHr > info.hfMax) {
       detailLines.push({ cls: "warn-text", text: `Zu schnell: Ø ${run.avgHr} bpm über der Obergrenze von ${info.hfMax}.` });
     }
@@ -1770,8 +1770,8 @@ async function renderRunHistory() {
   main.innerHTML = `
     <div class="card">
       <div class="metric-grid">
-        <div><p class="metric-label">Letzte 7 Tage</p><p class="metric-value">${km7.toFixed(1)} km</p></div>
-        <div><p class="metric-label">Letzte 28 Tage</p><p class="metric-value">${km28.toFixed(1)} km</p></div>
+        <div><p class="metric-label">Letzte 7 Tage</p><p class="metric-value">${metrics.formatKm1(km7)} km</p></div>
+        <div><p class="metric-label">Letzte 28 Tage</p><p class="metric-value">${metrics.formatKm1(km28)} km</p></div>
         <div><p class="metric-label">Ø Pace (${withPace.length} ${withPace.length === 1 ? "Lauf" : "Läufe"})</p><p class="metric-value" style="font-size:18px;">${esc(formatPace(avgPace))}</p></div>
         <div><p class="metric-label">Läufe gesamt</p><p class="metric-value">${runs.length}</p></div>
       </div>
@@ -1779,12 +1779,12 @@ async function renderRunHistory() {
     <div class="card">
       <p class="name">Distanz je Lauf</p>
       <p class="hint">Label = Pace</p>
-      ${barsHTML(last.map((r) => ({ value: r.distanceKm, label: esc(r.paceLabel.replace(" /km", "")), value_label: r.distanceKm.toFixed(1) + " km" })), "var(--coral-fg)")}
+      ${barsHTML(last.map((r) => ({ value: r.distanceKm, label: esc(r.paceLabel.replace(" /km", "")), value_label: metrics.formatKm1(r.distanceKm) + " km" })), "var(--coral-fg)")}
     </div>
     <div class="card">
       <p class="name">Läufe</p>
       ${last.slice().reverse().map((r) => `<div class="row list-row"><span>${shortDate(r.date)} ${esc(r.name)}</span>
-        <span style="color:var(--text-secondary)">${r.distanceKm.toFixed(1)} km · ${esc(r.paceLabel)}</span></div>`).join("")}
+        <span style="color:var(--text-secondary)">${metrics.formatKm1(r.distanceKm)} km · ${esc(r.paceLabel)}</span></div>`).join("")}
     </div>`;
 }
 

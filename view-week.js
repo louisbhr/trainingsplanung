@@ -6,7 +6,8 @@
 // Lauf-Zuordnung und Satz-Eingabe. Die Zeile ist deshalb kein Button,
 // sondern ein Container mit zwei Knöpfen, damit keine Buttons geschachtelt
 // werden.
-import { esc, ICONS } from "./ui.js?v=202610020916";
+import { formatKm } from "./metrics.js?v=202610030944";
+import { esc, ICONS } from "./ui.js?v=202610030944";
 
 export function weekNavHTML({ n, weekType, dateRange, hasPrev, hasNext, showToday }) {
   return `<div class="week-nav">
@@ -23,7 +24,7 @@ export function weekNavHTML({ n, weekType, dateRange, hasPrev, hasNext, showToda
 export function weekSummaryHTML({ ist, soll, pct, kraftDone, kraftPlanned }) {
   return `<div class="week-summary">
     <div class="line"><span class="lbl">Laufvolumen</span>
-      <span class="val">${ist != null ? ist + " / " : ""}${soll} km</span></div>
+      <span class="val">${ist != null ? formatKm(ist) + " / " : ""}${formatKm(soll)} km</span></div>
     <div class="track"><div class="fill" style="width:${pct}%"></div></div>
     <div class="line"><span class="lbl">Kraft</span>
       <span class="val">${kraftDone}/${kraftPlanned} Einheiten</span></div>

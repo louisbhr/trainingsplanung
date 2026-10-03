@@ -85,6 +85,11 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Eigener Stacking-Kontext (M3-Feinschliff, Spacing-Durchgang): #tabbar
+     (backdrop-filter) und das Info-Sheet/Backdrop sind Geschwister hier
+     drin, beide mit explizitem z-index — isolate schließt aus, dass eine
+     Glas-Fläche trotz niedrigerem z-index über das Sheet gerät. */
+  isolation: isolate;
 }
 #header {
   padding: calc(1rem + env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
@@ -107,7 +112,9 @@ body {
   flex: 1 1 auto; min-height: 0;
   padding: 1rem max(1.25rem, env(safe-area-inset-right))
            calc(78px + env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
-  display: flex; flex-direction: column; gap: 10px;
+  /* 10px -> 12px (Spacing-Durchgang): nächste Stufe auf dem 4/8/12/16-Raster,
+     etwas großzügiger zwischen den Karten/Blöcken auf jedem Tab. */
+  display: flex; flex-direction: column; gap: 12px;
   overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
@@ -122,10 +129,12 @@ body {
 
 .card { background: var(--surface-1); border-radius: 12px; padding: 0.85rem 1rem; min-width: 0; overflow-wrap: anywhere; }
 .card p.name { font-size: 15px; font-weight: 600; margin: 0; }
-.card p.hint { font-size: 12px; color: var(--text-muted); margin: 3px 0 0; }
+/* 3px -> 4px (Spacing-Durchgang): etwas Luft zwischen Titel und Hint-Zeile,
+   betrifft jede .card im Projekt (Kraft-Tag, Verlauf, Plan …). */
+.card p.hint { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
 /* Generische Fallback-Regel: .hint kommt auch außerhalb von .card vor
    (z. B. der Woche-Tab-Fußhinweis), war dort bisher ungestylt. */
-.hint { font-size: 12px; color: var(--text-muted); margin: 3px 0 0; }
+.hint { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
 .hint.center { text-align: center; margin-top: 4px; }
 /* Zentrierte Hinweiskarte (Ruhetag, "Bis zum Rennen", "Kein aktiver Plan",
    "Plan beendet" …) — ersetzt die bisherigen Inline-Styles
@@ -153,7 +162,9 @@ button {
 button:active { transform: scale(0.97); }
 .icon-btn { width: 38px; height: 38px; padding: 0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 
-.set-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; min-width: 0; }
+/* 6px -> 8px (Spacing-Durchgang): Satz-Zeilen im Kraft-Tag rückten zu dicht
+   aneinander, jetzt auf dem 4/8/12/16-Raster. */
+.set-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; min-width: 0; }
 .set-row .set-label { width: 46px; font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
 
 .day-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
@@ -163,7 +174,9 @@ button:active { transform: scale(0.97); }
 
 .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .metric-label { font-size: 11px; color: var(--text-muted); margin: 0; }
-.metric-value { font-size: 20px; font-weight: 700; margin: 2px 0 0; }
+/* 2px -> 4px (Spacing-Durchgang): Label/Wert klebten aneinander, z. B. im
+   Dashboard-Ist-Werte-Grid (Distanz/Pace/Dauer/HF) und im Kraft-/Lauftag. */
+.metric-value { font-size: 20px; font-weight: 700; margin: 4px 0 0; }
 /* Kleinere Variante für dichtere Raster (z. B. Ist-Werte-Grid im Dashboard,
    4 Spalten statt 2) — M2-11, ersetzt die bisherigen inline style="font-
    size:18px" (Review-Minor M5, docs/review-code-m2.md). */
@@ -257,7 +270,7 @@ button:disabled { opacity: 0.35; cursor: default; }
 .status:empty { display: none; }
 .status.ok { color: var(--teal-fg); }
 .status.warn { color: var(--coral-fg); }
-.ex-body { margin-top: 10px; }
+.ex-body { margin-top: 12px; }
 
 .seg { display: flex; gap: 4px; }
 .seg button { font-size: 12px; padding: 5px 10px; color: var(--text-secondary); background: transparent; }
@@ -439,6 +452,19 @@ select {
 .section-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 6px 0 0; text-transform: uppercase; letter-spacing: 0.04em; }
 .countdown { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
 
+/* BUG-FIX (Spacing-Durchgang): #main setzt sein gap NUR zwischen seinen
+   direkten Kindern. app.js rendert Dashboard-Inhalte aber in vier
+   Lade-Slots (#today-slot/#coach-slot/#ampel-slot/#detail-slot), damit
+   Strava/Coach/Ampeln unabhängig nachladen können (M2-4) — die Mockup-
+   Version hatte diese Wrapper nicht und bekam das #main-gap direkt auf
+   jedes Element. In #detail-slot sitzen vier eigene Blöcke (Label,
+   Wochenvolumen-Karte, Aerobe-Effizienz-Karte, Metrik-Grid) OHNE eigenen
+   Abstand zueinander — sie klebten direkt aneinander. Jeder Slot bekommt
+   dasselbe Spalten-Flex-Layout wie #main, damit sein Inhalt denselben
+   Rhythmus hat (bei den Slots mit nur einem Kind ändert sich optisch
+   nichts). */
+#today-slot, #coach-slot, #ampel-slot, #detail-slot { display: flex; flex-direction: column; gap: 12px; }
+
 /* Kleine Abstands-Utilities für Stellen im Dashboard, an denen sich eine
    eigene Komponentenklasse nicht lohnt (M2-11, Review-Minor M5,
    docs/review-code-m2.md) — bewusst nur diese zwei, keine größere
@@ -455,12 +481,14 @@ select {
 .coach-card .body { flex: 1; min-width: 0; }
 .coach-card p.text { font-size: 13px; color: var(--purple-fg); margin: 0; line-height: 1.5; }
 .coach-card p.note { font-size: 11px; color: var(--purple-fg); opacity: 0.75; margin: 4px 0 0; }
-.coach-card .divider { border-top: 0.5px solid rgba(83, 74, 183, 0.25); margin: 10px 0 8px; }
+/* BUG-FIX: Überschrift "Wochenbilanz · Woche N" klebte direkt unter der
+   Trennlinie (10px/8px -> 12px/10px). */
+.coach-card .divider { border-top: 0.5px solid rgba(83, 74, 183, 0.25); margin: 12px 0 10px; }
 .bilanz-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; background: transparent; border: none; padding: 4px 0; color: var(--purple-fg); font-size: 12.5px; font-weight: 700; cursor: pointer; min-height: 44px; }
 .bilanz-toggle svg { width: 16px; height: 16px; transition: transform 0.18s ease; flex-shrink: 0; }
 .bilanz-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
 .bilanz-body { font-size: 13px; color: var(--purple-fg); line-height: 1.55; margin: 6px 0 0; }
-.bilanz-heading { font-size: 12px; font-weight: 700; color: var(--purple-fg); margin: 0 0 4px; }
+.bilanz-heading { font-size: 12px; font-weight: 700; color: var(--purple-fg); margin: 0 0 6px; }
 @media (prefers-reduced-motion: reduce) {
   .bilanz-toggle svg { transition: none; }
 }
@@ -468,9 +496,17 @@ select {
 /* ---- Ampeln 2×2 (F5) ----
    Status wird über Farbe UND Form gezeigt (colorblind-sicher, von Louis
    bestätigt): Kreis = grün, Raute = gelb, Quadrat = rot, Ring = grau. */
-.ampel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* align-items:stretch ist der Grid-Default, hier zusätzlich explizit: alle
+   vier Kacheln einer Zeile sollen gleich hoch sein, egal ob der Titel einer
+   von ihnen ("Kraft-Progression") umbricht. */
+.ampel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; }
 .ampel-tile { background: var(--surface-1); border-radius: 12px; padding: 0.65rem 0.8rem; min-width: 0; }
-.ampel-tile .row1 { display: flex; align-items: center; gap: 7px; }
+/* align-items:center -> flex-start + etwas mehr gap (BUG-FIX): bei center
+   kollidierte ein umbrechender Titel (lange Labels wie "Kraft-Progression")
+   mit dem danebenstehenden Info-Knopf, weil beide auf die Mitte der jetzt
+   zweizeiligen Titelbox bezogen wurden. flex-start hält Punkt+Knopf an der
+   ersten Zeile, der Titel darf frei nach unten umbrechen. */
+.ampel-tile .row1 { display: flex; align-items: flex-start; gap: 8px; }
 .ampel-tile p.title { font-size: 12px; font-weight: 600; margin: 0; flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ampel-tile p.detail { font-size: 12px; color: var(--text-secondary); margin: 4px 0 0; line-height: 1.4; }
 .ampel-dot { flex-shrink: 0; display: inline-block; width: 10px; height: 10px; }
@@ -483,7 +519,16 @@ select {
 /* Info-Knopf (D1): 20px sichtbar, aber ≥44px Trefffläche über ein
    unsichtbares ::after, damit Ampel-Kachel/Karte nicht optisch aufgebläht
    wird. Immer mit aria-label auf dem Button selbst. */
-.info-btn { position: relative; flex-shrink: 0; width: 21px; height: 21px; border: none; background: transparent; color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+/* BUG-FIX: unsichtbares Icon. .info-btn ist ein <button> und erbt dessen
+   globale Regel padding:6px 12px (Zeile ~151). Bei box-sizing:border-box
+   und einer deklarierten Breite von 21px ergibt 21 - 2*12 eine NEGATIVE
+   Inhaltsbreite — der Browser klemmt sie auf 0, und das 17px-SVG (Flex-Kind
+   mit default flex-shrink:1) wird in diesem 0px-Inhaltsbereich auf
+   unsichtbar zusammengeschrumpft. Sichtbar blieb nur der Fokus-Rahmen auf
+   der (dank fixer Paddings tatsächlich gerenderten, größeren) Button-Box.
+   .icon-btn/.info-sheet-close treffen dasselbe Erbe, sind mit 38px/44px
+   aber groß genug, dass es dort nie auffiel. Fix: padding zurücksetzen. */
+.info-btn { position: relative; flex-shrink: 0; width: 21px; height: 21px; padding: 0; border: none; background: transparent; color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .info-btn::after { content: ""; position: absolute; inset: -12px; }
 .info-btn svg { width: 17px; height: 17px; }
 .info-btn:hover, .info-btn:focus-visible { color: var(--text-primary); }
@@ -491,9 +536,17 @@ select {
 /* ---- Info-Sheet (D1) — ein gemeinsames Bottom-Sheet für alle vier Ampeln
    plus "Aerobe Effizienz", Inhalt wird per JS ausgetauscht. Liegt wie
    #toast direkt in #app (position:relative), siehe Markup-Referenz. ---- */
-.info-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.4); z-index: 24; opacity: 0; pointer-events: none; transition: opacity 0.18s ease; }
+/* BUG-FIX: Sheet/Backdrop lagen unter der Glas-Tableiste. z-index allein
+   (vorher 24/25 vs. #tabbar 10) müsste eigentlich reichen, aber
+   backdrop-filter-Flächen sind dafür bekannt, Geschwister mit höherem
+   z-index zu überlagern, wenn sie nicht selbst eine eigene Compositing-
+   Ebene bekommen (dasselbe Muster wie die SVG-Sizing-Falle: erst im echten
+   Browser sichtbar, nicht aus der reinen CSS-Kaskade ableitbar). .info-sheet
+   hat über transform bereits eine eigene Ebene, .info-backdrop bisher nicht
+   — ergänzt. z-index zusätzlich mit deutlichem Abstand zur Glasleiste. */
+.info-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.4); z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.18s ease; transform: translateZ(0); }
 .info-backdrop.open { opacity: 1; pointer-events: auto; }
-.info-sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface-2); border-radius: 18px 18px 0 0; padding: 0.4rem 1.25rem 1.25rem; max-height: 72%; overflow-y: auto; box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.28); z-index: 25; transform: translateY(100%); transition: transform 0.2s ease; }
+.info-sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface-2); border-radius: 18px 18px 0 0; padding: 0.4rem 1.25rem 1.25rem; max-height: 72%; overflow-y: auto; box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.28); z-index: 51; transform: translateY(100%); transition: transform 0.2s ease; }
 .info-sheet.open { transform: translateY(0); }
 .info-sheet[hidden] { display: none; }
 .info-sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 8px auto 12px; }
@@ -527,10 +580,16 @@ select {
 .ex-list { display: none; margin-top: 10px; border-top: 0.5px solid rgba(15, 110, 86, 0.25); padding-top: 8px; }
 .ex-list.open { display: block; }
 .ex-list .ex-list-head { display: flex; justify-content: flex-end; margin-bottom: 4px; }
-.ex-row { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 2px; border-radius: 8px; cursor: pointer; color: var(--teal-fg); min-height: 44px; background: transparent; border: none; font: inherit; text-align: left; }
+/* BUG-FIX: justify-content:space-between auf 3 Kindern (Name/Soll/Chevron)
+   verteilt den Rest-Platz in zwei GLEICHEN Lücken — die Soll-Spalte
+   schwebte dadurch mittig und sprang mit jeder Namenslänge. Jetzt: Name
+   nimmt den Rest (flex:1, trunkiert mit Ellipsis statt zu überlaufen),
+   Soll bekommt eine feste Mindestbreite und ist rechtsbündig direkt vor
+   dem Chevron — eine stabile Spalte unabhängig von der Namenslänge. */
+.ex-row { display: flex; width: 100%; align-items: center; gap: 8px; padding: 7px 2px; border-radius: 8px; cursor: pointer; color: var(--teal-fg); min-height: 44px; background: transparent; border: none; font: inherit; text-align: left; }
 .ex-row:hover, .ex-row:focus-visible { background: rgba(15, 110, 86, 0.08); }
-.ex-row .exn { font-size: 13px; }
-.ex-row .exs { font-size: 12px; opacity: 0.8; white-space: nowrap; }
+.ex-row .exn { font-size: 13px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ex-row .exs { font-size: 12px; opacity: 0.8; white-space: nowrap; flex-shrink: 0; min-width: 58px; text-align: right; }
 .ex-row svg { width: 15px; height: 15px; opacity: 0.6; flex-shrink: 0; }
 .ex-hint { font-size: 11px; color: var(--teal-fg); opacity: 0.8; margin: 6px 0 0; }
 .ex-progress { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: rgba(15, 110, 86, 0.14); color: var(--teal-fg); white-space: nowrap; }
@@ -549,7 +608,9 @@ select {
 .si-bar-ist { flex: 1; background: var(--teal-fg); border-radius: 3px 3px 0 0; min-height: 3px; }
 .si-bar-label { font-size: 10px; color: var(--text-muted); }
 .si-bar-label.current { color: var(--teal-fg); font-weight: 700; }
-.si-bar-legend { display: flex; gap: 14px; margin: 2px 0 10px; }
+/* 2px -> 8px oben (Spacing-Durchgang): die Legende klebte direkt unter dem
+   Kartentitel "Wochenvolumen · Soll vs. Ist". */
+.si-bar-legend { display: flex; gap: 14px; margin: 8px 0 12px; }
 .si-bar-legend .lg-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
 .si-bar-legend .lg-swatch { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 .si-bar-legend .lg-swatch.lg-soll { background: var(--soll-fill); }
@@ -580,7 +641,9 @@ select {
 .week-summary .line { display: flex; justify-content: space-between; font-size: 13px; }
 .week-summary .line .lbl { font-weight: 600; }
 .week-summary .line .val { color: var(--text-secondary); }
-.week-summary .track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text-muted) 25%, transparent); margin: 6px 0 8px; }
+/* BUG-FIX: zu wenig Luft zwischen Fortschrittsbalken und der "Kraft"-Zeile
+   darunter (6px/8px -> 8px/12px, auf dem 4/8/12/16-Raster). */
+.week-summary .track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text-muted) 25%, transparent); margin: 8px 0 12px; }
 .week-summary .fill { height: 6px; border-radius: 3px; background: var(--coral-fg); }
 
 /* ---- Wochen-Tab — Tagesliste (D3: Abstände auf dem bestehenden Raster,
@@ -609,7 +672,9 @@ select {
 .missed-pill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--danger-bg); color: var(--danger-fg); white-space: nowrap; }
 .day-detail { display: none; margin: 8px 0 0 46px; padding-top: 8px; border-top: 0.5px solid var(--border); }
 .day-detail.open { display: block; }
-.day-detail p { font-size: 12px; color: var(--text-secondary); margin: 0 0 3px; }
+/* 3px -> 6px (Spacing-Durchgang): Zeilenabstand in der aufgeklappten
+   Tagesdetail-Liste war enger als anderswo in der App. */
+.day-detail p { font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
 .day-detail .muted { color: var(--text-muted); }
 .day-detail .warn-text { color: var(--amber-fg); }
 .day-detail .danger-text { color: var(--danger-fg); }

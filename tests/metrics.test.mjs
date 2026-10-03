@@ -27,7 +27,7 @@ test("wochensoll: grün ab 90% der geplanten km bis heute, Kraft vollständig", 
   ];
   const r = wochensoll(sessions, { "2026-09-07": 8, "2026-09-09": 7.5 }, { "2026-09-08": true }, "2026-09-09", THRESHOLDS);
   assert.equal(r.status, "gruen");
-  assert.equal(r.detail, "15.5 / 16 km · Kraft 1/1");
+  assert.equal(r.detail, "15,5 / 16 km · Kraft 1/1");
 });
 
 test("wochensoll: gelb zwischen 70% und 90%", () => {
