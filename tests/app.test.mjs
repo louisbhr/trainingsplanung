@@ -177,7 +177,7 @@ async function noHScroll(page, where) {
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#today-slot .metric-value");
   const txt = await page.textContent("#today-slot");
-  ok(txt.includes("8.0 km"), "Dashboard: längster Lauf des Tages (8.0 km statt 2.0)");
+  ok(txt.includes("8,0 km"), "Dashboard: längster Lauf des Tages (8,0 km statt 2,0)");
   ok(txt.includes("6:15 /km"), "Dashboard: Pace korrekt berechnet");
   ok(txt.includes("155 bpm"), "Dashboard: Ø HF angezeigt");
   ok(txt.includes("50:10 min"), "Dashboard: Dauer formatiert");
@@ -269,7 +269,7 @@ async function noHScroll(page, where) {
   // 16,1 km = Montag exakt (8,02 km) + der auf Mittwoch nachgeholte Lauf vom
   // 10.09. (8,1 km, per assignRuns automatisch zugeordnet) — die Anzeige
   // zeigt die ganze Woche, nicht nur den Anteil bis heute (F5).
-  ok(byTitle["Wochensoll"].detail === "16.1 / 29 km · Kraft 0/2", `Ampel Wochensoll: Detailtext (${byTitle["Wochensoll"].detail})`);
+  ok(byTitle["Wochensoll"].detail === "16,1 / 29 km · Kraft 0/2", `Ampel Wochensoll: Detailtext (${byTitle["Wochensoll"].detail})`);
   ok(byTitle["Belastung"].status === "st-grau", `Ampel Belastung: grau ohne 4 Wochen Historie (${byTitle["Belastung"].status})`);
   ok(byTitle["Kraft-Progression"].status === "st-rot", `Ampel Kraft-Progression: rot bei zwei betroffenen Übungen (${byTitle["Kraft-Progression"].status})`);
   ok(byTitle["Kraft-Progression"].detail.includes("Squats") && byTitle["Kraft-Progression"].detail.includes("+1 weitere"),
@@ -298,6 +298,15 @@ async function noHScroll(page, where) {
   await kraftInfoBtn.focus();
   await kraftInfoBtn.press("Enter");
   await page.waitForSelector("#infoSheet.open");
+  await page.waitForTimeout(300); // Einblenden abwarten
+  await shot(page, "02c0-info-offen");
+  // Das Sheet liegt über der Tableiste: an der Stelle der Tableiste trifft ein Klick das Sheet/den Backdrop
+  const topEl = await page.evaluate(() => {
+    const r = document.getElementById("tabbar").getBoundingClientRect();
+    const el = document.elementFromPoint(r.left + 20, r.top + r.height / 2);
+    return el?.closest("#infoSheet, #infoBackdrop, #tabbar")?.id || el?.id || el?.tagName;
+  });
+  ok(topEl === "infoSheet" || topEl === "infoBackdrop", `Info-Sheet liegt über der Tableiste (oben: ${topEl})`);
   ok((await page.textContent("#infoSheetTitle")) === "Kraft-Progression", "Info-Sheet: Titel passt zur Ampel");
   const body = await page.textContent("#infoSheetBody");
   ok(body.includes("42 Tage"), `Info-Sheet: Grenzwert aus THRESHOLDS (windowDays) im Text (${body.slice(0, 120)})`);
@@ -683,7 +692,7 @@ async function noHScroll(page, where) {
   const h2 = await page.locator(".bar").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
   ok(new Set(h2).size > 1 && Math.min(...h2) >= 8, `Verlauf Lauf: Balken haben echte Höhen (${h2.join(", ")})`);
   const t = await page.textContent("#main");
-  ok(t.includes("29.1 km"), "Verlauf Lauf: 7-Tage-Summe zählt nur bis heute");
+  ok(t.includes("29,1 km"), "Verlauf Lauf: 7-Tage-Summe zählt nur bis heute");
   await shot(page, "06-verlauf-lauf");
   await noHScroll(page, "Verlauf Lauf");
   ok(errors.length === 0, "Verlauf: keine Konsolenfehler " + JSON.stringify(errors));
@@ -939,7 +948,7 @@ async function noHScroll(page, where) {
   await openDay(page, "2026-09-07");
   await page.waitForSelector("#strava-slot .card");
   const mo = await page.textContent("#strava-slot");
-  ok(mo.includes("8.0 km") && !mo.includes("nachgeholt"), "Verschoben: exakter Treffer bleibt exakt");
+  ok(mo.includes("8,0 km") && !mo.includes("nachgeholt"), "Verschoben: exakter Treffer bleibt exakt");
 
   // "Passt nicht" -> Automatik aus, Angebot zur Zuordnung
   await page.click('[data-action="back"]');

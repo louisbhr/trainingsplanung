@@ -2,7 +2,7 @@
 // Datumsformatierung, Toast, Fehler-/Lade-Karten, Skeleton-Zeilen und das
 // eine gemeinsame Info-Sheet (D1). Bewusst ohne Firebase-Abhängigkeiten,
 // nur plan.js für die reinen Datums-Helfer.
-import { fromISO } from "./plan.js?v=202610020916";
+import { fromISO } from "./plan.js?v=202610030944";
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

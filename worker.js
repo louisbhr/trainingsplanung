@@ -32,7 +32,7 @@ const TOKEN_URL = "https://www.strava.com/oauth/token";
 // vorzuziehen (von der Referenz empfohlen, kein Stabilitätsnachteil).
 const MODEL = "claude-haiku-4-5";
 const ANTHROPIC_VERSION = "2023-06-01";
-const PROMPT_VERSION = "coach-v1";
+const PROMPT_VERSION = "coach-v2";
 const MAX_BODY_BYTES = 8192;
 const MAX_TOKENS_DAILY = 200;
 const MAX_TOKENS_WEEKLY = 450;
@@ -151,6 +151,12 @@ const RULES_TEXT = `Regeln:
 - Keine medizinischen Diagnosen. Bei roter Belastung: Tempo oder Umfang
   reduzieren empfehlen; nur bei Schmerzen auf ärztliche Abklärung
   verweisen.
+- Easy-, Long- und Recovery-Läufe gehören immer in ihre Zielzone. Empfiehl
+  dort nie, schneller zu laufen oder Tempo aufzubauen. Tempo nur dort
+  ansprechen, wo der Plan ausdrücklich Tempo, Schwelle oder Intervalle
+  vorsieht.
+- Halte die vorgegebene Satzzahl strikt ein. Keine Aufzählungen.
+- Keine Gedankenstriche, verbinde mit Punkt, Komma oder Doppelpunkt.
 - Keine Emojis, keine Anrede, keine Einleitung. Nur die Sätze.`;
 
 function dailySystemPrompt(goal) {
@@ -199,6 +205,14 @@ function weeklyUserContent(b) {
 
 // Kürzt eine bei max_tokens abgeschnittene Antwort auf den letzten
 // vollständigen Satz, statt einen abgehackten Halbsatz anzuzeigen.
+// Sicherheitsnetz für die Form, falls das Modell die Regeln nicht ganz
+// einhält: Gedankenstriche zu Kommas, höchstens maxSentences Sätze.
+function shapeText(text, maxSentences) {
+  const noDash = text.replace(/\s*[–—]\s*/g, ", ").replace(/\s+/g, " ").trim();
+  const sentences = noDash.match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g) || [noDash];
+  return sentences.slice(0, maxSentences).join(" ").replace(/\s+/g, " ").trim();
+}
+
 function trimToLastSentence(text) {
   const m = text.match(/^[\s\S]*[.!?](?=\s|$)/);
   return m ? m[0].trim() : text.trim();
@@ -293,6 +307,7 @@ async function handleCoach(request, env, cors) {
     .trim();
   if (!text) return json({ error: "upstream_error", message: "Leere Antwort von Claude" }, 502, cors);
   if (data.stop_reason === "max_tokens") text = trimToLastSentence(text);
+  text = shapeText(text, body.kind === "weekly" ? 6 : 2);
 
   return json({ text, kind: body.kind, model: MODEL, promptVersion: PROMPT_VERSION }, 200, cors);
 }

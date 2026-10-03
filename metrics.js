@@ -9,12 +9,16 @@
 // nie über Millisekunden-Differenzen — sonst rechnen die 7/28/42-Tage-
 // Fenster an den beiden Zeitumstellungen im Plan (25.10.2026, 28.03.2027)
 // falsch (A7).
-import { addDays } from "./plan.js?v=202610020916";
-import { parseSoll } from "./progression.js?v=202610020916";
+import { addDays } from "./plan.js?v=202610030944";
+import { parseSoll } from "./progression.js?v=202610030944";
 
 const rank = { grau: 0, gruen: 1, gelb: 2, rot: 3 };
 const worseOf = (a, b) => (rank[b] > rank[a] ? b : a);
 const round1 = (n) => Math.round(n * 10) / 10;
+// Kilometer mit deutschem Dezimalkomma, eine Nachkommastelle wenn nötig.
+export const formatKm = (n) => String(round1(n)).replace(".", ",");
+// Immer mit einer Nachkommastelle (8,0 km), für Messwerte aus Strava.
+export const formatKm1 = (n) => n.toFixed(1).replace(".", ",");
 
 // ---------- Ampel 1: Wochensoll ----------
 // sessions: sessionsFor(plan, weekNo) der betrachteten Woche.
@@ -52,7 +56,7 @@ export function wochensoll(sessions, actualKmByDate, kraftDoneByDate, todayISO, 
     istKm: istKmTotal,
     kraftDone,
     kraftPlanned,
-    detail: `${round1(istKmTotal)} / ${sollKmTotal} km · Kraft ${kraftDone}/${kraftPlanned}`,
+    detail: `${formatKm(istKmTotal)} / ${formatKm(sollKmTotal)} km · Kraft ${kraftDone}/${kraftPlanned}`,
   };
 }
 

@@ -4,7 +4,7 @@
 // (loadCoach/saveCoach) und der HTTP-Aufruf werden von außen als Funktionen
 // hereingereicht (requestCoach), damit sich alles ohne Browser testen lässt
 // (tests/coach.test.mjs).
-import { worstStatus } from "./metrics.js?v=202610020916";
+import { worstStatus } from "./metrics.js?v=202610030944";
 
 // ---------- Eingabeschema "daily" (F6) ----------
 // goal hier ist das Plan-Objekt-goal ({ distance, raceDate, targetTime,

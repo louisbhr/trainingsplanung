@@ -3,8 +3,9 @@
 // Datenzugriff (Firestore, Strava, Plan) bleiben in app.js. Keine eigenen
 // Styles — alle Klassen kommen aus style.css (D0), siehe
 // docs/ui-markup-dashboard-v2.md für die genaue Markup-Referenz.
-import { esc, ICONS, skelLine } from "./ui.js?v=202610020916";
-import { formatDuration } from "./strava.js?v=202610020916";
+import { formatKm1 } from "./metrics.js?v=202610030944";
+import { esc, ICONS, skelLine } from "./ui.js?v=202610030944";
+import { formatDuration } from "./strava.js?v=202610030944";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
 
@@ -70,7 +71,7 @@ export function laufActualHTML(a) {
   if (!a || !a.run) return `<p class="sub loading-hint">Noch kein Lauf zugeordnet.</p>`;
   const m = a.run;
   return `<div class="metric-grid mt-8">
-      <div><p class="metric-label">Distanz</p><p class="metric-value sm">${m.distanceKm.toFixed(1)} km</p></div>
+      <div><p class="metric-label">Distanz</p><p class="metric-value sm">${formatKm1(m.distanceKm)} km</p></div>
       <div><p class="metric-label">Pace</p><p class="metric-value sm">${esc(m.paceLabel)}</p></div>
       <div><p class="metric-label">Dauer</p><p class="metric-value sm">${esc(formatDuration(m.movingTimeSec))}</p></div>
       <div><p class="metric-label">Ø HF</p><p class="metric-value sm">${m.avgHr ? m.avgHr + " bpm" : "–"}</p></div>
