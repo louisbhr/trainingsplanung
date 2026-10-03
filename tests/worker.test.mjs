@@ -310,3 +310,27 @@ test("/exchange und /refresh verhalten sich unverändert", async () => {
   const missing = await worker.fetch(req("/exchange", { body: {} }), ENV);
   assert.equal(missing.status, 400);
 });
+
+// ---------- Form der Antwort (coach-v2) ----------
+test("/coach daily: höchstens zwei Sätze, Gedankenstriche werden zu Kommas", async () => {
+  mockClaudeText("Dein Easy-Pace war zu schnell – 166 statt 163 bpm. Beim nächsten Lauf langsamer starten. Ansonsten passt alles.");
+  const res = await worker.fetch(req("/coach", { body: validDaily() }), ENV);
+  assert.equal(res.status, 200);
+  const { text, promptVersion } = await res.json();
+  assert.equal(text, "Dein Easy-Pace war zu schnell, 166 statt 163 bpm. Beim nächsten Lauf langsamer starten.");
+  assert.equal(promptVersion, "coach-v2");
+});
+
+test("/coach weekly: höchstens sechs Sätze", async () => {
+  mockClaudeText("Eins. Zwei. Drei. Vier. Fünf. Sechs. Sieben.");
+  const res = await worker.fetch(req("/coach", { body: validWeekly() }), ENV);
+  assert.equal((await res.json()).text, "Eins. Zwei. Drei. Vier. Fünf. Sechs.");
+});
+
+test("/coach: Systemprompt verbietet Tempo-Empfehlungen für Easy, Long und Recovery", async () => {
+  mockClaudeText("Gut gemacht.");
+  await worker.fetch(req("/coach", { body: validDaily() }), ENV);
+  const system = lastUpstreamCall.body.system;
+  assert.match(system, /Easy-, Long- und Recovery-Läufe gehören immer in ihre Zielzone/);
+  assert.match(system, /Keine Gedankenstriche/);
+});
