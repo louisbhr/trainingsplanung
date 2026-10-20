@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Login Spike</title>
+<meta name="description" content="Wegwerf-Testseite für Schritt 1b (S0): prüft Login, Sitzungs-Persistenz und Firestore-Lesezugriff, ohne die Live-App zu verändern." />
+<!-- Kein eigenes manifest.webmanifest: Punkt 7 der Aufgabe. Ein Manifest mit
+     start_url "./" (wie das der Live-App) würde beim Hinzufügen zum
+     Home-Bildschirm die Live-App statt dieser Seite starten. Ohne
+     verlinktes Manifest nutzt iOS für "Zum Home-Bildschirm" die Meta-Tags
+     unten und startet genau die URL, von der aus hinzugefügt wurde
+     (spike/login.html) im Standalone-Modus. Auf der Seite unten sichtbar
+     geprüft (navigator.standalone / display-mode). -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Login Spike" />
+<link rel="apple-touch-icon" href="../icon.png" />
+<link rel="stylesheet" href="../style.css" />
+<style>
+  /* Nur das, was ../style.css nicht mitbringt. Wegwerfseite (B8), wird nach
+     S0 wieder gelöscht — deshalb bewusst minimal statt einer eigenen
+     Design-Durchsicht. */
+  body { overflow: auto; }
+  #app {
+    max-width: 480px; margin: 0 auto; height: auto; min-height: 100vh; min-height: 100dvh;
+    overflow: visible; display: flex; flex-direction: column; gap: 12px;
+    padding: calc(1rem + env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+             calc(2rem + env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+  }
+  h1 { font-size: 19px; margin: 0; }
+  h2 { font-size: 14px; margin: 0 0 8px; }
+  label { display: block; font-size: 13px; color: var(--text-secondary); margin: 10px 0 4px; }
+  input[type="email"], input[type="password"] {
+    width: 100%; font-size: 16px; padding: 10px 12px; border: 0.5px solid var(--border);
+    border-radius: 8px; background: var(--surface-2); color: var(--text-primary);
+  }
+  .kv { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 6px 0; border-top: 0.5px solid var(--border); }
+  .kv:first-child { border-top: none; }
+  .kv span:first-child { color: var(--text-secondary); flex-shrink: 0; }
+  .kv span:last-child { text-align: right; overflow-wrap: anywhere; min-width: 0; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .pill { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+  .pill.yes { background: var(--ok-bg); color: var(--ok-fg); }
+  .pill.no { background: var(--danger-bg); color: var(--danger-fg); }
+  .reslist { font-size: 11px; color: var(--text-secondary); max-height: 140px; overflow: auto; margin: 6px 0 0; padding-left: 0; list-style: none; }
+  .reslist li { padding: 3px 0; overflow-wrap: anywhere; border-top: 0.5px solid var(--border); }
+  .reslist li:first-child { border-top: none; }
+  .banner { font-size: 13px; font-weight: 600; padding: 8px 10px; border-radius: 8px; margin: 0 0 8px; }
+  .banner.warn { background: var(--danger-bg); color: var(--danger-fg); }
+  .banner.ok { background: var(--ok-bg); color: var(--ok-fg); }
+  #copyUid { margin-left: 6px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div>
+    <h1>Login Spike (Wegwerfseite)</h1>
+    <p class="hint">Schritt 1b, S0 — nicht Teil der App, wird danach wieder gelöscht. Nutzt eine eigene
+      Firebase-App-Instanz, damit die anonyme Sitzung der Live-App unberührt bleibt.</p>
+  </div>
+
+  <p id="authLoading" class="hint">Prüfe Anmeldestatus …</p>
+
+  <div class="card" id="loginCard" hidden>
+    <h2>Anmeldung</h2>
+    <form id="loginForm">
+      <label for="email">E-Mail</label>
+      <input id="email" name="email" type="email" autocomplete="username" required />
+      <label for="password">Passwort</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <button type="submit" class="primary-btn" style="margin-top:12px;">Anmelden</button>
+    </form>
+    <p id="loginError" class="status warn" role="alert"></p>
+  </div>
+
+  <div class="card" id="accountCard" hidden>
+    <h2>Konto</h2>
+    <div class="kv"><span>Angemeldet</span><span id="signedInPill"></span></div>
+    <div class="kv"><span>E-Mail</span><span id="accEmail"></span></div>
+    <div class="kv"><span>UID</span><span><span id="accUid" class="mono"></span><button type="button" id="copyUid" class="small-btn">Kopieren</button></span></div>
+    <div class="kv"><span>Angemeldet seit (auth_time)</span><span id="accAuthTime"></span></div>
+    <div class="kv"><span>Zuletzt geöffnet (vorher)</span><span id="accLastOpened"></span></div>
+    <button type="button" id="logoutBtn" style="margin-top:12px;width:100%;">Abmelden</button>
+  </div>
+
+  <div class="card">
+    <h2>Firestore-Lesetest</h2>
+    <p class="hint">Liest höchstens 1 Dokument aus der Sammlung "logs" (ohne Inhalte anzuzeigen). Im
+      Flugmodus sollte das Ergebnis "aus Cache" zeigen, wenn vorher einmal online gelesen wurde.</p>
+    <button type="button" id="readTestBtn" style="margin-top:8px;" disabled>Jetzt testen (erst anmelden)</button>
+    <p id="readResult" class="status" style="margin-top:8px;"></p>
+  </div>
+
+  <div class="card">
+    <h2>Standalone-Modus</h2>
+    <div class="kv"><span>navigator.standalone</span><span id="navStandalone" class="mono"></span></div>
+    <div class="kv"><span>display-mode: standalone</span><span id="displayStandalone" class="mono"></span></div>
+    <div class="kv"><span>Bewertung</span><span id="standaloneVerdict"></span></div>
+  </div>
+
+  <div class="card">
+    <h2>Netzwerkprüfung</h2>
+    <div id="networkWarning"></div>
+    <p class="hint">Script-Quellen:</p>
+    <ul class="reslist" id="scriptList"></ul>
+    <p class="hint" style="margin-top:8px;">iframe-Quellen:</p>
+    <ul class="reslist" id="iframeList"></ul>
+    <button type="button" id="refreshNetworkBtn" class="small-btn" style="margin-top:8px;">Aktualisieren</button>
+  </div>
+</div>
+<script type="module" src="./login.js"></script>
+</body>
+</html>
