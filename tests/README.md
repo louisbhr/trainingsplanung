@@ -37,6 +37,16 @@ npm test               # Plan-Daten + Browser-Tests
   und in allen Modul-Importen gesetzt und überall derselbe ist. Fängt
   den Fall ab, dass ein neues Modul angelegt, aber im Stempel-Skript
   vergessen wurde.
+- `access.test.mjs` — Zugangslogik ohne Browser: Sitzungszustand gegen die
+  erlaubte UID, deutsche Anmeldefehler, Timeout-Helfer und der Worker-Aufruf
+  mit Token (Retry nur bei 401 mit `error: "unauthorized"`).
+- `config-consistency.test.mjs` — UID in `config.js`, `firestore.rules` und
+  `wrangler.toml` gleich und kein Platzhalter; Projekt-ID in Worker und
+  Client gleich.
+- `worker.test.mjs` — `/coach`, `/exchange`, `/refresh` und die Token-
+  Prüfung: Testschlüssel und Token werden im Test selbst erzeugt, Googles
+  Schlüssel-Endpunkt ist gemockt (401-Matrix, 503, Cache, Rotation,
+  stale-if-error, `AUTH_MODE`).
 - `app.test.mjs` — startet Chromium gegen `http://127.0.0.1:8099`.
   Firebase wird durch einen localStorage-Stub ersetzt, die Strava-API
   durch feste Beispieldaten — es werden also keine echten Konten
