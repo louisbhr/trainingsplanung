@@ -68,7 +68,6 @@ const ORIGIN = "https://louisbhr.github.io";
 const ENV = {
   FIREBASE_PROJECT_ID: PROJECT_ID,
   ALLOWED_UID: UID,
-  AUTH_MODE: "required",
   ALLOWED_ORIGINS: ORIGIN,
   ANTHROPIC_API_KEY: "sk-ant-test-key",
   STRAVA_CLIENT_ID: "id",
@@ -413,7 +412,7 @@ function installClock() { Date.now = () => nowMs; }
 function restoreClock() { Date.now = REAL_NOW; }
 const advance = (ms) => { nowMs += ms; };
 
-// Fängt console.log ab, damit "nie Token loggen" und der Report-Modus prüfbar sind.
+// Fängt console.log ab, damit "nie Token loggen" und die Ablehnungsgründe prüfbar sind.
 function captureLogs() {
   const lines = [];
   const orig = console.log;
@@ -506,16 +505,13 @@ test("Token: 401-Matrix, jede Ablehnung hat denselben Body und erreicht den Upst
     "fremde sub": async () => `Bearer ${await mint({ payload: claims(nowS(), { sub: "fremde-uid" }) })}`,
     "anonyme Anmeldung": async () => `Bearer ${await mint({ payload: claims(nowS(), { firebase: { sign_in_provider: "anonymous" } }) })}`,
   };
-  const bodies = new Set();
   for (const [name, build] of Object.entries(cases)) {
     await scene(async ({ worker }) => {
       const auth = await build();
       const res = await worker.fetch(req("/coach", { auth, ...coachBody() }), ENV);
       await assertUnauthorized(res, name);
-      bodies.add(JSON.stringify({ status: res.status }));
     });
   }
-  assert.equal(bodies.size, 1);
 });
 
 test("Token: 401-Antworten tragen die CORS-Header (der Browser kann den Grund lesen)", () => scene(async ({ worker }) => {
@@ -705,57 +701,24 @@ test("Fehlgeschlagene Abrufe werden nicht öfter als 1x pro 60 s wiederholt", ()
   assert.equal(jwkFetches, 2);
 }));
 
-// ---------- AUTH_MODE ----------
-test("AUTH_MODE required: blockiert (explizit)", () => scene(async ({ worker }) => {
-  await assertUnauthorized(await worker.fetch(req("/coach", { auth: null, ...coachBody() }), { ...ENV, AUTH_MODE: "required" }), "required");
+// ---------- Konfiguration ----------
+test("Token-Pflicht ist unabhängig von einer (alten) AUTH_MODE-Variable", () => scene(async ({ worker }) => {
+  // Eine noch gesetzte Altvariable darf nichts mehr aufweichen.
+  const env = { ...ENV, AUTH_MODE: "report" };
+  await assertUnauthorized(await worker.fetch(req("/coach", { auth: null, ...coachBody() }), env), "AUTH_MODE=report ignoriert");
 }));
 
-for (const [name, value] of [["fehlt", undefined], ["unbekannt", "bogus"], ["leer", ""], ["andere Schreibweise", "Report"], ["mit Leerzeichen", "report "]]) {
-  test(`AUTH_MODE ${name} -> required (fail closed)`, () => scene(async ({ worker }) => {
-    const env = { ...ENV, AUTH_MODE: value };
-    await assertUnauthorized(await worker.fetch(req("/coach", { auth: null, ...coachBody() }), env), `AUTH_MODE=${value}`);
-  }));
-}
-
-test("AUTH_MODE report: blockiert nie, loggt aber das Ergebnis (ok, missing, invalid:<grund>, unavailable)", () => scene(async ({ worker, logs }) => {
-  const env = { ...ENV, AUTH_MODE: "report" };
-  const call = async (auth) => (await worker.fetch(req("/coach", { auth, ...coachBody() }), env)).status;
-
-  const good = await authedReq("/coach", {}, coachBody());
-  assert.equal((await worker.fetch(good.request, env)).status, 200);
-  assert.ok(logs.lines.includes("auth: ok"));
-
-  assert.equal(await call(null), 200);
-  assert.ok(logs.lines.includes("auth: missing"));
-
-  const expired = await mint({ nowS: nowS(), payload: claims(nowS(), { exp: nowS() - 600 }) });
-  assert.equal(await call(`Bearer ${expired}`), 200);
-  assert.ok(logs.lines.includes("auth: invalid:exp"));
-
-  const foreign = await mint({ nowS: nowS(), payload: claims(nowS(), { sub: "fremd" }) });
-  assert.equal(await call(`Bearer ${foreign}`), 200);
-  assert.ok(logs.lines.includes("auth: invalid:sub"));
-
-  assert.equal(await call("Bearer a.b.c"), 200);
-  assert.ok(logs.lines.includes("auth: invalid:format"));
-}));
-
-test("AUTH_MODE report: auch bei nicht erreichbaren Schlüsseln und fehlender Konfiguration kein Blockieren", () => scene(async ({ worker, logs }) => {
-  const env = { ...ENV, AUTH_MODE: "report" };
-  failJwks();
+test("fehlende Konfiguration (ALLOWED_UID leer) -> 500 not_configured, geloggt", () => scene(async ({ worker, logs }) => {
   const a = await authedReq("/coach", {}, coachBody());
-  assert.equal((await worker.fetch(a.request, env)).status, 200);
-  assert.ok(logs.lines.includes("auth: unavailable"));
-  const b = await authedReq("/coach", {}, coachBody());
-  assert.equal((await worker.fetch(b.request, { ...env, ALLOWED_UID: "" })).status, 200);
+  const res = await worker.fetch(a.request, { ...ENV, ALLOWED_UID: "" });
+  assert.equal(res.status, 500);
+  assert.equal((await res.json()).error, "not_configured");
   assert.ok(logs.lines.includes("auth: not_configured"));
 }));
 
 test("Logging: das Token (oder Teile davon) landet nie im Log", () => scene(async ({ worker, logs }) => {
-  const env = { ...ENV, AUTH_MODE: "report" };
   const a = await authedReq("/coach", { payload: claims(nowS(), { exp: nowS() - 600 }) }, coachBody());
-  await worker.fetch(a.request, env);
-  await worker.fetch(a.request, { ...ENV, AUTH_MODE: "required" });
+  await worker.fetch(a.request, ENV);
   const [h, p, sig] = a.token.split(".");
   const dump = logs.lines.join("\n");
   for (const part of [a.token, h, p, sig]) assert.ok(!dump.includes(part), "Token-Teil im Log");

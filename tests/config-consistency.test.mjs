@@ -47,7 +47,7 @@ test("firestore.rules: eine rekursive Regel, Anmeldung Pflicht, keine offene Var
   assert.ok(!/request\.auth != null;/.test(rules), "reine Anmeldepruefung ohne UID ist zu offen");
 });
 
-test("wrangler.toml: AUTH_MODE ist report oder required (Uebergangsphase)", () => {
-  const mode = read("wrangler.toml").match(/^AUTH_MODE\s*=\s*"([^"]*)"/m)?.[1];
-  assert.ok(["report", "required"].includes(mode), `AUTH_MODE=${mode}`);
+test("wrangler.toml und worker.js: kein AUTH_MODE-Schalter mehr (Token-Pruefung immer verbindlich)", () => {
+  assert.ok(!/AUTH_MODE/.test(read("wrangler.toml")), "AUTH_MODE in wrangler.toml");
+  assert.ok(!/AUTH_MODE/.test(read("worker.js")), "AUTH_MODE in worker.js");
 });
