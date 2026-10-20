@@ -14,7 +14,7 @@ logs only reason codes, auth runs after origin/method check and before body read
 /coach still 403 on empty ALLOWED_ORIGINS. Client: token only via authHeaders() -> fetchWithAuthRetry, never in URL/log/storage;
 wipe-on-logout removes Firestore cache + all `hm-tracker.*` localStorage keys. Rules: single recursive `isLouis()` match, UID identical in config.js/rules/wrangler.toml.
 
-**Open finding (HIGH, found 2026-10-20):** config.js `readOverride()` persists `?worker=<url>` from the query string into
+**FIXED in eb70d11 (was HIGH, found 2026-10-20; re-scan clean: override only on localhost, fetchWithAuthRetry requires allowedOrigin):** config.js `readOverride()` persists `?worker=<url>` from the query string into
 localStorage (`hm-tracker.workerUrl`) and uses it as WORKER_URL. Since 1b every worker call carries the Firebase ID token
 (valid ~1h, also accepted by Firestore REST) plus Strava code/refresh_token in bodies -> a crafted link exfiltrates them.
 **How to apply:** on any later check, verify the override is removed or restricted (default-origin only / localhost) and that
