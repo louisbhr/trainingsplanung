@@ -9,8 +9,8 @@
 // nie über Millisekunden-Differenzen — sonst rechnen die 7/28/42-Tage-
 // Fenster an den beiden Zeitumstellungen im Plan (25.10.2026, 28.03.2027)
 // falsch (A7).
-import { addDays } from "./plan.js?v=202610031016";
-import { parseSoll } from "./progression.js?v=202610031016";
+import { addDays, ZONE_RUN_TYPES } from "./plan.js?v=202610201447";
+import { parseSoll } from "./progression.js?v=202610201447";
 
 const rank = { grau: 0, gruen: 1, gelb: 2, rot: 3 };
 const worseOf = (a, b) => (rank[b] > rank[a] ? b : a);
@@ -19,6 +19,18 @@ const round1 = (n) => Math.round(n * 10) / 10;
 export const formatKm = (n) => String(round1(n)).replace(".", ",");
 // Immer mit einer Nachkommastelle (8,0 km), für Messwerte aus Strava.
 export const formatKm1 = (n) => n.toFixed(1).replace(".", ",");
+
+// Optionale Einheiten (Kraft ab Woche 9, Gym-Zugang unsicher) zählen in
+// Wochensoll und Adhärenz nur mit, wenn sie erledigt sind — nie als
+// verpasst oder fehlend.
+export const countsTowardPlan = (session, done) => !session.optional || !!done;
+
+// Läufe, die für Easy-Disziplin und aerobe Effizienz zählen: nur
+// Easy/Long/Recovery mit HF-Obergrenze. Kalibrierungstest ("Test") und
+// Schwellenläufe liegen absichtlich über der Easy-Zone und würden beide
+// Kennzahlen verfälschen.
+export const isZoneRun = (session) =>
+  session.kind === "lauf" && ZONE_RUN_TYPES.includes(session.shortType) && typeof session.hfMax === "number";
 
 // ---------- Ampel 1: Wochensoll ----------
 // sessions: sessionsFor(plan, weekNo) der betrachteten Woche.
@@ -44,10 +56,12 @@ export function wochensoll(sessions, actualKmByDate, kraftDoneByDate, todayISO, 
   const laufStatus =
     laufPct >= THRESHOLDS.wochensoll.gruen ? "gruen" : laufPct >= THRESHOLDS.wochensoll.gelb ? "gelb" : "rot";
 
-  const kraftPlanned = kraftSessions.length;
-  const kraftDone = kraftSessions.filter((s) => kraftDoneByDate[s.date]).length;
-  // Die heutige, noch offene Einheit zählt nicht als verpasst.
-  const kraftMissedPast = kraftSessions.some((s) => s.date < todayISO && !kraftDoneByDate[s.date]);
+  const kraftCounted = kraftSessions.filter((s) => countsTowardPlan(s, kraftDoneByDate[s.date]));
+  const kraftPlanned = kraftCounted.length;
+  const kraftDone = kraftCounted.filter((s) => kraftDoneByDate[s.date]).length;
+  // Die heutige, noch offene Einheit zählt nicht als verpasst; eine
+  // nicht erledigte optionale Einheit nie.
+  const kraftMissedPast = kraftCounted.some((s) => s.date < todayISO && !kraftDoneByDate[s.date]);
   const kraftStatus = kraftMissedPast ? "gelb" : "gruen";
 
   return {

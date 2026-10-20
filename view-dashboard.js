@@ -3,9 +3,9 @@
 // Datenzugriff (Firestore, Strava, Plan) bleiben in app.js. Keine eigenen
 // Styles — alle Klassen kommen aus style.css (D0), siehe
 // docs/ui-markup-dashboard-v2.md für die genaue Markup-Referenz.
-import { formatKm1 } from "./metrics.js?v=202610031016";
-import { esc, ICONS, skelLine } from "./ui.js?v=202610031016";
-import { formatDuration } from "./strava.js?v=202610031016";
+import { formatKm1 } from "./metrics.js?v=202610201447";
+import { esc, ICONS, skelLine } from "./ui.js?v=202610201447";
+import { formatDuration } from "./strava.js?v=202610201447";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
 
@@ -29,7 +29,7 @@ export function todayCardKraftHTML(session, { expanded, progressText, exercises 
     <div class="top">
       <div>
         <p class="eyebrow2">Heute dran</p>
-        <p class="name2">${esc(session.label)}</p>
+        <p class="name2">${esc(session.label)}${session.optional ? " (optional)" : ""}</p>
         <p class="sub">${exercises.length} ${exercises.length === 1 ? "Übung" : "Übungen"}${first ? " · " + esc(first.soll) : ""}</p>
       </div>
       <button type="button" class="start-btn" data-action="toggle-today-exercises"

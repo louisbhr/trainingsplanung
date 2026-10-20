@@ -1,6 +1,6 @@
 # Halbmarathon-Tracker
 
-Statische Web-App (Vanilla JS, kein Build-Step) für den 31-Wochen-Plan
+Statische Web-App (Vanilla JS, kein Build-Step) für den 35-Wochen-Plan
 Richtung 1:29:59 h. Krafteinheiten werden von Hand eingetragen und in
 Firestore gespeichert, Läufe kommen automatisch aus Strava.
 
@@ -131,8 +131,10 @@ Details siehe `tests/README.md`.
 
 ## Was noch offen ist
 
-- **Wochen 9–31** zeigen nur Phase und Zeitraum (`placeholder: true`). Die
-  Tagesdetails tragen wir nach der Re-Kalibrierung am Ende von Phase 1 nach
+- **Wochen 13–35** zeigen nur Phase, Zeitraum und Wochenkilometer
+  (`placeholder: true`); Woche 9–12 sind ausformuliert (Stand 20.10.2026,
+  Renntag So 02.05.2027 in Woche 35). Die weiteren Tagesdetails tragen wir
+  nach dem Kalibrierungstest (Mi 28.10.2026) nach
   — direkt in `plans/hm-2027.json` (nicht mehr in `plan.js`, das enthält
   seit M1 keine Plandaten mehr). Nach jeder Änderung an der JSON nicht
   `npm run version` vergessen (siehe HANDOFF.md, Falle 1).

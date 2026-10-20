@@ -1,20 +1,20 @@
 {
   "id": "hm-2027",
   "schemaVersion": 1,
-  "fileVersion": "2026-09-27T16:21",
+  "fileVersion": "2026-10-20T16:42",
   "goal": {
     "distance": "Halbmarathon",
     "distanceKm": 21.0975,
     "targetTime": "1:29:59",
     "targetPace": "4:16 /km",
-    "raceDate": "2027-04-11",
-    "raceDateConfirmed": false
+    "raceDate": "2027-05-02",
+    "raceDateConfirmed": true
   },
   "start": "2026-08-31",
-  "totalWeeks": 31,
-  "detailedUntilWeek": 8,
+  "totalWeeks": 35,
+  "detailedUntilWeek": 12,
   "recalibrationDates": [
-    "2026-10-25"
+    "2026-10-28"
   ],
   "zones": [
     {
@@ -23,7 +23,7 @@
       "hfMin": null,
       "hfMax": 148,
       "hf": "< 148",
-      "pace": "> 6:40 /km",
+      "pace": "> 6:30 /km",
       "use": "Regeneration",
       "tone": "sky"
     },
@@ -33,7 +33,7 @@
       "hfMin": 148,
       "hfMax": 163,
       "hf": "148–163",
-      "pace": "6:10–6:35 /km",
+      "pace": "5:45–6:15 /km",
       "use": "Grundlage",
       "tone": "teal"
     },
@@ -84,29 +84,29 @@
       "name": "Aufbau",
       "weeks": {
         "from": 9,
-        "to": 18
+        "to": 20
       },
-      "focus": "Schwelle, Plyometrie",
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
       "tone": "sky"
     },
     {
       "n": 3,
       "name": "Spezifisch",
       "weeks": {
-        "from": 19,
-        "to": 27
+        "from": 21,
+        "to": 33
       },
-      "focus": "Renntempo, Kraft-Erhalt",
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
       "tone": "amber"
     },
     {
       "n": 4,
       "name": "Taper",
       "weeks": {
-        "from": 28,
-        "to": 31
+        "from": 34,
+        "to": 35
       },
-      "focus": "Volumen runter, Frische",
+      "focus": "Umfang runter, Frische",
       "tone": "purple"
     }
   ],
@@ -1275,8 +1275,157 @@
       "phase": 2,
       "weekType": "Aufbau",
       "deload": false,
-      "focus": "Schwelle, Plyometrie",
-      "placeholder": true
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
+      "placeholder": false,
+      "plannedKm": 40,
+      "sessions": [
+        {
+          "date": "2026-10-26",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "9 km",
+          "km": 9,
+          "pace": "5:45–6:15 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-10-27",
+          "kind": "kraft",
+          "label": "Full Body A",
+          "shortLabel": "FB A",
+          "exercises": [
+            {
+              "name": "Squats",
+              "soll": "4x4-6",
+              "hint": "Einstieg: ca. 90% des Woche-7-Gewichts, RPE 7-8. Zuhause: Kniebeuge mit gefülltem Rucksack vor der Brust"
+            },
+            {
+              "name": "Deadlift",
+              "soll": "4x3-5",
+              "hint": "Reduziertes Volumen — nach dem Squat begrenzte Reserve. Zuhause: Rumänisches Kreuzheben mit Rucksack oder Kurzhanteln"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "3x5",
+              "hint": "Kein Zusatzgewicht, Steigerung über Wdh/Tempo. Zuhause: identisch, Füße unter Sofa oder Schrank fixieren"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x5-7",
+              "hint": "Hohe Frequenz bewusst — skill-lastige Bewegung. Zuhause: Türreck-Klimmzüge oder Rudern unter dem Tisch"
+            },
+            {
+              "name": "Brustpresse",
+              "soll": "4x6-8",
+              "hint": "Horizontaler Push. Zuhause: Liegestütze, Füße erhöht oder mit Rucksack"
+            },
+            {
+              "name": "Soleus raises",
+              "soll": "3x15/Seite",
+              "hint": "Steigern wenn 15 Wdh sauber gelingen. Zuhause: identisch an einer Treppenstufe, Rucksack auf dem Knie"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Anti-Rotation, Fokus ruhige Hüfte. Zuhause: mit Widerstandsband an der Tür"
+            },
+            {
+              "name": "Planks (wechselnd)",
+              "soll": "3x30-45s",
+              "hint": "Front-/Seiten-/RKC-Plank abwechselnd. Zuhause: identisch"
+            },
+            {
+              "name": "Plyometrie (Pogo-Sprünge, Skippings)",
+              "soll": "3x15",
+              "hint": "Pogo-Sprünge, danach Skippings; kurze Bodenkontaktzeit, locker bleiben. Zuhause: identisch, keine Geräte nötig"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-28",
+          "kind": "lauf",
+          "type": "Kalibrierungstest",
+          "shortType": "Test",
+          "dist": "11 km",
+          "km": 11,
+          "pace": "30 min so schnell wie gleichmäßig möglich",
+          "hf": "frei, Ø notieren",
+          "note": "Ø Pace und Ø HF der 30 min notieren, daraus werden Schwelle und Zonen neu berechnet. 2 km einlaufen, 30 min Test, Rest auslaufen."
+        },
+        {
+          "date": "2026-10-29",
+          "kind": "kraft",
+          "label": "Full Body B",
+          "shortLabel": "FB B",
+          "optional": true,
+          "exercises": [
+            {
+              "name": "Bulgarian split squats",
+              "soll": "4x6/Seite",
+              "hint": "Einstieg: ca. 90% des Woche-7-Gewichts, RPE 7-8. Zuhause: Bulgarian Split Squat mit Rucksack"
+            },
+            {
+              "name": "Single leg RDL",
+              "soll": "4x6/Seite",
+              "hint": "Fokus Balance & Hüftstreckung. Zuhause: einbeiniges Kreuzheben mit Rucksack oder Kurzhantel"
+            },
+            {
+              "name": "Hamstring curls (Maschine)",
+              "soll": "3x10-12",
+              "hint": "Konzentrisch, ermüdungsärmer als Nordic Curls. Zuhause: Hamstring-Slides auf einem Handtuch"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x8-10",
+              "hint": "Etwas höhere Wdh als Dienstag. Zuhause: Türreck-Klimmzüge oder Rudern unter dem Tisch"
+            },
+            {
+              "name": "Schulterpresse",
+              "soll": "4x6-8",
+              "hint": "Vertikaler Push, andere Winkelbelastung als Dienstag. Zuhause: Pike-Liegestütze oder Rucksack-Schulterdrücken"
+            },
+            {
+              "name": "Copenhagen planks",
+              "soll": "3x20-30s/Seite",
+              "hint": "Bein strecken sobald 30s sauber gelingen. Zuhause: identisch, Stuhl statt Bank"
+            },
+            {
+              "name": "Hüftbeuger",
+              "soll": "3x12-15/Seite",
+              "hint": "Band oder Körpergewicht. Zuhause: identisch mit Band"
+            },
+            {
+              "name": "Crunches",
+              "soll": "3x15-20",
+              "hint": "Hypertrophie-Fokus, nahe Muskelversagen. Zuhause: identisch"
+            }
+          ]
+        },
+        {
+          "date": "2026-10-31",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "15 km",
+          "km": 15,
+          "pace": "5:45–6:20 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-11-01",
+          "kind": "lauf",
+          "type": "Recovery run",
+          "shortType": "Recovery",
+          "dist": "5 km",
+          "km": 5,
+          "pace": "> 6:30 /km",
+          "hf": "< 148 bpm",
+          "hfMax": 148
+        }
+      ]
     },
     {
       "n": 10,
@@ -1284,8 +1433,157 @@
       "phase": 2,
       "weekType": "Aufbau",
       "deload": false,
-      "focus": "Schwelle, Plyometrie",
-      "placeholder": true
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
+      "placeholder": false,
+      "plannedKm": 42,
+      "sessions": [
+        {
+          "date": "2026-11-02",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "10 km",
+          "km": 10,
+          "pace": "5:45–6:15 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-11-03",
+          "kind": "kraft",
+          "label": "Full Body A",
+          "shortLabel": "FB A",
+          "exercises": [
+            {
+              "name": "Squats",
+              "soll": "4x4-6",
+              "hint": "+2.5-5 kg falls Woche 9 RPE ≤8, sonst halten. Zuhause: Kniebeuge mit gefülltem Rucksack vor der Brust"
+            },
+            {
+              "name": "Deadlift",
+              "soll": "4x3-5",
+              "hint": "Reduziertes Volumen — nach dem Squat begrenzte Reserve. Zuhause: Rumänisches Kreuzheben mit Rucksack oder Kurzhanteln"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "3x6",
+              "hint": "Kein Zusatzgewicht, Steigerung über Wdh/Tempo. Zuhause: identisch, Füße unter Sofa oder Schrank fixieren"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x5-7",
+              "hint": "Hohe Frequenz bewusst — skill-lastige Bewegung. Zuhause: Türreck-Klimmzüge oder Rudern unter dem Tisch"
+            },
+            {
+              "name": "Brustpresse",
+              "soll": "4x6-8",
+              "hint": "Horizontaler Push. Zuhause: Liegestütze, Füße erhöht oder mit Rucksack"
+            },
+            {
+              "name": "Soleus raises",
+              "soll": "3x15/Seite",
+              "hint": "Steigern wenn 15 Wdh sauber gelingen. Zuhause: identisch an einer Treppenstufe, Rucksack auf dem Knie"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Anti-Rotation, Fokus ruhige Hüfte. Zuhause: mit Widerstandsband an der Tür"
+            },
+            {
+              "name": "Planks (wechselnd)",
+              "soll": "3x30-45s",
+              "hint": "Front-/Seiten-/RKC-Plank abwechselnd. Zuhause: identisch"
+            },
+            {
+              "name": "Plyometrie (Pogo-Sprünge, Skippings)",
+              "soll": "3x15",
+              "hint": "Pogo-Sprünge, danach Skippings; kurze Bodenkontaktzeit, locker bleiben. Zuhause: identisch, keine Geräte nötig"
+            }
+          ]
+        },
+        {
+          "date": "2026-11-04",
+          "kind": "lauf",
+          "type": "Schwelle 3×8 min",
+          "shortType": "Schwelle",
+          "dist": "11 km",
+          "km": 11,
+          "pace": "4:35–4:50 /km",
+          "hf": "172–181 bpm",
+          "note": "2 min Trabpause zwischen den Intervallen, davor und danach locker ein- und auslaufen"
+        },
+        {
+          "date": "2026-11-05",
+          "kind": "kraft",
+          "label": "Full Body B",
+          "shortLabel": "FB B",
+          "optional": true,
+          "exercises": [
+            {
+              "name": "Bulgarian split squats",
+              "soll": "4x6/Seite",
+              "hint": "+1-2.5 kg/Hand falls Woche 9 RPE ≤8. Zuhause: Bulgarian Split Squat mit Rucksack"
+            },
+            {
+              "name": "Single leg RDL",
+              "soll": "4x6/Seite",
+              "hint": "Fokus Balance & Hüftstreckung. Zuhause: einbeiniges Kreuzheben mit Rucksack oder Kurzhantel"
+            },
+            {
+              "name": "Hamstring curls (Maschine)",
+              "soll": "3x10-12",
+              "hint": "Konzentrisch, ermüdungsärmer als Nordic Curls. Zuhause: Hamstring-Slides auf einem Handtuch"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x8-10",
+              "hint": "Etwas höhere Wdh als Dienstag. Zuhause: Türreck-Klimmzüge oder Rudern unter dem Tisch"
+            },
+            {
+              "name": "Schulterpresse",
+              "soll": "4x6-8",
+              "hint": "Vertikaler Push, andere Winkelbelastung als Dienstag. Zuhause: Pike-Liegestütze oder Rucksack-Schulterdrücken"
+            },
+            {
+              "name": "Copenhagen planks",
+              "soll": "3x20-30s/Seite",
+              "hint": "Bein strecken sobald 30s sauber gelingen. Zuhause: identisch, Stuhl statt Bank"
+            },
+            {
+              "name": "Hüftbeuger",
+              "soll": "3x12-15/Seite",
+              "hint": "Band oder Körpergewicht. Zuhause: identisch mit Band"
+            },
+            {
+              "name": "Crunches",
+              "soll": "3x15-20",
+              "hint": "Hypertrophie-Fokus, nahe Muskelversagen. Zuhause: identisch"
+            }
+          ]
+        },
+        {
+          "date": "2026-11-07",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "16 km",
+          "km": 16,
+          "pace": "5:45–6:20 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-11-08",
+          "kind": "lauf",
+          "type": "Recovery run",
+          "shortType": "Recovery",
+          "dist": "5 km",
+          "km": 5,
+          "pace": "> 6:30 /km",
+          "hf": "< 148 bpm",
+          "hfMax": 148
+        }
+      ]
     },
     {
       "n": 11,
@@ -1293,17 +1591,315 @@
       "phase": 2,
       "weekType": "Aufbau",
       "deload": false,
-      "focus": "Schwelle, Plyometrie",
-      "placeholder": true
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
+      "placeholder": false,
+      "plannedKm": 45,
+      "sessions": [
+        {
+          "date": "2026-11-09",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "10 km",
+          "km": 10,
+          "pace": "5:45–6:15 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-11-10",
+          "kind": "kraft",
+          "label": "Full Body A",
+          "shortLabel": "FB A",
+          "exercises": [
+            {
+              "name": "Squats",
+              "soll": "4x4-6",
+              "hint": "Höchste Last der Phase, +2.5-5 kg falls RPE ≤8. Zuhause: Kniebeuge mit gefülltem Rucksack vor der Brust"
+            },
+            {
+              "name": "Deadlift",
+              "soll": "4x3-5",
+              "hint": "Reduziertes Volumen — nach dem Squat begrenzte Reserve. Zuhause: Rumänisches Kreuzheben mit Rucksack oder Kurzhanteln"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "3x6",
+              "hint": "Kein Zusatzgewicht, Steigerung über Wdh/Tempo. Zuhause: identisch, Füße unter Sofa oder Schrank fixieren"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x5-7",
+              "hint": "Hohe Frequenz bewusst — skill-lastige Bewegung. Zuhause: Türreck-Klimmzüge oder Rudern unter dem Tisch"
+            },
+            {
+              "name": "Brustpresse",
+              "soll": "4x6-8",
+              "hint": "Horizontaler Push. Zuhause: Liegestütze, Füße erhöht oder mit Rucksack"
+            },
+            {
+              "name": "Soleus raises",
+              "soll": "3x15/Seite",
+              "hint": "Steigern wenn 15 Wdh sauber gelingen. Zuhause: identisch an einer Treppenstufe, Rucksack auf dem Knie"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Anti-Rotation, Fokus ruhige Hüfte. Zuhause: mit Widerstandsband an der Tür"
+            },
+            {
+              "name": "Planks (wechselnd)",
+              "soll": "3x30-45s",
+              "hint": "Front-/Seiten-/RKC-Plank abwechselnd. Zuhause: identisch"
+            },
+            {
+              "name": "Plyometrie (Pogo-Sprünge, Skippings)",
+              "soll": "3x15",
+              "hint": "Pogo-Sprünge, danach Skippings; kurze Bodenkontaktzeit, locker bleiben. Zuhause: identisch, keine Geräte nötig"
+            }
+          ]
+        },
+        {
+          "date": "2026-11-11",
+          "kind": "lauf",
+          "type": "Schwelle 3×10 min",
+          "shortType": "Schwelle",
+          "dist": "12 km",
+          "km": 12,
+          "pace": "4:35–4:50 /km",
+          "hf": "172–181 bpm",
+          "note": "2 min Trabpause zwischen den Intervallen, davor und danach locker ein- und auslaufen"
+        },
+        {
+          "date": "2026-11-12",
+          "kind": "kraft",
+          "label": "Full Body B",
+          "shortLabel": "FB B",
+          "optional": true,
+          "exercises": [
+            {
+              "name": "Bulgarian split squats",
+              "soll": "4x6/Seite",
+              "hint": "Höchstes Volumen der Phase. Zuhause: Bulgarian Split Squat mit Rucksack"
+            },
+            {
+              "name": "Single leg RDL",
+              "soll": "4x6/Seite",
+              "hint": "Fokus Balance & Hüftstreckung. Zuhause: einbeiniges Kreuzheben mit Rucksack oder Kurzhantel"
+            },
+            {
+              "name": "Hamstring curls (Maschine)",
+              "soll": "3x10-12",
+              "hint": "Konzentrisch, ermüdungsärmer als Nordic Curls. Zuhause: Hamstring-Slides auf einem Handtuch"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "4x8-10",
+              "hint": "Etwas höhere Wdh als Dienstag. Zuhause: Türreck-Klimmzüge oder Rudern unter dem Tisch"
+            },
+            {
+              "name": "Schulterpresse",
+              "soll": "4x6-8",
+              "hint": "Vertikaler Push, andere Winkelbelastung als Dienstag. Zuhause: Pike-Liegestütze oder Rucksack-Schulterdrücken"
+            },
+            {
+              "name": "Copenhagen planks",
+              "soll": "3x20-30s/Seite",
+              "hint": "Bein strecken sobald 30s sauber gelingen. Zuhause: identisch, Stuhl statt Bank"
+            },
+            {
+              "name": "Hüftbeuger",
+              "soll": "3x12-15/Seite",
+              "hint": "Band oder Körpergewicht. Zuhause: identisch mit Band"
+            },
+            {
+              "name": "Crunches",
+              "soll": "3x15-20",
+              "hint": "Hypertrophie-Fokus, nahe Muskelversagen. Zuhause: identisch"
+            }
+          ]
+        },
+        {
+          "date": "2026-11-14",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "17 km",
+          "km": 17,
+          "pace": "5:45–6:20 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-11-15",
+          "kind": "lauf",
+          "type": "Recovery run",
+          "shortType": "Recovery",
+          "dist": "6 km",
+          "km": 6,
+          "pace": "> 6:30 /km",
+          "hf": "< 148 bpm",
+          "hfMax": 148
+        }
+      ]
     },
     {
       "n": 12,
       "start": "2026-11-16",
       "phase": 2,
-      "weekType": "Aufbau",
-      "deload": false,
-      "focus": "Schwelle, Plyometrie",
-      "placeholder": true
+      "weekType": "Entlastung",
+      "deload": true,
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
+      "placeholder": false,
+      "plannedKm": 33,
+      "sessions": [
+        {
+          "date": "2026-11-16",
+          "kind": "lauf",
+          "type": "Easy run",
+          "shortType": "Easy",
+          "dist": "8 km",
+          "km": 8,
+          "pace": "5:45–6:15 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-11-17",
+          "kind": "kraft",
+          "label": "Full Body A",
+          "shortLabel": "FB A",
+          "exercises": [
+            {
+              "name": "Squats",
+              "soll": "2x6 (Deload)",
+              "hint": "Ca. 80% des Woche-7-Gewichts. Zuhause: Kniebeuge mit gefülltem Rucksack vor der Brust"
+            },
+            {
+              "name": "Deadlift",
+              "soll": "2x5 (Deload)",
+              "hint": "Reduziertes Volumen — nach dem Squat begrenzte Reserve. Zuhause: Rumänisches Kreuzheben mit Rucksack oder Kurzhanteln"
+            },
+            {
+              "name": "Nordic hamstring curl",
+              "soll": "2x5 (Deload)",
+              "hint": "Kein Zusatzgewicht, Steigerung über Wdh/Tempo. Zuhause: identisch, Füße unter Sofa oder Schrank fixieren"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "2x6 (Deload)",
+              "hint": "Hohe Frequenz bewusst — skill-lastige Bewegung. Zuhause: Türreck-Klimmzüge oder Rudern unter dem Tisch"
+            },
+            {
+              "name": "Brustpresse",
+              "soll": "2x6 (Deload)",
+              "hint": "Horizontaler Push. Zuhause: Liegestütze, Füße erhöht oder mit Rucksack"
+            },
+            {
+              "name": "Soleus raises",
+              "soll": "3x15/Seite",
+              "hint": "Steigern wenn 15 Wdh sauber gelingen. Zuhause: identisch an einer Treppenstufe, Rucksack auf dem Knie"
+            },
+            {
+              "name": "Pallof press",
+              "soll": "3x10/Seite",
+              "hint": "Anti-Rotation, Fokus ruhige Hüfte. Zuhause: mit Widerstandsband an der Tür"
+            },
+            {
+              "name": "Planks (wechselnd)",
+              "soll": "3x30-45s",
+              "hint": "Front-/Seiten-/RKC-Plank abwechselnd. Zuhause: identisch"
+            },
+            {
+              "name": "Plyometrie (Pogo-Sprünge, Skippings)",
+              "soll": "2x15 (Deload)",
+              "hint": "Pogo-Sprünge, danach Skippings; kurze Bodenkontaktzeit, locker bleiben. Zuhause: identisch, keine Geräte nötig"
+            }
+          ]
+        },
+        {
+          "date": "2026-11-18",
+          "kind": "lauf",
+          "type": "Easy run + 6x20s",
+          "shortType": "Easy",
+          "dist": "8 km",
+          "km": 8,
+          "pace": "5:45–6:15 /km",
+          "hf": "148–163 bpm",
+          "hfMax": 163
+        },
+        {
+          "date": "2026-11-19",
+          "kind": "kraft",
+          "label": "Full Body B",
+          "shortLabel": "FB B",
+          "optional": true,
+          "exercises": [
+            {
+              "name": "Bulgarian split squats",
+              "soll": "2x6/Seite (Deload)",
+              "hint": "Ca. 80% des Woche-7-Gewichts. Zuhause: Bulgarian Split Squat mit Rucksack"
+            },
+            {
+              "name": "Single leg RDL",
+              "soll": "2x6/Seite (Deload)",
+              "hint": "Fokus Balance & Hüftstreckung. Zuhause: einbeiniges Kreuzheben mit Rucksack oder Kurzhantel"
+            },
+            {
+              "name": "Hamstring curls (Maschine)",
+              "soll": "2x10 (Deload)",
+              "hint": "Konzentrisch, ermüdungsärmer als Nordic Curls. Zuhause: Hamstring-Slides auf einem Handtuch"
+            },
+            {
+              "name": "Klimmzüge",
+              "soll": "2x8 (Deload)",
+              "hint": "Etwas höhere Wdh als Dienstag. Zuhause: Türreck-Klimmzüge oder Rudern unter dem Tisch"
+            },
+            {
+              "name": "Schulterpresse",
+              "soll": "2x6 (Deload)",
+              "hint": "Vertikaler Push, andere Winkelbelastung als Dienstag. Zuhause: Pike-Liegestütze oder Rucksack-Schulterdrücken"
+            },
+            {
+              "name": "Copenhagen planks",
+              "soll": "3x20-30s/Seite",
+              "hint": "Bein strecken sobald 30s sauber gelingen. Zuhause: identisch, Stuhl statt Bank"
+            },
+            {
+              "name": "Hüftbeuger",
+              "soll": "3x12-15/Seite",
+              "hint": "Band oder Körpergewicht. Zuhause: identisch mit Band"
+            },
+            {
+              "name": "Crunches",
+              "soll": "3x15-20",
+              "hint": "Hypertrophie-Fokus, nahe Muskelversagen. Zuhause: identisch"
+            }
+          ]
+        },
+        {
+          "date": "2026-11-21",
+          "kind": "lauf",
+          "type": "Long run",
+          "shortType": "Long",
+          "dist": "13 km",
+          "km": 13,
+          "pace": "5:45–6:20 /km",
+          "hf": "148–160 bpm",
+          "hfMax": 160
+        },
+        {
+          "date": "2026-11-22",
+          "kind": "lauf",
+          "type": "Recovery run",
+          "shortType": "Recovery",
+          "dist": "4 km",
+          "km": 4,
+          "pace": "> 6:30 /km",
+          "hf": "< 148 bpm",
+          "hfMax": 148
+        }
+      ]
     },
     {
       "n": 13,
@@ -1311,8 +1907,9 @@
       "phase": 2,
       "weekType": "Aufbau",
       "deload": false,
-      "focus": "Schwelle, Plyometrie",
-      "placeholder": true
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
+      "placeholder": true,
+      "plannedKm": 46
     },
     {
       "n": 14,
@@ -1320,8 +1917,9 @@
       "phase": 2,
       "weekType": "Aufbau",
       "deload": false,
-      "focus": "Schwelle, Plyometrie",
-      "placeholder": true
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
+      "placeholder": true,
+      "plannedKm": 49
     },
     {
       "n": 15,
@@ -1329,17 +1927,19 @@
       "phase": 2,
       "weekType": "Aufbau",
       "deload": false,
-      "focus": "Schwelle, Plyometrie",
-      "placeholder": true
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
+      "placeholder": true,
+      "plannedKm": 52
     },
     {
       "n": 16,
       "start": "2026-12-14",
       "phase": 2,
-      "weekType": "Aufbau",
-      "deload": false,
-      "focus": "Schwelle, Plyometrie",
-      "placeholder": true
+      "weekType": "Entlastung",
+      "deload": true,
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
+      "placeholder": true,
+      "plannedKm": 40
     },
     {
       "n": 17,
@@ -1347,8 +1947,9 @@
       "phase": 2,
       "weekType": "Aufbau",
       "deload": false,
-      "focus": "Schwelle, Plyometrie",
-      "placeholder": true
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
+      "placeholder": true,
+      "plannedKm": 48
     },
     {
       "n": 18,
@@ -1356,26 +1957,29 @@
       "phase": 2,
       "weekType": "Aufbau",
       "deload": false,
-      "focus": "Schwelle, Plyometrie",
-      "placeholder": true
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie (Weihnachten, flexibel)",
+      "placeholder": true,
+      "plannedKm": 44
     },
     {
       "n": 19,
       "start": "2027-01-04",
-      "phase": 3,
-      "weekType": "Spezifisch",
+      "phase": 2,
+      "weekType": "Aufbau",
       "deload": false,
-      "focus": "Renntempo, Kraft-Erhalt",
-      "placeholder": true
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
+      "placeholder": true,
+      "plannedKm": 50
     },
     {
       "n": 20,
       "start": "2027-01-11",
-      "phase": 3,
-      "weekType": "Spezifisch",
-      "deload": false,
-      "focus": "Renntempo, Kraft-Erhalt",
-      "placeholder": true
+      "phase": 2,
+      "weekType": "Entlastung",
+      "deload": true,
+      "focus": "Schwelle, Long Run bis 18 km, Plyometrie",
+      "placeholder": true,
+      "plannedKm": 42
     },
     {
       "n": 21,
@@ -1383,8 +1987,9 @@
       "phase": 3,
       "weekType": "Spezifisch",
       "deload": false,
-      "focus": "Renntempo, Kraft-Erhalt",
-      "placeholder": true
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 52
     },
     {
       "n": 22,
@@ -1392,8 +1997,9 @@
       "phase": 3,
       "weekType": "Spezifisch",
       "deload": false,
-      "focus": "Renntempo, Kraft-Erhalt",
-      "placeholder": true
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 54
     },
     {
       "n": 23,
@@ -1401,17 +2007,19 @@
       "phase": 3,
       "weekType": "Spezifisch",
       "deload": false,
-      "focus": "Renntempo, Kraft-Erhalt",
-      "placeholder": true
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 56
     },
     {
       "n": 24,
       "start": "2027-02-08",
       "phase": 3,
-      "weekType": "Spezifisch",
-      "deload": false,
-      "focus": "Renntempo, Kraft-Erhalt",
-      "placeholder": true
+      "weekType": "Entlastung",
+      "deload": true,
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 44
     },
     {
       "n": 25,
@@ -1419,8 +2027,9 @@
       "phase": 3,
       "weekType": "Spezifisch",
       "deload": false,
-      "focus": "Renntempo, Kraft-Erhalt",
-      "placeholder": true
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 56
     },
     {
       "n": 26,
@@ -1428,8 +2037,9 @@
       "phase": 3,
       "weekType": "Spezifisch",
       "deload": false,
-      "focus": "Renntempo, Kraft-Erhalt",
-      "placeholder": true
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 58
     },
     {
       "n": 27,
@@ -1437,44 +2047,89 @@
       "phase": 3,
       "weekType": "Spezifisch",
       "deload": false,
-      "focus": "Renntempo, Kraft-Erhalt",
-      "placeholder": true
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 60
     },
     {
       "n": 28,
       "start": "2027-03-08",
-      "phase": 4,
-      "weekType": "Taper",
-      "deload": false,
-      "focus": "Volumen runter, Frische",
-      "placeholder": true
+      "phase": 3,
+      "weekType": "Entlastung",
+      "deload": true,
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 46
     },
     {
       "n": 29,
       "start": "2027-03-15",
-      "phase": 4,
-      "weekType": "Taper",
+      "phase": 3,
+      "weekType": "Spezifisch",
       "deload": false,
-      "focus": "Volumen runter, Frische",
-      "placeholder": true
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 58
     },
     {
       "n": 30,
       "start": "2027-03-22",
-      "phase": 4,
-      "weekType": "Taper",
+      "phase": 3,
+      "weekType": "Spezifisch",
       "deload": false,
-      "focus": "Volumen runter, Frische",
-      "placeholder": true
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 60
     },
     {
       "n": 31,
       "start": "2027-03-29",
+      "phase": 3,
+      "weekType": "Spezifisch",
+      "deload": false,
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 60
+    },
+    {
+      "n": 32,
+      "start": "2027-04-05",
+      "phase": 3,
+      "weekType": "Entlastung",
+      "deload": true,
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 48
+    },
+    {
+      "n": 33,
+      "start": "2027-04-12",
+      "phase": 3,
+      "weekType": "Spezifisch",
+      "deload": false,
+      "focus": "Renntempo 4:16 /km, Long Run bis 20–22 km mit HM-Abschnitten",
+      "placeholder": true,
+      "plannedKm": 54
+    },
+    {
+      "n": 34,
+      "start": "2027-04-19",
       "phase": 4,
       "weekType": "Taper",
       "deload": false,
-      "focus": "Volumen runter, Frische",
-      "placeholder": true
+      "focus": "Umfang runter, Frische",
+      "placeholder": true,
+      "plannedKm": 42
+    },
+    {
+      "n": 35,
+      "start": "2027-04-26",
+      "phase": 4,
+      "weekType": "Rennwoche",
+      "deload": false,
+      "focus": "Rennwoche, Halbmarathon am Sonntag 02.05.2027 (21,1 km)",
+      "placeholder": true,
+      "plannedKm": 30
     }
   ]
 }

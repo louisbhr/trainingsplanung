@@ -8,6 +8,7 @@ import { test } from "node:test";
 import {
   wochensoll, easyDisziplin, belastung, kraftProgression,
   adherence4w, aerobeEffizienz, weeklyVolume, worstStatus, kraftHistoryByExercise,
+  countsTowardPlan, isZoneRun,
 } from "../metrics.js";
 import { suggestProgression } from "../progression.js";
 
@@ -401,4 +402,51 @@ test("kraftProgression: Trend steigt/haelt für die Wochenbilanz", () => {
   const haelt = kraftProgression(new Map([["Squats", [e("2026-09-01", 62.5, 9), e("2026-09-08", 60, 10)]]]), T);
   assert.equal(haelt.results[0].status, "ok");
   assert.equal(haelt.results[0].trend, "haelt");
+});
+
+// ---------- Optionale Kraft (Plan ab Woche 9) ----------
+// Die Do-Einheit ab W9 ist optional (Gym-Zugang unsicher): sie zählt nur
+// mit, wenn sie erledigt ist, und ist nie "verpasst".
+const WEEK_OPT = [
+  { date: "2026-10-26", kind: "lauf", km: 10 },
+  { date: "2026-10-27", kind: "kraft", exercises: [{ name: "Squats" }] },
+  { date: "2026-10-29", kind: "kraft", optional: true, exercises: [{ name: "Squats" }] },
+];
+
+test("countsTowardPlan: Pflicht zählt immer, optional nur wenn erledigt", () => {
+  assert.equal(countsTowardPlan({ kind: "kraft" }, false), true);
+  assert.equal(countsTowardPlan({ kind: "kraft", optional: true }, false), false);
+  assert.equal(countsTowardPlan({ kind: "kraft", optional: true }, true), true);
+});
+
+test("wochensoll: nicht erledigte optionale Kraft zählt weder im Soll noch als verpasst", () => {
+  const r = wochensoll(WEEK_OPT, { "2026-10-26": 10 }, { "2026-10-27": true, "2026-10-29": false }, "2026-11-01", THRESHOLDS);
+  assert.equal(r.status, "gruen");
+  assert.equal(r.kraftPlanned, 1);
+  assert.equal(r.kraftDone, 1);
+  assert.equal(r.detail, "10 / 10 km · Kraft 1/1");
+});
+
+test("wochensoll: erledigte optionale Kraft zählt im Soll mit", () => {
+  const r = wochensoll(WEEK_OPT, { "2026-10-26": 10 }, { "2026-10-27": true, "2026-10-29": true }, "2026-11-01", THRESHOLDS);
+  assert.equal(r.kraftPlanned, 2);
+  assert.equal(r.kraftDone, 2);
+});
+
+test("wochensoll: verpasste Pflicht-Kraft bleibt gelb, auch wenn die optionale erledigt ist", () => {
+  const r = wochensoll(WEEK_OPT, { "2026-10-26": 10 }, { "2026-10-27": false, "2026-10-29": true }, "2026-11-01", THRESHOLDS);
+  assert.equal(r.status, "gelb");
+  assert.equal(r.kraftPlanned, 2);
+  assert.equal(r.kraftDone, 1);
+});
+
+// ---------- Test-/Schwellenläufe zählen nicht für Easy-Disziplin/Effizienz ----------
+test("isZoneRun: nur Easy/Long/Recovery mit hfMax zählen", () => {
+  assert.equal(isZoneRun({ kind: "lauf", shortType: "Easy", hfMax: 163 }), true);
+  assert.equal(isZoneRun({ kind: "lauf", shortType: "Long", hfMax: 160 }), true);
+  assert.equal(isZoneRun({ kind: "lauf", shortType: "Recovery", hfMax: 148 }), true);
+  assert.equal(isZoneRun({ kind: "lauf", shortType: "Test" }), false);
+  assert.equal(isZoneRun({ kind: "lauf", shortType: "Schwelle" }), false);
+  assert.equal(isZoneRun({ kind: "lauf", shortType: "Easy" }), false);
+  assert.equal(isZoneRun({ kind: "kraft", label: "FB A" }), false);
 });

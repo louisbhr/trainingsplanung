@@ -166,8 +166,30 @@ function hasNestedArray(value) {
   return false;
 }
 
+// Lauf-Arten. Nur Easy/Long/Recovery haben eine HF-Obergrenze (hfMax) und
+// zählen für Easy-Disziplin und aerobe Effizienz; "Schwelle" und "Test"
+// (Kalibrierungstest) laufen bewusst über der Easy-Zone.
+export const ZONE_RUN_TYPES = ["Easy", "Long", "Recovery"];
+export const RUN_SHORT_TYPES = [...ZONE_RUN_TYPES, "Schwelle", "Test"];
+
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const FILE_VERSION_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+// Form einer einzelnen Einheit: `optional` ist ein Boolean und nur bei Kraft
+// erlaubt; Läufe haben einen bekannten shortType, und Easy/Long/Recovery
+// brauchen die numerische HF-Obergrenze (Easy-Disziplin liest sie).
+function validateSession(s, n, need) {
+  if (s.optional !== undefined) {
+    need(typeof s.optional === "boolean", `Woche ${n}: optional am ${s.date} ist kein Boolean.`);
+    need(s.kind === "kraft", `Woche ${n}: optional am ${s.date} ist nur bei Kraft erlaubt.`);
+  }
+  if (s.kind === "lauf") {
+    need(RUN_SHORT_TYPES.includes(s.shortType), `Woche ${n}: shortType "${s.shortType}" am ${s.date} ist unbekannt.`);
+    if (ZONE_RUN_TYPES.includes(s.shortType)) {
+      need(typeof s.hfMax === "number", `Woche ${n}: hfMax fehlt am ${s.date} (${s.shortType}).`);
+    }
+  }
+}
 
 export function validatePlan(plan) {
   const problems = [];
@@ -219,6 +241,7 @@ export function validatePlan(plan) {
             typeof s.date === "string" && s.date >= week.start && s.date <= weekEnd,
             `Woche ${n}: Einheit am ${s.date} liegt nicht in der Woche (${week.start}–${weekEnd}).`
           );
+          validateSession(s, n, need);
         }
       }
     }

@@ -3,25 +3,25 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202610031016";
-import { loadPlans } from "./plan-store.js?v=202610031016";
+} from "./plan.js?v=202610201447";
+import { loadPlans } from "./plan-store.js?v=202610201447";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek,
-} from "./firebase-init.js?v=202610031016";
+} from "./firebase-init.js?v=202610201447";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202610031016";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610031016";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610031016";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610031016";
-import * as dash from "./view-dashboard.js?v=202610031016";
-import * as dashWeek from "./view-week.js?v=202610031016";
-import * as metrics from "./metrics.js?v=202610031016";
-import * as coach from "./coach.js?v=202610031016";
-import { THRESHOLDS, COACH_URL } from "./config.js?v=202610031016";
+} from "./strava.js?v=202610201447";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610201447";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610201447";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610201447";
+import * as dash from "./view-dashboard.js?v=202610201447";
+import * as dashWeek from "./view-week.js?v=202610201447";
+import * as metrics from "./metrics.js?v=202610201447";
+import * as coach from "./coach.js?v=202610201447";
+import { THRESHOLDS, COACH_URL } from "./config.js?v=202610201447";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -122,7 +122,7 @@ function colorsFor(info) {
 
 function badgeForKind(info) {
   const [color, bg] = colorsFor(info);
-  if (info.kind === "kraft") return badge(info.label, color, bg);
+  if (info.kind === "kraft") return badge(info.optional ? `${info.label} (optional)` : info.label, color, bg);
   if (info.kind === "lauf") return badge(info.type, color, bg);
   if (info.kind === "placeholder") return badge("Offen", color, bg);
   if (info.kind === "bisZumRennen") return badge("Bis zum Rennen", color, bg);
@@ -326,7 +326,7 @@ function lastAssignedEasyRuns(plan, n) {
   const candidates = [];
   for (const week of plan.weeks) {
     if (week.placeholder) continue;
-    for (const s of week.sessions.filter((x) => x.kind === "lauf" && ["Easy", "Long", "Recovery"].includes(x.shortType))) {
+    for (const s of week.sessions.filter(metrics.isZoneRun)) {
       const a = runAssignment[s.date];
       if (a?.run) candidates.push({ avgHr: a.run.avgHr, hfMax: s.hfMax, dayLabel: dayNameDE(s.date), date: s.date });
     }
@@ -484,8 +484,10 @@ function aerobeWeeklyData(plan, uptoWeekNo) {
   for (let n = 1; n <= uptoWeekNo; n++) {
     const week = weekOf(plan, n);
     if (!week || week.placeholder) continue;
+    // Nur Easy/Long/Recovery: Kalibrierungstest und Schwellenläufe liegen
+    // bewusst über der Z2-Herzfrequenz und gehören nicht in die Effizienz.
     const runs = sessionsFor(plan, n)
-      .filter((s) => s.kind === "lauf")
+      .filter(metrics.isZoneRun)
       .map((s) => runAssignment[s.date]?.run)
       .filter(Boolean)
       .map((r) => ({ paceSecPerKm: r.paceSecPerKm, avgHr: r.avgHr }));
@@ -503,12 +505,13 @@ function adherence4wData(plan, iso, logs, dayPlans) {
     if (week.placeholder) continue;
     for (const s of sessionsFor(plan, week.n)) {
       if (s.date < from || s.date > iso) continue;
+      const isDone = s.kind === "lauf"
+        ? !!runAssignment[s.date]?.run
+        : s.kind === "kraft" && kraftProgressOn(s, dayPlans[s.date], logs).complete;
+      // Optionale Einheiten zählen nur, wenn sie erledigt sind.
+      if (!metrics.countsTowardPlan(s, isDone)) continue;
       planned++;
-      if (s.kind === "lauf") {
-        if (runAssignment[s.date]?.run) done++;
-      } else if (s.kind === "kraft") {
-        if (kraftProgressOn(s, dayPlans[s.date], logs).complete) done++;
-      }
+      if (isDone) done++;
     }
   }
   return metrics.adherence4w(done, planned);
@@ -591,7 +594,9 @@ function todayFieldFor(info, doneToday) {
   // Distanz und HF-Obergrenze mitschicken, sonst nennt der Coach für den
   // Long Run die Easy-Grenze (coach-v3).
   if (info.kind === "lauf") {
-    const name = `${info.type} ${info.dist} · HF bis ${info.hfMax}`.slice(0, 60);
+    // Test-/Schwellenläufe haben keine HF-Obergrenze.
+    const hfPart = typeof info.hfMax === "number" ? ` · HF bis ${info.hfMax}` : "";
+    const name = `${info.type} ${info.dist}${hfPart}`.slice(0, 60);
     return { type: "Lauf", name, done: !!runAssignment[todayISO()]?.run };
   }
   if (info.kind === "ruhe") return { type: "Ruhe", name: "Ruhe", done: false };
@@ -721,7 +726,8 @@ function weeklyRunData(plan, weekNo) {
     if (!a?.run) continue;
     actualKm += a.run.distanceKm;
     sessionsDone++;
-    if (a.run.avgHr != null && a.run.avgHr > s.hfMax) {
+    // Test-/Schwellenläufe haben keine Easy-Obergrenze (isZoneRun).
+    if (metrics.isZoneRun(s) && a.run.avgHr != null && a.run.avgHr > s.hfMax) {
       easyOverLimit.push({ day: dayNameDE(s.date), avgHr: Math.round(a.run.avgHr), limit: s.hfMax });
     }
   }
@@ -733,10 +739,12 @@ function weeklyRunData(plan, weekNo) {
 }
 
 function weeklyKraftData(plan, weekNo, logs, dps, kraftAmpelResults) {
-  const kraftSessions = sessionsFor(plan, weekNo).filter((s) => s.kind === "kraft");
-  let sessionsDone = 0;
-  for (const s of kraftSessions) {
-    if (kraftProgressOn(s, dps[s.date], logs).complete) sessionsDone++;
+  let sessionsDone = 0, sessionsPlanned = 0;
+  for (const s of sessionsFor(plan, weekNo).filter((x) => x.kind === "kraft")) {
+    const complete = kraftProgressOn(s, dps[s.date], logs).complete;
+    if (!metrics.countsTowardPlan(s, complete)) continue; // optional und nicht erledigt
+    sessionsPlanned++;
+    if (complete) sessionsDone++;
   }
   // Die Ampel kennt nur ok/stagniert/unterSoll; für die Wochenbilanz wird
   // "ok" über den Trend zur vorigen Einheit in steigt/haelt aufgeteilt.
@@ -745,7 +753,7 @@ function weeklyKraftData(plan, weekNo, logs, dps, kraftAmpelResults) {
     status: r.status === "unterSoll" ? "unterSoll" : r.status === "stagniert" ? "stagniert" : r.trend || "steigt",
     detail: `${r.reps.split("/").length}× ${r.topKg} kg`,
   }));
-  return { sessionsPlanned: kraftSessions.length, sessionsDone, progression };
+  return { sessionsPlanned, sessionsDone, progression };
 }
 
 // Wird erst ausgelöst, sobald Strava geladen ist, und nur, wenn es eine
@@ -1546,23 +1554,28 @@ function buildWeekDayRow(plan, iso, today, logs, dps) {
     else if (total > 0 && done === total) statusHTML = dashWeek.statusCheckHTML();
     else if (done > 0) statusHTML = dashWeek.statusPartialHTML(done, total, isToday);
     else if (isToday) statusHTML = dashWeek.statusTodayHTML();
+    else if (info.optional) statusHTML = dashWeek.statusOptionalHTML(); // nie "verpasst"
     else statusHTML = dashWeek.statusMissedHTML();
 
     // Details: Übungsliste mit dem, was geloggt wurde
-    const detailLines = [{ label: "Ziel:", text: `${total} Übungen` }];
+    const detailLines = [{ label: "Ziel:", text: `${total} Übungen${info.optional ? " (optional)" : ""}` }];
     for (const { ex, log } of withLogs) {
       const value = !log ? "–"
         : log.topKg > 0 ? `${log.topKg} kg · ${log.totalReps ?? 0} Wdh`
         : `${log.totalReps ?? 0} Wdh`;
       detailLines.push({ label: ex.name + ":", text: value });
     }
-    if (!isFuture && !isToday && done === 0) detailLines.push({ cls: "danger-text", text: "Nicht geloggt, zählt als verpasst." });
+    if (!isFuture && !isToday && done === 0) {
+      detailLines.push(info.optional
+        ? { text: "Optional, nicht geloggt: zählt weder im Wochensoll noch als verpasst." }
+        : { cls: "danger-text", text: "Nicht geloggt, zählt als verpasst." });
+    }
     else if (!isFuture && !isToday && done < total) detailLines.push({ cls: "warn-text", text: `Teilweise geloggt (${done}/${total}).` });
 
     return {
       isRest: false, iso, d, dt, isToday, kindColorVar,
-      sessionName: info.label,
-      targetText: `${total} Übungen`,
+      sessionName: info.optional ? `${info.label} (optional)` : info.label,
+      targetText: `${total} Übungen${info.optional ? " · optional" : ""}`,
       hasActual: done > 0,
       actualText: `${done}/${total} geloggt`,
       statusHTML,
@@ -1576,7 +1589,7 @@ function buildWeekDayRow(plan, iso, today, logs, dps) {
   let statusHTML;
   if (isFuture) statusHTML = dashWeek.statusFutureHTML();
   else if (!run) statusHTML = isToday ? dashWeek.statusTodayHTML() : dashWeek.statusMissedHTML();
-  else if (run.avgHr != null && run.avgHr > info.hfMax) statusHTML = dashWeek.statusWarnHTML();
+  else if (metrics.isZoneRun(info) && run.avgHr != null && run.avgHr > info.hfMax) statusHTML = dashWeek.statusWarnHTML();
   else statusHTML = isToday ? dashWeek.statusTodayHTML() : dashWeek.statusCheckHTML();
 
   const actualText = run
@@ -1584,9 +1597,10 @@ function buildWeekDayRow(plan, iso, today, logs, dps) {
     : "";
 
   const detailLines = [{ label: "Ziel:", text: `${info.dist} · ${info.pace} · HF ${info.hf}` }];
+  if (info.note) detailLines.push({ label: "Hinweis:", text: info.note });
   if (run) {
     detailLines.push({ label: "Ist:", text: `${metrics.formatKm1(run.distanceKm)} km · ${run.paceLabel}${run.avgHr ? ` · Ø ${run.avgHr} bpm` : ""}` });
-    if (run.avgHr != null && run.avgHr > info.hfMax) {
+    if (metrics.isZoneRun(info) && run.avgHr != null && run.avgHr > info.hfMax) {
       detailLines.push({ cls: "warn-text", text: `Zu schnell: Ø ${run.avgHr} bpm über der Obergrenze von ${info.hfMax}.` });
     }
     if (a.offset !== 0) detailLines.push({ text: `${dayNameDE(run.date)}, ${shortDate(run.date)}: ${offsetLabel(a.offset)}` });
@@ -1652,7 +1666,11 @@ async function renderWeek() {
   const sollKm = laufSessions.reduce((a, s) => a + s.km, 0);
   const istKm = laufSessions.reduce((a, s) => a + (runAssignment[s.date]?.run?.distanceKm || 0), 0);
   const kraftSessions = week.sessions.filter((s) => s.kind === "kraft");
-  const kraftDone = kraftSessions.filter((s) => kraftProgressOn(s, dps[s.date], logs).complete).length;
+  // Optionale Kraft zählt nur mit, wenn sie erledigt ist.
+  const kraftCounted = kraftSessions
+    .map((s) => ({ s, complete: kraftProgressOn(s, dps[s.date], logs).complete }))
+    .filter(({ s, complete }) => metrics.countsTowardPlan(s, complete));
+  const kraftDone = kraftCounted.filter((x) => x.complete).length;
 
   // F9/E7: Ist heute außerhalb der Planwochen (Rennlücke oder danach), gilt
   // die letzte Planwoche als Endpunkt — dort erscheint der Hinweis.
@@ -1665,7 +1683,7 @@ async function renderWeek() {
       soll: sollKm,
       pct: sollKm > 0 ? Math.min(100, Math.round((istKm / sollKm) * 100)) : 0,
       kraftDone,
-      kraftPlanned: kraftSessions.length,
+      kraftPlanned: kraftCounted.length,
     }) +
     days.map((d) => (d.isRest ? dashWeek.restRowHTML(d.d, d.dt) : dashWeek.dayRowHTML(d))).join("") +
     (planIsOver && w === plan.totalWeeks ? dashWeek.planBeendetHintHTML(plan.totalWeeks) : "");
