@@ -20,6 +20,13 @@ Planning constraints learned while planning Dashboard v2 (2026-09-27, docs/plan-
   2026-09-27. **How to apply:** write the text plan to docs/, note in .pipeline-state.md that
   publishing is pending, and let the orchestrator/architecture-reviewer publish. See
   [[visual-plan-fidelity]].
+- 1b login (2026-10-03, docs/plan-login-1b.md): Firebase has no native passkeys; Google redirect
+  unreliable on github.io/Safari → email+password primary (account created in Console, so the UID
+  is known BEFORE any app change — breaks the "show UID first" chicken-and-egg). **How to apply:**
+  temp/spike pages go in a subfolder (spike/) so version.test/stubs.test don't pick them up;
+  adding an Authorization header to worker calls needs a CORS Allow-Headers change, so worker and
+  Pages deploys must be sequenced; app.test.mjs has several separate firebase-init stub literals
+  (default + error stubs) — each needs every new export.
 - Claude API check via claude-api skill (cache 2026-06-24): Haiku 4.5 active, alias
   `claude-haiku-4-5`, snapshot `claude-haiku-4-5-20251001`, `anthropic-version: 2023-06-01`.
   Re-verify before relying on it later.
