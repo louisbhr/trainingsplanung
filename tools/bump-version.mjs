@@ -28,6 +28,7 @@ const MODULES = [
   "app.js",
   "coach.js",
   "config.js",
+  "export.js",
   "firebase-init.js",
   "metrics.js",
   "plan.js",

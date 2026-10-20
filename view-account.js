@@ -2,7 +2,7 @@
 // Konto-Karte. Reine String-Funktionen (wie view-dashboard.js); alles aus
 // Nutzer- oder Firebase-Daten läuft durch esc(). Die Klassen stehen in
 // style.css (Abschnitt "Anmeldung").
-import { esc } from "./ui.js?v=202610201449";
+import { esc } from "./ui.js?v=202610201504";
 
 // Anmeldeformular. Ein echtes <form> mit autocomplete username und
 // current-password, damit der iCloud-Schlüsselbund ausfüllt und speichert.
@@ -61,5 +61,16 @@ export function renderAccountCard({ email, uid, status = "" }) {
     <p class="hint">Abmelden räumt dieses Gerät: lokale Kopien und der Offline-Speicher werden gelöscht. Nicht übertragene Einträge werden vorher gesendet.</p>
     <p class="auth-error" role="status" id="account-status" ${status ? "" : "hidden"}>${esc(status)}</p>
     <button type="button" class="small-btn danger-btn account-logout" data-action="logout">Abmelden</button>
+  </div>`;
+}
+
+// Karte "Daten" im Plan-Tab (über der Konto-Karte): Export aller
+// Trainingsdaten als JSON-Datei. Der Fortschritt steht im Status-Absatz.
+export function renderExportCard() {
+  return `<div class="card export-card">
+    <p class="name">Daten</p>
+    <p class="hint">Alle Trainingsdaten (Strava, Kraft-Logs, Plan) als eine JSON-Datei herausgeben. Es sind keine Zugangsdaten und keine Standortdaten enthalten.</p>
+    <p class="hint" role="status" id="export-status" hidden></p>
+    <button type="button" class="small-btn export-btn" data-action="export-data">Daten exportieren</button>
   </div>`;
 }

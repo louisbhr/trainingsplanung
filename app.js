@@ -3,28 +3,29 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202610201449";
-import { loadPlans } from "./plan-store.js?v=202610201449";
+} from "./plan.js?v=202610201504";
+import { loadPlans } from "./plan-store.js?v=202610201504";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610201449";
+} from "./firebase-init.js?v=202610201504";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
-  formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202610201449";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610201449";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610201449";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610201449";
-import * as dash from "./view-dashboard.js?v=202610201449";
-import * as dashWeek from "./view-week.js?v=202610201449";
-import * as metrics from "./metrics.js?v=202610201449";
-import * as coach from "./coach.js?v=202610201449";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610201449";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610201449";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard } from "./view-account.js?v=202610201449";
+  formatPace, formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport,
+} from "./strava.js?v=202610201504";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610201504";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610201504";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610201504";
+import * as dash from "./view-dashboard.js?v=202610201504";
+import * as dashWeek from "./view-week.js?v=202610201504";
+import * as metrics from "./metrics.js?v=202610201504";
+import * as coach from "./coach.js?v=202610201504";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610201504";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610201504";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610201504";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610201504";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -1900,6 +1901,7 @@ function renderPlan() {
       }).join("")}
     </div>
 
+    ${currentUser ? renderExportCard() : ""}
     ${currentUser ? renderAccountCard(currentUser) : ""}`;
 }
 
@@ -1911,6 +1913,7 @@ document.getElementById("app").addEventListener("click", async (e) => {
 
   if (action === "reload") return location.reload();
   if (action === "logout") return logout(target);
+  if (action === "export-data") return exportData(target);
   if (action === "forbidden-logout") return forbiddenLogout(target);
   if (action === "retry-pending") return init();
   if (action === "back") { state.selectedDate = null; runPickerFor = null; return render(); }
@@ -2041,6 +2044,89 @@ async function logout(btn) {
     return;
   }
   location.reload();
+}
+
+function setExportStatus(text) {
+  const el = document.getElementById("export-status");
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = !text;
+}
+
+// Führt einen Teil des Exports aus. Scheitert er, wird der Grund als Warnung
+// notiert und der Export läuft mit den übrigen Teilen weiter.
+async function exportPart(label, warnings, load) {
+  try {
+    return await load();
+  } catch (err) {
+    console.error(err);
+    // Strava-Meldungen enthalten Gedankenstriche, die hier nicht stehen sollen.
+    warnings.push(`${label}: ${err.message.replace(/\s+—\s+/g, ", ")}`);
+    return null;
+  }
+}
+
+// Gibt die Datei weiter: Teilen-Blatt, wo das Gerät Dateien teilen kann
+// (iPhone), sonst Download. Rückgabe false, wenn das Teilen abgebrochen wurde.
+async function deliverExportFile(file) {
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: file.name });
+      return true;
+    } catch (err) {
+      if (err?.name === "AbortError") return false; // bewusst abgebrochen, kein Fehler
+      throw err;
+    }
+  }
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return true;
+}
+
+// "Daten exportieren" im Plan-Tab: lädt Strava, Logs, Tagesanpassungen und
+// Lauf-Zuordnungen und gibt sie als JSON-Datei heraus.
+async function exportData(btn) {
+  btn.disabled = true;
+  const warnings = [];
+  try {
+    setExportStatus("Lade Strava-Aktivitäten …");
+    const strava = await exportPart("Strava", warnings, async () => {
+      const acts = await fetchAllActivitiesForExport(EXPORT_SINCE);
+      if (acts === null) throw new Error("Strava ist nicht verbunden.");
+      return acts;
+    });
+    setExportStatus("Lade Kraft-Logs und Zuordnungen …");
+    const logs = await exportPart("Kraft-Logs", warnings, loadAllLogs);
+    const dayplans = await exportPart("Angepasste Übungslisten", warnings, loadAllDayPlans);
+    const runLinks = await exportPart("Lauf-Zuordnungen", warnings, loadRunLinks);
+
+    if ([strava, logs, dayplans, runLinks].every((p) => p === null)) {
+      throw new Error("Es konnte nichts geladen werden. " + warnings.join(" "));
+    }
+    const now = new Date();
+    const data = buildExport({
+      now, version: appVersionFromUrl(import.meta.url), plan: plans[0],
+      stravaActivities: strava, logs, dayplans, runLinks, warnings,
+    });
+    const file = new File([serializeExport(data)], exportFileName(now), { type: "application/json" });
+    setExportStatus("Datei wird erstellt …");
+    const delivered = await deliverExportFile(file);
+    setExportStatus(delivered
+      ? (warnings.length ? "Exportiert, aber unvollständig: " + warnings.join(" ") : "Export fertig.")
+      : "");
+  } catch (err) {
+    console.error(err);
+    setExportStatus("Export fehlgeschlagen: " + err.message);
+    toast("Export fehlgeschlagen: " + err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function forbiddenLogout(btn) {

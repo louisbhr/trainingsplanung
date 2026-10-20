@@ -732,8 +732,8 @@ select {
 #app.no-session #tabbar { display: none; }
 #app.no-session #main { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 
-.card.auth-card, .card.account-card { display: flex; flex-direction: column; gap: 12px; }
-.card.auth-card p.hint, .card.account-card p.hint { margin: 0; }
+.card.auth-card, .card.account-card, .card.export-card { display: flex; flex-direction: column; gap: 12px; }
+.card.auth-card p.hint, .card.account-card p.hint, .card.export-card p.hint { margin: 0; }
 
 .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .field-label { font-size: 12px; color: var(--text-secondary); }
@@ -758,4 +758,4 @@ select {
 .account-row dt { font-size: 11px; color: var(--text-muted); }
 .account-row dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
 .account-row dd.account-uid { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; user-select: all; }
-.account-logout { min-height: 44px; align-self: flex-start; padding: 6px 16px; }
+.account-logout, .export-btn { min-height: 44px; align-self: flex-start; padding: 6px 16px; }
