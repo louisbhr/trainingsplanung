@@ -1,1 +1,1 @@
-- [Review standards](feedback_review_standards.md) — own probes/deep-compare; hang = critical; replay real client bodies through worker; degraded-dependency probes
+- [Review standards](feedback_review_standards.md) — own probes/deep-compare; hang = critical; replay client bodies; real-module/JWK/CORS probes; HEAD may move mid-review

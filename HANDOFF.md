@@ -22,14 +22,16 @@ npm test           # muss komplett grün sein, bevor irgendetwas gepusht wird
 Node 22. Kein Build-Schritt: die Dateien im Repo-Wurzelverzeichnis sind
 exakt das, was der Browser lädt.
 
-`npm test` läuft zehnmal: Prüfungen der Plandaten gegen `plans/hm-2027.json`
+`npm test` läuft zwölfmal: Prüfungen der Plandaten gegen `plans/hm-2027.json`
 plus der reinen Logik aus `plan.js` (`plan.test.mjs`), ein Tag-für-Tag-
 Vergleich der neuen gegen die eingefrorene alte Plan-Logik
 (`plan-golden.test.mjs`, Sicherheitsnetz für den M1-Umbau), ein Stub-Wächter
 (`stubs.test.mjs`), die Lauf-Zuordnung, die Progressionslogik und der
 Versionsstempel, dazu `metrics.test.mjs` (Ampeln), `coach.test.mjs`
 (Coach-Cache und Fallback) und `worker.test.mjs` (`/coach` inkl.
-Vertragstest gegen die echten App-Eingaben), alle ohne Browser, und
+Vertragstest gegen die echten App-Eingaben, dazu die Token-Prüfung),
+`access.test.mjs` (Zugangslogik) und `config-consistency.test.mjs` (UID und
+Projekt-ID an allen Stellen gleich), alle ohne Browser, und
 zuletzt die Browser-Checks in Chromium.
 Für die Browser-Tests muss `npm run serve` laufen; Firebase und Strava sind
 darin gestubbt, es braucht also keine echten Konten.
@@ -50,8 +52,8 @@ braucht Zugang.
 
 | System | Wo | Was dort liegt |
 | --- | --- | --- |
-| Firebase | Projekt `trainingsplanung-2c6c0` | Firestore + anonyme Anmeldung. Config steht offen in `firebase-init.js`, das ist bei Firebase so vorgesehen; abgesichert wird über `firestore.rules`. |
-| Cloudflare Worker | `trainingsplanung-auth` | Strava-Token-Austausch. Hält `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `ALLOWED_ORIGINS` und `ANTHROPIC_API_KEY` (eigener Workspace, Monatslimit) als Worker-Secrets. Endpunkte `/exchange`, `/refresh`, `/coach`. |
+| Firebase | Projekt `trainingsplanung-2c6c0` | Firestore + Anmeldung mit E-Mail und Passwort (ein Konto, in der Console angelegt). Config steht offen in `firebase-init.js`, das ist bei Firebase so vorgesehen; abgesichert wird über `firestore.rules` (feste UID). |
+| Cloudflare Worker | `trainingsplanung-auth` | Strava-Token-Austausch. Hält `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `ALLOWED_ORIGINS` und `ANTHROPIC_API_KEY` (eigener Workspace, Monatslimit) als Worker-Secrets. Endpunkte `/exchange`, `/refresh`, `/coach`, alle mit Token-Pflicht. `[vars]` in `wrangler.toml`: `FIREBASE_PROJECT_ID`, `ALLOWED_UID`, `AUTH_MODE` (`report` = nur loggen, alles andere = blockieren). |
 | Strava | strava.com/settings/api | Client-ID öffentlich in `config.js`. Callback-Domain muss `louisbhr.github.io` sein. |
 | GitHub Pages | Repo-Einstellungen | Deployt `main`, Ordner `/`. |
 
@@ -80,15 +82,22 @@ nicht wiederverwenden.
    DST-fest — nur die benutzen.
 4. **Firestore-Fehler sehen aus wie Strava-Fehler.** Sie sind als
    `FirebaseAccessError` mit `source: "firebase"` markiert und bekommen
-   eine eigene Fehlerkarte. Wenn „nichts lädt": zuerst prüfen, ob in
-   Firebase die anonyme Anmeldung aktiv und die Regeln veröffentlicht
-   sind — beides war anfangs nicht der Fall und hat lange nach einem
-   Strava-Problem ausgesehen.
+   eine eigene Fehlerkarte. Wenn „nichts lädt": zuerst prüfen, ob man
+   angemeldet ist (Plan-Tab, Konto) und ob die Regeln aus
+   `firestore.rules` in der Firebase-Console veröffentlicht sind.
 5. **Strava und CORS.** `POST /oauth/token` geht nicht aus dem Browser,
    dafür ist der Worker da. Aktivitäten abrufen geht direkt.
-6. **Browser-Tests fangen Module per RegExp ab**, nicht per Glob — sonst
+6. **Login und Tests.** Die Browser-Tests ersetzen `firebase-init.js` durch
+   ein Stub-Modul. Der Auth-Zustand kommt per `addInitScript`
+   (`window.__AUTH__ = "ok" | "signedOut" | "forbidden" | "anonymous"`),
+   `window.__FS_CALLS__` zählt Firestore-Zugriffe. Jedes Stub-Literal
+   braucht alle Exporte von `firebase-init.js` (der Stub-Wächter sagt es).
+   Die UID im Test liest `tests/app.test.mjs` aus `config.js`.
+   **Worker-Tests:** der Schlüssel-Cache lebt modulweit, `worker.test.mjs`
+   importiert den Worker deshalb mit `?t=<n>` frisch.
+7. **Browser-Tests fangen Module per RegExp ab**, nicht per Glob — sonst
    gehen die Routen am angehängten `?v=…` vorbei.
-7. **Nach jeder Änderung an `plans/hm-2027.json`** (Wochen 9–31 ausformulieren,
+8. **Nach jeder Änderung an `plans/hm-2027.json`** (Wochen 9–31 ausformulieren,
    Renndatum eintragen) `npm run version` nicht vergessen. Die JSON-URL in
    `plan-store.js` trägt einen eigenen Stempel, den `fetch(..., {cache:
    "no-cache"})` zwar meist über ein 304 abfängt — aber eben nicht immer

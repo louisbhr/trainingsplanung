@@ -15,12 +15,20 @@ import {
   getDoc,
   setDoc,
   deleteDoc,
+  waitForPendingWrites as fsWaitForPendingWrites,
+  terminate,
+  clearIndexedDbPersistence,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
-  getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
   onAuthStateChanged,
-  signInAnonymously,
+  signInWithEmailAndPassword,
+  signOut,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { ALLOWED_UID } from "./config.js?v=202610201438";
+import { accessState, raceTimeout } from "./access.js?v=202610201438";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDMNJBSXNrgTT7qDwhhkO1RPKjwp_EFMak",
@@ -48,12 +56,17 @@ export const db = (() => {
   }
 })();
 
-const auth = getAuth(app);
+// Sitzung dauerhaft speichern (IndexedDB, Ersatz localStorage). Bewusst ohne
+// popupRedirectResolver: sonst lädt Firebase beim Start einen iframe von
+// firebaseapp.com, den Safari blockiert (Spike S0, 20.10.2026: so läuft es
+// auf iPhone-Tab, Home-Bildschirm-App und MacBook).
+const auth = initializeAuth(app, {
+  persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+});
 
 // Wichtig: direkt nach dem Laden ist auth.currentUser noch null, auch wenn
-// bereits ein anonymer Account im Browser gespeichert ist. Erst warten, bis
-// der Auth-Status wiederhergestellt ist — sonst legt jeder Reload einen
-// neuen anonymen Nutzer an.
+// bereits eine Sitzung im Browser gespeichert ist. Erst warten, bis der
+// Auth-Status wiederhergestellt ist, sonst wirkt jeder Start wie abgemeldet.
 function authStateReady() {
   if (typeof auth.authStateReady === "function") return auth.authStateReady();
   return new Promise((resolve) => {
@@ -84,19 +97,87 @@ async function fb(fn) {
   }
 }
 
+// --- Anmeldung ---
+// Gespeicherte Sitzung (nach dem Wiederherstellen), oder null. Auch offline
+// liefert das den zuletzt angemeldeten Nutzer.
+export async function authReady() {
+  await authStateReady();
+  return auth.currentUser;
+}
+
+export async function signIn(email, password) {
+  const cred = await fb(() => signInWithEmailAndPassword(auth, email, password));
+  return cred.user;
+}
+
+// Das gemerkte Ergebnis von ensureSignedIn() gilt nur für den aktuellen
+// Nutzer; bei jedem Wechsel oder Abmelden muss es neu berechnet werden.
 let signInPromise = null;
+onAuthStateChanged(auth, () => { signInPromise = null; });
+
+// Legt nichts mehr an: ohne passenden Nutzer (Louis) wirft es. Die Firestore-
+// Zugriffe unten rufen es vorab auf, damit ein Fremdkonto nie bis zu den
+// Regeln kommt.
 export function ensureSignedIn() {
   if (!signInPromise) {
     signInPromise = (async () => {
       await authStateReady();
-      if (!auth.currentUser) await fb(() => signInAnonymously(auth));
-      return auth.currentUser;
+      const user = auth.currentUser;
+      if (accessState(user, ALLOWED_UID) !== "ok") {
+        throw new FirebaseAccessError({ code: "auth/not-signed-in", message: "Nicht angemeldet." });
+      }
+      return user;
     })().catch((err) => {
       signInPromise = null; // beim nächsten Versuch neu probieren
       throw err;
     });
   }
   return signInPromise;
+}
+
+// Header für den Worker. force erzwingt ein frisches Token (einmaliger Retry
+// nach einem 401 des Workers, siehe access.js).
+export async function authHeaders({ force = false } = {}) {
+  const user = await ensureSignedIn();
+  const token = await fb(() => user.getIdToken(force));
+  return { Authorization: `Bearer ${token}` };
+}
+
+// Wartet, bis alle lokal gespeicherten Schreibvorgänge beim Server sind.
+export function waitForPendingWrites() {
+  return fsWaitForPendingWrites(db);
+}
+
+// Einfaches Abmelden (Fremdkonto, anonyme Altsitzung). Der Offline-Cache
+// bleibt, damit nichts Ungesendetes verloren geht.
+export async function signOutUser() {
+  signInPromise = null;
+  await fb(() => signOut(auth));
+}
+
+// "Abmelden" im Plan-Tab räumt das Gerät: erst alle Schreibvorgänge senden
+// lassen (sonst gingen sie verloren), dann abmelden, den Offline-Cache und
+// die eigenen lokalen Kopien löschen. Bei offenen Schreibvorgängen wird
+// nichts gelöscht. Rückgabe: { ok: true } oder { ok: false, reason: "pending" }.
+export async function signOutAndWipeDevice({ flushMs = 10000 } = {}) {
+  const flushed = await raceTimeout(fsWaitForPendingWrites(db), flushMs);
+  if (!flushed) return { ok: false, reason: "pending" };
+  await signOutUser();
+  try {
+    await terminate(db);
+    await clearIndexedDbPersistence(db);
+  } catch (err) {
+    // Ohne persistenten Cache (z. B. privates Fenster) gibt es nichts zu löschen.
+    console.warn("Offline-Cache konnte nicht geleert werden:", err);
+  }
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith("hm-tracker."))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* localStorage kann in privaten Fenstern werfen */
+  }
+  return { ok: true };
 }
 
 // --- Kraft-Log: eine Zeile pro Datum+Übung ---
