@@ -1,6 +1,6 @@
-import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610201432";
-import { fetchWithAuthRetry } from "./access.js?v=202610201432";
-import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610201432";
+import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610201438";
+import { fetchWithAuthRetry } from "./access.js?v=202610201438";
+import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610201438";
 
 // Die Client-ID ist unkritisch öffentlich (sie steht ohnehin in der
 // Authorize-URL). Das Client-Secret liegt NICHT hier, sondern nur als
@@ -52,7 +52,7 @@ async function callWorker(path, body) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }, { authHeaders });
+    }, { authHeaders, allowedOrigin: STRAVA_WORKER_URL });
   } catch (err) {
     // Kein Token (abgemeldet): eigener Hinweis statt der Netzwerk-/CORS-Meldung.
     if (err?.source === "firebase") throw new Error("Anmeldung abgelaufen, bitte neu laden.");

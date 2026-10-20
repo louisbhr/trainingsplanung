@@ -63,7 +63,11 @@ async function isWorkerAuthRejection(res) {
 // vom Worker, nicht von Strava) führt zu genau einem Retry mit frisch
 // erzwungenem Token; 503 auth_unavailable und alles andere geht sofort
 // zurück an den Aufrufer. Schlägt authHeaders() fehl, gibt es keinen Aufruf.
-export async function fetchWithAuthRetry(url, init = {}, { authHeaders, fetchImpl = (...a) => fetch(...a) }) {
+export async function fetchWithAuthRetry(url, init = {}, { authHeaders, fetchImpl = (...a) => fetch(...a), allowedOrigin }) {
+  // Das Token geht nur an den eigenen Worker, nie an eine andere Adresse.
+  if (!allowedOrigin || new URL(url).origin !== new URL(allowedOrigin).origin) {
+    throw new Error("Anfrage an eine fremde Adresse abgelehnt");
+  }
   const send = async (force) => {
     const auth = await authHeaders({ force });
     return fetchImpl(url, { ...init, headers: { ...(init.headers || {}), ...auth } });

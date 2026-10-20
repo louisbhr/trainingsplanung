@@ -65,6 +65,7 @@ function harness(responses) {
     opts: {
       authHeaders: async ({ force } = {}) => { calls.headers.push(!!force); return { Authorization: `Bearer t${calls.headers.length}` }; },
       fetchImpl: async (url, init) => { calls.fetch.push({ url, init }); return queue.shift(); },
+      allowedOrigin: "https://w.test",
     },
   };
 }
@@ -80,7 +81,7 @@ test("fetchWithAuthRetry: sendet Authorization und behaelt vorhandene Header", a
 
 test("fetchWithAuthRetry: 401 mit error unauthorized -> genau ein Retry mit frischem Token", async () => {
   const h = harness([resp(401, { error: "unauthorized" }), resp(200, { ok: 1 })]);
-  const res = await fetchWithAuthRetry("u", { method: "POST" }, h.opts);
+  const res = await fetchWithAuthRetry("https://w.test/u", { method: "POST" }, h.opts);
   assert.equal(res.status, 200);
   assert.deepEqual(h.calls.headers, [false, true]);
   assert.equal(h.calls.fetch.length, 2);
@@ -88,27 +89,27 @@ test("fetchWithAuthRetry: 401 mit error unauthorized -> genau ein Retry mit fris
 
 test("fetchWithAuthRetry: bleibt es bei 401 unauthorized, kein dritter Aufruf", async () => {
   const h = harness([resp(401, { error: "unauthorized" }), resp(401, { error: "unauthorized" })]);
-  const res = await fetchWithAuthRetry("u", { method: "POST" }, h.opts);
+  const res = await fetchWithAuthRetry("https://w.test/u", { method: "POST" }, h.opts);
   assert.equal(res.status, 401);
   assert.equal(h.calls.fetch.length, 2);
 });
 
 test("fetchWithAuthRetry: 401 ohne error-Feld (z. B. von Strava) -> kein Retry", async () => {
   const h = harness([resp(401, { message: "Authorization Error" })]);
-  const res = await fetchWithAuthRetry("u", { method: "POST" }, h.opts);
+  const res = await fetchWithAuthRetry("https://w.test/u", { method: "POST" }, h.opts);
   assert.equal(res.status, 401);
   assert.equal(h.calls.fetch.length, 1);
 });
 
 test("fetchWithAuthRetry: 401 mit Nicht-JSON-Body -> kein Retry", async () => {
   const h = harness([new Response("nope", { status: 401 })]);
-  await fetchWithAuthRetry("u", { method: "POST" }, h.opts);
+  await fetchWithAuthRetry("https://w.test/u", { method: "POST" }, h.opts);
   assert.equal(h.calls.fetch.length, 1);
 });
 
 test("fetchWithAuthRetry: 503 auth_unavailable -> sofort zurueck, kein Retry", async () => {
   const h = harness([resp(503, { error: "auth_unavailable" })]);
-  const res = await fetchWithAuthRetry("u", { method: "POST" }, h.opts);
+  const res = await fetchWithAuthRetry("https://w.test/u", { method: "POST" }, h.opts);
   assert.equal(res.status, 503);
   assert.equal(h.calls.fetch.length, 1);
 });
@@ -116,11 +117,35 @@ test("fetchWithAuthRetry: 503 auth_unavailable -> sofort zurueck, kein Retry", a
 test("fetchWithAuthRetry: schlaegt authHeaders fehl, gibt es keinen Aufruf", async () => {
   const calls = [];
   await assert.rejects(
-    fetchWithAuthRetry("u", {}, {
+    fetchWithAuthRetry("https://w.test/u", {}, {
       authHeaders: async () => { throw new Error("nicht angemeldet"); },
       fetchImpl: async () => { calls.push(1); return resp(200, {}); },
+      allowedOrigin: "https://w.test",
     }),
     /nicht angemeldet/
   );
   assert.equal(calls.length, 0);
+});
+
+test("fetchWithAuthRetry: kein Token an eine fremde Adresse", async () => {
+  const h = harness([resp(200, {})]);
+  await assert.rejects(fetchWithAuthRetry("https://evil.example/coach", {}, h.opts), /fremde Adresse/);
+  assert.equal(h.calls.headers.length, 0);
+  assert.equal(h.calls.fetch.length, 0);
+});
+
+test("fetchWithAuthRetry: ohne erlaubten Origin kein Aufruf", async () => {
+  const h = harness([resp(200, {})]);
+  await assert.rejects(fetchWithAuthRetry("https://w.test/coach", {}, { ...h.opts, allowedOrigin: undefined }), /fremde Adresse/);
+  assert.equal(h.calls.fetch.length, 0);
+});
+
+test("Worker-URL-Override nur auf localhost/127.0.0.1, nie auf der echten Seite", async () => {
+  const { isLocalDevHost, WORKER_URL } = await import("../config.js");
+  assert.equal(isLocalDevHost("localhost"), true);
+  assert.equal(isLocalDevHost("127.0.0.1"), true);
+  assert.equal(isLocalDevHost("louisbhr.github.io"), false);
+  assert.equal(isLocalDevHost("evil.example"), false);
+  // Ohne Browser-Umgebung greift kein Override: die feste URL gilt.
+  assert.equal(WORKER_URL, "https://trainingsplanung-auth.jkmvkjn942.workers.dev");
 });
