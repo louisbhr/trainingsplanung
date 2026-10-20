@@ -3,29 +3,29 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202610201504";
-import { loadPlans } from "./plan-store.js?v=202610201504";
+} from "./plan.js?v=202610201510";
+import { loadPlans } from "./plan-store.js?v=202610201510";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610201504";
+} from "./firebase-init.js?v=202610201510";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport,
-} from "./strava.js?v=202610201504";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610201504";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610201504";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610201504";
-import * as dash from "./view-dashboard.js?v=202610201504";
-import * as dashWeek from "./view-week.js?v=202610201504";
-import * as metrics from "./metrics.js?v=202610201504";
-import * as coach from "./coach.js?v=202610201504";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610201504";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610201504";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610201504";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610201504";
+} from "./strava.js?v=202610201510";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610201510";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610201510";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610201510";
+import * as dash from "./view-dashboard.js?v=202610201510";
+import * as dashWeek from "./view-week.js?v=202610201510";
+import * as metrics from "./metrics.js?v=202610201510";
+import * as coach from "./coach.js?v=202610201510";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610201510";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610201510";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610201510";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610201510";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -2068,8 +2068,14 @@ async function exportPart(label, warnings, load) {
 
 // Gibt die Datei weiter: Teilen-Blatt, wo das Gerät Dateien teilen kann
 // (iPhone), sonst Download. Rückgabe false, wenn das Teilen abgebrochen wurde.
+// Teilen-Blatt nur auf Touch-Geräten (iPhone/iPad): Safari auf dem Mac kann
+// zwar auch teilen, dort will man die Datei aber einfach in den Downloads.
+function prefersShareSheet() {
+  try { return window.matchMedia("(pointer: coarse)").matches; } catch { return false; }
+}
+
 async function deliverExportFile(file) {
-  if (navigator.canShare?.({ files: [file] })) {
+  if (prefersShareSheet() && navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: file.name });
       return true;

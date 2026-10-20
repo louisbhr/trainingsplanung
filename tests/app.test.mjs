@@ -2155,6 +2155,11 @@ async function exportPage({ activities = ACTIVITIES, stravaFail = false, share =
     localStorage.setItem("test.runlinks", JSON.stringify({ "2026-09-07": { activityId: 1 } }));
     if (s) {
       window.__SHARED__ = null;
+      // Touch-Gerät simulieren, außer im Desktop-Fall
+      if (s !== "desktop") {
+        const mm = window.matchMedia.bind(window);
+        window.matchMedia = (q) => (q === "(pointer: coarse)" ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : mm(q));
+      }
       navigator.canShare = () => true;
       navigator.share = async (d) => {
         window.__SHARED__ = { name: d.files[0].name, title: d.title };
@@ -2223,6 +2228,14 @@ const stripPlan = (s) => s.replace(/"plan":[\s\S]*?"strava":/, "");
   ok(/^trainingsdaten-.*\.json$/.test(shared.name) && shared.title === shared.name, "Export: navigator.share mit Datei " + shared.name);
   await page.waitForTimeout(200);
   ok(downloads === 0, "Export: beim Teilen kein zusätzlicher Download");
+  await ctx.close();
+}
+{
+  // Mac/Desktop: Teilen wäre verfügbar, trotzdem normaler Download
+  const { page, ctx } = await exportPage({ share: "desktop" });
+  const [download] = await Promise.all([page.waitForEvent("download"), page.click('[data-action="export-data"]')]);
+  ok(/^trainingsdaten-.*\.json$/.test(download.suggestedFilename()), "Export Desktop: Download statt Teilen-Blatt");
+  ok((await page.evaluate(() => window.__SHARED__)) === null, "Export Desktop: navigator.share nicht benutzt");
   await ctx.close();
 }
 {
