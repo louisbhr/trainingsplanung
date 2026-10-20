@@ -1836,7 +1836,7 @@ for (const [fail, want, notWant, label] of [
   ok(names.includes("Full Body B (optional)"), "W9: Do-Kraft als optional gekennzeichnet");
   const wed = page.locator('.day-row[data-date="2026-10-28"]');
   ok(!(await wed.textContent()).includes("verpasst"), "W9: Kalibrierungstest erledigt, nicht verpasst");
-  ok((await wed.locator(".status-icon").first().evaluate((el) => el.style.color)).includes("ok-fg"),
+  ok((await wed.locator(".status-icon").first().evaluate((el) => el.classList.contains("fg-ok"))),
     "W9: Kalibrierungstest mit hoher HF zeigt Haken statt 'Zu schnell'-Warnung");
   const opt = page.locator('.day-row[data-date="2026-10-29"]');
   ok((await opt.locator(".optional-pill").count()) === 1 && (await opt.locator(".missed-pill").count()) === 0,
@@ -1894,6 +1894,13 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   const { page, ctx, errors } = await authPage("signedOut");
   await page.waitForSelector('form[data-form="login"]');
   ok((await page.textContent("#header h1")) === "Anmelden", "Login: Überschrift 'Anmelden'");
+  const gate = await page.evaluate(() => {
+    const m = document.getElementById("main").getBoundingClientRect();
+    const c = document.querySelector(".auth-card").getBoundingClientRect();
+    return { above: c.top - m.top, below: m.bottom - c.bottom, logo: !!document.querySelector(".auth-logo") };
+  });
+  ok(gate.above > 40 && Math.abs(gate.above - gate.below) < 24, `Login: Karte vertikal zentriert (oben ${gate.above}, unten ${gate.below})`);
+  ok(gate.logo, "Login: App-Name-/Logo-Zeile in der Karte");
   const email = page.locator('form[data-form="login"] input[name="email"]');
   const pw = page.locator('form[data-form="login"] input[name="password"]');
   ok((await email.getAttribute("autocomplete")) === "username", "Login: E-Mail-Feld mit autocomplete=username (Schlüsselbund)");

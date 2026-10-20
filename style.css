@@ -465,13 +465,34 @@ select {
    nichts). */
 #today-slot, #coach-slot, #ampel-slot, #detail-slot { display: flex; flex-direction: column; gap: 12px; }
 
-/* Kleine Abstands-Utilities für Stellen im Dashboard, an denen sich eine
-   eigene Komponentenklasse nicht lohnt (M2-11, Review-Minor M5,
-   docs/review-code-m2.md) — bewusst nur diese zwei, keine größere
-   Utility-Sammlung: die übrigen Abstände im Dashboard hängen an echten
-   Komponentenklassen (.today-card, .ampel-tile, .coach-card …). */
-.mt-6 { margin-top: 6px; }
-.mt-8 { margin-top: 8px; }
+/* Kleine Utilities für Stellen, an denen sich eine eigene Komponentenklasse
+   nicht lohnt. Sie ersetzen die früheren statischen style="…"-Attribute im
+   Render-Code (Review-Minor M5, docs/review-code-m2.md); datenabhängige Werte
+   (Balkenhöhen, Fortschrittsbreiten, Kategoriefarben) bleiben inline.
+   !important, weil ein Inline-Style Komponentenregeln wie `.card p.hint`
+   (margin: 4px 0 0) ebenfalls überstimmt hat — das Aussehen bleibt gleich. */
+.mt-2 { margin-top: 2px !important; }
+.mt-4 { margin-top: 4px !important; }
+.mt-6 { margin-top: 6px !important; }
+.mt-8 { margin-top: 8px !important; }
+.mt-10 { margin-top: 10px !important; }
+.mb-8 { margin-bottom: 8px !important; }
+.jc-between { justify-content: space-between; }
+.ai-start { align-items: flex-start; }
+.gap-8 { gap: 8px; }
+.gap-10 { gap: 10px; }
+.min-w-0 { min-width: 0; }
+.flex-1 { flex: 1; }
+.w-full { width: 100%; }
+.w-70 { width: 70%; }
+.fs-11 { font-size: 11px; }
+.fg-secondary { color: var(--text-secondary) !important; }
+.fg-muted { color: var(--text-muted) !important; }
+.fg-coral { color: var(--coral-fg) !important; }
+.fg-ok { color: var(--ok-fg); }
+.fg-amber { color: var(--amber-fg); }
+.bg-coral { background: var(--coral-bg); }
+.metric-value.xs { font-size: 16px; }
 
 /* ---- Coach-Karte ---- */
 .coach-card { background: var(--purple-bg); border-radius: 12px; padding: 0.85rem 1rem; }
@@ -735,6 +756,15 @@ select {
 .card.auth-card, .card.account-card, .card.export-card { display: flex; flex-direction: column; gap: 12px; }
 .card.auth-card p.hint, .card.account-card p.hint, .card.export-card p.hint { margin: 0; }
 
+/* Anmelde-, "Kein Zugriff"- und Hinweiskarte stehen vertikal mittig im freien
+   Platz statt oben mit leerer Fläche darunter. margin-block:auto statt
+   justify-content:center: bei sehr niedrigem Fenster (Tastatur, Querformat)
+   beginnt die Karte oben und #main scrollt, nichts wird abgeschnitten. */
+#app.no-session #main > .auth-card { margin-block: auto; padding: 16px; gap: 16px; }
+.auth-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.auth-logo { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; }
+.auth-brand-name { font-size: 17px; font-weight: 600; min-width: 0; }
+
 .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .field-label { font-size: 12px; color: var(--text-secondary); }
 .text-input {
@@ -749,7 +779,7 @@ select {
   font-size: 13px; line-height: 1.4; color: var(--danger-fg); background: var(--danger-bg);
 }
 .auth-error[hidden] { display: none; }
-.auth-submit { height: 44px; }
+.auth-submit { height: 44px; font-size: 16px; }
 
 /* E-Mail und UID untereinander statt nebeneinander: beide sind lang und
    brechen sonst bei schmalen Fenstern aus der Karte. */

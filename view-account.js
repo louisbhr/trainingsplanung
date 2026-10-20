@@ -9,6 +9,10 @@ import { esc } from "./ui.js?v=202610201519";
 // Die Felder haben mindestens 16px (iOS zoomt sonst beim Antippen).
 export function renderLogin({ email = "", error = "", notice = "" } = {}) {
   return `<form class="card auth-card" data-form="login" novalidate>
+    <div class="auth-brand">
+      <img class="auth-logo" src="icon.png" alt="" width="40" height="40" />
+      <span class="auth-brand-name">Halbmarathon Tracker</span>
+    </div>
     <p class="name">Anmelden</p>
     <p class="hint">Diese App ist privat. Anmelden geht nur mit dem Konto des Besitzers.</p>
     ${notice ? `<p class="hint" role="status" data-notice>${esc(notice)}</p>` : ""}

@@ -62,7 +62,7 @@ export function toast(msg, isError = false) {
 
 export function errorCard(msg) {
   return `<div class="card error-card"><p class="name">Problem</p><p class="hint">${esc(msg)}</p>
-    <button data-action="reload" style="margin-top:8px;">Neu laden</button></div>`;
+    <button data-action="reload" class="mt-8">Neu laden</button></div>`;
 }
 export function loadingCard(msg = "Lädt …") {
   return `<p class="center-note">${esc(msg)}</p>`;

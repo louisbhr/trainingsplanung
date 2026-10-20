@@ -59,7 +59,7 @@ export function todayCardLaufHTML(session, actualHTML) {
   </div>`;
 }
 export function laufLoadingHTML() {
-  return `<p class="sub loading-hint">Ist-Werte werden nach dem Lauf aus Strava geladen.</p><div class="skel skel-line" style="width:70%;height:10px;"></div>`;
+  return `<p class="sub loading-hint">Ist-Werte werden nach dem Lauf aus Strava geladen.</p><div class="skel skel-line w-70"></div>`;
 }
 export function laufNotConnectedHTML() {
   return `<p class="sub">Strava ist nicht verbunden, deshalb fehlen die Ist-Werte.</p>

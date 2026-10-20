@@ -63,15 +63,15 @@ export function dayRowHTML(day) {
   </div>`;
 }
 
-export const statusCheckHTML = () => `<span class="status-icon" style="color:var(--ok-fg);">${ICONS.check}</span>`;
-export const statusWarnHTML = () => `<span class="status-icon" style="color:var(--amber-fg);">${ICONS.warn}</span>`;
+export const statusCheckHTML = () => `<span class="status-icon fg-ok">${ICONS.check}</span>`;
+export const statusWarnHTML = () => `<span class="status-icon fg-amber">${ICONS.warn}</span>`;
 export const statusMissedHTML = () => `<span class="missed-pill">verpasst</span>`;
 export const statusTodayHTML = () => `<span class="today-pill">Heute</span>`;
 export const statusPartialHTML = (done, total, isToday = false) =>
   `<span class="partial-pill">${isToday ? "Heute · " : ""}${done}/${total}</span>`;
 // Vergangene, nicht erledigte optionale Einheit: neutral, nicht rot.
 export const statusOptionalHTML = () => `<span class="optional-pill">optional</span>`;
-export const statusFutureHTML = () => `<span class="status-icon" style="color:var(--text-muted);">${ICONS.dash}</span>`;
+export const statusFutureHTML = () => `<span class="status-icon fg-muted">${ICONS.dash}</span>`;
 
 export function planBeendetHintHTML(lastWeek) {
   return `<p class="hint center">Plan beendet. Zeigt Woche ${lastWeek}.</p>`;
