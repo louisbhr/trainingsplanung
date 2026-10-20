@@ -170,7 +170,11 @@ function hasNestedArray(value) {
 // zählen für Easy-Disziplin und aerobe Effizienz; "Schwelle" und "Test"
 // (Kalibrierungstest) laufen bewusst über der Easy-Zone.
 export const ZONE_RUN_TYPES = ["Easy", "Long", "Recovery"];
-export const RUN_SHORT_TYPES = [...ZONE_RUN_TYPES, "Schwelle", "Test"];
+// "LongProgressiv": Long Run mit zügigem Schlussteil. Bewusst NICHT in
+// ZONE_RUN_TYPES: die schnellen Kilometer heben die Ø HF über die
+// Long-Obergrenze (160), Easy-Disziplin würde den Lauf zu Unrecht gelb färben.
+export const LONG_RUN_TYPES = ["Long", "LongProgressiv"];
+export const RUN_SHORT_TYPES = [...ZONE_RUN_TYPES, "LongProgressiv", "Schwelle", "Test"];
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const FILE_VERSION_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;

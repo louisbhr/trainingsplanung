@@ -447,6 +447,8 @@ test("isZoneRun: nur Easy/Long/Recovery mit hfMax zählen", () => {
   assert.equal(isZoneRun({ kind: "lauf", shortType: "Recovery", hfMax: 148 }), true);
   assert.equal(isZoneRun({ kind: "lauf", shortType: "Test" }), false);
   assert.equal(isZoneRun({ kind: "lauf", shortType: "Schwelle" }), false);
+  // Long mit zügigem Ende: nie in der Easy-Wertung, auch nicht mit hfMax
+  assert.equal(isZoneRun({ kind: "lauf", shortType: "LongProgressiv" }), false);
   assert.equal(isZoneRun({ kind: "lauf", shortType: "Easy" }), false);
   assert.equal(isZoneRun({ kind: "kraft", label: "FB A" }), false);
 });
