@@ -1,6 +1,6 @@
-import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610201519";
-import { fetchWithAuthRetry } from "./access.js?v=202610201519";
-import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610201519";
+import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610201532";
+import { fetchWithAuthRetry } from "./access.js?v=202610201532";
+import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610201532";
 
 // Die Client-ID ist unkritisch öffentlich (sie steht ohnehin in der
 // Authorize-URL). Das Client-Secret liegt NICHT hier, sondern nur als
@@ -55,7 +55,9 @@ async function callWorker(path, body) {
     }, { authHeaders, allowedOrigin: STRAVA_WORKER_URL });
   } catch (err) {
     // Kein Token (abgemeldet): eigener Hinweis statt der Netzwerk-/CORS-Meldung.
-    if (err?.source === "firebase") throw new Error("Anmeldung abgelaufen, bitte neu laden.");
+    // Offline (Token-Erneuerung scheitert am Netz) ist das keine abgelaufene
+    // Anmeldung, dann gilt die Netzwerkmeldung unten.
+    if (err?.source === "firebase" && err.code !== "auth/network-request-failed") throw new Error("Anmeldung abgelaufen, bitte neu laden.");
     // Ein abgelehnter Origin (ALLOWED_ORIGINS im Worker) und ein echter
     // Netzwerkausfall sehen aus dem Browser heraus identisch aus: Der
     // Worker antwortet auf einen nicht erlaubten Origin zwar mit 403, aber

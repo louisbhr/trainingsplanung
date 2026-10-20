@@ -20,7 +20,3 @@ ALLOWED_ORIGINS = "https://louisbhr.github.io"
 # alles mit not_configured ab (fail closed).
 FIREBASE_PROJECT_ID = "trainingsplanung-2c6c0"
 ALLOWED_UID = "gH4Te1JZzaO7DVoTSg9TtK4gw8p1"
-# Übergang in drei Phasen: "report" prüft und loggt nur, blockiert nie (altes
-# Frontend läuft weiter); "required" blockiert. Fehlt der Wert oder ist er
-# unbekannt, gilt "required". Nach der Umstellung wird "report" entfernt.
-AUTH_MODE = "required"

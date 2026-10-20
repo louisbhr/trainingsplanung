@@ -4,7 +4,7 @@
 // (loadCoach/saveCoach) und der HTTP-Aufruf werden von außen als Funktionen
 // hereingereicht (requestCoach), damit sich alles ohne Browser testen lässt
 // (tests/coach.test.mjs).
-import { worstStatus } from "./metrics.js?v=202610201519";
+import { worstStatus } from "./metrics.js?v=202610201532";
 
 // ---------- Eingabeschema "daily" (F6) ----------
 // goal hier ist das Plan-Objekt-goal ({ distance, raceDate, targetTime,
@@ -162,6 +162,21 @@ export function weeklyDue({ weekNo, hasStrava }) {
   return !!hasStrava && weekNo > 1;
 }
 
+// Fehler des Workers, bei denen Claude nie aufgerufen wurde (Anmeldeprüfung
+// oder Konfiguration). Sie sollen das Tageskontingent nicht verbrauchen,
+// sonst wäre es bei einem Google-Ausfall ohne einen echten Aufruf leer.
+const NOT_GENERATED_ERRORS = new Set(["unauthorized", "auth_unavailable", "not_configured"]);
+
+async function refundIfNotGenerated(res, doc, saveDoc) {
+  const body = await res.json().catch(() => null);
+  if (!NOT_GENERATED_ERRORS.has(body?.error)) return;
+  try {
+    await saveDoc({ generations: doc?.generations ?? 0 });
+  } catch {
+    /* Rückgabe ist Komfort; schlägt sie fehl, bleibt der Versuch gezählt */
+  }
+}
+
 // ---------- Worker-Aufruf mit Firestore-Cache (A4) ----------
 // loadDoc/saveDoc/fetchWorker werden hereingereicht statt selbst gegen
 // Firestore/den Worker zu greifen — hält coach.js browserfrei testbar.
@@ -200,7 +215,10 @@ export async function requestCoach({ hash, loadDoc, saveDoc, fetchWorker, limit,
   let text, data;
   try {
     const res = await fetchWorker();
-    if (!res.ok) throw new Error("worker not ok");
+    if (!res.ok) {
+      await refundIfNotGenerated(res, doc, saveDoc);
+      throw new Error("worker not ok");
+    }
     data = await res.json();
     text = data?.text;
     if (!text) throw new Error("empty text");

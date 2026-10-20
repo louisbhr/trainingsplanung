@@ -2,7 +2,7 @@
 // Datumsformatierung, Toast, Fehler-/Lade-Karten, Skeleton-Zeilen und das
 // eine gemeinsame Info-Sheet (D1). Bewusst ohne Firebase-Abhängigkeiten,
 // nur plan.js für die reinen Datums-Helfer.
-import { fromISO } from "./plan.js?v=202610201519";
+import { fromISO } from "./plan.js?v=202610201532";
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -62,7 +62,7 @@ export function toast(msg, isError = false) {
 
 export function errorCard(msg) {
   return `<div class="card error-card"><p class="name">Problem</p><p class="hint">${esc(msg)}</p>
-    <button data-action="reload" style="margin-top:8px;">Neu laden</button></div>`;
+    <button data-action="reload" class="mt-8">Neu laden</button></div>`;
 }
 export function loadingCard(msg = "Lädt …") {
   return `<p class="center-note">${esc(msg)}</p>`;

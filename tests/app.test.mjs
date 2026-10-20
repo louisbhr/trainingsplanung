@@ -46,14 +46,15 @@ export async function signOutAndWipeDevice() {
   if (window.__PENDING__ === "hang") return { ok: false, reason: "pending" };
   sessionStorage.setItem("test.wiped", "1");
   sessionStorage.setItem("test.auth", "signedOut");
-  return { ok: true };
+  return { ok: true, cacheCleared: !window.__CACHE_KEPT__ };
 }
 export async function waitForPendingWrites() {
   bumpCount("__FLUSH_CALLS__");
   if (window.__PENDING__ === "hang") return new Promise(() => {});
 }
 export async function authHeaders({ force } = {}) {
-  if (authMode() !== "ok" || window.__TOKEN_FAIL__) throw Object.assign(new Error("Firebase: Nicht angemeldet."), { source: "firebase" });
+  // __TOKEN_FAIL__: true = abgemeldet; ein String = Firebase-Fehlercode (z. B. offline).
+  if (authMode() !== "ok" || window.__TOKEN_FAIL__) throw Object.assign(new Error("Firebase: Nicht angemeldet."), { source: "firebase", code: typeof window.__TOKEN_FAIL__ === "string" ? window.__TOKEN_FAIL__ : undefined });
   window.__TOKEN_CALLS__ = (window.__TOKEN_CALLS__ || []).concat([!!force]);
   return { Authorization: "Bearer " + (force ? "fresh-token" : "test-token") };
 }
@@ -1606,6 +1607,30 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
+// ---- 26b. Token-Fehler beim Strava-Aufruf: offline vs. abgemeldet (Review N2) ----
+for (const [fail, want, notWant, label] of [
+  ["auth/network-request-failed", "nicht erreichbar", "Anmeldung abgelaufen", "offline"],
+  [true, "Anmeldung abgelaufen", "nicht erreichbar", "abgemeldet"],
+]) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
+  await ctx.route("https://worker.test/**", (r) => r.abort("failed"));
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.addInitScript(([planJson, f]) => {
+    localStorage.setItem("hm-tracker.workerUrl", "https://worker.test");
+    localStorage.setItem("hm-tracker.plan.hm-2027", planJson);
+    window.__TOKEN_FAIL__ = f;
+  }, [REAL_PLAN_JSON, fail]);
+  await page.goto(BASE + "/index.html?code=test-code-123");
+  await page.waitForSelector("#toast.show");
+  const t = await page.textContent("#toast");
+  ok(t.includes(want) && !t.includes(notWant), `Strava-Token-Fehler (${label}): Meldung passt (${t})`);
+  await ctx.close();
+}
+
 // ---- 27. loadStrava dedupliziert parallele Aufrufe (I3) ----
 // paintDashboardMain startet fünf fill*-Funktionen, jede ruft loadStrava()
 // auf. Ohne ein gemerktes In-Flight-Promise lösen diese fünf parallelen
@@ -1811,7 +1836,7 @@ async function noHScroll(page, where) {
   ok(names.includes("Full Body B (optional)"), "W9: Do-Kraft als optional gekennzeichnet");
   const wed = page.locator('.day-row[data-date="2026-10-28"]');
   ok(!(await wed.textContent()).includes("verpasst"), "W9: Kalibrierungstest erledigt, nicht verpasst");
-  ok((await wed.locator(".status-icon").first().evaluate((el) => el.style.color)).includes("ok-fg"),
+  ok((await wed.locator(".status-icon").first().evaluate((el) => el.classList.contains("fg-ok"))),
     "W9: Kalibrierungstest mit hoher HF zeigt Haken statt 'Zu schnell'-Warnung");
   const opt = page.locator('.day-row[data-date="2026-10-29"]');
   ok((await opt.locator(".optional-pill").count()) === 1 && (await opt.locator(".missed-pill").count()) === 0,
@@ -1869,6 +1894,13 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   const { page, ctx, errors } = await authPage("signedOut");
   await page.waitForSelector('form[data-form="login"]');
   ok((await page.textContent("#header h1")) === "Anmelden", "Login: Überschrift 'Anmelden'");
+  const gate = await page.evaluate(() => {
+    const m = document.getElementById("main").getBoundingClientRect();
+    const c = document.querySelector(".auth-card").getBoundingClientRect();
+    return { above: c.top - m.top, below: m.bottom - c.bottom, logo: !!document.querySelector(".auth-logo") };
+  });
+  ok(gate.above > 40 && Math.abs(gate.above - gate.below) < 24, `Login: Karte vertikal zentriert (oben ${gate.above}, unten ${gate.below})`);
+  ok(gate.logo, "Login: App-Name-/Logo-Zeile in der Karte");
   const email = page.locator('form[data-form="login"] input[name="email"]');
   const pw = page.locator('form[data-form="login"] input[name="password"]');
   ok((await email.getAttribute("autocomplete")) === "username", "Login: E-Mail-Feld mit autocomplete=username (Schlüsselbund)");
@@ -2002,6 +2034,23 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   await page.waitForSelector('form[data-form="login"]');
   ok((await page.evaluate(() => sessionStorage.getItem("test.wiped"))) === "1", "Abmelden: Gerät wird geräumt (signOutAndWipeDevice)");
   ok(errors.length === 0, "Konto-Karte: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// 30g. Abmelden bei offenem zweitem Tab: Cache bleibt, der Hinweis sagt es ehrlich (Review N4)
+{
+  const { page, ctx, errors } = await authPage("ok", { flags: { __CACHE_KEPT__: true } });
+  await page.waitForSelector("#main .today-card");
+  await page.click('[data-tab="plan"]');
+  await page.waitForSelector(".account-card");
+  await page.click('.account-card [data-action="logout"]');
+  await page.waitForSelector('form[data-form="login"]');
+  const notice = await page.textContent("[data-notice]");
+  ok(notice.includes("Offline-Speicher") && notice.includes("nicht geleert"), `Abmelden mit zweitem Tab: ehrlicher Hinweis statt "geräumt" (${notice})`);
+  await page.reload();
+  await page.waitForSelector('form[data-form="login"]');
+  ok((await page.locator("[data-notice]").count()) === 0, "Abmelden mit zweitem Tab: Hinweis erscheint nur einmal");
+  ok(errors.length === 0, "Abmelden mit zweitem Tab: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
@@ -2212,7 +2261,7 @@ const stripPlan = (s) => s.replace(/"plan":[\s\S]*?"strava":/, "");
   const [download] = await Promise.all([page.waitForEvent("download"), page.click('[data-action="export-data"]')]);
   const data = JSON.parse(readFileSync(await download.path(), "utf8"));
   ok(data.strava.activities.length === 0 && data.strength.logs.length === 1, "Export ohne Strava: Logs trotzdem enthalten");
-  ok(data.meta.warnings.length === 1 && data.meta.warnings[0].startsWith("Strava:") && !data.meta.warnings[0].includes("—"),
+  ok(data.meta.warnings.length === 1 && data.meta.warnings[0].startsWith("Strava:") && !data.meta.warnings[0].includes("—") && !data.meta.warnings[0].startsWith("Strava: Strava"),
     "Export ohne Strava: Warnung in meta.warnings " + JSON.stringify(data.meta.warnings));
   await page.waitForFunction(() => document.getElementById("export-status")?.textContent.startsWith("Exportiert, aber unvollständig"));
   await ctx.close();

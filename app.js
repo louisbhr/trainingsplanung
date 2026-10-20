@@ -3,29 +3,29 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610201519";
-import { loadPlans } from "./plan-store.js?v=202610201519";
+} from "./plan.js?v=202610201532";
+import { loadPlans } from "./plan-store.js?v=202610201532";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610201519";
+} from "./firebase-init.js?v=202610201532";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport,
-} from "./strava.js?v=202610201519";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610201519";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610201519";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610201519";
-import * as dash from "./view-dashboard.js?v=202610201519";
-import * as dashWeek from "./view-week.js?v=202610201519";
-import * as metrics from "./metrics.js?v=202610201519";
-import * as coach from "./coach.js?v=202610201519";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610201519";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610201519";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610201519";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610201519";
+} from "./strava.js?v=202610201532";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610201532";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610201532";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610201532";
+import * as dash from "./view-dashboard.js?v=202610201532";
+import * as dashWeek from "./view-week.js?v=202610201532";
+import * as metrics from "./metrics.js?v=202610201532";
+import * as coach from "./coach.js?v=202610201532";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610201532";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610201532";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610201532";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610201532";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -965,15 +965,15 @@ async function fillSessionSlot(iso) {
   const session = sessionForDate(iso);
   if (!session) return;
   slot.innerHTML = `<div class="card session-card">
-    <div class="row" style="justify-content:space-between;">
+    <div class="row jc-between">
       <p class="name">Einheit (Strava)</p>
       <span class="hint">${esc(formatDuration(session.movingTimeSec))}</span>
     </div>
-    <div class="metric-grid" style="margin-top:8px;">
-      <div><p class="metric-label">Ø HF</p><p class="metric-value" style="font-size:18px;">${session.avgHr ? session.avgHr + " bpm" : "–"}</p></div>
-      <div><p class="metric-label">Max HF</p><p class="metric-value" style="font-size:18px;">${session.maxHr ? session.maxHr + " bpm" : "–"}</p></div>
+    <div class="metric-grid mt-8">
+      <div><p class="metric-label">Ø HF</p><p class="metric-value sm">${session.avgHr ? session.avgHr + " bpm" : "–"}</p></div>
+      <div><p class="metric-label">Max HF</p><p class="metric-value sm">${session.maxHr ? session.maxHr + " bpm" : "–"}</p></div>
     </div>
-    ${session.effort != null ? `<p class="hint" style="margin-top:6px;">Relative Effort ${session.effort}</p>` : ""}
+    ${session.effort != null ? `<p class="hint mt-6">Relative Effort ${session.effort}</p>` : ""}
   </div>`;
 }
 
@@ -1035,13 +1035,13 @@ function paintKraftDay(info, iso, loadError) {
       ? `<div class="card error-card">
            <p class="name">Gespeicherte Sätze nicht geladen</p>
            <p class="hint">${esc(loadError)}</p>
-           <p class="hint" style="margin-top:6px;">Eintragen geht trotzdem — gespeichert wird aber erst, wenn das behoben ist.</p>
-           <button data-action="reload" style="margin-top:8px;">Neu laden</button>
+           <p class="hint mt-6">Eintragen geht trotzdem — gespeichert wird aber erst, wenn das behoben ist.</p>
+           <button data-action="reload" class="mt-8">Neu laden</button>
          </div>`
       : "") +
     `<div class="card summary-card">
-       <div class="row" style="justify-content:space-between;align-items:flex-start;gap:10px;">
-         <div style="min-width:0;">
+       <div class="row jc-between ai-start gap-10">
+         <div class="min-w-0">
            <p class="name">${esc(info.label)}</p>
            <p class="hint" id="progress-line">${progressText()}</p>
          </div>
@@ -1054,8 +1054,8 @@ function paintKraftDay(info, iso, loadError) {
     (quickAdd ? addFormHTML(iso) : "") +
     (editMode
       ? removedList.map((ex) => `<div class="card removed">
-           <div class="row" style="justify-content:space-between;gap:10px;">
-             <div style="min-width:0;"><p class="name">${esc(ex.name)}</p><p class="hint">Für diesen Tag entfernt</p></div>
+           <div class="row jc-between gap-10">
+             <div class="min-w-0"><p class="name">${esc(ex.name)}</p><p class="hint">Für diesen Tag entfernt</p></div>
              <button class="small-btn" data-action="restore-exercise" data-slug="${slug(ex.name)}">Zurückholen</button>
            </div></div>`).join("") +
         addFormHTML(iso)
@@ -1065,12 +1065,12 @@ function paintKraftDay(info, iso, loadError) {
 function addFormHTML(iso) {
   return `<div class="card">
     <p class="name">Übung hinzufügen</p>
-    <p class="hint" style="margin-bottom:8px;">Gilt nur für diesen Tag (${shortDate(iso)}).</p>
+    <p class="hint mb-8">Gilt nur für diesen Tag (${shortDate(iso)}).</p>
     <div class="add-form">
       <input type="text" id="new-ex-name" placeholder="Name, z. B. Beinpresse" autocomplete="off" />
       <input type="text" id="new-ex-soll" placeholder="Soll, z. B. 3x8-10" autocomplete="off" />
-      <div class="row" style="gap:8px;">
-        <button class="save-btn" style="flex:1;" data-action="add-exercise">Hinzufügen</button>
+      <div class="row gap-8">
+        <button class="save-btn flex-1" data-action="add-exercise">Hinzufügen</button>
         <button data-action="cancel-add">Abbrechen</button>
       </div>
     </div>
@@ -1082,8 +1082,8 @@ function replaceFormHTML(st) {
     <p class="hint">Ersetzt ${esc(st.name)} an dieser Stelle.</p>
     <input type="text" id="rep-ex-name" placeholder="Neue Übung" value="" autocomplete="off" />
     <input type="text" id="rep-ex-soll" placeholder="Soll" value="${esc(st.soll)}" autocomplete="off" />
-    <div class="row" style="gap:8px;">
-      <button class="save-btn" style="flex:1;" data-action="confirm-replace" data-slug="${st.slug}">Übernehmen</button>
+    <div class="row gap-8">
+      <button class="save-btn flex-1" data-action="confirm-replace" data-slug="${st.slug}">Übernehmen</button>
       <button data-action="cancel-replace">Abbrechen</button>
     </div>
   </div>`;
@@ -1097,8 +1097,8 @@ function progressText() {
 
 function exerciseCard(st) {
   return `<div class="card${st.saved ? " done" : ""}" data-ex="${st.slug}">
-    <div class="row" style="justify-content:space-between;align-items:flex-start;gap:10px;">
-      <div style="min-width:0;">
+    <div class="row jc-between ai-start gap-10">
+      <div class="min-w-0">
         <p class="name">${esc(st.name)}${st.custom ? ' <span class="custom-tag">eigene</span>' : ""}</p>
         <p class="hint">Soll ${esc(st.soll)}${st.hint ? " · " + esc(st.hint) : ""}</p>
         ${st.tip ? `<p class="tip tip-${st.tip.level}">${esc(st.tip.text)}</p>` : ""}
@@ -1423,13 +1423,13 @@ async function renderRunDay(info, iso) {
 }
 
 function planRunCard(info) {
-  return `<div class="card" style="background:var(--coral-bg);">
-    <p class="name" style="color:var(--coral-fg);">${esc(info.type)}</p>
-    <div class="metric-grid" style="margin-top:8px;">
-      <div><p class="metric-label">Ziel-Distanz</p><p class="metric-value" style="color:var(--coral-fg);">${esc(info.dist)}</p></div>
-      <div><p class="metric-label">Ziel-Pace</p><p class="metric-value" style="font-size:16px;">${esc(info.pace)}</p></div>
+  return `<div class="card bg-coral">
+    <p class="name fg-coral">${esc(info.type)}</p>
+    <div class="metric-grid mt-8">
+      <div><p class="metric-label">Ziel-Distanz</p><p class="metric-value fg-coral">${esc(info.dist)}</p></div>
+      <div><p class="metric-label">Ziel-Pace</p><p class="metric-value xs">${esc(info.pace)}</p></div>
     </div>
-    <p class="hint" style="margin-top:8px;">HF-Zone ${esc(info.hf)}</p>
+    <p class="hint mt-8">HF-Zone ${esc(info.hf)}</p>
   </div>`;
 }
 
@@ -1440,12 +1440,12 @@ function problemCard(s) {
     return `<div class="card error-card">
       <p class="name">Daten-Problem (Firebase)</p>
       <p class="hint">${esc(s.error)}</p>
-      <p class="hint" style="margin-top:6px;">Nicht Strava, sondern der Datenspeicher. Prüfe, ob du angemeldet bist (Plan-Tab, Konto) und ob die Regeln aus <code>firestore.rules</code> in der Firebase-Console veröffentlicht sind.</p>
-      <button data-action="reload-strava" style="margin-top:8px;">Nochmal versuchen</button></div>`;
+      <p class="hint mt-6">Nicht Strava, sondern der Datenspeicher. Prüfe, ob du angemeldet bist (Plan-Tab, Konto) und ob die Regeln aus <code>firestore.rules</code> in der Firebase-Console veröffentlicht sind.</p>
+      <button data-action="reload-strava" class="mt-8">Nochmal versuchen</button></div>`;
   }
   return `<div class="card error-card"><p class="name">Strava-Problem</p>
     <p class="hint">${esc(s.error)}</p>
-    <div class="row" style="margin-top:8px;gap:8px;">
+    <div class="row mt-8 gap-8">
       <button data-action="reload-strava">Nochmal versuchen</button>
       <button data-action="connect-strava">Neu verbinden</button>
     </div></div>`;
@@ -1459,7 +1459,7 @@ function stravaResultHTML(s, iso) {
   }
   if (s.error) return problemCard(s);
   if (s.connected === false) {
-    return `<button class="primary-btn" data-action="connect-strava" style="margin-top:10px;">Mit Strava verbinden</button>`;
+    return `<button class="primary-btn mt-10" data-action="connect-strava">Mit Strava verbinden</button>`;
   }
 
   const a = runAssignment[iso];
@@ -1471,7 +1471,7 @@ function stravaResultHTML(s, iso) {
         <p class="hint">${a?.source === "ignored"
           ? "Für diesen Tag ist bewusst kein Lauf hinterlegt."
           : "In Strava liegt kein Lauf an diesem Tag und keiner in den Tagen danach."}</p>
-        <div class="row" style="margin-top:8px;gap:8px;">
+        <div class="row mt-8 gap-8">
           <button data-action="pick-run" data-date="${iso}">Lauf zuordnen</button>
           ${a?.source === "ignored" ? `<button data-action="reset-run" data-date="${iso}">Automatik zurück</button>` : ""}
           <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
@@ -1481,8 +1481,8 @@ function stravaResultHTML(s, iso) {
 
   const m = a.run;
   const shifted = a.offset !== 0;
-  return `<div class="card${shifted ? " shifted" : ""}" style="margin-top:10px;">
-    <div class="row" style="justify-content:space-between;">
+  return `<div class="card${shifted ? " shifted" : ""} mt-10">
+    <div class="row jc-between">
       <p class="name">Erfasst (Strava)</p>
       <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
     </div>
@@ -1490,13 +1490,13 @@ function stravaResultHTML(s, iso) {
     ${shifted
       ? `<p class="shift-note">${dayNameDE(m.date)}, ${shortDate(m.date)} · ${esc(offsetLabel(a.offset))}</p>`
       : ""}
-    <div class="metric-grid" style="margin-top:8px;">
+    <div class="metric-grid mt-8">
       <div><p class="metric-label">Distanz</p><p class="metric-value">${metrics.formatKm1(m.distanceKm)} km</p></div>
-      <div><p class="metric-label">Pace</p><p class="metric-value" style="font-size:18px;">${esc(m.paceLabel)}</p></div>
-      <div><p class="metric-label">Dauer</p><p class="metric-value" style="font-size:18px;">${esc(formatDuration(m.movingTimeSec))}</p></div>
-      <div><p class="metric-label">Ø HF</p><p class="metric-value" style="font-size:18px;">${m.avgHr ? m.avgHr + " bpm" : "–"}</p></div>
+      <div><p class="metric-label">Pace</p><p class="metric-value sm">${esc(m.paceLabel)}</p></div>
+      <div><p class="metric-label">Dauer</p><p class="metric-value sm">${esc(formatDuration(m.movingTimeSec))}</p></div>
+      <div><p class="metric-label">Ø HF</p><p class="metric-value sm">${m.avgHr ? m.avgHr + " bpm" : "–"}</p></div>
     </div>
-    <div class="row" style="margin-top:10px;gap:8px;">
+    <div class="row mt-10 gap-8">
       ${a.source === "auto"
         ? `<button class="small-btn" data-action="ignore-run" data-date="${iso}">Passt nicht</button>` : ""}
       ${a.source === "manual"
@@ -1512,11 +1512,11 @@ function runPickerHTML(s, iso) {
     return `<div class="card">
       <p class="name">Kein Lauf zur Auswahl</p>
       <p class="hint">In Strava liegt im Umkreis von sieben Tagen kein freier Lauf.</p>
-      <button data-action="close-picker" style="margin-top:8px;">Schließen</button></div>`;
+      <button data-action="close-picker" class="mt-8">Schließen</button></div>`;
   }
   const current = runAssignment[iso]?.run?.id;
   return `<div class="card">
-    <div class="row" style="justify-content:space-between;">
+    <div class="row jc-between">
       <p class="name">Lauf für ${dayNameDE(iso)}, ${shortDate(iso)}</p>
       <button class="small-btn" data-action="close-picker">Schließen</button>
     </div>
@@ -1528,7 +1528,7 @@ function runPickerHTML(s, iso) {
         <span class="pick-sub">${esc(r.name)} · ${metrics.formatKm1(r.distanceKm)} km · ${esc(r.paceLabel)}</span>
       </button>`;
     }).join("")}
-    <button data-action="ignore-run" data-date="${iso}" style="width:100%;margin-top:8px;">Kein Lauf an diesem Tag</button>
+    <button class="w-full mt-8" data-action="ignore-run" data-date="${iso}">Kein Lauf an diesem Tag</button>
   </div>`;
 }
 
@@ -1752,7 +1752,7 @@ async function renderKraftHistory() {
     <div class="card">
       <p class="name">Einträge</p>
       ${points.slice().reverse().map((p) => `<div class="row list-row"><span>${shortDate(p.date)}</span>
-        <span style="color:var(--text-secondary)">${p.topKg > 0 ? p.topKg + " kg" : "–"} · ${p.totalReps} Wdh</span></div>`).join("")}
+        <span class="fg-secondary">${p.topKg > 0 ? p.topKg + " kg" : "–"} · ${p.totalReps} Wdh</span></div>`).join("")}
     </div>`;
   wirePicker();
 }
@@ -1801,7 +1801,7 @@ async function renderRunHistory() {
       <div class="metric-grid">
         <div><p class="metric-label">Letzte 7 Tage</p><p class="metric-value">${metrics.formatKm1(km7)} km</p></div>
         <div><p class="metric-label">Letzte 28 Tage</p><p class="metric-value">${metrics.formatKm1(km28)} km</p></div>
-        <div><p class="metric-label">Ø Pace (${withPace.length} ${withPace.length === 1 ? "Lauf" : "Läufe"})</p><p class="metric-value" style="font-size:18px;">${esc(formatPace(avgPace))}</p></div>
+        <div><p class="metric-label">Ø Pace (${withPace.length} ${withPace.length === 1 ? "Lauf" : "Läufe"})</p><p class="metric-value sm">${esc(formatPace(avgPace))}</p></div>
         <div><p class="metric-label">Läufe gesamt</p><p class="metric-value">${runs.length}</p></div>
       </div>
     </div>
@@ -1813,7 +1813,7 @@ async function renderRunHistory() {
     <div class="card">
       <p class="name">Läufe</p>
       ${last.slice().reverse().map((r) => `<div class="row list-row"><span>${shortDate(r.date)} ${esc(r.name)}</span>
-        <span style="color:var(--text-secondary)">${metrics.formatKm1(r.distanceKm)} km · ${esc(r.paceLabel)}</span></div>`).join("")}
+        <span class="fg-secondary">${metrics.formatKm1(r.distanceKm)} km · ${esc(r.paceLabel)}</span></div>`).join("")}
     </div>`;
 }
 
@@ -1856,13 +1856,13 @@ function renderPlan() {
   const displayGoal = formatGoal(plan.goal);
 
   header.innerHTML = `<h1>Trainingsplan</h1>
-    <p class="eyebrow" style="margin-top:2px;">Woche ${w} von ${plan.totalWeeks} · ${pct}% geschafft</p>`;
+    <p class="eyebrow mt-2">Woche ${w} von ${plan.totalWeeks} · ${pct}% geschafft</p>`;
 
   main.innerHTML = `
     <div class="card goal-card">
       <p class="metric-label">Ziel</p>
       <p class="goal-time">${esc(displayGoal.time)}</p>
-      <p class="hint" style="margin-top:4px;">${esc(displayGoal.race)} · Renntempo ${esc(plan.goal.targetPace)}</p>
+      <p class="hint mt-4">${esc(displayGoal.race)} · Renntempo ${esc(plan.goal.targetPace)}</p>
       <div class="timeline">
         ${plan.phases.map((p) => {
           const len = p.weeks.to - p.weeks.from + 1;
@@ -1884,8 +1884,8 @@ function renderPlan() {
           <p class="name">Phase ${p.n} – ${esc(p.name)}</p>
           <span class="phase-weeks">W${p.weeks.from}–${p.weeks.to}</span>
         </div>
-        <p class="hint" style="margin-top:2px;">${esc(phaseRange(plan, p))}</p>
-        <p class="hint" style="margin-top:4px;">${esc(p.focus)}${current ? " · läuft gerade" : ""}</p>
+        <p class="hint mt-2">${esc(phaseRange(plan, p))}</p>
+        <p class="hint mt-4">${esc(p.focus)}${current ? " · läuft gerade" : ""}</p>
       </div>`;
     }).join("")}
 
@@ -1895,7 +1895,7 @@ function renderPlan() {
         const [tag, label] = z.zone.split(" – ");
         return `<div class="zone-line tone-${z.tone}">
           <span class="zone-chip">${esc(tag)}</span>
-          <span class="zname">${esc(label)}<br><span style="color:var(--text-muted);font-size:11px;">${esc(z.use)}</span></span>
+          <span class="zname">${esc(label)}<br><span class="fg-muted fs-11">${esc(z.use)}</span></span>
           <span class="zvals">${esc(z.hf)} bpm<br>${esc(z.pace)}</span>
         </div>`;
       }).join("")}
@@ -1998,8 +1998,24 @@ function showGate(title, html) {
   main.innerHTML = html;
 }
 
-function showLogin(email = "", error = "") {
-  showGate("Anmelden", renderLogin({ email, error }));
+function showLogin(email = "", error = "", notice = "") {
+  showGate("Anmelden", renderLogin({ email, error, notice }));
+}
+
+// Einmaliger Hinweis über das Neuladen hinweg (sessionStorage, nicht der
+// geräumte localStorage): nach dem Abmelden mit offenem zweitem Tab.
+const LOGOUT_NOTICE_KEY = "hm-tracker-notice";
+const CACHE_KEPT_NOTICE =
+  "Abgemeldet. Der Offline-Speicher dieses Geräts konnte nicht geleert werden, weil die App noch in einem anderen Tab offen ist. Bitte alle Tabs der App schließen.";
+
+function takeLogoutNotice() {
+  try {
+    const text = sessionStorage.getItem(LOGOUT_NOTICE_KEY) || "";
+    sessionStorage.removeItem(LOGOUT_NOTICE_KEY);
+    return text;
+  } catch {
+    return "";
+  }
 }
 
 // Anonyme Altsitzung aus der Zeit vor dem Login: erst alle noch nicht
@@ -2030,8 +2046,9 @@ function setAccountStatus(text) {
 async function logout(btn) {
   btn.disabled = true;
   setAccountStatus("Wird abgemeldet …");
+  let res;
   try {
-    const res = await signOutAndWipeDevice();
+    res = await signOutAndWipeDevice();
     if (!res.ok) {
       setAccountStatus("Es gibt noch nicht übertragene Einträge. Bitte mit Netz noch einmal versuchen.");
       btn.disabled = false;
@@ -2042,6 +2059,9 @@ async function logout(btn) {
     setAccountStatus("Abmelden fehlgeschlagen: " + err.message);
     btn.disabled = false;
     return;
+  }
+  if (res.cacheCleared === false) {
+    try { sessionStorage.setItem(LOGOUT_NOTICE_KEY, CACHE_KEPT_NOTICE); } catch { /* ohne Hinweis neu laden */ }
   }
   location.reload();
 }
@@ -2061,9 +2081,18 @@ async function exportPart(label, warnings, load) {
   } catch (err) {
     console.error(err);
     // Strava-Meldungen enthalten Gedankenstriche, die hier nicht stehen sollen.
-    warnings.push(`${label}: ${err.message.replace(/\s+—\s+/g, ", ")}`);
+    warnings.push(warningText(label, err.message));
     return null;
   }
+}
+
+// "Strava: Strava-Abruf fehlgeschlagen" liest sich doppelt: beginnt die
+// Meldung selbst mit dem Teilnamen, wird er nicht noch einmal vorangestellt.
+function warningText(label, message) {
+  const clean = message.replace(/\s+—\s+/g, ", ");
+  if (clean.startsWith(`${label}-`)) return `${label}: ${clean.slice(label.length + 1)}`;
+  if (clean.startsWith(`${label} `)) return clean;
+  return `${label}: ${clean}`;
 }
 
 // Gibt die Datei weiter: Teilen-Blatt, wo das Gerät Dateien teilen kann
@@ -2178,7 +2207,7 @@ async function init() {
     return;
   }
   const access = accessState(user, ALLOWED_UID);
-  if (access === "signedOut") return showLogin();
+  if (access === "signedOut") return showLogin("", "", takeLogoutNotice());
   if (access === "anonymous") return handleAnonymousSession();
   if (access === "forbidden") {
     return showGate("Kein Zugriff", renderNoAccess({ email: user.email, uid: user.uid }));

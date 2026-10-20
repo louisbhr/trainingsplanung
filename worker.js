@@ -23,9 +23,8 @@
 //
 // Login (Schritt 1b): /coach, /exchange und /refresh verlangen ein
 // Firebase-ID-Token (Authorization: Bearer ...) von Louis' Konto. Variablen
-// in wrangler.toml [vars]: FIREBASE_PROJECT_ID, ALLOWED_UID, AUTH_MODE.
-// AUTH_MODE "report" prüft nur und loggt (Übergang, blockiert nie); jeder
-// andere Wert, auch ein fehlender, heißt "required" (blockiert).
+// in wrangler.toml [vars]: FIREBASE_PROJECT_ID, ALLOWED_UID. Die Prüfung ist
+// immer verbindlich; fehlt die Konfiguration, lehnt der Worker alles ab.
 
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 
@@ -492,9 +491,6 @@ async function verifyIdToken(request, cfg) {
   return claimProblem ? { ok: false, reason: claimProblem } : { ok: true };
 }
 
-// "report" nur bei genau diesem Wert; fehlend oder unbekannt = "required".
-const authMode = (env) => (env.AUTH_MODE === "report" ? "report" : "required");
-
 function authConfig(env) {
   const projectId = typeof env.FIREBASE_PROJECT_ID === "string" ? env.FIREBASE_PROJECT_ID.trim() : "";
   const allowedUid = typeof env.ALLOWED_UID === "string" ? env.ALLOWED_UID.trim() : "";
@@ -505,20 +501,15 @@ function authConfig(env) {
 // Alle Prüffehler liefern dieselbe 401-Antwort (kein Orakel), der Grund geht
 // nur als Code ins Log.
 async function enforceAuth(request, env, cors) {
-  const report = authMode(env) === "report";
   const cfg = authConfig(env);
   if (!cfg) {
     console.log("auth: not_configured");
-    return report ? null : json({ error: "not_configured", message: "Login-Konfiguration fehlt" }, 500, cors);
+    return json({ error: "not_configured", message: "Login-Konfiguration fehlt" }, 500, cors);
   }
   const result = await verifyIdToken(request, cfg);
-  if (result.ok) {
-    if (report) console.log("auth: ok");
-    return null;
-  }
+  if (result.ok) return null;
   const reason = result.unavailable ? "unavailable" : result.reason;
   console.log(`auth: ${reason}`);
-  if (report) return null;
   if (result.unavailable) {
     return json({ error: "auth_unavailable", message: "Anmeldeprüfung gerade nicht verfügbar" }, 503, cors);
   }

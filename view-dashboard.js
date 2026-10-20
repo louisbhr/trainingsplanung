@@ -3,10 +3,10 @@
 // Datenzugriff (Firestore, Strava, Plan) bleiben in app.js. Keine eigenen
 // Styles — alle Klassen kommen aus style.css (D0), siehe
 // docs/ui-markup-dashboard-v2.md für die genaue Markup-Referenz.
-import { formatKm1 } from "./metrics.js?v=202610201519";
-import { esc, ICONS, skelLine } from "./ui.js?v=202610201519";
-import { formatDuration } from "./strava.js?v=202610201519";
-import { LONG_RUN_TYPES } from "./plan.js?v=202610201519";
+import { formatKm1 } from "./metrics.js?v=202610201532";
+import { esc, ICONS, skelLine } from "./ui.js?v=202610201532";
+import { formatDuration } from "./strava.js?v=202610201532";
+import { LONG_RUN_TYPES } from "./plan.js?v=202610201532";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
 
@@ -59,7 +59,7 @@ export function todayCardLaufHTML(session, actualHTML) {
   </div>`;
 }
 export function laufLoadingHTML() {
-  return `<p class="sub loading-hint">Ist-Werte werden nach dem Lauf aus Strava geladen.</p><div class="skel skel-line" style="width:70%;height:10px;"></div>`;
+  return `<p class="sub loading-hint">Ist-Werte werden nach dem Lauf aus Strava geladen.</p><div class="skel skel-line w-70"></div>`;
 }
 export function laufNotConnectedHTML() {
   return `<p class="sub">Strava ist nicht verbunden, deshalb fehlen die Ist-Werte.</p>
