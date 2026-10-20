@@ -2,7 +2,7 @@
 // Konto-Karte. Reine String-Funktionen (wie view-dashboard.js); alles aus
 // Nutzer- oder Firebase-Daten läuft durch esc(). Die Klassen stehen in
 // style.css (Abschnitt "Anmeldung").
-import { esc } from "./ui.js?v=202610201438";
+import { esc } from "./ui.js?v=202610201449";
 
 // Anmeldeformular. Ein echtes <form> mit autocomplete username und
 // current-password, damit der iCloud-Schlüsselbund ausfüllt und speichert.

@@ -130,14 +130,14 @@ const ACTIVITIES = [
 
 const browser = await chromium.launch();
 
-async function newPage({ connected = false, tz = "Europe/Berlin" } = {}) {
+async function newPage({ connected = false, tz = "Europe/Berlin", activities = ACTIVITIES, now = "2026-09-07T09:00:00Z" } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: tz });
   const errors = [];
   await ctx.route(/firebase-init\.js/, (r) =>
     r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => {
     const page = new URL(r.request().url()).searchParams.get("page");
-    r.fulfill({ contentType: "application/json", body: JSON.stringify(page === "1" ? ACTIVITIES : []) });
+    r.fulfill({ contentType: "application/json", body: JSON.stringify(page === "1" ? activities : []) });
   });
   await ctx.route("https://worker.test/**", (r) =>
     r.fulfill({ contentType: "application/json", body: JSON.stringify({
@@ -146,7 +146,7 @@ async function newPage({ connected = false, tz = "Europe/Berlin" } = {}) {
   const page = await ctx.newPage();
   // Zeit einfrieren: die Tests prüfen konkrete Plan-Tage, sie dürfen nicht
   // davon abhängen, wann sie laufen. 07.09.2026 = Woche 2, Montag, Easy run.
-  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.clock.setFixedTime(new Date(now));
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   await page.addInitScript(([conn]) => {
@@ -187,7 +187,7 @@ async function noHScroll(page, where) {
   await page.waitForSelector("#main .today-card");
   ok((await page.textContent("#header h1")) === "Woche 2 · Aufbau", "Dashboard: Kopfzeile zeigt Woche + Wochentyp");
   ok((await page.textContent("#header .badge")).includes("Phase 1 · Basis"), "Dashboard: Phasen-Badge");
-  ok((await page.textContent("#header .countdown")).includes("Datum offen"), "Dashboard: Countdown 'Datum offen' ohne bestätigtes Renndatum");
+  ok((await page.textContent("#header .countdown")).includes("Noch 34 Wochen bis zum Rennen"), "Dashboard: Countdown mit bestätigtem Renndatum (237 Tage = 34 Wochen)");
   const today = await page.textContent("#today-slot");
   ok(today.includes("Easy run") && today.includes("8 km"), "Dashboard: 'Heute dran' zeigt den Lauftag (Easy run, 8 km)");
   // Je nach Tempo der Strava-Prüfung steht hier schon der Endzustand
@@ -331,7 +331,7 @@ async function noHScroll(page, where) {
      `Im Detail: Adhärenz 4 Wochen (${detailTxt.match(/\d+ %/)?.[0]}, ${detailTxt.match(/\d+ von \d+ Einheiten/)?.[0]})`);
   ok(detailTxt.includes("Nächster Long Run: Sa 12.09., 13 km"), "Im Detail: nächster Long Run");
   ok(detailTxt.includes("Nächste Woche: Aufbau"), "Im Detail: Typ der nächsten Woche");
-  ok(detailTxt.includes("Re-Kalibrierung: 25.10."), "Im Detail: nächste Re-Kalibrierung aus dem Plan-Objekt");
+  ok(detailTxt.includes("Re-Kalibrierung: 28.10."), "Im Detail: nächste Re-Kalibrierung aus dem Plan-Objekt (Kalibrierungstest Mi 28.10.)");
 
   // Info-Sheet (D1): öffnen per Klick, Grenzwerte aus THRESHOLDS im Text,
   // per Escape schließen, Fokus kehrt zum Info-Knopf zurück.
@@ -756,7 +756,7 @@ async function noHScroll(page, where) {
   await page.click('[data-tab="plan"]');
   await page.waitForSelector(".zone-line");
   const t = await page.textContent("#main");
-  ok((await page.textContent("#header .eyebrow")).includes("Woche 2 von 31"), "Plan: aktuelle Woche");
+  ok((await page.textContent("#header .eyebrow")).includes("Woche 2 von 35"), "Plan: aktuelle Woche (35 Wochen)");
   ok((await page.locator(".phase-card.is-current").count()) === 1, "Plan: laufende Phase hervorgehoben");
   ok((await page.locator(".phase-card").count()) === 4, "Plan: 4 Phasenkarten, farblich getrennt");
   ok((await page.locator(".zone-line").count()) === 5, "Plan: 5 Zonen");
@@ -1395,10 +1395,18 @@ async function noHScroll(page, where) {
   const errors = [];
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  await page.clock.setFixedTime(new Date("2027-04-07T09:00:00Z")); // 07.04.2027 Berlin
+  // Seit das Renndatum (02.05.2027) in der letzten Planwoche liegt, gibt es im
+  // echten Plan keine Lücke mehr. Der Zustand "Bis zum Rennen" bleibt aber
+  // erhalten (z. B. für künftige Pläne), deshalb hier mit einer Plan-Kopie
+  // mit unbestätigtem, späterem Renndatum (09.05.2027) geprüft.
+  const gapPlan = JSON.parse(REAL_PLAN_JSON);
+  gapPlan.goal.raceDate = "2027-05-09";
+  gapPlan.goal.raceDateConfirmed = false;
+  await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(gapPlan) }));
+  await page.clock.setFixedTime(new Date("2027-05-05T09:00:00Z")); // 05.05.2027 Berlin
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#header h1");
-  ok((await page.textContent("#header h1")) === "Bis zum Rennen", "Rennlücke: kein 'Woche 31', Zustand 'Bis zum Rennen'");
+  ok((await page.textContent("#header h1")) === "Bis zum Rennen", "Rennlücke: kein 'Woche 35', Zustand 'Bis zum Rennen'");
   ok((await page.textContent("#today-slot")).includes("Der Plan endet vor dem Renntag"),
      "Rennlücke: 'Heute dran' zeigt die neutrale Karte statt einer erfundenen Einheit");
   await shot(page, "21-bis-zum-rennen");
@@ -1423,14 +1431,14 @@ async function noHScroll(page, where) {
   const errors = [];
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  await page.clock.setFixedTime(new Date("2027-04-20T09:00:00Z"));
+  await page.clock.setFixedTime(new Date("2027-05-03T09:00:00Z")); // Tag nach dem Rennen (So 02.05.2027)
   await page.addInitScript(() => localStorage.setItem("hm-tracker.workerUrl", "https://worker.test"));
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#header h1");
   ok((await page.textContent("#header h1")) === "Kein aktiver Plan", "Nach dem Rennen: 'Kein aktiver Plan'");
   await page.waitForTimeout(300);
   ok(coachRequests === 0, `Nach dem Rennen: kein Coach-API-Aufruf (F7, gezählt: ${coachRequests})`);
-  ok((await page.textContent("#header .countdown")).includes("Rennen am 11.04.2027"),
+  ok((await page.textContent("#header .countdown")).includes("Rennen am 02.05.2027"),
      "Nach dem Rennen: Kopfzeile nennt das vergangene Renndatum");
   ok((await page.textContent("#today-slot")).includes("Läufe werden weiter aus Strava gezeigt"),
      "Nach dem Rennen: 'Heute dran' zeigt die neutrale Karte (F7)");
@@ -1438,6 +1446,17 @@ async function noHScroll(page, where) {
      "Nach dem Rennen: Coach zeigt einen festen Hinweis statt eines API-Aufrufs (F7)");
   await shot(page, "22-kein-plan");
   ok(errors.length === 0, "Nach dem Rennen: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 20b. Der Renntag liegt jetzt in Woche 35, keine Rennlücke mehr ----
+{
+  const { page, ctx, errors } = await newPage({ now: "2027-05-02T09:00:00Z" }); // Renntag, So 02.05.2027
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#header h1");
+  ok((await page.textContent("#header h1")).startsWith("Woche 35"), "Renntag: Dashboard zeigt Woche 35, nicht 'Bis zum Rennen'");
+  ok((await page.textContent("#header .countdown")).includes("Rennen heute"), "Renntag: Countdown 'Rennen heute!'");
+  ok(errors.length === 0, "Renntag: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
@@ -1460,11 +1479,11 @@ async function noHScroll(page, where) {
 
   await page.click('[data-tab="woche"]');
   await page.waitForSelector(".day-row, .card");
-  ok((await page.textContent("#header .t1")).includes("Woche 1"), "Vor Planstart: Wochen-Tab zeigt Woche 1, nicht Woche 31");
+  ok((await page.textContent("#header .t1")).includes("Woche 1"), "Vor Planstart: Wochen-Tab zeigt Woche 1, nicht Woche 35");
 
   await page.click('[data-tab="plan"]');
   await page.waitForSelector(".zone-line");
-  ok((await page.textContent("#header .eyebrow")).includes("Woche 1 von 31"), "Vor Planstart: Plan-Tab zeigt Woche 1, nicht Woche 31");
+  ok((await page.textContent("#header .eyebrow")).includes("Woche 1 von 35"), "Vor Planstart: Plan-Tab zeigt Woche 1, nicht Woche 35");
   ok((await page.textContent("#header .eyebrow")).includes("0% geschafft"), "Vor Planstart: 0% geschafft, nicht 97%");
   await ctx.close();
 }
@@ -1760,6 +1779,72 @@ async function noHScroll(page, where) {
   await page.waitForTimeout(300);
   ok(activityCalls === 2, `Strava-Paginierung: 200+13 Aktivitäten brauchen genau 2 Seiten (${activityCalls})`);
   ok(errors.length === 0, "Strava-Paginierung: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 24. Plan-Phase 2: Woche 9 (Kalibrierungstest, optionale Kraft), 35 Wochen ----
+{
+  // Montag 02.11.2026 = Woche 10; Woche 9 (26.10.–01.11.) liegt komplett in der Vergangenheit.
+  // Der Kalibrierungstest (Mi 28.10.) läuft mit Ø HF 178 — weit über jeder Easy-Grenze.
+  const acts = [
+    { id: 11, type: "Run", name: "Easy run", start_date_local: "2026-10-26T07:00:00Z", distance: 9000, moving_time: 3200, average_heartrate: 150 },
+    { id: 12, type: "Run", name: "Kalibrierung", start_date_local: "2026-10-28T07:00:00Z", distance: 11000, moving_time: 3500, average_heartrate: 178 },
+    { id: 13, type: "Run", name: "Long run", start_date_local: "2026-10-31T09:00:00Z", distance: 15000, moving_time: 5100, average_heartrate: 150 },
+  ];
+  const { page, ctx, errors } = await newPage({ connected: true, activities: acts, now: "2026-11-02T09:00:00Z" });
+  await page.goto(BASE + "/index.html");
+  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
+  const tiles = await page.locator("#ampel-slot .ampel-tile").evaluateAll((els) =>
+    Object.fromEntries(els.map((el) => [el.querySelector(".title").textContent.trim(),
+      [...el.querySelector(".ampel-dot").classList].find((c) => c.startsWith("st-"))])));
+  ok(tiles["Easy-Disziplin"] === "st-gruen",
+    `Test-Lauf mit Ø HF 178 verfälscht die Easy-Disziplin nicht (${tiles["Easy-Disziplin"]})`);
+
+  await page.click('[data-tab="woche"]');
+  await page.waitForSelector(".day-row");
+  ok((await page.textContent("#header .t1")).includes("Woche 10"), "W9-Test: Woche 10 aktuell");
+  await page.click('[data-action="week-prev"]');
+  await page.waitForFunction(() => document.querySelector("#header .t1")?.textContent.includes("Woche 9"));
+  await page.waitForSelector(".week-summary");
+  const names = await page.locator(".day-row.solid .mid .n").allTextContents();
+  ok(names.includes("Kalibrierungstest"), `W9: Kalibrierungstest in der Tagesliste (${names.join(", ")})`);
+  ok(names.includes("Full Body B (optional)"), "W9: Do-Kraft als optional gekennzeichnet");
+  const wed = page.locator('.day-row[data-date="2026-10-28"]');
+  ok(!(await wed.textContent()).includes("verpasst"), "W9: Kalibrierungstest erledigt, nicht verpasst");
+  ok((await wed.locator(".status-icon").first().evaluate((el) => el.style.color)).includes("ok-fg"),
+    "W9: Kalibrierungstest mit hoher HF zeigt Haken statt 'Zu schnell'-Warnung");
+  const opt = page.locator('.day-row[data-date="2026-10-29"]');
+  ok((await opt.locator(".optional-pill").count()) === 1 && (await opt.locator(".missed-pill").count()) === 0,
+    "W9: vergangene, nicht erledigte optionale Kraft ist neutral ('optional'), nicht 'verpasst'");
+  const tue = page.locator('.day-row[data-date="2026-10-27"]');
+  ok((await tue.locator(".missed-pill").count()) === 1, "W9: nicht erledigte Pflicht-Kraft bleibt 'verpasst'");
+  ok((await page.textContent(".week-summary")).includes("0/1 Einheiten"), "W9: optionale Kraft zählt nicht im Wochensoll (0/1)");
+  await wed.locator('[data-action="toggle-day-detail"]').click();
+  ok((await wed.locator(".day-detail").textContent()).includes("Ø Pace und Ø HF der 30 min notieren"), "W9: Hinweis zum Kalibrierungstest in den Details");
+  await opt.locator('[data-action="toggle-day-detail"]').click();
+  ok((await opt.locator(".day-detail").textContent()).includes("weder im Wochensoll noch als verpasst"), "W9: Details erklären 'optional'");
+  await shot(page, "24-woche-9");
+  await noHScroll(page, "Woche 9");
+
+  // Woche 35 per Vorwärts-Blättern erreichbar, danach kein Weiter mehr
+  await page.click('[data-action="week-today"]');
+  for (let i = 10; i < 35; i++) await page.click('[data-action="week-next"]');
+  await page.waitForFunction(() => document.querySelector("#header .t1")?.textContent.includes("Woche 35"));
+  ok(await page.locator('[data-action="week-next"]').isDisabled(), "Woche 35: kein Weiter");
+  ok((await page.textContent("#header .t2")).includes("26.04.") && (await page.textContent("#header .t2")).includes("02.05."), "Woche 35: 26.04.–02.05.");
+  ok((await page.textContent("#main")).includes("Details folgen"), "Woche 35: Platzhalterkarte");
+
+  await page.click('[data-tab="plan"]');
+  await page.waitForSelector(".zone-line");
+  ok((await page.textContent("#header .eyebrow")).includes("Woche 10 von 35"), "Plan-Tab: Woche 10 von 35");
+  const planTxt = await page.textContent("#main");
+  ok(planTxt.includes("26.10.2026–17.01.2027") && planTxt.includes("18.01.–18.04.2027") && planTxt.includes("19.04.–02.05.2027"),
+    "Plan-Tab: neue Phasenzeiträume");
+  ok(planTxt.includes("5:45–6:15 /km") && planTxt.includes("> 6:30 /km"), "Plan-Tab: neue Z1/Z2-Pace");
+  ok(planTxt.includes("Halbmarathon, 02.05.2027"), "Plan-Tab: bestätigtes Renndatum");
+  ok((await page.locator(".timeline .seg").count()) === 4, "Plan-Tab: Zeitleiste mit 4 Phasen");
+  await noHScroll(page, "Plan (35 Wochen)");
+  ok(errors.length === 0, "Plan-Phase 2: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 

@@ -6,8 +6,8 @@
 // Lauf-Zuordnung und Satz-Eingabe. Die Zeile ist deshalb kein Button,
 // sondern ein Container mit zwei Knöpfen, damit keine Buttons geschachtelt
 // werden.
-import { formatKm } from "./metrics.js?v=202610201438";
-import { esc, ICONS } from "./ui.js?v=202610201438";
+import { formatKm } from "./metrics.js?v=202610201449";
+import { esc, ICONS } from "./ui.js?v=202610201449";
 
 export function weekNavHTML({ n, weekType, dateRange, hasPrev, hasNext, showToday }) {
   return `<div class="week-nav">
@@ -69,6 +69,8 @@ export const statusMissedHTML = () => `<span class="missed-pill">verpasst</span>
 export const statusTodayHTML = () => `<span class="today-pill">Heute</span>`;
 export const statusPartialHTML = (done, total, isToday = false) =>
   `<span class="partial-pill">${isToday ? "Heute · " : ""}${done}/${total}</span>`;
+// Vergangene, nicht erledigte optionale Einheit: neutral, nicht rot.
+export const statusOptionalHTML = () => `<span class="optional-pill">optional</span>`;
 export const statusFutureHTML = () => `<span class="status-icon" style="color:var(--text-muted);">${ICONS.dash}</span>`;
 
 export function planBeendetHintHTML(lastWeek) {

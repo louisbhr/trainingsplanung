@@ -1,4 +1,4 @@
-// Golden-Test (A2): vergleicht für jeden Tag vom 24.08. bis 31.10.2026 die
+// Golden-Test (A2): vergleicht für jeden Tag vom 24.08. bis 25.10.2026 die
 // neue Logik (sessionOn/planDayState gegen plans/hm-2027.json) mit der
 // eingefrorenen alten Logik (tests/fixtures/plan-legacy.mjs, unverändert
 // seit vor dem Umzug). Das ist das Sicherheitsnetz für den Umbau in M1-3:
@@ -61,7 +61,8 @@ for (const ex of oldExerciseCatalog) {
 // nicht nur die Länge — sonst würde eine vertauschte oder falsch datierte
 // Übung unbemerkt bleiben, solange die Gesamtzahl stimmt.
 {
-  const newCatalog = exerciseCatalog(plan);
+  // Ab Woche 9 kommt Neues dazu (Plyometrie); verglichen wird, was im alten Plan stand.
+  const newCatalog = exerciseCatalog(plan).filter((e) => e.firstWeek <= 8);
   ok(newCatalog.length === oldExerciseCatalog.length, `Übungskatalog gleich groß (alt ${oldExerciseCatalog.length}, neu ${newCatalog.length})`);
   const len = Math.min(newCatalog.length, oldExerciseCatalog.length);
   for (let i = 0; i < len; i++) {
@@ -74,7 +75,9 @@ for (const ex of oldExerciseCatalog) {
 
 // ---- Tag für Tag, 24.08.–31.10.2026 ----
 const START = "2026-08-24";
-const END = "2026-10-31";
+// Die alte Fixture kennt ab Woche 9 (26.10.) nur Platzhalter; seit Plan-Phase 2
+// sind W9–12 ausformuliert, der Vergleich endet deshalb mit Woche 8.
+const END = "2026-10-25";
 let iso = START;
 let checked = 0;
 while (iso <= END) {
@@ -105,7 +108,7 @@ while (iso <= END) {
   }
   iso = addDays(iso, 1);
 }
-ok(checked === 69, `Zeitraum vollständig geprüft (${checked} Tage, 24.08.–31.10.2026)`);
+ok(checked === 63, `Zeitraum vollständig geprüft (${checked} Tage, 24.08.–25.10.2026)`);
 
 console.log(fails ? `\n${fails} FEHLER` : "\nGolden-Test bestanden — alte und neue Plan-Logik stimmen überein");
 process.exit(fails ? 1 : 0);
