@@ -32,3 +32,18 @@ Coach-Eingabe erweitern.
 **Einordnung:** In Schritt 2 übernommen (M10 in `docs/requirements-marathon-coaching.md`), Louis 2026-09-27.
 
 **Herkunft:** Louis, 2026-09-24.
+
+### Freunde als eigene Nutzer (Mehrbenutzerbetrieb)
+
+**Was:** Freunde bekommen den Link, melden sich mit eigenen Daten an und nutzen die App unabhängig von Louis.
+
+**Was dafür nötig ist:**
+- Daten pro Person unter `users/{uid}/…`, Regeln „jeder nur seine eigenen Daten“, einmalige Migration von Louis' Daten.
+- Einladungsliste statt offener Registrierung (Kosten des Coaches laufen über Louis' Key).
+- Eigener Plan pro Person, setzt Schritt 2 (Ziel eintragen, Claude plant) voraus.
+- Strava: neue API-Apps sind vermutlich auf den Besitzer beschränkt, Freigabe für weitere Athleten bei Strava beantragen (vorher prüfen).
+- Coach-Limits pro Nutzer, Datenschutz der Gesundheitsdaten.
+
+**Einordnung:** Bewusst später. 1b bleibt auf Louis allein zugeschnitten (feste UID), der Umbau auf `users/{uid}` kommt mit diesem Vorhaben. Ändert den Ausschluss „Mehrbenutzerbetrieb“ in REQUIREMENTS.md.
+
+**Herkunft:** Louis, 2026-10-03.

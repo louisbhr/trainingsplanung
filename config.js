@@ -8,13 +8,22 @@
 // "https://hm-tracker-auth.dein-name.workers.dev"
 const WORKER_URL_DEFAULT = "https://trainingsplanung-auth.jkmvkjn942.workers.dev";
 
-// Zum schnellen Ausprobieren ohne Commit: die Seite einmal mit
-// ?worker=https://...workers.dev aufrufen. Die URL wird dann lokal im
-// Browser gemerkt und überschreibt den Wert oben.
+// Abweichende Worker-URL nur für lokale Entwicklung und Tests: Läuft die
+// Seite auf localhost/127.0.0.1, darf ?worker=... bzw. der gemerkte Wert die
+// URL ersetzen. Auf der echten Seite wird jeder Override ignoriert, sonst
+// könnte ein präparierter Link das Login-Token an eine fremde Adresse lenken.
 const OVERRIDE_KEY = "hm-tracker.workerUrl";
+
+export function isLocalDevHost(hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
 
 function readOverride() {
   try {
+    if (!isLocalDevHost(location.hostname)) {
+      localStorage.removeItem(OVERRIDE_KEY); // alten, evtl. untergeschobenen Wert verwerfen
+      return "";
+    }
     const fromQuery = new URLSearchParams(location.search).get("worker");
     if (fromQuery) {
       localStorage.setItem(OVERRIDE_KEY, fromQuery.replace(/\/+$/, ""));
@@ -32,6 +41,10 @@ function readOverride() {
 export const WORKER_URL = (readOverride() || WORKER_URL_DEFAULT).replace(/\/+$/, "");
 export const STRAVA_WORKER_URL = WORKER_URL;
 export const COACH_URL = `${WORKER_URL}/coach`;
+// UID des einzigen erlaubten Kontos (Louis). Öffentlich unkritisch: sie steht
+// auch in firestore.rules und wrangler.toml, ein Test hält die drei gleich.
+// Die Prüfung im Client ist nur Bedienkomfort, den Schutz bilden Regeln und Worker.
+export const ALLOWED_UID = "gH4Te1JZzaO7DVoTSg9TtK4gw8p1";
 export const STRAVA_CLIENT_ID = "277715"; // öffentlich, steht auch in der Authorize-URL
 export const isWorkerConfigured = !!STRAVA_WORKER_URL && !STRAVA_WORKER_URL.includes("REPLACE-ME");
 

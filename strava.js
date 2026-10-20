@@ -1,5 +1,6 @@
-import { saveStravaTokens, loadStravaTokens } from "./firebase-init.js?v=202610201447";
-import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610201447";
+import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610201449";
+import { fetchWithAuthRetry } from "./access.js?v=202610201449";
+import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610201449";
 
 // Die Client-ID ist unkritisch öffentlich (sie steht ohnehin in der
 // Authorize-URL). Das Client-Secret liegt NICHT hier, sondern nur als
@@ -44,12 +45,17 @@ async function callWorker(path, body) {
   }
   let res;
   try {
-    res = await fetch(`${STRAVA_WORKER_URL}${path}`, {
+    // Der Worker verlangt das Firebase-ID-Token. Ein Retry mit frischem Token
+    // passiert nur bei 401 mit error "unauthorized" (Worker), nie bei einem
+    // 401 von Strava selbst.
+    res = await fetchWithAuthRetry(`${STRAVA_WORKER_URL}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    });
-  } catch {
+    }, { authHeaders, allowedOrigin: STRAVA_WORKER_URL });
+  } catch (err) {
+    // Kein Token (abgemeldet): eigener Hinweis statt der Netzwerk-/CORS-Meldung.
+    if (err?.source === "firebase") throw new Error("Anmeldung abgelaufen, bitte neu laden.");
     // Ein abgelehnter Origin (ALLOWED_ORIGINS im Worker) und ein echter
     // Netzwerkausfall sehen aus dem Browser heraus identisch aus: Der
     // Worker antwortet auf einen nicht erlaubten Origin zwar mit 403, aber
@@ -71,6 +77,9 @@ async function callWorker(path, body) {
     data = JSON.parse(text);
   } catch {
     /* keine JSON-Antwort — unten als Fehler behandelt */
+  }
+  if (res.status === 401 && data?.error === "unauthorized") {
+    throw new Error("Anmeldung abgelaufen, bitte neu laden.");
   }
   if (!res.ok || !data) {
     const detail = data?.message || text.slice(0, 160) || "keine Antwort";

@@ -20,6 +20,12 @@
 //    und in config.js bei WORKER_URL_DEFAULT eintragen.
 //
 // Alternativ mit der CLI:  npx wrangler deploy   (siehe wrangler.toml)
+//
+// Login (Schritt 1b): /coach, /exchange und /refresh verlangen ein
+// Firebase-ID-Token (Authorization: Bearer ...) von Louis' Konto. Variablen
+// in wrangler.toml [vars]: FIREBASE_PROJECT_ID, ALLOWED_UID, AUTH_MODE.
+// AUTH_MODE "report" prüft nur und loggt (Übergang, blockiert nie); jeder
+// andere Wert, auch ein fehlender, heißt "required" (blockiert).
 
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 
@@ -314,6 +320,211 @@ async function handleCoach(request, env, cors) {
   return json({ text, kind: body.kind, model: MODEL, promptVersion: PROMPT_VERSION }, 200, cors);
 }
 
+// ---------- Firebase-ID-Token prüfen (Login, Schritt 1b) ----------
+// Ohne Bibliothek: RS256-Signatur per Web Crypto gegen die öffentlichen
+// Schlüssel von Google (JWK), dazu die Claims. Das Token wird nie geloggt,
+// nur ein kurzer Grund-Code.
+const JWK_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+const MAX_TOKEN_LENGTH = 4096;
+const EXP_TOLERANCE_S = 30; // abgelaufen darf höchstens 30 s her sein
+const IAT_TOLERANCE_S = 60; // Uhrabweichung bei iat/auth_time
+const JWK_TTL_MIN_S = 60;
+const JWK_TTL_MAX_S = 24 * 3600;
+const JWK_TTL_DEFAULT_S = 3600;
+const JWK_RELOAD_MIN_INTERVAL_MS = 60 * 1000; // Rotation: höchstens 1 Neuladen pro Minute
+const JWK_STALE_MAX_MS = 3600 * 1000; // stale-if-error: abgelaufener Cache höchstens 1 h weiter nutzen
+const PROTECTED_PATHS = new Set(["/coach", "/exchange", "/refresh"]);
+const UNAUTHORIZED_BODY = { error: "unauthorized", message: "Anmeldung erforderlich" };
+
+// Modulweit je Isolate: importierte CryptoKeys je kid. Bei einem Kaltstart
+// kostet das einen zusätzlichen Abruf, mehr braucht es hier nicht.
+const keyCache = { keys: new Map(), expiresAt: 0, lastAttemptAt: 0, inflight: null };
+
+function b64urlDecode(segment) {
+  if (!/^[A-Za-z0-9_-]+$/.test(segment)) throw new Error("base64url");
+  const b64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
+
+function parseJsonObject(segment) {
+  const value = JSON.parse(new TextDecoder().decode(b64urlDecode(segment)));
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("kein Objekt");
+  return value;
+}
+
+// Zerlegt den Authorization-Header; wirft nie, liefert { reason } bei Fehlern.
+function parseBearer(request) {
+  const header = request.headers.get("Authorization");
+  if (!header) return { reason: "missing" };
+  const m = header.match(/^Bearer (\S+)$/);
+  if (!m) return { reason: "missing" };
+  const token = m[1];
+  if (token.length > MAX_TOKEN_LENGTH) return { reason: "invalid:length" };
+  const parts = token.split(".");
+  if (parts.length !== 3) return { reason: "invalid:format" };
+  try {
+    return { parts, header: parseJsonObject(parts[0]), payload: parseJsonObject(parts[1]), signature: b64urlDecode(parts[2]) };
+  } catch {
+    return { reason: "invalid:format" };
+  }
+}
+
+function jwkTtlSeconds(res) {
+  const m = (res.headers.get("Cache-Control") || "").match(/max-age=(\d+)/i);
+  const ttl = m ? Number(m[1]) : JWK_TTL_DEFAULT_S;
+  return Math.min(JWK_TTL_MAX_S, Math.max(JWK_TTL_MIN_S, ttl));
+}
+
+// Nur RSA-Signaturschlüssel für RS256 übernehmen.
+function usableJwk(jwk) {
+  return (
+    jwk && jwk.kty === "RSA" && typeof jwk.kid === "string" && jwk.kid !== "" &&
+    (jwk.alg === undefined || jwk.alg === "RS256") &&
+    (jwk.use === undefined || jwk.use === "sig")
+  );
+}
+
+async function fetchSigningKeys() {
+  const res = await fetch(JWK_URL);
+  if (!res.ok) throw new Error(`JWK-Abruf: HTTP ${res.status}`);
+  const { keys } = await res.json();
+  const imported = new Map();
+  for (const jwk of Array.isArray(keys) ? keys.filter(usableJwk) : []) {
+    try {
+      const key = await crypto.subtle.importKey(
+        "jwk",
+        { kty: "RSA", n: jwk.n, e: jwk.e, alg: "RS256", ext: true },
+        { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+        false,
+        ["verify"]
+      );
+      imported.set(jwk.kid, key);
+    } catch {
+      /* unbrauchbaren Schlüssel überspringen */
+    }
+  }
+  if (imported.size === 0) throw new Error("JWK-Abruf: keine brauchbaren Schlüssel");
+  return { keys: imported, ttlSeconds: jwkTtlSeconds(res) };
+}
+
+// Lädt die Schlüssel neu; gleichzeitige Anfragen teilen sich den Abruf.
+// Rückgabe: true bei Erfolg. Bei Fehler bleibt der alte Cache liegen.
+function refreshKeys(now) {
+  if (keyCache.inflight) return keyCache.inflight;
+  keyCache.lastAttemptAt = now;
+  keyCache.inflight = (async () => {
+    try {
+      const { keys, ttlSeconds } = await fetchSigningKeys();
+      keyCache.keys = keys;
+      keyCache.expiresAt = now + ttlSeconds * 1000;
+      return true;
+    } catch (err) {
+      console.log("auth: jwk-fetch-failed");
+      return false;
+    } finally {
+      keyCache.inflight = null;
+    }
+  })();
+  return keyCache.inflight;
+}
+
+// { key } | { unknown: true } | { unavailable: true }
+// unavailable (Google nicht erreichbar, kein brauchbarer Cache) ist bewusst
+// etwas anderes als unknown: der Client soll es nicht für eine abgelaufene
+// Anmeldung halten.
+async function findSigningKey(kid, now) {
+  const c = keyCache;
+  const fresh = () => c.keys.size > 0 && now < c.expiresAt;
+  if (fresh() && c.keys.has(kid)) return { key: c.keys.get(kid) };
+
+  let attempted = false;
+  let refreshed = false;
+  if (now - c.lastAttemptAt >= JWK_RELOAD_MIN_INTERVAL_MS) {
+    attempted = true;
+    refreshed = await refreshKeys(now);
+  }
+  if (c.keys.has(kid) && (fresh() || now - c.expiresAt <= JWK_STALE_MAX_MS)) return { key: c.keys.get(kid) };
+  if (attempted && !refreshed) return { unavailable: true };
+  if (fresh()) return { unknown: true };
+  return { unavailable: true };
+}
+
+const isNonEmptyString = (v) => typeof v === "string" && v !== "";
+
+function checkClaims(payload, cfg, nowS) {
+  const { exp, iat, auth_time: authTime, sub, aud, iss } = payload;
+  if (![exp, iat, authTime].every(isFiniteNumber) || !isNonEmptyString(sub)) return "invalid:claims";
+  if (!(exp > nowS - EXP_TOLERANCE_S)) return "invalid:exp";
+  if (!(iat <= nowS + IAT_TOLERANCE_S)) return "invalid:iat";
+  if (!(authTime <= nowS + IAT_TOLERANCE_S)) return "invalid:auth_time";
+  if (aud !== cfg.projectId) return "invalid:aud";
+  if (iss !== `https://securetoken.google.com/${cfg.projectId}`) return "invalid:iss";
+  if (sub !== cfg.allowedUid) return "invalid:sub";
+  // Doppelt gemoppelt (die sub-Bindung schließt anonyme Konten schon aus), schadet aber nicht.
+  if (payload.firebase?.sign_in_provider === "anonymous") return "invalid:anonymous";
+  return null;
+}
+
+// Prüft das Token vollständig. Rückgabe: { ok: true } | { ok: false, reason }
+// | { unavailable: true }.
+async function verifyIdToken(request, cfg) {
+  const parsed = parseBearer(request);
+  if (parsed.reason) return { ok: false, reason: parsed.reason };
+  // Whitelist mit genau einem Eintrag: none, HS256, RS512 ... fliegen raus.
+  if (parsed.header.alg !== "RS256") return { ok: false, reason: "invalid:alg" };
+  if (!isNonEmptyString(parsed.header.kid)) return { ok: false, reason: "invalid:kid" };
+
+  const found = await findSigningKey(parsed.header.kid, Date.now());
+  if (found.unavailable) return { unavailable: true };
+  if (found.unknown) return { ok: false, reason: "invalid:kid" };
+
+  const signed = new TextEncoder().encode(`${parsed.parts[0]}.${parsed.parts[1]}`);
+  let valid = false;
+  try {
+    valid = await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, found.key, parsed.signature, signed);
+  } catch {
+    valid = false;
+  }
+  if (!valid) return { ok: false, reason: "invalid:signature" };
+
+  const claimProblem = checkClaims(parsed.payload, cfg, Math.floor(Date.now() / 1000));
+  return claimProblem ? { ok: false, reason: claimProblem } : { ok: true };
+}
+
+// "report" nur bei genau diesem Wert; fehlend oder unbekannt = "required".
+const authMode = (env) => (env.AUTH_MODE === "report" ? "report" : "required");
+
+function authConfig(env) {
+  const projectId = typeof env.FIREBASE_PROJECT_ID === "string" ? env.FIREBASE_PROJECT_ID.trim() : "";
+  const allowedUid = typeof env.ALLOWED_UID === "string" ? env.ALLOWED_UID.trim() : "";
+  return projectId && allowedUid ? { projectId, allowedUid } : null;
+}
+
+// Gibt eine Antwort zurück, wenn der Zugriff verweigert wird, sonst null.
+// Alle Prüffehler liefern dieselbe 401-Antwort (kein Orakel), der Grund geht
+// nur als Code ins Log.
+async function enforceAuth(request, env, cors) {
+  const report = authMode(env) === "report";
+  const cfg = authConfig(env);
+  if (!cfg) {
+    console.log("auth: not_configured");
+    return report ? null : json({ error: "not_configured", message: "Login-Konfiguration fehlt" }, 500, cors);
+  }
+  const result = await verifyIdToken(request, cfg);
+  if (result.ok) {
+    if (report) console.log("auth: ok");
+    return null;
+  }
+  const reason = result.unavailable ? "unavailable" : result.reason;
+  console.log(`auth: ${reason}`);
+  if (report) return null;
+  if (result.unavailable) {
+    return json({ error: "auth_unavailable", message: "Anmeldeprüfung gerade nicht verfügbar" }, 503, cors);
+  }
+  return json(UNAUTHORIZED_BODY, 401, cors);
+}
+
 function corsHeaders(request, env, path) {
   const origin = request.headers.get("Origin") || "";
   const allowList = (env.ALLOWED_ORIGINS || "")
@@ -336,7 +547,7 @@ function corsHeaders(request, env, path) {
     headers: {
       "Access-Control-Allow-Origin": allowed || "null",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Max-Age": "86400",
       Vary: "Origin",
     },
@@ -369,6 +580,13 @@ export default {
       return path === "/coach"
         ? json({ error: "method_not_allowed", message: "Nur POST" }, 405, cors)
         : json({ message: "Nur POST" }, 405, cors);
+    }
+
+    // Login: Token prüfen, bevor irgendein Body gelesen wird. Unbekannte
+    // Pfade bleiben bei ihrem 404 weiter unten.
+    if (PROTECTED_PATHS.has(path)) {
+      const denied = await enforceAuth(request, env, cors);
+      if (denied) return denied;
     }
 
     // /coach: vor die Strava-Secret-Prüfung geroutet, sonst antwortet der

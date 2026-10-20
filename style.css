@@ -724,3 +724,38 @@ select {
    Platz für das Chevron-Icon (M2-11). */
 .day-row .day-open { margin-top: 8px; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
 .day-row .day-open svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* ---- Anmeldung (Schritt 1b) ----
+   Anmelde-, "Kein Zugriff"- und Konto-Karte. Nur Tokens und das 4/8/12/16-
+   Raster; Felder mindestens 16px (iOS zoomt sonst), Knöpfe mindestens 44px. */
+/* Ohne Sitzung gibt es keine Tableiste, #main braucht dann kein Polster dafür. */
+#app.no-session #tabbar { display: none; }
+#app.no-session #main { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+
+.card.auth-card, .card.account-card { display: flex; flex-direction: column; gap: 12px; }
+.card.auth-card p.hint, .card.account-card p.hint { margin: 0; }
+
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field-label { font-size: 12px; color: var(--text-secondary); }
+.text-input {
+  width: 100%; min-width: 0; height: 44px; padding: 0 12px; font-size: 16px;
+  border: 0.5px solid var(--border); border-radius: 8px;
+  background: var(--surface-2); color: var(--text-primary);
+}
+.text-input:focus-visible { outline: 2px solid var(--teal-fg); outline-offset: 1px; }
+
+.auth-error {
+  margin: 0; padding: 8px 12px; border-radius: 8px;
+  font-size: 13px; line-height: 1.4; color: var(--danger-fg); background: var(--danger-bg);
+}
+.auth-error[hidden] { display: none; }
+.auth-submit { height: 44px; }
+
+/* E-Mail und UID untereinander statt nebeneinander: beide sind lang und
+   brechen sonst bei schmalen Fenstern aus der Karte. */
+.account-rows { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.account-row { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.account-row dt { font-size: 11px; color: var(--text-muted); }
+.account-row dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.account-row dd.account-uid { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; user-select: all; }
+.account-logout { min-height: 44px; align-self: flex-start; padding: 6px 16px; }

@@ -37,6 +37,30 @@ Firebase-Console → Firestore Database → Regeln → Inhalt von
 `firebase-init.js` darf öffentlich im Code stehen — abgesichert wird über
 die Regeln, nicht über Geheimhaltung.
 
+Die Regeln lassen nur ein Konto zu: Louis' UID (`ALLOWED_UID`). Dieselbe UID
+steht in `config.js`, `firestore.rules` und `wrangler.toml`;
+`tests/config-consistency.test.mjs` hält die drei gleich.
+
+**Login.** Die App verlangt eine Anmeldung mit E-Mail und Passwort. Das Konto
+wird in der Firebase-Console angelegt (Authentication → Users), in der App
+kann man sich nicht registrieren. Die Sitzung bleibt pro Gerät und Variante
+(Safari-Tab, Home-Bildschirm-App) gespeichert; im Safari-Tab löscht Safari
+Website-Daten nach 7 Tagen ohne Nutzung, dann kommt einmal der Login zurück.
+Im Plan-Tab gibt es unten die Konto-Karte. „Abmelden“ sendet erst alle noch
+offenen Einträge, räumt dann Offline-Speicher und lokale Kopien und bricht
+ab, wenn noch etwas nicht übertragen ist.
+
+**Worker-Variablen** (`wrangler.toml`, `[vars]`): `FIREBASE_PROJECT_ID`,
+`ALLOWED_UID` und `AUTH_MODE`. `/coach`, `/exchange` und `/refresh` prüfen
+das Firebase-ID-Token (`Authorization: Bearer ...`). Fehlt eine der beiden
+ersten Variablen, antwortet der Worker mit 500 `not_configured`.
+`AUTH_MODE = "report"` ist der Übergang beim Einführen: der Worker prüft und
+loggt (`npx wrangler tail`: `auth: ok` oder `auth: invalid:<grund>`), blockiert
+aber nie. Jeder andere Wert, auch ein fehlender, heißt `required` und
+blockiert. Reihenfolge beim Einführen: Worker mit `report` deployen, App
+ausliefern und anmelden, im Log `auth: ok` sehen, dann `AUTH_MODE` auf
+`"required"` stellen und erneut deployen.
+
 ## 3. Strava einrichten (der entscheidende Schritt)
 
 Stravas Token-Endpunkt `POST /oauth/token` erlaubt **keine** CORS-Anfragen
@@ -113,7 +137,7 @@ Details siehe `tests/README.md`.
 | Datei | Zweck |
 | --- | --- |
 | `index.html`, `style.css`, `app.js` | die App |
-| `config.js` | Worker-URL und Strava-Client-ID |
+| `config.js` | Worker-URL, Strava-Client-ID und erlaubte UID |
 | `plans/hm-2027.json` | Die eigentlichen Plandaten (Wochen, Einheiten, Ziel, Renndatum) — reine Daten, keine Generator-Funktionen mehr |
 | `plan.js` | Reine Trainingsplan-**Logik**; nimmt den Plan (aus `plans/`) als Parameter entgegen, enthält selbst keine Plandaten |
 | `plan-store.js` | Lädt `plans/hm-2027.json` per `fetch`, validiert sie und hält eine Kopie in `localStorage` fürs Funkloch |
@@ -121,9 +145,10 @@ Details siehe `tests/README.md`.
 | `metrics.js` | Ampeln und Kennzahlen des Dashboards (ohne Browser testbar), Grenzwerte aus `THRESHOLDS` in `config.js` |
 | `coach.js` | Coach im Browser: Eingabe bauen, Cache in Firestore (`coach/`, `coachweek/`), Tageslimits, Regel-Fallback |
 | `ui.js`, `view-dashboard.js`, `view-week.js` | Gemeinsame UI-Helfer und die Ansichten von Dashboard und Wochen-Tab |
-| `firebase-init.js` | Firestore + anonyme Anmeldung, mit Offline-Cache |
+| `firebase-init.js` | Firestore mit Offline-Cache und Anmeldung (E-Mail und Passwort) |
+| `access.js`, `view-account.js` | Zugangslogik (Zustand der Sitzung, Fehlertexte, Token-Retry) und das Markup von Anmeldung und Konto-Karte |
 | `strava.js` | Strava-Anbindung |
-| `worker.js`, `wrangler.toml` | Cloudflare Worker: Strava-Token-Austausch und Coach-Endpunkt `/coach` (Claude API) |
+| `worker.js`, `wrangler.toml` | Cloudflare Worker: Strava-Token-Austausch und Coach-Endpunkt `/coach` (Claude API), alle mit Prüfung des Firebase-ID-Tokens |
 | `tools/bump-version.mjs` | Setzt den Versionsstempel gegen Browser-Cache (auch auf die JSON-URL in `plan-store.js`) |
 | `firestore.rules` | Firestore-Regeln |
 | `manifest.webmanifest`, `icon.png` | „Zum Home-Bildschirm" auf dem Handy |
@@ -141,7 +166,3 @@ Details siehe `tests/README.md`.
 - **Offline:** Eingaben werden lokal zwischengespeichert und später
   synchronisiert. Die App selbst lädt aber noch aus dem Netz (kein Service
   Worker), ohne Verbindung öffnet sie also nicht.
-- **Anonyme Anmeldung:** die Firestore-Regeln erlauben jedem angemeldeten
-  Nutzer Zugriff, und jeder Besucher der Seite meldet sich anonym an. Für
-  ein privates Tool okay; wer es dichter will, nimmt echtes Login und
-  bindet die Regeln an die eigene UID.
