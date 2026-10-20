@@ -7,10 +7,11 @@ import { esc } from "./ui.js?v=202610201519";
 // Anmeldeformular. Ein echtes <form> mit autocomplete username und
 // current-password, damit der iCloud-Schlüsselbund ausfüllt und speichert.
 // Die Felder haben mindestens 16px (iOS zoomt sonst beim Antippen).
-export function renderLogin({ email = "", error = "" } = {}) {
+export function renderLogin({ email = "", error = "", notice = "" } = {}) {
   return `<form class="card auth-card" data-form="login" novalidate>
     <p class="name">Anmelden</p>
     <p class="hint">Diese App ist privat. Anmelden geht nur mit dem Konto des Besitzers.</p>
+    ${notice ? `<p class="hint" role="status" data-notice>${esc(notice)}</p>` : ""}
     <label class="field">
       <span class="field-label">E-Mail</span>
       <input class="text-input" type="email" name="email" autocomplete="username" inputmode="email"

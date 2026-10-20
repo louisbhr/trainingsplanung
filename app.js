@@ -1998,8 +1998,24 @@ function showGate(title, html) {
   main.innerHTML = html;
 }
 
-function showLogin(email = "", error = "") {
-  showGate("Anmelden", renderLogin({ email, error }));
+function showLogin(email = "", error = "", notice = "") {
+  showGate("Anmelden", renderLogin({ email, error, notice }));
+}
+
+// Einmaliger Hinweis über das Neuladen hinweg (sessionStorage, nicht der
+// geräumte localStorage): nach dem Abmelden mit offenem zweitem Tab.
+const LOGOUT_NOTICE_KEY = "hm-tracker-notice";
+const CACHE_KEPT_NOTICE =
+  "Abgemeldet. Der Offline-Speicher dieses Geräts konnte nicht geleert werden, weil die App noch in einem anderen Tab offen ist. Bitte alle Tabs der App schließen.";
+
+function takeLogoutNotice() {
+  try {
+    const text = sessionStorage.getItem(LOGOUT_NOTICE_KEY) || "";
+    sessionStorage.removeItem(LOGOUT_NOTICE_KEY);
+    return text;
+  } catch {
+    return "";
+  }
 }
 
 // Anonyme Altsitzung aus der Zeit vor dem Login: erst alle noch nicht
@@ -2030,8 +2046,9 @@ function setAccountStatus(text) {
 async function logout(btn) {
   btn.disabled = true;
   setAccountStatus("Wird abgemeldet …");
+  let res;
   try {
-    const res = await signOutAndWipeDevice();
+    res = await signOutAndWipeDevice();
     if (!res.ok) {
       setAccountStatus("Es gibt noch nicht übertragene Einträge. Bitte mit Netz noch einmal versuchen.");
       btn.disabled = false;
@@ -2042,6 +2059,9 @@ async function logout(btn) {
     setAccountStatus("Abmelden fehlgeschlagen: " + err.message);
     btn.disabled = false;
     return;
+  }
+  if (res.cacheCleared === false) {
+    try { sessionStorage.setItem(LOGOUT_NOTICE_KEY, CACHE_KEPT_NOTICE); } catch { /* ohne Hinweis neu laden */ }
   }
   location.reload();
 }
@@ -2061,9 +2081,18 @@ async function exportPart(label, warnings, load) {
   } catch (err) {
     console.error(err);
     // Strava-Meldungen enthalten Gedankenstriche, die hier nicht stehen sollen.
-    warnings.push(`${label}: ${err.message.replace(/\s+—\s+/g, ", ")}`);
+    warnings.push(warningText(label, err.message));
     return null;
   }
+}
+
+// "Strava: Strava-Abruf fehlgeschlagen" liest sich doppelt: beginnt die
+// Meldung selbst mit dem Teilnamen, wird er nicht noch einmal vorangestellt.
+function warningText(label, message) {
+  const clean = message.replace(/\s+—\s+/g, ", ");
+  if (clean.startsWith(`${label}-`)) return `${label}: ${clean.slice(label.length + 1)}`;
+  if (clean.startsWith(`${label} `)) return clean;
+  return `${label}: ${clean}`;
 }
 
 // Gibt die Datei weiter: Teilen-Blatt, wo das Gerät Dateien teilen kann
@@ -2178,7 +2207,7 @@ async function init() {
     return;
   }
   const access = accessState(user, ALLOWED_UID);
-  if (access === "signedOut") return showLogin();
+  if (access === "signedOut") return showLogin("", "", takeLogoutNotice());
   if (access === "anonymous") return handleAnonymousSession();
   if (access === "forbidden") {
     return showGate("Kein Zugriff", renderNoAccess({ email: user.email, uid: user.uid }));

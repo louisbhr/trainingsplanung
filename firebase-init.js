@@ -158,17 +158,23 @@ export async function signOutUser() {
 // "Abmelden" im Plan-Tab räumt das Gerät: erst alle Schreibvorgänge senden
 // lassen (sonst gingen sie verloren), dann abmelden, den Offline-Cache und
 // die eigenen lokalen Kopien löschen. Bei offenen Schreibvorgängen wird
-// nichts gelöscht. Rückgabe: { ok: true } oder { ok: false, reason: "pending" }.
+// nichts gelöscht. Rückgabe: { ok: false, reason: "pending" } oder
+// { ok: true, cacheCleared } (false, wenn der Offline-Cache bleibt, z. B. weil
+// ein zweiter Tab der App ihn noch hält).
 export async function signOutAndWipeDevice({ flushMs = 10000 } = {}) {
   const flushed = await raceTimeout(fsWaitForPendingWrites(db), flushMs);
   if (!flushed) return { ok: false, reason: "pending" };
   await signOutUser();
+  let cacheCleared = true;
   try {
     await terminate(db);
     await clearIndexedDbPersistence(db);
   } catch (err) {
-    // Ohne persistenten Cache (z. B. privates Fenster) gibt es nichts zu löschen.
+    // Ohne persistenten Cache (z. B. privates Fenster) gibt es nichts zu
+    // löschen. Mit zweitem Tab scheitert das Löschen (failed-precondition);
+    // dann darf die App nicht behaupten, das Gerät sei geräumt.
     console.warn("Offline-Cache konnte nicht geleert werden:", err);
+    cacheCleared = err?.code !== "failed-precondition";
   }
   try {
     Object.keys(localStorage)
@@ -177,7 +183,7 @@ export async function signOutAndWipeDevice({ flushMs = 10000 } = {}) {
   } catch {
     /* localStorage kann in privaten Fenstern werfen */
   }
-  return { ok: true };
+  return { ok: true, cacheCleared };
 }
 
 // --- Kraft-Log: eine Zeile pro Datum+Übung ---

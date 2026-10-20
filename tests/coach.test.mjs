@@ -135,6 +135,30 @@ test("requestCoach: generations wird vor dem API-Aufruf gezählt und geschrieben
   assert.equal(writes[1].text, "Neuer Text.");
 });
 
+// Review N1: Ablehnungen der Anmeldeprüfung erreichen Claude nie und dürfen
+// kein Tageskontingent verbrauchen; ein echter Fehler (z. B. 502) zählt weiter.
+for (const [status, error, refunded] of [
+  [401, "unauthorized", true],
+  [503, "auth_unavailable", true],
+  [500, "not_configured", true],
+  [502, "upstream_error", false],
+  [401, undefined, false],
+]) {
+  test(`requestCoach: Worker ${status} ${error ?? "ohne error"} -> Kontingent ${refunded ? "zurückgegeben" : "verbraucht"}`, async () => {
+    let store = { inputHash: "h1", generations: 1, text: "alt" };
+    const result = await requestCoach({
+      hash: "h2",
+      loadDoc: async () => store,
+      saveDoc: async (data) => { store = { ...store, ...data }; },
+      fetchWorker: async () => ({ ok: false, status, json: async () => ({ error }) }),
+      limit: 3, model: "m", promptVersion: "v1", fallbackText: "Fallback.",
+    });
+    assert.equal(result.source, "fallback");
+    assert.equal(store.generations, refunded ? 1 : 2);
+    assert.equal(store.text, "alt", "alter Text bleibt liegen");
+  });
+}
+
 test("requestCoach: Limit erreicht -> letzter Text, kein neuer Aufruf", async () => {
   let fetchCalled = false;
   const result = await requestCoach({
