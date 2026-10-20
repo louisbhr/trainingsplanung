@@ -10,22 +10,63 @@ const ok = (cond, msg) => { checks++; if (!cond) { console.log("FAIL:", msg); fa
 // Für die Plan-Lade-Tests (A1): eine echte, gültige Kopie zum Vorbelegen
 // von localStorage, damit "JSON 404 mit Kopie" nicht künstlich wirkt.
 const REAL_PLAN_JSON = readFileSync(new URL("../plans/hm-2027.json", import.meta.url), "utf8");
+// Die Stub-UID kommt aus config.js, damit sie nicht kopiert werden muss und
+// beim Wechsel der UID nichts auseinanderläuft.
+const TEST_UID = readFileSync(new URL("../config.js", import.meta.url), "utf8").match(/ALLOWED_UID\s*=\s*"([^"]+)"/)[1];
 
 const FIREBASE_STUB = `
 const KEY = "test.logs";
 const read = () => JSON.parse(localStorage.getItem(KEY) || "{}");
 const write = (o) => localStorage.setItem(KEY, JSON.stringify(o));
 export const db = {};
-export async function ensureSignedIn() { return { uid: "test-user" }; }
-export async function saveLog(dateISO, slug, data) {
+// Auth-Zustand des Tests: sessionStorage (überlebt ein Neuladen, z. B. nach
+// signOutUser) vor window.__AUTH__ (per addInitScript) vor "ok".
+const AUTH_USERS = {
+  ok: { uid: "${TEST_UID}", email: "louis@example.test", isAnonymous: false },
+  forbidden: { uid: "fremde-uid-1234567890", email: "fremd@example.test", isAnonymous: false },
+  anonymous: { uid: "anon-uid", email: null, isAnonymous: true },
+  signedOut: null,
+};
+const authMode = () => sessionStorage.getItem("test.auth") || window.__AUTH__ || "ok";
+const bumpCount = (k) => { window[k] = (window[k] || 0) + 1; };
+const fs = () => bumpCount("__FS_CALLS__");
+export async function authReady() { return AUTH_USERS[authMode()] ?? null; }
+export async function signIn(email, password) {
+  bumpCount("__SIGNIN_CALLS__");
+  window.__SIGNIN_ARGS__ = [email, password];
+  if (window.__SIGNIN_FAIL__) { const e = new Error("bad"); e.code = window.__SIGNIN_FAIL__; throw e; }
+  sessionStorage.setItem("test.auth", "ok");
+  return AUTH_USERS.ok;
+}
+export async function signOutUser() {
+  sessionStorage.setItem("test.signouts", String(Number(sessionStorage.getItem("test.signouts") || 0) + 1));
+  sessionStorage.setItem("test.auth", "signedOut");
+}
+export async function signOutAndWipeDevice() {
+  if (window.__PENDING__ === "hang") return { ok: false, reason: "pending" };
+  sessionStorage.setItem("test.wiped", "1");
+  sessionStorage.setItem("test.auth", "signedOut");
+  return { ok: true };
+}
+export async function waitForPendingWrites() {
+  bumpCount("__FLUSH_CALLS__");
+  if (window.__PENDING__ === "hang") return new Promise(() => {});
+}
+export async function authHeaders({ force } = {}) {
+  if (authMode() !== "ok" || window.__TOKEN_FAIL__) throw Object.assign(new Error("Firebase: Nicht angemeldet."), { source: "firebase" });
+  window.__TOKEN_CALLS__ = (window.__TOKEN_CALLS__ || []).concat([!!force]);
+  return { Authorization: "Bearer " + (force ? "fresh-token" : "test-token") };
+}
+export async function ensureSignedIn() { return AUTH_USERS.ok; }
+export async function saveLog(dateISO, slug, data) { fs();
   const s = read(); s[dateISO + "_" + slug] = { date: dateISO, exercise: slug, ...data }; write(s);
 }
-export async function loadLog(d, s) { return read()[d + "_" + s] || null; }
-export async function loadLogsForDate(d) {
+export async function loadLog(d, s) { fs(); return read()[d + "_" + s] || null; }
+export async function loadLogsForDate(d) { fs();
   const out = {}; for (const v of Object.values(read())) if (v.date === d) out[v.exercise] = v; return out;
 }
-export async function loadAllLogs() { return Object.values(read()); }
-export async function loadAllDayPlans() {
+export async function loadAllLogs() { fs(); return Object.values(read()); }
+export async function loadAllDayPlans() { fs();
   const out = {};
   for (const key of Object.keys(localStorage)) {
     if (!key.startsWith("test.dayplan.")) continue;
@@ -34,46 +75,46 @@ export async function loadAllDayPlans() {
   }
   return out;
 }
-export async function loadLogsForExercise(slug) {
+export async function loadLogsForExercise(slug) { fs();
   return Object.values(read()).filter((v) => v.exercise === slug).sort((a, b) => (a.date < b.date ? -1 : 1));
 }
-export async function loadRunLinks() {
+export async function loadRunLinks() { fs();
   return JSON.parse(localStorage.getItem("test.runlinks") || "{}");
 }
-export async function saveRunLink(date, activityId) {
+export async function saveRunLink(date, activityId) { fs();
   const all = JSON.parse(localStorage.getItem("test.runlinks") || "{}");
   all[date] = { activityId: activityId ?? null };
   localStorage.setItem("test.runlinks", JSON.stringify(all));
 }
-export async function clearRunLink(date) {
+export async function clearRunLink(date) { fs();
   const all = JSON.parse(localStorage.getItem("test.runlinks") || "{}");
   delete all[date];
   localStorage.setItem("test.runlinks", JSON.stringify(all));
 }
-export async function loadDayPlan(dateISO) {
+export async function loadDayPlan(dateISO) { fs();
   const d = JSON.parse(localStorage.getItem("test.dayplan." + dateISO) || "null");
   return { removed: d?.removed || [], added: d?.added || [] };
 }
-export async function saveDayPlan(dateISO, dp) {
+export async function saveDayPlan(dateISO, dp) { fs();
   localStorage.setItem("test.dayplan." + dateISO, JSON.stringify(dp));
 }
-export async function loadCoach(dateISO) {
+export async function loadCoach(dateISO) { fs();
   return JSON.parse(localStorage.getItem("test.coach." + dateISO) || "null");
 }
-export async function saveCoach(dateISO, data) {
+export async function saveCoach(dateISO, data) { fs();
   localStorage.setItem("test.coach." + dateISO, JSON.stringify(data));
 }
-export async function loadCoachWeek(key) {
+export async function loadCoachWeek(key) { fs();
   return JSON.parse(localStorage.getItem("test.coachweek." + key) || "null");
 }
-export async function saveCoachWeek(key, data) {
+export async function saveCoachWeek(key, data) { fs();
   localStorage.setItem("test.coachweek." + key, JSON.stringify(data));
 }
-export async function saveStravaTokens(t) {
+export async function saveStravaTokens(t) { fs();
   const cur = JSON.parse(localStorage.getItem("test.strava") || "null") || {};
   localStorage.setItem("test.strava", JSON.stringify({ ...cur, ...t }));
 }
-export async function loadStravaTokens() { return JSON.parse(localStorage.getItem("test.strava") || "null"); }
+export async function loadStravaTokens() { fs(); return JSON.parse(localStorage.getItem("test.strava") || "null"); }
 `;
 
 const ACTIVITIES = [
@@ -528,6 +569,12 @@ async function noHScroll(page, where) {
     contentType: "application/javascript",
     body: `
       export const db = {};
+      export async function authReady() { return { uid: "${TEST_UID}", email: "t@example.test", isAnonymous: false }; }
+      export async function signIn() {}
+      export async function signOutUser() {}
+      export async function signOutAndWipeDevice() { return { ok: true }; }
+      export async function waitForPendingWrites() {}
+      export async function authHeaders() { return { Authorization: "Bearer test-token" }; }
       export async function ensureSignedIn() { return { uid: "t" }; }
       export async function loadCoach() { throw new Error("Missing or insufficient permissions."); }
       export async function saveCoach() {}
@@ -763,7 +810,7 @@ async function noHScroll(page, where) {
   // Zustand deshalb hier gezielt nachstellen.
   await ctx.route(/config\.js/, (r) => r.fulfill({
     contentType: "application/javascript",
-    body: `export const STRAVA_WORKER_URL = ""; export const STRAVA_CLIENT_ID = "277715"; export const isWorkerConfigured = false; export const COACH_URL = "";
+    body: `export const ALLOWED_UID = "${TEST_UID}"; export const STRAVA_WORKER_URL = ""; export const STRAVA_CLIENT_ID = "277715"; export const isWorkerConfigured = false; export const COACH_URL = "";
       export const THRESHOLDS = { wochensoll: { gruen: 0.9, gelb: 0.7 }, easy: { gelbMaxOver: 8 },
       belastung: { gruen: 1.3, gelb: 1.5 }, kraft: { windowDays: 42, stallSessions: 2, minExercisesWithData: 3, redAffectedCount: 2, redConsecutiveBelow: 2 }, coach: { dailyLimit: 3, weeklyLimit: 2 } };`,
   }));
@@ -881,6 +928,12 @@ async function noHScroll(page, where) {
       }
       const boom = () => { throw new FirebaseAccessError("Missing or insufficient permissions."); };
       export const db = {};
+      export async function authReady() { return { uid: "${TEST_UID}", email: "t@example.test", isAnonymous: false }; }
+      export async function signIn() {}
+      export async function signOutUser() {}
+      export async function signOutAndWipeDevice() { return { ok: true }; }
+      export async function waitForPendingWrites() {}
+      export async function authHeaders() { return { Authorization: "Bearer test-token" }; }
       export async function ensureSignedIn() { return { uid: "t" }; }
       export async function saveLog() { boom(); }
       export async function loadLog() { boom(); }
@@ -913,7 +966,7 @@ async function noHScroll(page, where) {
   const runTxt = await page.textContent("#strava-slot");
   ok(runTxt.includes("Daten-Problem (Firebase)"), "Fehlerquelle: Firestore-Fehler wird nicht als Strava-Problem gezeigt");
   ok(runTxt.includes("Missing or insufficient permissions."), "Fehlerquelle: Originalmeldung sichtbar");
-  ok(runTxt.includes("Anonymous"), "Fehlerquelle: Hinweis auf die tatsächliche Ursache");
+  ok(runTxt.includes("angemeldet"), "Fehlerquelle: Hinweis auf die tatsächliche Ursache");
   ok((await page.locator('#strava-slot [data-action="connect-strava"]').count()) === 0,
      "Fehlerquelle: kein irreführendes 'Neu verbinden' bei Firebase-Fehlern");
   await shot(page, "09-firebase-fehler-lauftag");
@@ -1600,6 +1653,12 @@ async function noHScroll(page, where) {
     contentType: "application/javascript",
     body: `
       export const db = {};
+      export async function authReady() { return { uid: "${TEST_UID}", email: "t@example.test", isAnonymous: false }; }
+      export async function signIn() {}
+      export async function signOutUser() {}
+      export async function signOutAndWipeDevice() { return { ok: true }; }
+      export async function waitForPendingWrites() {}
+      export async function authHeaders() { return { Authorization: "Bearer test-token" }; }
       export async function ensureSignedIn() { return { uid: "t" }; }
       export async function loadAllLogs() { throw new Error("Missing or insufficient permissions."); }
       export async function loadAllDayPlans() { throw new Error("Missing or insufficient permissions."); }
@@ -1701,6 +1760,296 @@ async function noHScroll(page, where) {
   await page.waitForTimeout(300);
   ok(activityCalls === 2, `Strava-Paginierung: 200+13 Aktivitäten brauchen genau 2 Seiten (${activityCalls})`);
   ok(errors.length === 0, "Strava-Paginierung: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 30. Login-Gate (Schritt 1b, A1): Auth-Zustände ----
+// Auth-Zustand und Stub-Schalter per addInitScript (window.__AUTH__ usw.,
+// siehe FIREBASE_STUB). __FS_CALLS__ zählt jeden Firestore-Datenzugriff.
+async function authPage(auth, { url = "/index.html", flags = {}, viewport } = {}) {
+  const made = await newPage();
+  if (viewport) await made.page.setViewportSize(viewport);
+  await made.page.addInitScript(([a, f]) => {
+    window.__AUTH__ = a;
+    Object.assign(window, f);
+  }, [auth, flags]);
+  await made.page.goto(BASE + url);
+  return made;
+}
+const fsCalls = (page) => page.evaluate(() => window.__FS_CALLS__ || 0);
+const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("test.signouts") || 0));
+
+// 30a. Abgemeldet: Anmeldebildschirm, keine Tableiste, 0 Firestore-Aufrufe
+{
+  const { page, ctx, errors } = await authPage("signedOut");
+  await page.waitForSelector('form[data-form="login"]');
+  ok((await page.textContent("#header h1")) === "Anmelden", "Login: Überschrift 'Anmelden'");
+  const email = page.locator('form[data-form="login"] input[name="email"]');
+  const pw = page.locator('form[data-form="login"] input[name="password"]');
+  ok((await email.getAttribute("autocomplete")) === "username", "Login: E-Mail-Feld mit autocomplete=username (Schlüsselbund)");
+  ok((await pw.getAttribute("autocomplete")) === "current-password", "Login: Passwortfeld mit autocomplete=current-password");
+  ok((await email.getAttribute("type")) === "email" && (await pw.getAttribute("type")) === "password", "Login: Feldtypen email/password");
+  const sizes = await page.locator("form[data-form=login] input").evaluateAll((els) =>
+    els.map((el) => parseFloat(getComputedStyle(el).fontSize)));
+  ok(sizes.length === 2 && sizes.every((n) => n >= 16), `Login: Felder mindestens 16px (${sizes})`);
+  ok((await page.locator("#tabbar").isVisible()) === false, "Login: keine Tableiste ohne Anmeldung");
+  ok((await page.locator(".today-card").count()) === 0, "Login: kein Dashboard-Inhalt ohne Anmeldung");
+  await page.waitForTimeout(300);
+  ok((await fsCalls(page)) === 0, "Login: abgemeldet = 0 Firestore-Aufrufe");
+  await shot(page, "30a-login");
+  await noHScroll(page, "Login 390");
+  await page.setViewportSize({ width: 320, height: 568 });
+  await noHScroll(page, "Login 320");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await noHScroll(page, "Login 1280");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await shot(page, "30a-login-dark");
+  ok(errors.length === 0, "Login: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// 30b. Anmelden: Erfolg führt ins Dashboard, Fehler bleiben im Formular
+{
+  const { page, ctx, errors } = await authPage("signedOut", { flags: { __SIGNIN_FAIL__: "auth/invalid-credential" } });
+  await page.waitForSelector('form[data-form="login"]');
+  await page.click('form[data-form="login"] button[type="submit"]');
+  ok((await page.textContent(".auth-error")).includes("Bitte E-Mail und Passwort eingeben"), "Login: leere Felder werden abgefangen");
+  ok((await page.evaluate(() => window.__SIGNIN_CALLS__ || 0)) === 0, "Login: leere Felder lösen keinen Anmeldeversuch aus");
+  await page.fill('input[name="email"]', "louis@example.test");
+  await page.fill('input[name="password"]', "falsch");
+  await page.click('form[data-form="login"] button[type="submit"]');
+  await page.waitForFunction(() => document.querySelector(".auth-error")?.textContent.includes("E-Mail oder Passwort stimmt nicht"));
+  ok(await page.locator(".auth-error").isVisible(), "Login: falsches Passwort zeigt die deutsche Meldung");
+  ok((await page.inputValue('input[name="email"]')) === "louis@example.test", "Login: E-Mail bleibt nach einem Fehler stehen");
+  ok((await page.locator("#tabbar").isVisible()) === false, "Login: nach Fehler weiter ohne Tableiste");
+  await page.evaluate(() => { window.__SIGNIN_FAIL__ = null; });
+  await page.fill('input[name="password"]', "richtig");
+  await page.click('form[data-form="login"] button[type="submit"]');
+  await page.waitForSelector("#main .today-card");
+  ok((await page.evaluate(() => window.__SIGNIN_ARGS__)).join("|") === "louis@example.test|richtig", "Login: Zugangsdaten gehen unverändert an signIn");
+  ok(await page.locator("#tabbar").isVisible(), "Login: nach dem Anmelden erscheint die Tableiste");
+  ok((await page.textContent("#header h1")).startsWith("Woche"), "Login: nach dem Anmelden lädt das Dashboard im selben Seitenaufruf");
+  ok(errors.length === 0, "Login: Erfolg ohne Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// 30c. Fremdes Konto: Kein Zugriff + Abmelden
+{
+  const { page, ctx, errors } = await authPage("forbidden");
+  await page.waitForSelector('[data-action="forbidden-logout"]');
+  const txt = await page.textContent("#main");
+  ok((await page.textContent("#header h1")) === "Kein Zugriff", "Fremdes Konto: Überschrift 'Kein Zugriff'");
+  ok(txt.includes("fremde-uid-1234567890") && txt.includes("fremd@example.test"), "Fremdes Konto: zeigt E-Mail und UID des angemeldeten Kontos");
+  ok((await page.locator("#tabbar").isVisible()) === false, "Fremdes Konto: keine Tableiste");
+  await page.waitForTimeout(300);
+  ok((await fsCalls(page)) === 0, "Fremdes Konto: 0 Firestore-Aufrufe");
+  await noHScroll(page, "Kein Zugriff");
+  await shot(page, "30c-kein-zugriff");
+  await page.click('[data-action="forbidden-logout"]');
+  await page.waitForSelector('form[data-form="login"]');
+  ok((await signouts(page)) === 1, "Fremdes Konto: Abmelden ruft signOutUser genau einmal auf, danach Login");
+  ok(errors.length === 0, "Fremdes Konto: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// 30d. Anonyme Altsitzung: Einträge übertragen, still abmelden, Login
+{
+  const { page, ctx } = await authPage("anonymous");
+  await page.waitForSelector('form[data-form="login"]');
+  ok((await signouts(page)) === 1, "Anonym: nach erfolgreichem Flush genau ein stilles Abmelden");
+  ok((await page.evaluate(() => window.__FLUSH_CALLS__ || 0)) === 1, "Anonym: waitForPendingWrites wurde vor dem Abmelden abgewartet");
+  ok((await fsCalls(page)) === 0, "Anonym: keine Datenzugriffe");
+  await ctx.close();
+}
+
+// 30e. Anonyme Altsitzung mit hängendem Flush: Karte statt Abmelden (B5)
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  const page = await ctx.newPage();
+  await page.clock.install({ time: new Date("2026-09-07T09:00:00Z") });
+  await page.addInitScript(() => { window.__AUTH__ = "anonymous"; window.__PENDING__ = "hang"; });
+  await page.goto(BASE + "/index.html");
+  await page.waitForFunction(() => (window.__FLUSH_CALLS__ || 0) === 1);
+  await page.clock.runFor(11000);
+  await page.waitForSelector('[data-action="retry-pending"]');
+  ok((await page.textContent("#main")).includes("noch nicht übertragene Einträge"), "Anonym hängend: Hinweiskarte zu offenen Einträgen");
+  ok((await signouts(page)) === 0, "Anonym hängend: es wird NICHT abgemeldet");
+  ok((await page.locator('form[data-form="login"]').count()) === 0, "Anonym hängend: kein Login-Formular, kein Weitermachen");
+  await noHScroll(page, "Hinweiskarte offene Einträge");
+  // Erneut versuchen, diesmal löst der Flush auf
+  await page.evaluate(() => { window.__PENDING__ = null; });
+  await page.click('[data-action="retry-pending"]');
+  await page.waitForSelector('form[data-form="login"]');
+  ok((await signouts(page)) === 1, "Anonym: nach 'Erneut versuchen' und gelungenem Flush wird abgemeldet");
+  await ctx.close();
+}
+
+// 30f. Konto-Karte im Plan-Tab: Anzeige, Abmelden räumt das Gerät, offene Einträge brechen ab
+{
+  const { page, ctx, errors } = await authPage("ok");
+  await page.waitForSelector("#main .today-card");
+  await page.click('[data-tab="plan"]');
+  await page.waitForSelector(".account-card");
+  const card = await page.textContent(".account-card");
+  ok(card.includes("louis@example.test") && card.includes(TEST_UID), "Konto-Karte: zeigt E-Mail und UID");
+  ok(card.includes("räumt dieses Gerät"), "Konto-Karte: weist darauf hin, dass Abmelden das Gerät räumt");
+  const btn = await page.locator('.account-card [data-action="logout"]').boundingBox();
+  ok(btn && btn.height >= 44, `Konto-Karte: Abmelden-Knopf mindestens 44px hoch (${btn?.height})`);
+  await shot(page, "30f-konto-karte");
+  await noHScroll(page, "Konto-Karte");
+  await page.setViewportSize({ width: 320, height: 568 });
+  await noHScroll(page, "Konto-Karte 320");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await noHScroll(page, "Konto-Karte 1280");
+
+  // offene Einträge: abbrechen, nichts löschen, kein Neuladen
+  await page.evaluate(() => { window.__PENDING__ = "hang"; });
+  await page.click('.account-card [data-action="logout"]');
+  await page.waitForFunction(() => document.getElementById("account-status")?.textContent.includes("noch nicht übertragene"));
+  ok((await page.evaluate(() => sessionStorage.getItem("test.wiped"))) === null, "Abmelden mit offenen Einträgen: es wird nichts gelöscht");
+  ok((await page.locator('form[data-form="login"]').count()) === 0, "Abmelden mit offenen Einträgen: bleibt angemeldet, kein Login");
+  ok(await page.locator('.account-card [data-action="logout"]').isEnabled(), "Abmelden mit offenen Einträgen: Knopf wieder bedienbar");
+
+  // sonst: räumen, neu laden, Login
+  await page.evaluate(() => { window.__PENDING__ = null; });
+  await page.click('.account-card [data-action="logout"]');
+  await page.waitForSelector('form[data-form="login"]');
+  ok((await page.evaluate(() => sessionStorage.getItem("test.wiped"))) === "1", "Abmelden: Gerät wird geräumt (signOutAndWipeDevice)");
+  ok(errors.length === 0, "Konto-Karte: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 31. Worker-Token (A2): Coach und Strava senden Authorization ----
+// Coach: der Header ist da, genau ein Retry bei 401 unauthorized, kein Aufruf
+// ohne Token, bei 503 sofort Fallback. Krafttag (08.09.), damit der Coach
+// wirklich abgefragt wird.
+async function coachPage({ replies, flags = {} }) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  const seen = [];
+  await ctx.route("https://worker.test/coach", (r) => {
+    const reply = replies[Math.min(seen.length, replies.length - 1)];
+    seen.push(r.request().headers().authorization || null);
+    r.fulfill({ status: reply.status, contentType: "application/json", body: JSON.stringify(reply.body) });
+  });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  await page.clock.setFixedTime(new Date("2026-09-08T09:00:00Z"));
+  await page.addInitScript((f) => {
+    localStorage.setItem("hm-tracker.workerUrl", "https://worker.test");
+    Object.assign(window, f);
+  }, flags);
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForTimeout(500);
+  return { page, ctx, seen, errors };
+}
+
+{
+  const { page, ctx, seen, errors } = await coachPage({ replies: [{ status: 200, body: { text: "Coach sagt hallo." } }] });
+  ok(seen.length === 1 && seen[0] === "Bearer test-token", `Coach: Anfrage trägt Authorization: Bearer <Token> (${JSON.stringify(seen)})`);
+  ok((await page.textContent("#coach-slot")).includes("Coach sagt hallo."), "Coach: Antwort wird angezeigt");
+  ok(errors.length === 0, "Coach mit Token: keine Seitenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+{
+  const { page, ctx, seen } = await coachPage({ replies: [
+    { status: 401, body: { error: "unauthorized", message: "Anmeldung erforderlich" } },
+    { status: 200, body: { text: "Nach dem Retry." } },
+  ] });
+  ok(seen.length === 2 && seen[0] === "Bearer test-token" && seen[1] === "Bearer fresh-token",
+     `Coach: 401 unauthorized -> genau ein Retry mit frischem Token (${JSON.stringify(seen)})`);
+  ok((await page.textContent("#coach-slot")).includes("Nach dem Retry."), "Coach: Antwort nach dem Retry wird angezeigt");
+  await ctx.close();
+}
+{
+  const { ctx, seen } = await coachPage({ replies: [{ status: 401, body: { error: "unauthorized" } }] });
+  ok(seen.length === 2, `Coach: bleibt es bei 401, bleibt es bei einem einzigen Retry (${seen.length})`);
+  await ctx.close();
+}
+{
+  const { page, ctx, seen } = await coachPage({ replies: [{ status: 503, body: { error: "auth_unavailable" } }] });
+  ok(seen.length === 1, `Coach: 503 auth_unavailable -> sofort Fallback, kein Retry (${seen.length})`);
+  ok((await page.locator("#coach-slot .coach-card").count()) === 1, "Coach: Karte bleibt bei 503 erhalten (Fallback)");
+  await ctx.close();
+}
+{
+  const { page, ctx, seen, errors } = await coachPage({ replies: [{ status: 200, body: { text: "nie gesehen" } }], flags: { __TOKEN_FAIL__: true } });
+  ok(seen.length === 0, `Coach: ohne Token gibt es keinen Worker-Aufruf (${seen.length})`);
+  ok(!(await page.textContent("#coach-slot")).includes("nie gesehen"), "Coach: ohne Token greift der Fallback");
+  ok(errors.length === 0, "Coach ohne Token: keine Seitenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// Strava /refresh: abgelaufener Access-Token zwingt zum Worker-Aufruf
+async function refreshPage(replies) {
+  const { page, ctx, errors } = await newPage();
+  const seen = [];
+  await ctx.route("https://worker.test/refresh", (r) => {
+    const reply = replies[Math.min(seen.length, replies.length - 1)];
+    seen.push({ auth: r.request().headers().authorization || null });
+    r.fulfill({ status: reply.status, contentType: "application/json", body: JSON.stringify(reply.body) });
+  });
+  await page.addInitScript(() => {
+    localStorage.setItem("test.strava", JSON.stringify({ refresh_token: "rt", access_token: "at", expires_at: 1 }));
+  });
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector("#main .today-card");
+  await page.waitForTimeout(800);
+  return { page, ctx, seen, errors };
+}
+const refreshOk = { status: 200, body: { access_token: "at2", refresh_token: "rt2", expires_at: 9999999999 } };
+{
+  const { ctx, seen } = await refreshPage([refreshOk]);
+  ok(seen.length >= 1 && seen.every((s) => s.auth === "Bearer test-token"), `Strava /refresh: Anfrage trägt Authorization (${JSON.stringify(seen)})`);
+  await ctx.close();
+}
+{
+  const { ctx, seen } = await refreshPage([{ status: 401, body: { error: "unauthorized" } }, refreshOk]);
+  ok(seen[0]?.auth === "Bearer test-token" && seen[1]?.auth === "Bearer fresh-token",
+     `Strava /refresh: 401 unauthorized -> Retry mit frischem Token (${JSON.stringify(seen)})`);
+  await ctx.close();
+}
+{
+  // 401 ohne error-Feld = Strava lehnt ab, nicht der Worker: kein Retry
+  const { page, ctx, seen } = await refreshPage([{ status: 401, body: { message: "Authorization Error" } }]);
+  ok(seen.length === 1, `Strava /refresh: 401 ohne error-Feld -> KEIN Retry (${seen.length} Aufrufe)`);
+  ok((await page.evaluate(() => window.__TOKEN_CALLS__ || [])).every((f) => f === false), "Strava /refresh: kein erzwungenes Token bei Strava-401");
+  await ctx.close();
+}
+{
+  const { page, ctx, seen } = await refreshPage([{ status: 503, body: { error: "auth_unavailable", message: "x" } }]);
+  ok(seen.length === 1, `Strava /refresh: 503 auth_unavailable -> kein Retry (${seen.length})`);
+  await ctx.close();
+}
+
+// ---- 32. Strava-Redirect überlebt den Login (B4) ----
+{
+  const exchanges = [];
+  const made = await newPage();
+  const { page, ctx, errors } = made;
+  await ctx.route("https://worker.test/exchange", (r) => {
+    exchanges.push({ auth: r.request().headers().authorization || null, body: r.request().postData() });
+    r.fulfill({ contentType: "application/json", body: JSON.stringify({
+      access_token: "at-new", refresh_token: "rt-new", expires_at: 9999999999, athlete: { id: 42 } }) });
+  });
+  await page.addInitScript(() => { window.__AUTH__ = "signedOut"; });
+  await page.goto(BASE + "/index.html?code=redirect-code-1&scope=read,activity:read_all");
+  await page.waitForSelector('form[data-form="login"]');
+  await page.waitForTimeout(300);
+  ok(exchanges.length === 0, "Strava-Redirect: abgemeldet wird der Code noch nicht eingelöst");
+  ok(page.url().includes("code=redirect-code-1"), "Strava-Redirect: der Code bleibt in der URL, bis angemeldet");
+  await page.fill('input[name="email"]', "louis@example.test");
+  await page.fill('input[name="password"]', "richtig");
+  await page.click('form[data-form="login"] button[type="submit"]');
+  await page.waitForFunction(() => document.getElementById("toast")?.textContent.includes("Mit Strava verbunden"));
+  ok(exchanges.length === 1, `Strava-Redirect: nach dem Login genau ein /exchange-Aufruf (${exchanges.length})`);
+  ok(exchanges[0]?.auth === "Bearer test-token" && JSON.parse(exchanges[0].body).code === "redirect-code-1",
+     "Strava-Redirect: /exchange trägt Token und den ursprünglichen Code");
+  ok(!page.url().includes("code="), "Strava-Redirect: URL danach bereinigt");
+  ok(errors.length === 0, "Strava-Redirect: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 

@@ -24,6 +24,7 @@ const stamp = new Date()
 // Alle Module, die die App im Browser lädt. worker.js läuft bei
 // Cloudflare und wird nicht über die Seite ausgeliefert.
 const MODULES = [
+  "access.js",
   "app.js",
   "coach.js",
   "config.js",
@@ -35,6 +36,7 @@ const MODULES = [
   "runmatch.js",
   "strava.js",
   "ui.js",
+  "view-account.js",
   "view-dashboard.js",
   "view-week.js",
 ];

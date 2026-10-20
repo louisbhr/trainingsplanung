@@ -3,25 +3,28 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate,
-} from "./plan.js?v=202610031016";
-import { loadPlans } from "./plan-store.js?v=202610031016";
+} from "./plan.js?v=202610201429";
+import { loadPlans } from "./plan-store.js?v=202610201429";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
-  loadCoachWeek, saveCoachWeek,
-} from "./firebase-init.js?v=202610031016";
+  loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
+  authHeaders, waitForPendingWrites,
+} from "./firebase-init.js?v=202610201429";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate,
-} from "./strava.js?v=202610031016";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610031016";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610031016";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610031016";
-import * as dash from "./view-dashboard.js?v=202610031016";
-import * as dashWeek from "./view-week.js?v=202610031016";
-import * as metrics from "./metrics.js?v=202610031016";
-import * as coach from "./coach.js?v=202610031016";
-import { THRESHOLDS, COACH_URL } from "./config.js?v=202610031016";
+} from "./strava.js?v=202610201429";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610201429";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610201429";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610201429";
+import * as dash from "./view-dashboard.js?v=202610201429";
+import * as dashWeek from "./view-week.js?v=202610201429";
+import * as metrics from "./metrics.js?v=202610201429";
+import * as coach from "./coach.js?v=202610201429";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID } from "./config.js?v=202610201429";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610201429";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard } from "./view-account.js?v=202610201429";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -29,6 +32,16 @@ const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // unkritisch, das Feld dient nur der späteren Auswertung/Migration.
 const COACH_MODEL = "claude-haiku-4-5";
 const COACH_PROMPT_VERSION = "coach-v3";
+
+// Coach-Aufruf mit Firebase-ID-Token. Ohne Token (authHeaders wirft) gibt es
+// keinen Aufruf, und coach.js greift auf den Fallback zurück; ein 503
+// auth_unavailable geht ebenfalls sofort in den Fallback, ohne Retry.
+const coachFetch = (input) =>
+  fetchWithAuthRetry(COACH_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }, { authHeaders });
 
 // Wird erst gesetzt, wenn der Plan geladen ist (A1) — vorher greift jeder
 // Zugriff auf den STRAVA_SINCE-Wert daneben.
@@ -690,11 +703,7 @@ async function fillCoach(iso, dayState, plan) {
       hash,
       loadDoc: () => loadCoach(iso),
       saveDoc: (data) => saveCoach(iso, data),
-      fetchWorker: () => fetch(COACH_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      }),
+      fetchWorker: () => coachFetch(input),
       limit: THRESHOLDS.coach.dailyLimit,
       model: COACH_MODEL,
       promptVersion: COACH_PROMPT_VERSION,
@@ -800,11 +809,7 @@ async function fillWeeklyBilanz(iso, dayState, plan) {
       hash,
       loadDoc: () => loadCoachWeek(key),
       saveDoc: (data) => saveCoachWeek(key, data),
-      fetchWorker: () => fetch(COACH_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      }),
+      fetchWorker: () => coachFetch(input),
       limit: THRESHOLDS.coach.weeklyLimit,
       model: COACH_MODEL,
       promptVersion: COACH_PROMPT_VERSION,
@@ -1426,7 +1431,7 @@ function problemCard(s) {
     return `<div class="card error-card">
       <p class="name">Daten-Problem (Firebase)</p>
       <p class="hint">${esc(s.error)}</p>
-      <p class="hint" style="margin-top:6px;">Nicht Strava, sondern der Datenspeicher. Prüfe in der Firebase-Console, ob die Anmeldeart <b>Anonymous</b> aktiviert und die Regeln aus <code>firestore.rules</code> veröffentlicht sind.</p>
+      <p class="hint" style="margin-top:6px;">Nicht Strava, sondern der Datenspeicher. Prüfe, ob du angemeldet bist (Plan-Tab, Konto) und ob die Regeln aus <code>firestore.rules</code> in der Firebase-Console veröffentlicht sind.</p>
       <button data-action="reload-strava" style="margin-top:8px;">Nochmal versuchen</button></div>`;
   }
   return `<div class="card error-card"><p class="name">Strava-Problem</p>
@@ -1875,7 +1880,9 @@ function renderPlan() {
           <span class="zvals">${esc(z.hf)} bpm<br>${esc(z.pace)}</span>
         </div>`;
       }).join("")}
-    </div>`;
+    </div>
+
+    ${currentUser ? renderAccountCard(currentUser) : ""}`;
 }
 
 // ---------- Interaktion ----------
@@ -1885,6 +1892,9 @@ document.getElementById("app").addEventListener("click", async (e) => {
   const action = target.dataset.action;
 
   if (action === "reload") return location.reload();
+  if (action === "logout") return logout(target);
+  if (action === "forbidden-logout") return forbiddenLogout(target);
+  if (action === "retry-pending") return init();
   if (action === "back") { state.selectedDate = null; runPickerFor = null; return render(); }
   if (action === "toggle-day-detail") {
     const row = target.closest(".day-row");
@@ -1952,7 +1962,123 @@ document.querySelectorAll("#tabbar button").forEach((btn) => {
 });
 
 // ---------- Start ----------
-(async function init() {
+// ---------- Zugang (Login-Gate, Schritt 1b) ----------
+// Die Prüfung hier ist nur Bedienkomfort: den Schutz bilden Firestore-Regeln
+// und Worker. Vor dem Zugang wird weder der Plan noch irgendein Firestore-
+// Dokument geladen.
+const appEl = document.getElementById("app");
+const PENDING_WRITES_TIMEOUT_MS = 10000;
+let currentUser = null; // { email, uid } der angemeldeten Sitzung
+
+// Anmelde-, Fremdkonto- und Hinweisschirme: ohne Tableiste.
+function showGate(title, html) {
+  appEl.classList.add("no-session");
+  header.innerHTML = `<h1>${esc(title)}</h1>`;
+  main.innerHTML = html;
+}
+
+function showLogin(email = "", error = "") {
+  showGate("Anmelden", renderLogin({ email, error }));
+}
+
+// Anonyme Altsitzung aus der Zeit vor dem Login: erst alle noch nicht
+// gesendeten Einträge übertragen lassen (sie gehören diesem Nutzer und
+// gingen sonst verloren), dann still abmelden. Bei Timeout nicht abmelden.
+async function handleAnonymousSession() {
+  showGate("Anmeldung", loadingCard("Einen Moment …"));
+  const flushed = await raceTimeout(waitForPendingWrites(), PENDING_WRITES_TIMEOUT_MS);
+  if (!flushed) return showGate("Anmeldung", renderPendingWrites());
+  try {
+    await signOutUser();
+  } catch (err) {
+    console.error(err);
+    return showGate("Anmeldung", errorCard(err.message));
+  }
+  showLogin();
+}
+
+function setAccountStatus(text) {
+  const el = document.getElementById("account-status");
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = !text;
+}
+
+// "Abmelden" im Plan-Tab räumt das Gerät (E4). Offene Einträge: abbrechen,
+// nichts löschen. Danach neu laden, damit keine Daten im Speicher bleiben.
+async function logout(btn) {
+  btn.disabled = true;
+  setAccountStatus("Wird abgemeldet …");
+  try {
+    const res = await signOutAndWipeDevice();
+    if (!res.ok) {
+      setAccountStatus("Es gibt noch nicht übertragene Einträge. Bitte mit Netz noch einmal versuchen.");
+      btn.disabled = false;
+      return;
+    }
+  } catch (err) {
+    console.error(err);
+    setAccountStatus("Abmelden fehlgeschlagen: " + err.message);
+    btn.disabled = false;
+    return;
+  }
+  location.reload();
+}
+
+async function forbiddenLogout(btn) {
+  btn.disabled = true;
+  try {
+    await signOutUser();
+  } catch (err) {
+    console.error(err);
+    btn.disabled = false;
+    return;
+  }
+  location.reload();
+}
+
+appEl.addEventListener("submit", async (e) => {
+  const form = e.target.closest('form[data-form="login"]');
+  if (!form) return;
+  e.preventDefault();
+  const email = form.elements.email.value.trim();
+  const password = form.elements.password.value;
+  if (!email || !password) return showLogin(email, "Bitte E-Mail und Passwort eingeben.");
+  form.querySelector('button[type="submit"]').disabled = true;
+  try {
+    await signIn(email, password);
+  } catch (err) {
+    return showLogin(email, authErrorText(err.code));
+  }
+  // Im selben Seitenaufruf weitermachen (nicht neu laden): ein Strava-
+  // Redirect mit ?code= muss den Login überleben (B4).
+  await init();
+});
+
+async function init() {
+  appEl.classList.add("no-session");
+  header.innerHTML = `<h1>Trainingsplan</h1>`;
+  main.innerHTML = loadingCard("Anmeldung wird geprüft …");
+  let user;
+  try {
+    user = await authReady();
+  } catch (err) {
+    console.error(err);
+    main.innerHTML = errorCard(err.message);
+    return;
+  }
+  const access = accessState(user, ALLOWED_UID);
+  if (access === "signedOut") return showLogin();
+  if (access === "anonymous") return handleAnonymousSession();
+  if (access === "forbidden") {
+    return showGate("Kein Zugriff", renderNoAccess({ email: user.email, uid: user.uid }));
+  }
+  currentUser = { email: user.email, uid: user.uid };
+  appEl.classList.remove("no-session");
+  await startApp();
+}
+
+async function startApp() {
   // Tab-Leiste zeigt sofort einen Zustand, auch während der Plan noch lädt.
   document.querySelector('[data-tab="dashboard"]').classList.add("active");
   main.innerHTML = loadingCard("Plan wird geladen …");
@@ -2017,4 +2143,6 @@ document.querySelectorAll("#tabbar button").forEach((btn) => {
   });
 
   render();
-})();
+}
+
+init();

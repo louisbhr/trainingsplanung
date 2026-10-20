@@ -32,6 +32,10 @@ function readOverride() {
 export const WORKER_URL = (readOverride() || WORKER_URL_DEFAULT).replace(/\/+$/, "");
 export const STRAVA_WORKER_URL = WORKER_URL;
 export const COACH_URL = `${WORKER_URL}/coach`;
+// UID des einzigen erlaubten Kontos (Louis). Öffentlich unkritisch: sie steht
+// auch in firestore.rules und wrangler.toml, ein Test hält die drei gleich.
+// Die Prüfung im Client ist nur Bedienkomfort, den Schutz bilden Regeln und Worker.
+export const ALLOWED_UID = "gH4Te1JZzaO7DVoTSg9TtK4gw8p1";
 export const STRAVA_CLIENT_ID = "277715"; // öffentlich, steht auch in der Authorize-URL
 export const isWorkerConfigured = !!STRAVA_WORKER_URL && !STRAVA_WORKER_URL.includes("REPLACE-ME");
 
