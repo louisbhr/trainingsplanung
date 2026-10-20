@@ -2138,6 +2138,105 @@ const refreshOk = { status: 200, body: { access_token: "at2", refresh_token: "rt
   await ctx.close();
 }
 
+// ---- 33. Daten exportieren (Plan-Tab, Karte "Daten") ----
+async function exportPage({ activities = ACTIVITIES, stravaFail = false, share = "" } = {}) {
+  const made = await newPage({ connected: true, activities });
+  const { page, ctx } = made;
+  if (stravaFail) {
+    await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => r.fulfill({ status: 500, body: "boom" }));
+  }
+  const urls = [];
+  page.on("request", (r) => { if (r.url().includes("/athlete/activities")) urls.push(r.url()); });
+  await page.addInitScript((s) => {
+    localStorage.setItem("test.logs", JSON.stringify({ "2026-09-08_kniebeuge": {
+      date: "2026-09-08", exercise: "kniebeuge", name: "Kniebeuge", soll: "3x8",
+      sets: [{ kg: 60, reps: 8 }], topKg: 60, totalReps: 8, week: 2, completed: true } }));
+    localStorage.setItem("test.dayplan.2026-09-08", JSON.stringify({ removed: ["x"], added: [] }));
+    localStorage.setItem("test.runlinks", JSON.stringify({ "2026-09-07": { activityId: 1 } }));
+    if (s) {
+      window.__SHARED__ = null;
+      navigator.canShare = () => true;
+      navigator.share = async (d) => {
+        window.__SHARED__ = { name: d.files[0].name, title: d.title };
+        if (s === "abort") throw new DOMException("x", "AbortError");
+      };
+    }
+  }, share);
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector('[data-tab="plan"]');
+  await page.click('[data-tab="plan"]');
+  await page.waitForSelector('[data-action="export-data"]');
+  return { ...made, urls };
+}
+const stripPlan = (s) => s.replace(/"plan":[\s\S]*?"strava":/, "");
+{
+  const activities = ACTIVITIES.map((a, i) => i === 0
+    ? { ...a, sport_type: "Run", map: { summary_polyline: "GEHEIMEPOLYLINE" }, athlete: { id: 42 }, start_latlng: [1, 2] }
+    : a);
+  const { page, ctx, errors, urls } = await exportPage({ activities });
+  ok(await page.locator(".export-card").count() === 1, "Export: Karte Daten im Plan-Tab");
+  const btnBox = await page.locator('[data-action="export-data"]').boundingBox();
+  ok(btnBox && btnBox.height >= 44, "Export: Knopf mindestens 44px hoch");
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.click('[data-action="export-data"]'),
+  ]);
+  ok(/^trainingsdaten-\d{4}-\d{2}-\d{2}\.json$/.test(download.suggestedFilename()), "Export: Dateiname " + download.suggestedFilename());
+  const body = readFileSync(await download.path(), "utf8");
+  const data = JSON.parse(body);
+  ok(data.strava.activities.length === ACTIVITIES.length, "Export: alle Strava-Aktivitäten, auch Rad und Kraft");
+  ok(data.strava.activities.some((a) => a.type === "WeightTraining" && a.suffer_score === 15), "Export: Krafttraining mit Belastungswert");
+  ok(data.strength.logs.length === 1 && data.strength.logs[0].topKg === 60, "Export: Stub-Log enthalten");
+  ok(data.strength.dayplans[0]?.removed[0] === "x" && data.runLinks[0]?.activityId === 1, "Export: Dayplans und Lauf-Zuordnungen");
+  ok(data.plan?.id === "hm-2027" && data.meta.planId === "hm-2027", "Export: Plan und meta");
+  ok(!/refresh_token|access_token|polyline|GEHEIMEPOLYLINE|latlng|rt-new|at-new/i.test(stripPlan(body)),
+    "Export: kein Token, keine Polyline, keine Koordinaten in der Datei");
+  ok(data.meta.warnings.length === 0, "Export: ohne Fehler keine Warnungen");
+  const since = String(Math.floor(new Date("2026-01-01T00:00:00").getTime() / 1000));
+  ok(urls.some((u) => /per_page=200/.test(u) && new URL(u).searchParams.get("after") === since),
+    "Export: eigener Abruf ab 2026-01-01 mit per_page=200");
+  await page.waitForFunction(() => document.getElementById("export-status")?.textContent === "Export fertig.");
+  ok(await page.isEnabled('[data-action="export-data"]'), "Export: Knopf danach wieder aktiv");
+  await noHScroll(page, "Plan-Tab mit Export-Karte");
+  ok(errors.length === 0, "Export: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+{
+  // Strava fällt aus: übrige Daten kommen trotzdem, Hinweis in meta.warnings
+  const { page, ctx } = await exportPage({ stravaFail: true });
+  const [download] = await Promise.all([page.waitForEvent("download"), page.click('[data-action="export-data"]')]);
+  const data = JSON.parse(readFileSync(await download.path(), "utf8"));
+  ok(data.strava.activities.length === 0 && data.strength.logs.length === 1, "Export ohne Strava: Logs trotzdem enthalten");
+  ok(data.meta.warnings.length === 1 && data.meta.warnings[0].startsWith("Strava:") && !data.meta.warnings[0].includes("—"),
+    "Export ohne Strava: Warnung in meta.warnings " + JSON.stringify(data.meta.warnings));
+  await page.waitForFunction(() => document.getElementById("export-status")?.textContent.startsWith("Exportiert, aber unvollständig"));
+  await ctx.close();
+}
+{
+  // Teilen-Blatt (iPhone): navigator.share statt Download
+  const { page, ctx } = await exportPage({ share: "ok" });
+  let downloads = 0;
+  page.on("download", () => downloads++);
+  await page.click('[data-action="export-data"]');
+  await page.waitForFunction(() => window.__SHARED__);
+  const shared = await page.evaluate(() => window.__SHARED__);
+  ok(/^trainingsdaten-.*\.json$/.test(shared.name) && shared.title === shared.name, "Export: navigator.share mit Datei " + shared.name);
+  await page.waitForTimeout(200);
+  ok(downloads === 0, "Export: beim Teilen kein zusätzlicher Download");
+  await ctx.close();
+}
+{
+  // Abbruch des Teilens ist kein Fehler
+  const { page, ctx } = await exportPage({ share: "abort" });
+  await page.click('[data-action="export-data"]');
+  await page.waitForFunction(() => window.__SHARED__);
+  await page.waitForTimeout(200);
+  ok(await page.locator("#toast.error").count() === 0 && !(await page.textContent("#export-status")).includes("fehlgeschlagen"),
+    "Export: Abbruch des Teilens zeigt keinen Fehler");
+  ok(await page.isEnabled('[data-action="export-data"]'), "Export: Knopf nach Abbruch wieder aktiv");
+  await ctx.close();
+}
+
 await browser.close();
 console.log(`\n${checks - fails}/${checks} Browser-Checks bestanden`);
 process.exit(fails ? 1 : 0);

@@ -1,6 +1,6 @@
-import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610201449";
-import { fetchWithAuthRetry } from "./access.js?v=202610201449";
-import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610201449";
+import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610201504";
+import { fetchWithAuthRetry } from "./access.js?v=202610201504";
+import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610201504";
 
 // Die Client-ID ist unkritisch öffentlich (sie steht ohnehin in der
 // Authorize-URL). Das Client-Secret liegt NICHT hier, sondern nur als
@@ -151,6 +151,46 @@ let runCache = null; // { sinceISO, runs, sessions, fetchedAt }
 let lastSessions = [];
 const CACHE_MS = 5 * 60 * 1000;
 
+const PER_PAGE = 200;
+// Seitenlimit des normalen Abrufs bewusst auf 5 (= bis zu 1000 Aktivitäten)
+// begrenzt, damit ein Datenfehler nicht endlos paginiert.
+const MAX_PAGES = 5;
+
+// Blättert durch /athlete/activities. per_page=200 (A6): seit F0 reicht das
+// Fenster bis plan.start-35 Tage zurück, mit den alten 50/Seite wären das
+// leicht mehr Aktivitäten als eine Seite. Abbruch erst, wenn eine Seite
+// nicht mehr voll ist.
+async function fetchActivityPages(token, sinceISO, maxPages) {
+  const after = Math.floor(new Date(sinceISO + "T00:00:00").getTime() / 1000);
+  const all = [];
+  for (let page = 1; page <= maxPages; page++) {
+    let res;
+    try {
+      res = await fetch(`${API_BASE}/athlete/activities?after=${after}&per_page=${PER_PAGE}&page=${page}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      throw new Error("Strava ist nicht erreichbar (Netzwerk).");
+    }
+    if (res.status === 401) throw new Error("Strava-Zugang abgelaufen — bitte neu verbinden.");
+    if (res.status === 429) throw new Error("Strava-Limit erreicht — bitte später nochmal.");
+    if (!res.ok) throw new Error(`Strava-Abruf fehlgeschlagen (HTTP ${res.status}).`);
+    const batch = await res.json();
+    all.push(...batch);
+    if (batch.length < PER_PAGE) break;
+  }
+  return all;
+}
+
+// Alle Aktivitäten (jede Sportart) seit einem Datum für den Daten-Export:
+// eigener Abruf, bis zu 10 Seiten, ohne den Lauf-Cache zu berühren.
+// Rückgabe: Rohdaten-Array, oder null wenn (noch) nicht autorisiert.
+export async function fetchAllActivitiesForExport(sinceISO) {
+  const token = await getValidAccessToken();
+  if (!token) return null;
+  return fetchActivityPages(token, sinceISO, 10);
+}
+
 // Holt die Läufe seit einem Datum (paginiert, max. 200 Aktivitäten).
 // Rückgabe: Array von Läufen, oder null wenn (noch) nicht autorisiert.
 // Wirft, wenn autorisiert ist, der Abruf aber fehlschlägt.
@@ -168,32 +208,7 @@ export async function fetchRecentRuns(sinceISO, { force = false } = {}) {
   const token = await getValidAccessToken();
   if (!token) return null; // nicht autorisiert
 
-  const after = Math.floor(new Date(sinceISO + "T00:00:00").getTime() / 1000);
-  const all = [];
-  // per_page=200 (A6): seit F0 reicht das Fenster bis plan.start-35 Tage
-  // zurück, mit den alten 50/Seite wären das leicht mehr Aktivitäten als
-  // eine Seite. Abbruch erst, wenn eine Seite nicht mehr voll ist — sonst
-  // würde der Abruf nach der ersten (jetzt größeren) Seite fälschlich zu
-  // früh oder zu spät enden. Seitenlimit bewusst auf 5 (= bis zu 1000
-  // Aktivitäten) begrenzt, damit ein Datenfehler nicht endlos paginiert.
-  const PER_PAGE = 200;
-  const MAX_PAGES = 5;
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    let res;
-    try {
-      res = await fetch(`${API_BASE}/athlete/activities?after=${after}&per_page=${PER_PAGE}&page=${page}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    } catch {
-      throw new Error("Strava ist nicht erreichbar (Netzwerk).");
-    }
-    if (res.status === 401) throw new Error("Strava-Zugang abgelaufen — bitte neu verbinden.");
-    if (res.status === 429) throw new Error("Strava-Limit erreicht — bitte später nochmal.");
-    if (!res.ok) throw new Error(`Strava-Abruf fehlgeschlagen (HTTP ${res.status}).`);
-    const batch = await res.json();
-    all.push(...batch);
-    if (batch.length < PER_PAGE) break;
-  }
+  const all = await fetchActivityPages(token, sinceISO, MAX_PAGES);
 
   const runs = all
     .filter((a) => a.type === "Run" || a.sport_type === "Run" || a.sport_type === "TrailRun")
