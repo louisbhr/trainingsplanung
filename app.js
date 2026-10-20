@@ -2,30 +2,30 @@ import {
   slug, toISO, fromISO, addDays,
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
-  monthLabel, germanDate,
-} from "./plan.js?v=202610201510";
-import { loadPlans } from "./plan-store.js?v=202610201510";
+  monthLabel, germanDate, LONG_RUN_TYPES,
+} from "./plan.js?v=202610201519";
+import { loadPlans } from "./plan-store.js?v=202610201519";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610201510";
+} from "./firebase-init.js?v=202610201519";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport,
-} from "./strava.js?v=202610201510";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610201510";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610201510";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610201510";
-import * as dash from "./view-dashboard.js?v=202610201510";
-import * as dashWeek from "./view-week.js?v=202610201510";
-import * as metrics from "./metrics.js?v=202610201510";
-import * as coach from "./coach.js?v=202610201510";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610201510";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610201510";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610201510";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610201510";
+} from "./strava.js?v=202610201519";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610201519";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610201519";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610201519";
+import * as dash from "./view-dashboard.js?v=202610201519";
+import * as dashWeek from "./view-week.js?v=202610201519";
+import * as metrics from "./metrics.js?v=202610201519";
+import * as coach from "./coach.js?v=202610201519";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610201519";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610201519";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610201519";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610201519";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -128,7 +128,7 @@ function dayInfo(iso) {
 function colorsFor(info) {
   if (info.kind === "kraft") return ["var(--teal-fg)", "var(--teal-bg)"];
   if (info.kind === "lauf")
-    return info.shortType === "Long"
+    return LONG_RUN_TYPES.includes(info.shortType)
       ? ["var(--purple-fg)", "var(--purple-bg)"]
       : ["var(--coral-fg)", "var(--coral-bg)"];
   return ["var(--text-secondary)", "var(--surface-1)"];
@@ -537,7 +537,7 @@ function nextUpLines(plan, iso, currentWeekNo) {
   let nextLong = null;
   for (const week of plan.weeks) {
     if (week.placeholder) continue;
-    for (const s of sessionsFor(plan, week.n).filter((x) => x.kind === "lauf" && x.shortType === "Long")) {
+    for (const s of sessionsFor(plan, week.n).filter((x) => x.kind === "lauf" && LONG_RUN_TYPES.includes(x.shortType))) {
       if (s.date >= iso && (!nextLong || s.date < nextLong.date)) nextLong = s;
     }
   }
@@ -1549,7 +1549,7 @@ function buildWeekDayRow(plan, iso, today, logs, dps) {
   const isFuture = iso > today;
   const kindColorVar =
     info.kind === "kraft" ? "var(--teal-fg)"
-    : info.kind === "lauf" ? (info.shortType === "Long" ? "var(--purple-fg)" : "var(--coral-fg)")
+    : info.kind === "lauf" ? (LONG_RUN_TYPES.includes(info.shortType) ? "var(--purple-fg)" : "var(--coral-fg)")
     : "var(--text-muted)";
 
   if (info.kind === "kraft") {
@@ -1644,7 +1644,7 @@ async function renderWeek() {
   if (week.placeholder) {
     const phase = phaseOf(plan, w);
     main.innerHTML = `<div class="card"><p class="name">${esc(phase.name)}</p>
-      <p class="hint">${esc(week.focus)}. Details folgen nach der Re-Kalibrierung.</p></div>`;
+      <p class="hint">${esc(week.focus.replace(/\.$/, ""))}. Details folgen nach der Re-Kalibrierung.</p></div>`;
     return;
   }
 

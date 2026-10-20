@@ -52,7 +52,7 @@ for (let n = 1; n <= 8; n++) {
   ok(typeof week.plannedKm === "number" && week.plannedKm > 0, `W${n} plannedKm gesetzt (${week.plannedKm})`);
 }
 
-// ---- Platzhalterwochen 13-35 ----
+// ---- Platzhalterwochen 17-35 ----
 for (let n = plan.detailedUntilWeek + 1; n <= plan.totalWeeks; n++) {
   const week = weekByN.get(n);
   ok(week.placeholder === true, `W${n} als Platzhalter vorhanden`);
@@ -89,7 +89,7 @@ ok(plan.totalWeeks === 35 && plan.weeks.length === 35, "35 Wochen");
 ok(planEnd(plan) === plan.goal.raceDate, `Plan endet am Renntag (${planEnd(plan)})`);
 ok(weekNumberFor(plan, plan.goal.raceDate) === 35, "Renntag liegt in Woche 35");
 ok(weekByN.get(35).start === "2027-04-26", "W35 beginnt Mo 26.04.2027");
-ok(plan.detailedUntilWeek === 12, "Ausformuliert bis Woche 12");
+ok(plan.detailedUntilWeek === 16, "Ausformuliert bis Woche 16");
 
 // ---- Phasen (Stand 20.10.2026) ----
 {
@@ -142,6 +142,44 @@ ok(plan.detailedUntilWeek === 12, "Ausformuliert bis Woche 12");
   const base = namesOf(5);
   ok([...base].every((nm) => namesOf(9).has(nm)), "W9 enthält alle Übungsnamen der Full-Body-A/B aus W5");
 }
+// ---- Wochen 13-16 (Aufbau, Entlastung) ----
+{
+  const sess = (n) => weekByN.get(n).sessions;
+  const lauf = (n) => sess(n).filter((s) => s.kind === "lauf");
+  const kraft = (n) => sess(n).filter((s) => s.kind === "kraft");
+  const kmOf = (n) => lauf(n).map((s) => s.km).join("/");
+  ok(kmOf(13) === "10/13/17/6", `W13 Läufe (${kmOf(13)})`);
+  ok(kmOf(14) === "11/13/18/7", `W14 Läufe (${kmOf(14)})`);
+  ok(kmOf(15) === "11/14/19/8", `W15 Läufe (${kmOf(15)})`);
+  ok(kmOf(16) === "9/9/15/7", `W16 Läufe (${kmOf(16)})`);
+  for (let n = 13; n <= 16; n++) {
+    const week = weekByN.get(n);
+    ok(week.placeholder === false, `W${n} kein Platzhalter`);
+    ok(lauf(n).reduce((a, s) => a + s.km, 0) === week.plannedKm, `W${n} plannedKm = Summe der Läufe`);
+    ok(lauf(n).map((s) => dow(s.date)).join() === "1,3,6,0", `W${n} Läufe Mo/Mi/Sa/So`);
+    ok(kraft(n).map((s) => dow(s.date)).join() === "2,4", `W${n} Kraft Di + Do`);
+    ok(!kraft(n)[0].optional && kraft(n)[1].optional === true, `W${n}: Di Pflicht, Do optional`);
+    ok(kraft(n)[0].exercises.some((e) => e.name.startsWith("Plyometrie")), `W${n}: Plyometrie in Full Body A`);
+    ok(kraft(n).every((s) => s.exercises.every((e) => /Zuhause:/.test(e.hint))), `W${n}: jede Kraft-Übung hat Zuhause-Alternative`);
+    ok([...namesOf(5)].every((nm) => namesOf(n).has(nm)), `W${n}: Übungsnamen unverändert (Slugs)`);
+    ok(lauf(n).every((s) => s.shortType === "Schwelle" || s.shortType === "LongProgressiv" || s.shortType === "Test" || typeof s.hfMax === "number"),
+      `W${n}: Zonenläufe haben hfMax`);
+  }
+  function namesOf(n) { return new Set(kraft(n).flatMap((s) => s.exercises.map((e) => e.name))); }
+  const schwelle = (n) => lauf(n)[1];
+  ok(schwelle(13).type === "Schwelle 3×12 min" && /2 min Trabpause/.test(schwelle(13).note), "W13 Mi: Schwelle 3×12 min, 2 min Trabpause");
+  ok(schwelle(14).type === "Schwelle 2×15 min" && /3 min Trabpause/.test(schwelle(14).note), "W14 Mi: Schwelle 2×15 min, 3 min Trabpause");
+  ok(schwelle(15).type === "Schwelle 4×10 min" && /2 min Trabpause/.test(schwelle(15).note), "W15 Mi: Schwelle 4×10 min, 2 min Trabpause");
+  ok([13, 14, 15].every((n) => schwelle(n).shortType === "Schwelle" && schwelle(n).pace === "4:35–4:50 /km" && schwelle(n).hf === "172–181 bpm"
+    && /28\.10\./.test(schwelle(n).note) && schwelle(n).hfMax === undefined), "W13-15 Schwelle: vorläufige Pace/HF, Hinweis auf Kalibrierung 28.10.");
+  ok(lauf(13)[2].shortType === "LongProgressiv" && /letzte 3 km zügig/.test(lauf(13)[2].type), "W13 Sa: Long, letzte 3 km zügig (LongProgressiv)");
+  ok(lauf(14)[2].shortType === "Long" && lauf(14)[2].hfMax === 160, "W14 Sa: normaler Long Run mit hfMax 160");
+  ok(lauf(15)[2].shortType === "LongProgressiv" && /letzte 4 km zügig/.test(lauf(15)[2].type), "W15 Sa: Long, letzte 4 km zügig (LongProgressiv)");
+  ok([13, 15].every((n) => lauf(n)[2].hfMax === undefined && /5:00–5:10/.test(lauf(n)[2].pace)), "LongProgressiv: ohne hfMax, Schluss 5:00–5:10 /km");
+  ok(weekByN.get(16).deload === true && lauf(16)[1].shortType === "Easy" && lauf(16)[1].type.includes("6x20s"), "W16: Entlastung, Mi Easy + 6x20s");
+  ok(kraft(16)[0].exercises[0].soll.includes("Deload"), "W16: Kraft im Deload-Soll");
+  ok(kraft(13)[0].exercises[0].soll === "4x4-6", "W13: Kraft-Soll wie W11");
+}
 // Optionale Einheiten nur ab Woche 9
 ok(plan.weeks.filter((w) => w.n <= 8).every((w) => w.sessions.every((s) => !s.optional)), "W1-8: nichts optional");
 
@@ -162,7 +200,14 @@ ok(plan.weeks.filter((w) => w.n <= 8).every((w) => w.sessions.every((s) => !s.op
   ok(deloads.every((n) => weekByN.get(n).deload && weekByN.get(n).weekType === "Entlastung"), "Entlastungswochen 16/20/24/28/32");
   ok(weekByN.get(34).weekType === "Taper" && weekByN.get(35).weekType === "Rennwoche", "W34 Taper, W35 Rennwoche");
 }
-ok(plan.fileVersion > "2026-09-27T16:21", `fileVersion hochgezählt (${plan.fileVersion})`);
+// ---- Kontrollpunkte und Re-Kalibrierungstermine ----
+ok(/Kontrollpunkt: 10-km-Test oder 10-km-Rennen am Wochenende\. Unter etwa 42 Minuten = auf Kurs für 1:29:59\./.test(weekByN.get(20).focus)
+  && weekByN.get(20).start === "2027-01-11", "W20 (11.01.2027): Kontrollpunkt 10 km");
+ok(/Kontrollpunkt: Halbmarathon-Generalprobe \(Rennen oder Test im Renntempo\)\. Danach Zielzeit bestätigen oder anpassen\./.test(weekByN.get(29).focus)
+  && weekByN.get(29).start === "2027-03-15", "W29 (15.03.2027): Kontrollpunkt Halbmarathon-Generalprobe");
+ok(plan.recalibrationDates.join() === "2026-10-28,2026-11-22", `Re-Kalibrierung 28.10. und 22.11. (${plan.recalibrationDates})`);
+ok(plan.recalibrationDates.every((d, i, a) => i === 0 || a[i - 1] < d), "recalibrationDates aufsteigend");
+ok(plan.fileVersion > "2026-10-20T16:42", `fileVersion hochgezählt (${plan.fileVersion})`);
 
 // ---- Negativ-Fixturen: validatePlan muss jeweils genau das erkennen ----
 function withProblem(mutate, expectSubstring, label) {
@@ -188,6 +233,12 @@ withProblem((p) => { p.weeks[9].sessions[3].optional = "ja"; }, "optional", "opt
 withProblem((p) => { p.weeks[9].sessions[0].optional = true; }, "optional", "optional an einem Lauf");
 withProblem((p) => { p.weeks[9].sessions[0].shortType = "Fahrtspiel"; }, "shortType", "unbekannter shortType");
 withProblem((p) => { delete p.weeks[9].sessions[0].hfMax; }, "hfMax", "Easy ohne hfMax");
+// LongProgressiv (Long mit zügigem Ende) braucht bewusst kein hfMax, bleibt aber ein bekannter shortType
+{
+  const good = structuredClone(plan);
+  ok(good.weeks[12].sessions[4].shortType === "LongProgressiv" && validatePlan(good).length === 0, "LongProgressiv ohne hfMax ist gültig");
+}
+withProblem((p) => { p.weeks[12].sessions[4].shortType = "LongZuegig"; }, "shortType", "unbekannter Long-Typ");
 withProblem((p) => { p.weeks[35 - 1].start = "2027-05-03"; }, "Woche 35", "Woche 35 falsches Startdatum");
 
 // ---- I1: reine Plan-Logik (weekNumberFor/weekDates/planDayState/formatGoal/phaseRange) ----

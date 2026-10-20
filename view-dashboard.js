@@ -3,9 +3,10 @@
 // Datenzugriff (Firestore, Strava, Plan) bleiben in app.js. Keine eigenen
 // Styles — alle Klassen kommen aus style.css (D0), siehe
 // docs/ui-markup-dashboard-v2.md für die genaue Markup-Referenz.
-import { formatKm1 } from "./metrics.js?v=202610201510";
-import { esc, ICONS, skelLine } from "./ui.js?v=202610201510";
-import { formatDuration } from "./strava.js?v=202610201510";
+import { formatKm1 } from "./metrics.js?v=202610201519";
+import { esc, ICONS, skelLine } from "./ui.js?v=202610201519";
+import { formatDuration } from "./strava.js?v=202610201519";
+import { LONG_RUN_TYPES } from "./plan.js?v=202610201519";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
 
@@ -49,7 +50,7 @@ export function todayCardKraftHTML(session, { expanded, progressText, exercises 
 }
 
 export function todayCardLaufHTML(session, actualHTML) {
-  const cls = session.shortType === "Long" ? "k-long" : "k-lauf";
+  const cls = LONG_RUN_TYPES.includes(session.shortType) ? "k-long" : "k-lauf";
   return `<div class="card today-card ${cls}">
     <p class="eyebrow2">Heute dran</p>
     <p class="name2">${esc(session.type)} ${esc(session.dist)}</p>
