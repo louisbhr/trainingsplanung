@@ -10,7 +10,8 @@ Firestore gespeichert, Läufe kommen automatisch aus Strava.
 - **Woche** — Tagesliste mit Status, vor/zurück blätterbar; Tag antippen
   klappt Details auf, „Tag öffnen“ führt in die Tagesansicht
 - **Verlauf** — Gewichtsverlauf je Übung, Distanz/Pace der letzten Läufe
-- **Plan** — Phasen, Zeitraum, HF- und Pace-Zonen
+- **Plan** — Phasen, Zeitraum, HF- und Pace-Zonen; darunter „Daten
+  exportieren“ (alle Trainingsdaten als JSON-Datei) und die Konto-Karte
 
 Krafttage lassen sich über „Anpassen" für den jeweiligen Tag umbauen:
 Übungen entfernen, zurückholen oder eigene hinzufügen.
@@ -50,16 +51,12 @@ Im Plan-Tab gibt es unten die Konto-Karte. „Abmelden“ sendet erst alle noch
 offenen Einträge, räumt dann Offline-Speicher und lokale Kopien und bricht
 ab, wenn noch etwas nicht übertragen ist.
 
-**Worker-Variablen** (`wrangler.toml`, `[vars]`): `FIREBASE_PROJECT_ID`,
-`ALLOWED_UID` und `AUTH_MODE`. `/coach`, `/exchange` und `/refresh` prüfen
-das Firebase-ID-Token (`Authorization: Bearer ...`). Fehlt eine der beiden
-ersten Variablen, antwortet der Worker mit 500 `not_configured`.
-`AUTH_MODE = "report"` ist der Übergang beim Einführen: der Worker prüft und
-loggt (`npx wrangler tail`: `auth: ok` oder `auth: invalid:<grund>`), blockiert
-aber nie. Jeder andere Wert, auch ein fehlender, heißt `required` und
-blockiert. Reihenfolge beim Einführen: Worker mit `report` deployen, App
-ausliefern und anmelden, im Log `auth: ok` sehen, dann `AUTH_MODE` auf
-`"required"` stellen und erneut deployen.
+**Worker-Variablen** (`wrangler.toml`, `[vars]`): `FIREBASE_PROJECT_ID` und
+`ALLOWED_UID`. `/coach`, `/exchange` und `/refresh` prüfen immer das
+Firebase-ID-Token (`Authorization: Bearer ...`); es gibt keinen Schalter, der
+die Prüfung abschwächt. Fehlt eine der beiden Variablen, antwortet der
+Worker mit 500 `not_configured`. Im Log (`npx wrangler tail`) steht bei
+Ablehnung nur der Grund-Code (`auth: invalid:<grund>`), nie das Token.
 
 ## 3. Strava einrichten (der entscheidende Schritt)
 
@@ -145,6 +142,7 @@ Details siehe `tests/README.md`.
 | `metrics.js` | Ampeln und Kennzahlen des Dashboards (ohne Browser testbar), Grenzwerte aus `THRESHOLDS` in `config.js` |
 | `coach.js` | Coach im Browser: Eingabe bauen, Cache in Firestore (`coach/`, `coachweek/`), Tageslimits, Regel-Fallback |
 | `ui.js`, `view-dashboard.js`, `view-week.js` | Gemeinsame UI-Helfer und die Ansichten von Dashboard und Wochen-Tab |
+| `export.js` | Stellt die Export-Datei zusammen (Strava, Logs, Plan, Zuordnungen) |
 | `firebase-init.js` | Firestore mit Offline-Cache und Anmeldung (E-Mail und Passwort) |
 | `access.js`, `view-account.js` | Zugangslogik (Zustand der Sitzung, Fehlertexte, Token-Retry) und das Markup von Anmeldung und Konto-Karte |
 | `strava.js` | Strava-Anbindung |
@@ -152,14 +150,14 @@ Details siehe `tests/README.md`.
 | `tools/bump-version.mjs` | Setzt den Versionsstempel gegen Browser-Cache (auch auf die JSON-URL in `plan-store.js`) |
 | `firestore.rules` | Firestore-Regeln |
 | `manifest.webmanifest`, `icon.png` | „Zum Home-Bildschirm" auf dem Handy |
-| `tests/` | Plan- und Browser-Tests |
+| `tests/` | Plan-, Logik-, Worker- und Browser-Tests |
 
 ## Was noch offen ist
 
-- **Wochen 13–35** zeigen nur Phase, Zeitraum und Wochenkilometer
-  (`placeholder: true`); Woche 9–12 sind ausformuliert (Stand 20.10.2026,
+- **Wochen 17–35** zeigen nur Phase, Zeitraum und Wochenkilometer
+  (`placeholder: true`); Woche 1–16 sind ausformuliert (Stand 20.10.2026,
   Renntag So 02.05.2027 in Woche 35). Die weiteren Tagesdetails tragen wir
-  nach dem Kalibrierungstest (Mi 28.10.2026) nach
+  nach den Re-Kalibrierungen (28.10. und 22.11.2026) nach
   — direkt in `plans/hm-2027.json` (nicht mehr in `plan.js`, das enthält
   seit M1 keine Plandaten mehr). Nach jeder Änderung an der JSON nicht
   `npm run version` vergessen (siehe HANDOFF.md, Falle 1).

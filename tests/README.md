@@ -8,7 +8,7 @@ npm install            # http-server + playwright
 npx playwright install chromium
 
 npm run serve          # in einem zweiten Terminal: Server auf :8099
-npm test               # Plan-Daten + Browser-Tests
+npm test               # 13 Läufe: Logik-/Worker-Tests ohne Browser, dann Browser-Tests
 ```
 
 - `plan.test.mjs` — prüft `plans/hm-2027.json` direkt (Struktur, lückenlose
@@ -17,7 +17,7 @@ npm test               # Plan-Daten + Browser-Tests
   `weekNumberFor`/`weekDates` (inkl. beider Zeitumstellungen im Plan),
   `planDayState`/`activePlanFor` an den Grenzen, `formatGoal`, `phaseRange`.
 - `plan-golden.test.mjs` — Sicherheitsnetz für den M1-Umbau (A2): vergleicht
-  für jeden Tag vom 24.08. bis 31.10.2026 die neue Logik
+  für jeden Tag vom 24.08. bis 25.10.2026 (Wochen 1–8) die neue Logik
   (`sessionOn`/`plans/hm-2027.json`) mit der eingefrorenen alten Logik
   (`fixtures/plan-legacy.mjs`, unverändert seit vor dem Umzug) — Kraft/Lauf-
   Details, Notizen und `slug()` müssen übereinstimmen. Bleibt bis zum Ende
@@ -46,7 +46,13 @@ npm test               # Plan-Daten + Browser-Tests
 - `worker.test.mjs` — `/coach`, `/exchange`, `/refresh` und die Token-
   Prüfung: Testschlüssel und Token werden im Test selbst erzeugt, Googles
   Schlüssel-Endpunkt ist gemockt (401-Matrix, 503, Cache, Rotation,
-  stale-if-error, `AUTH_MODE`).
+  stale-if-error, fehlende Konfiguration; die Token-Pflicht ist immer an).
+- `export.test.mjs` — reiner Teil des Exports (`export.js`) ohne Browser:
+  Feldauswahl, Datenschutz (keine Zugangs- und Standortdaten), Dateiname und
+  lokale Zeit. Teilausfälle mit Warnung prüft `app.test.mjs`.
+- `metrics.test.mjs`, `coach.test.mjs` — Ampeln und Kennzahlen; Coach-
+  Eingabe, Hash, Cache-Entscheidung, Tageslimit (Anmeldefehler des Workers
+  verbrauchen es nicht) und Fallback-Texte.
 - `app.test.mjs` — startet Chromium gegen `http://127.0.0.1:8099`.
   Firebase wird durch einen localStorage-Stub ersetzt, die Strava-API
   durch feste Beispieldaten — es werden also keine echten Konten
@@ -61,3 +67,7 @@ npm test               # Plan-Daten + Browser-Tests
 
 Mit `SHOTS=./shots npm run test:app` werden zusätzlich Screenshots
 abgelegt.
+
+**Port 8099:** `app.test.mjs` verbindet fest mit `127.0.0.1:8099`. Vorher
+`lsof -ti :8099` prüfen; ein Server aus einem anderen Worktree würde fremden
+Code testen. Der Server muss aus dem Verzeichnis laufen, das getestet wird.

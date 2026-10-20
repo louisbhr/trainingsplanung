@@ -5,8 +5,10 @@ noch kommen soll, steht in [`REQUIREMENTS.md`](REQUIREMENTS.md)** — dieses
 Dokument ist das Operative: loslegen, ausliefern, und die Fallen, die
 schon einmal Zeit gekostet haben.
 
-Stand: 24.09.2026 · alles auf `main` (`70ae84f`) · Trainingswoche 4 von 31
-(Deload) · Wettkampf Anfang/Mitte April 2027
+Stand: 20.10.2026 · `main` auf `e27c04f` plus Aufräumrunde (Branch
+`aufraeumen`) · Trainingswoche 8 von 35 · Renntag So 02.05.2027 · Login,
+KI-Coach, Dashboard v2, Export und Plan Phase 2 (35 Wochen) sind live bzw.
+gemergt
 
 ## Loslegen
 
@@ -22,12 +24,13 @@ npm test           # muss komplett grün sein, bevor irgendetwas gepusht wird
 Node 22. Kein Build-Schritt: die Dateien im Repo-Wurzelverzeichnis sind
 exakt das, was der Browser lädt.
 
-`npm test` läuft zwölfmal: Prüfungen der Plandaten gegen `plans/hm-2027.json`
+`npm test` läuft 13-mal (die Aufrufe in `package.json`, Skript `test`):
+Prüfungen der Plandaten gegen `plans/hm-2027.json`
 plus der reinen Logik aus `plan.js` (`plan.test.mjs`), ein Tag-für-Tag-
 Vergleich der neuen gegen die eingefrorene alte Plan-Logik
-(`plan-golden.test.mjs`, Sicherheitsnetz für den M1-Umbau), ein Stub-Wächter
-(`stubs.test.mjs`), die Lauf-Zuordnung, die Progressionslogik und der
-Versionsstempel, dazu `metrics.test.mjs` (Ampeln), `coach.test.mjs`
+(`plan-golden.test.mjs`, nur bis Woche 8), ein Stub-Wächter
+(`stubs.test.mjs`), die Lauf-Zuordnung, die Progressionslogik, der
+Versionsstempel und der Export (`export.test.mjs`), dazu `metrics.test.mjs` (Ampeln), `coach.test.mjs`
 (Coach-Cache und Fallback) und `worker.test.mjs` (`/coach` inkl.
 Vertragstest gegen die echten App-Eingaben, dazu die Token-Prüfung),
 `access.test.mjs` (Zugangslogik) und `config-consistency.test.mjs` (UID und
@@ -52,8 +55,8 @@ braucht Zugang.
 
 | System | Wo | Was dort liegt |
 | --- | --- | --- |
-| Firebase | Projekt `trainingsplanung-2c6c0` | Firestore + Anmeldung mit E-Mail und Passwort (ein Konto, in der Console angelegt). Config steht offen in `firebase-init.js`, das ist bei Firebase so vorgesehen; abgesichert wird über `firestore.rules` (feste UID). |
-| Cloudflare Worker | `trainingsplanung-auth` | Strava-Token-Austausch. Hält `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `ALLOWED_ORIGINS` und `ANTHROPIC_API_KEY` (eigener Workspace, Monatslimit) als Worker-Secrets. Endpunkte `/exchange`, `/refresh`, `/coach`, alle mit Token-Pflicht. `[vars]` in `wrangler.toml`: `FIREBASE_PROJECT_ID`, `ALLOWED_UID`, `AUTH_MODE` (`report` = nur loggen, alles andere = blockieren). |
+| Firebase | Projekt `trainingsplanung-2c6c0` | Firestore und Authentication mit dem Anbieter **E-Mail/Passwort** (ein Konto, in der Console angelegt; Anonym ist aus). Config steht offen in `firebase-init.js`, das ist bei Firebase so vorgesehen; abgesichert wird über `firestore.rules` (feste UID). |
+| Cloudflare Worker | `trainingsplanung-auth` | Strava-Token-Austausch. Hält `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `ALLOWED_ORIGINS` und `ANTHROPIC_API_KEY` (eigener Workspace, Monatslimit) als Worker-Secrets. Endpunkte `/exchange`, `/refresh`, `/coach`, alle mit Token-Pflicht. `[vars]` in `wrangler.toml`: `STRAVA_CLIENT_ID`, `ALLOWED_ORIGINS`, `FIREBASE_PROJECT_ID`, `ALLOWED_UID`. Die Token-Prüfung ist immer verbindlich; fehlt eine der beiden Firebase-Variablen, antwortet der Worker mit 500 `not_configured`. Deployt wird von Hand (`npx wrangler deploy`), nicht von GitHub. |
 | Strava | strava.com/settings/api | Client-ID öffentlich in `config.js`. Callback-Domain muss `louisbhr.github.io` sein. |
 | GitHub Pages | Repo-Einstellungen | Deployt `main`, Ordner `/`. |
 
@@ -97,12 +100,31 @@ nicht wiederverwenden.
    importiert den Worker deshalb mit `?t=<n>` frisch.
 7. **Browser-Tests fangen Module per RegExp ab**, nicht per Glob — sonst
    gehen die Routen am angehängten `?v=…` vorbei.
-8. **Nach jeder Änderung an `plans/hm-2027.json`** (Wochen 9–31 ausformulieren,
+8. **Nach jeder Änderung an `plans/hm-2027.json`** (Wochen 17–35 ausformulieren,
    Renndatum eintragen) `npm run version` nicht vergessen. Die JSON-URL in
    `plan-store.js` trägt einen eigenen Stempel, den `fetch(..., {cache:
    "no-cache"})` zwar meist über ein 304 abfängt — aber eben nicht immer
    (Safari auf dem Home-Bildschirm hält sich hartnäckiger). `npm test`
    prüft mit, dass dieser Stempel überall derselbe ist.
+9. **Parallele Agenten brauchen eigene Worktrees.** Zwei Sessions im selben
+   Verzeichnis überschreiben sich gegenseitig die Dateien und Branches.
+   Jede Arbeit bekommt `git worktree add <pfad> -b <branch> origin/main`;
+   `node_modules` wird per Symlink aus dem Hauptverzeichnis verlinkt (nicht
+   committen, steht in `.gitignore`). Beim Entfernen: `git worktree remove`.
+10. **Port 8099 belegt.** Die Browser-Tests sprechen fest `127.0.0.1:8099`
+    an. Läuft dort ein Server aus einem anderen Worktree, testen sie
+    stillschweigend fremden Code (oder scheitern bunt). Vor jedem Lauf
+    `lsof -ti :8099` prüfen, fremden Server beenden, den eigenen aus dem
+    richtigen Verzeichnis starten, danach wieder beenden.
+11. **Worker-`[vars]` gehören in `wrangler.toml`.** `wrangler deploy` setzt
+    den Worker auf genau diese Datei zurück: Variablen, die nur im
+    Cloudflare-Dashboard stehen, sind danach weg. Secrets (`wrangler secret
+    put`) bleiben erhalten. Ändert sich eine Variable, die Datei ändern, nicht
+    das Dashboard.
+12. **Abmelden und zweiter Tab.** „Abmelden“ kann den Offline-Speicher nicht
+    leeren, solange die App in einem anderen Tab offen ist; die App sagt das
+    nach dem Neuladen auf dem Anmeldebildschirm. Das Abmelden in einem
+    anderen Tab bemerkt ein offener Tab erst beim Neuladen.
 
 ## Wie hier gearbeitet wird
 
@@ -112,19 +134,24 @@ nicht wiederverwenden.
   `progression.js`) statt in `app.js`.
 - Neue Tests gegenprüfen: einmal absichtlich kaputt machen und sehen,
   dass sie rot werden. Ein Test, der nicht fehlschlagen kann, ist keiner.
-- Vor dem Commit alle zehn Testläufe grün.
+- Vor dem Commit alle Testläufe grün.
+- Keine statischen `style="…"` im Render-Code: Abstände und Farben über die
+  Utility-Klassen in `style.css` (`mt-8`, `fg-muted`, …). Inline bleibt nur,
+  was von Daten abhängt (Balkenhöhen, Fortschrittsbreiten, Kategoriefarben).
 - Handy zuerst: Tests laufen gegen 390×844, und es darf nichts seitlich
   aus dem Bild ragen.
 
 ## Nächster Schritt
 
-**Die Trainer-Auswertung ist fällig** (war für Ende September verabredet,
-damit genug echte Daten da sind — die sind jetzt da). Worker-Endpunkt
-`/coach`, der die Claude API aufruft und eine kurze Einschätzung zum
-Trainingsfortschritt liefert. Details, Kostenrahmen und die beiden
-offenen Punkte (Endpunkt an die Firebase-Anmeldung binden, Tageslimit)
-stehen in `REQUIREMENTS.md`, Abschnitt 5, Punkt 1.
+1. **Wochen 17–35 ausformulieren**, jeweils nach den Re-Kalibrierungen
+   (nächste: So 22.11.2026), direkt in `plans/hm-2027.json`.
+2. **Schritt 2: Marathon-Coaching** (Mehrziel, Blöcke, Plan-Erzeugung durch
+   Claude) — Entwurf in `docs/requirements-marathon-coaching.md`, noch nicht
+   freigegeben.
+3. **Bekannte Schuld:** `app.js` hat rund 2300 Zeilen; das Auslagern der
+   Datenaufbereitung (`dashboard-data.js`) ist vorgemerkt. Offene
+   Minor-Punkte aus den Reviews stehen in `docs/review-code-m2.md`
+   (M1, M3, M4, M7, M9–M11) und `docs/review-code-login-1b.md` (N3, S1).
 
-Danach steht in derselben Liste, was noch ansteht — der nächste
-inhaltliche Meilenstein sind die Wochen 9–31, die nach der
-Re-Kalibrierung am Ende von Woche 8 (ab 26.10.2026) ausformuliert werden.
+Was sonst noch geplant ist, steht in `REQUIREMENTS.md`, Abschnitt 5;
+Ideen ohne Termin in `backlog.md`.
