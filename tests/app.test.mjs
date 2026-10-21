@@ -1255,7 +1255,12 @@ async function noHScroll(page, where) {
   });
   ok(passesUnder, "Glas: Inhalt scrollt unter der Leiste durch");
 
-  // Kapsel hinter dem aktiven Tab
+  // Kapsel hinter dem aktiven Tab. Sie blendet über 150 ms ein; ohne Warten
+  // liest der Check im ersten Frame noch "transparent" (wackelte ~jeder 2. Lauf).
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#tabbar button.active");
+    return el && getComputedStyle(el, "::after").backgroundColor !== "rgba(0, 0, 0, 0)";
+  }, null, { timeout: 1000 }).catch(() => {});
   const capsule = await page.locator("#tabbar button.active").evaluate((el) => {
     const cs = getComputedStyle(el, "::after");
     return { bg: cs.backgroundColor, radius: cs.borderRadius };
