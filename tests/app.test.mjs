@@ -176,10 +176,23 @@ async function goTab(page, tab) {
 }
 
 async function openDay(page, iso) {
-  const row = page.locator(`.day-row[data-date="${iso}"]`);
-  await row.locator('[data-action="toggle-day-detail"]').click();
+  const row = page.locator(`.sd-day[data-date="${iso}"]`);
+  const toggle = row.locator('[data-action="toggle-day-detail"]');
+  // Nach einem Rücksprung aus dem Tag ist die Zeile schon offen (state.openDayIndex): nicht wieder zuklappen.
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
   await row.locator('[data-action="open-day"]').click();
 }
+
+// Wochen-Tab: Kopf (Titel "Woche N", Untertitel mit Zeitraum und Typ), offene Zeilen, Pillen.
+const WEEK_HEAD = "#main > header.sd-pagehead";
+const weekTitle = (page) => page.textContent(`${WEEK_HEAD} h1`);
+const weekSub = (page) => page.textContent(`${WEEK_HEAD} .sd-intro__sub`);
+const waitWeek = (page, n) =>
+  page.waitForFunction((t) => document.querySelector("#main > header.sd-pagehead h1")?.textContent.trim() === t, `Woche ${n}`);
+const waitWeekRows = (page) => page.waitForSelector('[data-card="days"] .sd-day');
+const openRows = (page) => page.locator(".sd-day.is-open").count();
+const rowPills = (row) => row.locator(".sd-day__status .sd-pill").allTextContents().then((a) => a.map((t) => t.trim()));
+const activeAction = (page) => page.evaluate(() => document.activeElement?.dataset?.action ?? null);
 
 async function noHScroll(page, where) {
   const { doc, over } = await page.evaluate(() => ({
@@ -475,13 +488,13 @@ const slotIsEmpty = (page, id) => page.evaluate((i) => document.getElementById(i
   });
   await page.goto(BASE + "/index.html");
   await goTab(page, "woche");
-  const row = page.locator('.day-row[data-date="2026-09-08"]');
+  const row = page.locator('.sd-day[data-date="2026-09-08"]');
   await row.waitFor();
-  const pill = (await row.locator(".partial-pill").textContent()).trim();
-  ok(pill === "Heute · 2/8", `Woche: heutiger Krafttag zeigt "Heute · 2/8" (${pill})`);
-  ok(await row.evaluate((el) => el.classList.contains("today")), "Woche: heutiger Tag behält den Teal-Rahmen");
+  const pills = await rowPills(row);
+  ok(pills.length === 1 && pills[0] === "Heute · 2/8", `Woche: heutiger Krafttag zeigt genau eine kombinierte Pille "Heute · 2/8" (${JSON.stringify(pills)})`);
+  ok(await row.evaluate((el) => el.classList.contains("is-today")), "Woche: heutiger Tag ist als Heute-Zeile getönt");
   await row.locator('[data-action="toggle-day-detail"]').click();
-  const detail = await row.locator(".day-detail").textContent();
+  const detail = await row.locator(".sd-day__detail").textContent();
   ok(detail.includes("Squats:") && detail.includes("60 kg · 27 Wdh"), "Woche: Details zeigen geloggte Werte je Übung");
   ok(detail.includes("Nordic hamstring curl:") && detail.includes("–"), "Woche: noch nicht geloggte Übung mit Strich");
   ok(errors.length === 0, "Woche Teilfortschritt: keine Konsolenfehler " + JSON.stringify(errors));
@@ -498,7 +511,7 @@ const slotIsEmpty = (page, id) => page.evaluate((i) => document.getElementById(i
   await page.waitForSelector(TODAY);
   ok((await active()) === "dashboard", "Tableiste: Start auf Dashboard markiert");
   await goTab(page, "woche");
-  await page.waitForSelector(".week-summary");
+  await page.waitForSelector('[data-card="week-sums"]');
   ok((await active()) === "woche", "Tableiste: Woche markiert im Wochen-Tab");
   await openDay(page, "2026-09-08");
   await page.waitForSelector("[data-ex]");
@@ -814,8 +827,8 @@ for (const [recal, wantText, label] of [
     "Diese Woche: Laufvolumen als <progress> mit Punkt im Attribut und Komma im Text (16,1 / 29 km)");
   ok((await styleAttrCount(page)) === 0, "Heute mit allen Karten: kein style-Attribut im Markup (C5)");
   await page.click('[data-action="go-tab"][data-tab="woche"]');
-  await page.waitForSelector(".week-summary");
-  ok((await page.locator("#tabbar button.active").getAttribute("data-tab")) === "woche" && (await page.textContent("#main > header.sd-pagehead .t1")).includes("Woche 2"),
+  await page.waitForSelector('[data-card="week-sums"]');
+  ok((await page.locator("#tabbar button.active").getAttribute("data-tab")) === "woche" && (await weekTitle(page)) === "Woche 2",
     "Diese Woche: Tipp auf die Karte öffnet den Tab Woche (aktuelle Woche), die Tab-Leiste folgt");
   ok(errors.length === 0, "Diese Woche: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -852,61 +865,175 @@ for (const [recal, wantText, label] of [
   await ctx.close();
 }
 
-// ---- 3. Woche: Navigation, Tag öffnen (M2-7: neue Tagesliste statt Grid) ----
+// ---- 3. Woche: Navigation, Akkordeon, Tag öffnen (Stride E4: sd-day, ein Zeilen-Button, genau eine offene Zeile) ----
 {
   scenario("3");
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
   await goTab(page, "woche");
-  await page.waitForSelector(".day-row");
-  ok((await page.locator(".day-row").count()) === 7, "Woche: 7 Tage");
-  ok((await page.textContent("#main > header.sd-pagehead .t1")).includes("Woche 2"), "Woche: aktuelle Woche 2");
-  ok((await page.locator(".day-row.today").count()) === 1, "Woche: heute markiert");
-  ok((await page.locator('[data-action="week-today"]').count()) === 0, "Woche: kein 'Heute'-Knopf, wenn schon die aktuelle Woche zu sehen ist");
+  await waitWeekRows(page);
+  ok((await page.locator(".sd-day").count()) === 7, "Woche: 7 Tage");
+  ok((await weekTitle(page)) === "Woche 2", "Woche: aktuelle Woche 2");
+  ok((await page.locator(".sd-day.is-today").count()) === 1, "Woche: heute markiert");
+  ok((await page.locator('[data-action="week-today"]').count()) === 0, "Woche: kein 'Zu heute', wenn schon die aktuelle Woche zu sehen ist");
   await page.click('[data-action="week-next"]');
-  await page.waitForFunction(() => document.querySelector("#main > header.sd-pagehead .t1")?.textContent.includes("Woche 3"));
+  await waitWeek(page, 3);
   ok(true, "Woche: vorwärts blättern");
+  await page.waitForFunction(() => document.activeElement?.dataset?.action === "week-next");
+  ok((await activeAction(page)) === "week-next", "Woche: nach dem Blättern liegt der Fokus wieder auf dem Pfeil");
   await page.click('[data-action="week-prev"]');
   await page.click('[data-action="week-prev"]');
-  await page.waitForFunction(() => document.querySelector("#main > header.sd-pagehead .t1")?.textContent.includes("Woche 1"));
+  await waitWeek(page, 1);
   ok(true, "Woche: rückwärts blättern");
   ok(await page.locator('[data-action="week-prev"]').isDisabled(), "Woche: bei Woche 1 kein Zurück");
-  ok((await page.locator('[data-action="week-today"]').count()) === 1, "Woche: 'Heute'-Knopf erscheint außerhalb der aktuellen Woche");
+  ok(!(await page.locator('[data-action="week-next"]').isDisabled()), "Woche: bei Woche 1 geht Weiter noch");
+  ok((await page.locator('[data-action="week-today"]').count()) === 1 && (await page.textContent('[data-action="week-today"]')).trim() === "Zu heute",
+    "Woche: 'Zu heute' erscheint außerhalb der aktuellen Woche");
   await page.click('[data-action="week-today"]');
-  await page.waitForFunction(() => document.querySelector("#main > header.sd-pagehead .t1")?.textContent.includes("Woche 2"));
-  ok(true, "Woche: 'Heute' springt zurück");
-  await page.waitForSelector(".week-summary");
+  await waitWeek(page, 2);
+  ok(true, "Woche: 'Zu heute' springt zurück");
+  await page.waitForSelector('[data-card="week-sums"]');
   await shot(page, "03-woche");
   await noHScroll(page, "Woche");
+  ok((await styleAttrCount(page)) === 0, "Woche: kein style-Attribut im Markup (C5)");
 
-  // Status-Symbole und Ist/Ziel-Zeile der neuen Tagesliste
-  const rows = await page.locator(".day-row.solid").evaluateAll((els) =>
-    els.map((el) => el.querySelector(".mid .n").textContent.trim()));
-  ok(rows.includes("Easy run") && rows.includes("Full Body A"), `Woche: Tagesliste zeigt Lauf- und Krafteinheiten (${rows.join(", ")})`);
-  const monday = page.locator('.day-row[data-date="2026-09-07"]');
-  ok((await monday.locator(".mid .s").textContent()).startsWith("Ist:"), "Woche: bereits gelaufener Tag zeigt Ist statt Ziel");
+  // Tageszeilen: Titel mit Distanz, Ist statt Ziel für gelaufene Tage
+  const titles = await page.locator(".sd-day__title").allTextContents();
+  ok(titles.some((t) => t.startsWith("Easy run · ")) && titles.includes("Full Body A"), `Woche: Tagesliste zeigt Lauf- und Krafteinheiten (${titles.join(", ")})`);
+  const monday = page.locator('.sd-day[data-date="2026-09-07"]');
+  ok((await monday.locator(".sd-day__sub").textContent()).startsWith("Ist:"), "Woche: bereits gelaufener Tag zeigt Ist statt Ziel");
 
   // Antippen klappt Details auf, ohne die Ansicht zu wechseln
-  const tue = page.locator('.day-row[data-date="2026-09-08"]');
-  ok(!(await tue.locator(".day-detail").isVisible()), "Woche: Details zunächst zu");
+  const tue = page.locator('.sd-day[data-date="2026-09-08"]');
+  ok(!(await tue.locator(".sd-day__detail").isVisible()) && (await tue.locator(".sd-day__detail").getAttribute("hidden")) !== null, "Woche: Details zunächst zu (hidden)");
   await tue.locator('[data-action="toggle-day-detail"]').click();
-  ok(await tue.locator(".day-detail").isVisible(), "Woche: Antippen klappt die Details auf");
+  ok(await tue.locator(".sd-day__detail").isVisible() && await tue.evaluate((el) => el.classList.contains("is-open")), "Woche: Antippen klappt die Details auf");
   ok((await tue.locator('[data-action="toggle-day-detail"]').getAttribute("aria-expanded")) === "true", "Woche: aria-expanded folgt dem Zustand");
-  ok((await tue.locator(".day-detail").textContent()).includes("Übungen"), "Woche: Kraft-Details zeigen die Übungsliste");
-  ok((await page.locator(".week-summary").count()) === 1, "Woche: Aufklappen bleibt im Wochen-Tab");
-  ok((await page.locator('.day-row.rest [data-action]').count()) === 0, "Woche: Ruhetage sind nicht antippbar");
-  await tue.locator('[data-action="toggle-day-detail"]').click();
-  ok(!(await tue.locator(".day-detail").isVisible()), "Woche: zweites Antippen klappt wieder zu");
+  ok((await tue.locator(".sd-day__detail").textContent()).includes("Übungen"), "Woche: Kraft-Details zeigen die Übungsliste");
+  ok((await page.locator('[data-card="week-sums"]').count()) === 1, "Woche: Aufklappen bleibt im Wochen-Tab");
+  ok((await page.locator('.sd-day.is-rest [data-action], .sd-day.is-rest button, .sd-day.is-rest [aria-expanded]').count()) === 0 &&
+     (await page.locator(".sd-day.is-rest").count()) === 2, "Woche: Ruhetage sind nicht antippbar (kein Knopf, kein data-action, kein aria-expanded)");
 
-  // Dienstag = Krafttag über "Tag öffnen" in die Tagesansicht
+  // Genau eine Zeile offen: eine zweite öffnen schließt die erste
+  await monday.locator('[data-action="toggle-day-detail"]').click();
+  ok((await openRows(page)) === 1 && await monday.evaluate((el) => el.classList.contains("is-open")) &&
+     !(await tue.locator(".sd-day__detail").isVisible()), "Woche: eine zweite Zeile zu öffnen schließt die erste (genau eine offen)");
+  const expanded = await page.locator('[data-action="toggle-day-detail"]').evaluateAll((els) => els.map((e) => e.getAttribute("aria-expanded")));
+  ok(expanded.filter((x) => x === "true").length === 1 && expanded.every((x) => x === "true" || x === "false") &&
+     (await page.locator(".sd-day__detail:not([hidden])").count()) === 1, `Woche: aria-expanded und hidden laufen mit dem Zustand (${expanded.join(",")})`);
+  await monday.locator('[data-action="toggle-day-detail"]').click();
+  ok((await openRows(page)) === 0 && !(await monday.locator(".sd-day__detail").isVisible()), "Woche: zweites Antippen klappt wieder zu");
+
+  // Dienstag = Krafttag über "Tag öffnen" in die Tagesansicht, Rücksprung "‹ Woche"
   await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex]');
   ok((await page.textContent("#main > header.sd-pagehead h1")) === "Krafttraining", "Tagesansicht: Krafttag geöffnet");
   ok((await page.locator("[data-ex]").count()) === 8, "Krafttag: 8 Übungen");
+  ok((await page.locator('[data-action="back"]').textContent()).trim() === "Woche", "Tagesansicht aus der Woche: Rücksprung heißt 'Woche' (‹ Woche)");
   await page.click('[data-action="back"]');
-  await page.waitForSelector(".day-row");
-  ok(true, "Tagesansicht: Zurück zur Woche");
+  await waitWeekRows(page);
+  ok((await weekTitle(page)) === "Woche 2", "Tagesansicht: Zurück zur Woche (gleiche Woche)");
+  ok((await openRows(page)) === 1 && await page.locator('.sd-day[data-date="2026-09-08"]').evaluate((el) => el.classList.contains("is-open")),
+    "Tagesansicht: nach dem Rücksprung ist die zuletzt geöffnete Zeile wieder offen");
+  await page.click('[data-action="week-next"]');
+  await waitWeek(page, 3);
+  ok((await openRows(page)) === 0, "Woche: beim Wechsel der Woche sind alle Zeilen zu");
   ok(errors.length === 0, "Woche: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 3b. Woche: Status-Pillen und Rangfolge, Entlastung, Ruhetag (Stride E4, neu) ----
+// Entlastungswoche 8 (19.–25.10.), heute Sonntag 25.10.: Mo HF zu hoch UND zu kurz (eine Pille: HF),
+// Di Pflicht-Kraft ohne Log (verpasst), Mi 89 % (zu kurz), Do Kraft 2/8 (vergangen, teilweise),
+// Fr Ruhe, Sa Long run am Freitag gelaufen (nachgeholt), So Recovery heute offen.
+{
+  scenario("3b");
+  const acts = [
+    { id: 21, type: "Run", name: "Easy run", start_date_local: "2026-10-19T07:00:00Z", distance: 7000, moving_time: 2700, average_heartrate: 163 },
+    { id: 22, type: "Run", name: "Easy run", start_date_local: "2026-10-21T07:00:00Z", distance: 7100, moving_time: 2700, average_heartrate: 150 },
+    { id: 23, type: "Run", name: "Long run", start_date_local: "2026-10-23T09:00:00Z", distance: 11000, moving_time: 4100, average_heartrate: 150 },
+  ];
+  const { page, ctx, errors } = await newPage({ connected: true, activities: acts, now: "2026-10-25T09:00:00Z" });
+  await page.addInitScript(() => {
+    localStorage.setItem("test.logs", JSON.stringify({
+      "2026-10-22_bulgarian-split-squats": { date: "2026-10-22", exercise: "bulgarian-split-squats", name: "Bulgarian split squats", soll: "3x8", topKg: 20, totalReps: 24, completed: true, sets: [{ kg: 20, reps: 8 }] },
+      "2026-10-22_single-leg-rdl": { date: "2026-10-22", exercise: "single-leg-rdl", name: "Single leg RDL", soll: "3x8", topKg: 30, totalReps: 24, completed: true, sets: [{ kg: 30, reps: 8 }] },
+    }));
+  });
+  await page.goto(BASE + "/index.html");
+  await goTab(page, "woche");
+  await waitWeekRows(page);
+  await page.waitForSelector('.sd-day[data-date="2026-10-19"] .sd-day__status .sd-pill, .sd-day[data-date="2026-10-19"] .sd-day__status .sd-check');
+  const row = (iso) => page.locator(`.sd-day[data-date="${iso}"]`);
+  ok((await weekTitle(page)) === "Woche 8" && (await weekSub(page)).includes("19.–25. Oktober") && (await weekSub(page)).includes("Entlastung"),
+    `Woche 8: Kopf mit Zeitraum und Wochentyp (${await weekSub(page)})`);
+  const mo = await rowPills(row("2026-10-19"));
+  ok(mo.length === 1 && mo[0] === "HF zu hoch", `Status: Ø HF über der Grenze zeigt "HF zu hoch" (${JSON.stringify(mo)})`);
+  ok(/Kürzer als geplant/.test(await row("2026-10-19").locator(".sd-day__detail").textContent()),
+    "Rangfolge: der zweite Grund (zu kurz) steht in den Details, nicht als zweite Pille");
+  const we = await rowPills(row("2026-10-21"));
+  ok(we.length === 1 && we[0] === "zu kurz", `Status: 7,1 von 8 km (89 %) zeigt "zu kurz" (${JSON.stringify(we)})`);
+  const di = await rowPills(row("2026-10-20"));
+  ok(di.length === 1 && di[0] === "verpasst", `Status: Pflicht-Kraft ohne Log ist "verpasst" (${JSON.stringify(di)})`);
+  const dop = await rowPills(row("2026-10-22"));
+  ok(dop.length === 1 && dop[0] === "2/8", `Status: vergangene Kraft teilweise zeigt "2/8" (${JSON.stringify(dop)})`);
+  const sa = await rowPills(row("2026-10-24"));
+  ok(sa.length === 1 && sa[0] === "nachgeholt", `Status: Lauf an anderem Tag zeigt "nachgeholt" (${JSON.stringify(sa)})`);
+  ok(await row("2026-10-25").evaluate((el) => el.classList.contains("is-today")) && JSON.stringify(await rowPills(row("2026-10-25"))) === '["Heute"]',
+    "Status: heute ohne Lauf zeigt 'Heute'");
+  ok((await row("2026-10-22").locator(".sd-day__sub").textContent()).includes("2/8 erfasst · Deload") &&
+     (await row("2026-10-20").locator(".sd-day__sub").textContent()).endsWith(" · Deload"),
+    "Entlastungswoche: Kraftzeilen tragen ' · Deload' in der Sub-Zeile");
+  ok(!(await row("2026-10-19").locator(".sd-day__sub").textContent()).includes("Deload"), "Entlastungswoche: Laufzeilen tragen kein Deload");
+  ok((await row("2026-10-23").getAttribute("class")).includes("is-rest") && (await row("2026-10-23").locator("button, [data-action], [aria-expanded]").count()) === 0 &&
+     (await row("2026-10-23").locator(".sd-day__row").textContent()).includes("Ruhe"), "Ruhetag: Zeile ohne Knopf, data-action und aria-expanded");
+  const rest = row("2026-10-23");
+  await rest.locator(".sd-day__row").click({ force: true });
+  ok((await openRows(page)) === 0, "Ruhetag: Tippen öffnet nichts");
+  ok((await page.locator('[data-card="days"] [aria-label], [data-card="days"] .sd-vh').count()) > 0 &&
+     (await row("2026-10-25").locator(".sd-day__dow .sd-vh").textContent()).trim() === "Sonntag, heute", "Barrierefreiheit: heutiger Wochentag trägt 'heute' für Screenreader");
+  // Summen: Laufkilometer 25,1 von 30 (7,0 + 7,1 + 11,0 — keine Zuordnung doppelt), Kraft 0/2 (2/8 zählt nicht als erledigt)
+  const lauf = page.locator('[data-sum="lauf"]');
+  ok((await lauf.textContent()).includes("25,1 / 30") && (await lauf.locator("progress").getAttribute("value")) === "25.1" && (await lauf.locator("progress").getAttribute("max")) === "30",
+    `Summen: Laufvolumen als <progress> (Punkt im Attribut, Komma im Text): ${(await lauf.textContent()).trim()}`);
+  ok((await page.locator('[data-sum="kraft"]').textContent()).includes("0 / 2"), "Summen: Kraft 0 / 2 Einheiten");
+  ok((await styleAttrCount(page)) === 0, "Woche mit allen Zuständen: kein style-Attribut im Markup (C5)");
+  await noHScroll(page, "Woche 8");
+  ok(errors.length === 0, "Woche 8: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 3c. Woche ohne Details: "Tagesdetails folgen" (Stride E4, neu; planunabhängige Fixtures, Auflage C8) ----
+// Das Re-Kalibrierungsdatum aus dem Plan-Objekt (früher Heute, Szenario 2c) wohnt jetzt hier.
+for (const [recal, wantText, notText, label] of [
+  [["2026-09-30"], ["am 30.09. stehen hier die Einheiten", "Geplant sind 32 km"], [], "mit künftigem Datum"],
+  [["2026-10-28", "2026-11-22"], ["Re-Kalibrierung am 28.10. stehen"], ["22.11."], "Re-Kalibrierung 28.10. (nächstes Datum, nicht das spätere)"],
+  [[], ["Nach der Re-Kalibrierung stehen hier die Einheiten", "Geplant sind 32 km"], [" am "], "ohne Datum"],
+  [["2026-09-01"], ["Nach der Re-Kalibrierung stehen hier die Einheiten"], [" am ", "01.09."], "nur vergangenes Datum"],
+]) {
+  scenario("3c");
+  const { page, ctx, errors } = await newPage({ now: "2026-09-16T09:00:00Z" }); // Mi W3
+  await routePlan(ctx, placeholderPlanJSON(recal));
+  await page.goto(BASE + "/index.html");
+  await goTab(page, "woche");
+  await page.waitForSelector('[data-card="week-placeholder"]');
+  const card = await page.textContent('[data-card="week-placeholder"]');
+  ok(card.includes("Tagesdetails folgen") && wantText.every((t) => card.includes(t)) && notText.every((t) => !card.includes(t)),
+    `Platzhalterwoche (${label}): "${card.replace(/\s+/g, " ").trim()}"`);
+  ok((await page.locator('[data-card="week-sums"], [data-card="days"]').count()) === 0 && (await weekTitle(page)) === "Woche 3",
+    `Platzhalterwoche (${label}): keine Summen-Karte, keine Tagesliste, Kopf bleibt`);
+  if (label === "mit künftigem Datum") {
+    ok((await page.locator('[data-action="week-prev"]').isDisabled()) === false && (await page.locator('[data-action="week-next"]').isDisabled()) === false &&
+       (await page.locator('[data-action="week-today"]').count()) === 0, "Platzhalterwoche: Pfeile bedienbar, in der aktuellen Woche kein 'Zu heute'");
+    await page.click('[data-action="week-next"]');
+    await waitWeek(page, 4);
+    await page.waitForFunction(() => document.activeElement?.dataset?.action === "week-next");
+    ok((await activeAction(page)) === "week-next" && (await page.locator('[data-action="week-today"]').count()) === 1,
+      "Platzhalterwoche: Weiterblättern hält den Fokus auf dem Pfeil, 'Zu heute' erscheint");
+    ok((await styleAttrCount(page)) === 0, "Platzhalterwoche: kein style-Attribut im Markup (C5)");
+    await noHScroll(page, "Platzhalterwoche");
+  }
+  ok(errors.length === 0, `Platzhalterwoche (${label}): keine Konsolenfehler ` + JSON.stringify(errors));
   await ctx.close();
 }
 
@@ -1327,6 +1454,13 @@ for (const [recal, wantText, label] of [
   // Kopf: Stride-Zeichen auf allen vier Tabs
   for (const tab of ["dashboard", "woche", "verlauf", "plan"]) {
     await page.click(`[data-tab="${tab}"]`);
+    if (tab === "woche") {
+      // Der Wochenkopf (Markup 10.1) ist eine Titelzeile mit Rundtasten, ohne Markenzeile.
+      await page.waitForSelector("#main > header.sd-pagehead > .sd-weekhead h1");
+      ok((await page.locator("#main > header.sd-pagehead .sd-brand").count()) === 0 && (await page.locator("#main > header.sd-pagehead .sd-roundbtn").count()) === 2,
+        "Kopf woche: Titelzeile 'Woche N' mit zwei Rundtasten, ohne Markenzeile (Markup 10.0/10.1)");
+      continue;
+    }
     await page.waitForSelector("#main > header.sd-pagehead .sd-brand .sd-mark");
     const brand = await page.evaluate(() => {
       const m = document.querySelector("#main > header.sd-pagehead .sd-brand .sd-mark").getBoundingClientRect();
@@ -1348,15 +1482,17 @@ for (const [recal, wantText, label] of [
   const heuteHead = await headTopAfterScroll(page);
   ok(heuteHead.scrolled === 300 && heuteHead.top < 0, `Kopf Heute: scrollt mit weg (top ${Math.round(heuteHead.top)})`);
   await goTab(page, "woche");
-  await page.waitForSelector(".day-row");
+  await waitWeekRows(page);
+  // Die kompakte Woche passt fast auf einen Bildschirm: eine offene Zeile macht sie sicher scrollbar.
+  await page.click('.sd-day[data-date="2026-09-08"] [data-action="toggle-day-detail"]');
   const wocheHead = await headTopAfterScroll(page);
-  ok(wocheHead.scrolled > 0 && wocheHead.top < 0, `Kopf Woche: scrollt mit weg (top ${Math.round(wocheHead.top)})`);
+  ok(wocheHead.scrolled > 0 && wocheHead.top < 0, `Kopf Woche: scrollt mit weg (top ${Math.round(wocheHead.top)}, gescrollt ${wocheHead.scrolled})`);
   await openDay(page, "2026-09-08"); // Krafttag
   await page.waitForSelector("[data-ex]");
   const kraftHead = await headTopAfterScroll(page);
   ok(kraftHead.scrolled > 0 && kraftHead.top < 0, `Kopf Kraft-Tag: scrollt mit weg (top ${Math.round(kraftHead.top)})`);
   await page.click('[data-action="back"]');
-  await page.waitForSelector(".day-row");
+  await waitWeekRows(page);
   ok((await page.locator("#header").innerHTML()) === "", "Kopf: #header bleibt leer (Kopf steckt im #main)");
   // Statische Sperre: #main wird nur über renderMain() geschrieben, sonst fehlt der Seitenkopf.
   const appSrc = readFileSync(new URL("../app.js", import.meta.url), "utf8");
@@ -1376,7 +1512,7 @@ for (const [recal, wantText, label] of [
   ok((await page.locator("#app.is-detail").count()) === 1 && !(await page.locator("#tabbar").isVisible()),
      "Kraft-Tag: Tableiste ausgeblendet (#app.is-detail)");
   await page.click('[data-action="back"]');
-  await page.waitForSelector(".day-row");
+  await waitWeekRows(page);
   ok((await page.locator("#app.is-detail").count()) === 0 && (await page.locator("#tabbar").isVisible()),
      "Zurück vom Kraft-Tag: Tableiste wieder sichtbar");
   await openDay(page, "2026-09-09"); // Lauftag
@@ -1384,7 +1520,7 @@ for (const [recal, wantText, label] of [
   ok((await page.locator("#app.is-detail").count()) === 1 && !(await page.locator("#tabbar").isVisible()),
      "Lauf-Tag: Tableiste ausgeblendet");
   await page.click('[data-action="back"]');
-  await page.waitForSelector(".day-row");
+  await waitWeekRows(page);
   ok((await page.locator("#tabbar").isVisible()), "Zurück vom Lauf-Tag: Tableiste wieder sichtbar");
   await ctx.close();
 }
@@ -1825,8 +1961,8 @@ for (const [recal, wantText, label] of [
   ok((await page.textContent("#main > header.sd-pagehead")).includes("Ohne Plan") && (await page.textContent(TODAY)).includes("Kein Plan aktiv"), "Vor Planstart: 'Kein Plan aktiv' auf 'Heute'");
 
   await goTab(page, "woche");
-  await page.waitForSelector(".day-row, .card");
-  ok((await page.textContent("#main > header.sd-pagehead .t1")).includes("Woche 1"), "Vor Planstart: Wochen-Tab zeigt Woche 1, nicht Woche 35");
+  await waitWeekRows(page);
+  ok((await weekTitle(page)) === "Woche 1", "Vor Planstart: Wochen-Tab zeigt Woche 1, nicht Woche 35");
 
   await goTab(page, "plan");
   await page.waitForSelector(".zone-line");
@@ -2171,38 +2307,41 @@ for (const [fail, want, notWant, label] of [
     `Test-Lauf mit Ø HF 178 verfälscht die Easy-Disziplin nicht (${tiles["Easy-Disziplin"].status})`);
 
   await goTab(page, "woche");
-  await page.waitForSelector(".day-row");
-  ok((await page.textContent("#main > header.sd-pagehead .t1")).includes("Woche 10"), "W9-Test: Woche 10 aktuell");
+  await waitWeekRows(page);
+  ok((await weekTitle(page)) === "Woche 10", "W9-Test: Woche 10 aktuell");
   await page.click('[data-action="week-prev"]');
-  await page.waitForFunction(() => document.querySelector("#main > header.sd-pagehead .t1")?.textContent.includes("Woche 9"));
-  await page.waitForSelector(".week-summary");
-  const names = await page.locator(".day-row.solid .mid .n").allTextContents();
-  ok(names.includes("Kalibrierungstest"), `W9: Kalibrierungstest in der Tagesliste (${names.join(", ")})`);
-  ok(names.includes("Full Body B (optional)"), "W9: Do-Kraft als optional gekennzeichnet");
-  const wed = page.locator('.day-row[data-date="2026-10-28"]');
+  await waitWeek(page, 9);
+  await page.waitForSelector('[data-card="week-sums"]');
+  const names = await page.locator(".sd-day__title").allTextContents();
+  ok(names.some((n) => n.startsWith("Kalibrierungstest")), `W9: Kalibrierungstest in der Tagesliste (${names.join(", ")})`);
+  const wed = page.locator('.sd-day[data-date="2026-10-28"]');
+  const opt = page.locator('.sd-day[data-date="2026-10-29"]');
+  ok(names.includes("Full Body B") && (await opt.locator(".sd-day__sub").textContent()).includes("Optional"), "W9: Do-Kraft als optional gekennzeichnet");
   ok(!(await wed.textContent()).includes("verpasst"), "W9: Kalibrierungstest erledigt, nicht verpasst");
-  ok((await wed.locator(".status-icon").first().evaluate((el) => el.classList.contains("fg-ok"))),
-    "W9: Kalibrierungstest mit hoher HF zeigt Haken statt 'Zu schnell'-Warnung");
-  const opt = page.locator('.day-row[data-date="2026-10-29"]');
-  ok((await opt.locator(".optional-pill").count()) === 1 && (await opt.locator(".missed-pill").count()) === 0,
+  ok((await wed.locator(".sd-day__status .sd-check").count()) === 1 && (await wed.locator(".sd-day__status .sd-pill").count()) === 0,
+    "W9: Kalibrierungstest mit hoher HF zeigt Haken statt 'HF zu hoch'-Pille");
+  ok(JSON.stringify(await rowPills(opt)) === '["optional"]' && (await opt.locator(".sd-pill--danger").count()) === 0,
     "W9: vergangene, nicht erledigte optionale Kraft ist neutral ('optional'), nicht 'verpasst'");
-  const tue = page.locator('.day-row[data-date="2026-10-27"]');
-  ok((await tue.locator(".missed-pill").count()) === 1, "W9: nicht erledigte Pflicht-Kraft bleibt 'verpasst'");
-  ok((await page.textContent(".week-summary")).includes("0/1 Einheiten"), "W9: optionale Kraft zählt nicht im Wochensoll (0/1)");
+  const tue = page.locator('.sd-day[data-date="2026-10-27"]');
+  ok(JSON.stringify(await rowPills(tue)) === '["verpasst"]', "W9: nicht erledigte Pflicht-Kraft bleibt 'verpasst'");
+  ok((await page.textContent('[data-sum="kraft"]')).includes("0 / 1"), "W9: optionale Kraft zählt nicht im Wochensoll (0 / 1)");
   await wed.locator('[data-action="toggle-day-detail"]').click();
-  ok((await wed.locator(".day-detail").textContent()).includes("Ø Pace und Ø HF der 30 min notieren"), "W9: Hinweis zum Kalibrierungstest in den Details");
+  ok((await wed.locator(".sd-day__detail").textContent()).includes("Ø Pace und Ø HF der 30 min notieren"), "W9: Hinweis zum Kalibrierungstest in den Details");
   await opt.locator('[data-action="toggle-day-detail"]').click();
-  ok((await opt.locator(".day-detail").textContent()).includes("weder im Wochensoll noch als verpasst"), "W9: Details erklären 'optional'");
+  ok((await opt.locator(".sd-day__detail").textContent()).includes("weder im Wochensoll noch als verpasst"), "W9: Details erklären 'optional'");
+  ok((await openRows(page)) === 1, "W9: nach dem zweiten Aufklappen ist genau eine Zeile offen");
   await shot(page, "24-woche-9");
   await noHScroll(page, "Woche 9");
 
   // Woche 35 per Vorwärts-Blättern erreichbar, danach kein Weiter mehr
   await page.click('[data-action="week-today"]');
   for (let i = 10; i < 35; i++) await page.click('[data-action="week-next"]');
-  await page.waitForFunction(() => document.querySelector("#main > header.sd-pagehead .t1")?.textContent.includes("Woche 35"));
-  ok(await page.locator('[data-action="week-next"]').isDisabled(), "Woche 35: kein Weiter");
-  ok((await page.textContent("#main > header.sd-pagehead .t2")).includes("26.04.") && (await page.textContent("#main > header.sd-pagehead .t2")).includes("02.05."), "Woche 35: 26.04.–02.05.");
-  ok((await page.textContent("#main")).includes("Details folgen"), "Woche 35: Platzhalterkarte");
+  await waitWeek(page, 35);
+  ok(await page.locator('[data-action="week-next"]').isDisabled(), "Woche 35: kein Weiter (Pfeil gesperrt)");
+  await page.waitForFunction(() => document.activeElement?.dataset?.action === "week-prev");
+  ok((await activeAction(page)) === "week-prev", "Woche 35: der gesperrte Pfeil gibt den Fokus an den anderen Pfeil ab");
+  ok((await weekSub(page)).includes("26. April–2. Mai"), `Woche 35: 26. April–2. Mai (${await weekSub(page)})`);
+  ok((await page.textContent('[data-card="week-placeholder"]')).includes("Tagesdetails folgen"), "Woche 35: Platzhalterkarte");
 
   await goTab(page, "plan");
   await page.waitForSelector(".zone-line");

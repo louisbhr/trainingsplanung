@@ -6,7 +6,7 @@
 // (Auflage C5): Aufrufer reichen Daten herein, das Lesen und Schreiben des
 // Entwurfs übernimmt app.js mit serializeDraft/parseDraft.
 
-import { parseSoll } from "./progression.js?v=202610211125";
+import { parseSoll } from "./progression.js?v=202610211153";
 
 export const MAX_SETS = 8; // wie setsCountFromSoll in app.js
 export const MAX_VALUE = 1000; // obere Grenze für kg, Wdh und Sekunden im Entwurf

@@ -79,7 +79,7 @@ druckt am Ende „Checks je Szenario“ (`scenario("…")` steht in der ersten Z
 kein Szenario verschwindet, keine Absicht fällt weg. Aufgefüllt wird nicht, um eine Zahl zu halten.
 
 Baseline: der Plan nennt 336 Checks; gemessen am Merge-Base `a6e6c4b` waren es **390** (Login und
-Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nach dem Kopf-Umbau (Seitenkopf scrollt mit, +6 in Szenario 12) **447**.
+Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nach dem Kopf-Umbau (Seitenkopf scrollt mit, +6 in Szenario 12) 447, nach E4 (Woche) **491**.
 
 | Szenario | Prüfabsichten | a6e6c4b | E2 | E3 | Etappe |
 | --- | --- | --- | --- | --- | --- |
@@ -102,11 +102,18 @@ Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nac
 | 35a–35g (neu) | Ruhetag mit/ohne „Morgen“; Long Run; „zu kurz“ 89 % / „im Plan“ 90 %; nachgeholt; Platzhalterwoche (mit/ohne Datum, Plan aus REAL_PLAN_JSON abgeleitet); Diese Woche (7 Tage, Zustände, Volumen, Tipp öffnet Woche); Escaping Laufname | – | – | 28 | E3 |
 | 12 | Tab-Leiste klebt, Detailseiten ohne Leiste (E1 +9: Glas, Kapsel, Marke); neu +6: Seitenkopf scrollt auf Heute, Woche und Kraft-Tag mit weg, `#header` leer, nach Tabwechseln/Nachladern genau ein Seitenkopf, `#main` nur über `renderMain()` beschrieben (statische Sperre); Sicherheitsabstand oben jetzt am Seitenkopf, seitlich an #main gemessen | 4 | 13 | 13 → 19 | E1 (+Kopf) |
 | alle mit Kopf-Selektoren | `#header …` heißt jetzt `#main > header.sd-pagehead …` (Kopf steht im #main); Anzahl unverändert. 30a: „Karte zentriert“ misst ab Unterkante des Seitenkopfs | – | – | – | – |
-| übrige (3–11, 13–19b, 23, 24, 24p, 26, 27, 30–33) | unverändert; nur Selektoren auf Heute angepasst (27, 24p, 23, 30b) | – | – | – | – |
+| 2c-3 | Woche, heutiger Krafttag mit Teilfortschritt: **eine** kombinierte Pille „Heute · 2/8“, Heute-Tönung, Details zeigen geloggte Werte je Übung und „–“ für offene (jetzt auf `.sd-day`, `.sd-pill`, `is-today`) | 5 | 5 | 5 | E4 (5 → 5, Pillen-Zahl jetzt mitgeprüft) |
+| 3 | Woche: 7 Tage, aktuelle Woche, Heute-Zeile, Blättern vor/zurück, Grenze Woche 1, „Zu heute“ (nur außerhalb der aktuellen Woche), Titel mit Distanz, Ist statt Ziel, Aufklappen, `aria-expanded`, Ruhetage nicht antippbar, Tag öffnen → Krafttag, Zurück. **Neu:** Fokus bleibt nach dem Blättern auf dem Pfeil, Weiter bei Woche 1 aktiv, genau eine Zeile offen (zweite öffnet, erste schließt), `aria-expanded`/`hidden` im Gleichlauf, Rücksprung heißt „‹ Woche“, zuletzt offene Zeile nach dem Rücksprung wieder offen, Wochenwechsel schließt alle, kein `style=` | 23 | 23 | 23 → 31 | E4 |
+| 3b (neu) | Status-Pillen auf einem Entlastungswochen-Fixture: „HF zu hoch“ (Rangfolge: zweiter Grund „kürzer als geplant“ nur in den Details, nie zweite Pille), „zu kurz“ bei 89 %, „verpasst“, „2/8“ vergangen, „nachgeholt“, „Heute“; Deload-Suffix nur an Kraftzeilen; Ruhetag ohne Knopf/`data-action`/`aria-expanded`, Tippen öffnet nichts; „Sonntag, heute“ für Screenreader; Summen als `<progress>` (Punkt im Attribut, Komma im Text), Kraft 0 / 2; kein `style=`, kein H-Scroll, keine Konsolenfehler | – | – | – → 18 | E4 |
+| 3c (neu) | „Tagesdetails folgen“ auf planunabhängigem Fixture (abgeleitet aus `REAL_PLAN_JSON`, Auflage C8): mit künftigem Datum, **Re-Kalibrierung 28.10. (aus 2c umgezogen; nächstes statt späteres Datum)**, ohne Datum, nur vergangenes Datum; keine Summen-Karte/Tagesliste, Kopf mit Pfeilen bleibt, Fokus auf dem Pfeil, „Zu heute“ erscheint, kein `style=`, kein H-Scroll | – | – | – → 16 (4 Durchläufe) | E4 |
+| 11 | Verschobener Lauf: Woche-Anteil ist nur der Weg über `openDay()` (jetzt `.sd-day`, bei schon offener Zeile nicht zuklappen) | 14 | 14 | 14 → 14 | E4 |
+| 24p | W9: Kalibrierungstest in der Liste und mit Haken statt „HF zu hoch“, optionale Kraft („Optional“ in der Sub-Zeile, Pille „optional“, nicht „verpasst“), Pflicht-Kraft „verpasst“, Kraft 0 / 1, Hinweise in den Details, Woche 35 (Pfeil gesperrt, Platzhalterkarte, 26. April–2. Mai), Plan-Tab. **Neu:** nach zweitem Aufklappen genau eine offene Zeile, Fokus wechselt am gesperrten Pfeil zum anderen | 22 | 22 | 22 → 24 | E4 |
+| 12 (Kopf) | Der Wochenkopf hat laut Markup 10.0/10.1 keine Markenzeile: die Prüfung „Stride-Zeichen 28 px“ gilt für Heute, Verlauf, Plan; für Woche steht an derselben Stelle „Titelzeile mit zwei Rundtasten, ohne Markenzeile“ (eins zu eins). Der Scroll-Test der Woche öffnet vorher eine Zeile (die kompakte Woche passt fast auf den Bildschirm) | 19 | 19 | 19 → 19 | E4 |
+| übrige (4–10, 13–19b, 23, 24, 26, 27, 30–33) | unverändert; nur Selektoren auf Heute angepasst (27, 23, 30b) | – | – | – | – |
 
 **Bewusste Ausnahmen in 2c („Im Detail“, einzeln):** Wochenvolumen (8 Wochen, aktuelle Woche, kein Ist
 in der Zukunft), Aerobe Effizienz (−15 s/km), Adhärenz (50 %, 3 von 6), „Nächster Long Run“,
 „Nächste Woche: Aufbau“ ersetzt durch drei Checks „Im Detail ist weg, Coach/Ampeln unverändert“;
 die Rechnungen bleiben über `metrics.test.mjs` abgedeckt. **Zieht um:** „Re-Kalibrierung: 28.10.“
-aus dem Plan-Objekt wandert nach Woche („Tagesdetails folgen …“, E4) und fällt nicht weg; bis dahin
-ist diese Absicht offen. Die Aerobe/Adhärenz-Rechnung für den Coach-Request bleibt in `app.js`.
+aus dem Plan-Objekt wandert nach Woche („Tagesdetails folgen …“) und fällt nicht weg: seit E4 geprüft
+in Szenario 3c (Fixture mit `recalibrationDates` 28.10. und 22.11., zeigt das nächste Datum). Die Aerobe/Adhärenz-Rechnung für den Coach-Request bleibt in `app.js`.

@@ -2,7 +2,7 @@
 // Datumsformatierung, Toast, Fehler-/Lade-Karten und die Sheet-Fabrik
 // (createSheet, Auflage C6). Bewusst ohne Firebase-Abhängigkeiten,
 // nur plan.js für die reinen Datums-Helfer.
-import { fromISO } from "./plan.js?v=202610211125";
+import { fromISO } from "./plan.js?v=202610211153";
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -77,10 +77,14 @@ export function pill(tone, text) {
 
 const WEEKDAYS_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const WEEKDAYS_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
-const MONTHS_DE = [
+export const MONTHS_DE = [
   "Januar", "Februar", "März", "April", "Mai", "Juni",
   "Juli", "August", "September", "Oktober", "November", "Dezember",
 ];
+
+// Zahl für ein HTML-Attribut (<progress value/max>): Punkt als Dezimaltrenner,
+// nie negativ, höchstens eine Nachkommastelle. Nie formatKm1() (Komma).
+export const numAttr = (x) => (Number.isFinite(x) ? String(Math.round(Math.max(0, x) * 10) / 10) : "0");
 
 export const dayNameDE = (iso) => WEEKDAYS_SHORT[fromISO(iso).getDay()];
 export const dayLongDE = (iso) => WEEKDAYS_LONG[fromISO(iso).getDay()];

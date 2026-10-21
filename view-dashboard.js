@@ -4,10 +4,10 @@
 // importiert nie Firebase, Strava oder app.js). Keine eigenen Styles und kein
 // style="...": alle Klassen kommen aus style.css, das Markup steht in
 // docs/ui-markup-stride.md, Abschnitt 9. Fremde Texte immer durch esc().
-import { formatKm, formatKm1 } from "./metrics.js?v=202610211125";
-import { esc, markSVG, checkCircle, ringOpen, pill } from "./ui.js?v=202610211125";
-import { slug } from "./plan.js?v=202610211125";
-import { distanceStatus } from "./runcompare.js?v=202610211125";
+import { formatKm, formatKm1 } from "./metrics.js?v=202610211153";
+import { esc, markSVG, checkCircle, ringOpen, pill, numAttr } from "./ui.js?v=202610211153";
+import { slug } from "./plan.js?v=202610211153";
+import { distanceStatus } from "./runcompare.js?v=202610211153";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
 
@@ -18,9 +18,8 @@ const I_CHEV_R = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><p
 const I_CHEV_D = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 const I_CHECK_W = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
-// Zahl für ein HTML-Attribut (<progress value/max>): Punkt als Dezimaltrenner,
-// nie negativ, höchstens eine Nachkommastelle. Nie formatKm1() (Komma).
-export const numAttr = (x) => (Number.isFinite(x) ? String(Math.round(Math.max(0, x) * 10) / 10) : "0");
+// numAttr lebt in ui.js (auch view-week.js braucht es); hier re-exportiert.
+export { numAttr };
 
 // ---------- Kopf (9.1) ----------
 // chip / progress / meta sind optional: Bis zum Rennen und Kein Plan haben weder Chip noch Balken.
