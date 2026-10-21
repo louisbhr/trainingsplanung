@@ -1,4 +1,4 @@
-# Halbmarathon-Tracker
+# Stride
 
 Statische Web-App (Vanilla JS, kein Build-Step) für den 35-Wochen-Plan
 Richtung 1:29:59 h. Krafteinheiten werden von Hand eingetragen und in

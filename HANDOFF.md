@@ -1,4 +1,4 @@
-# Handoff: Halbmarathon-Tracker
+# Handoff: Stride
 
 Für eine neue Session, die hier weitermacht. **Was die App kann und was
 noch kommen soll, steht in [`REQUIREMENTS.md`](REQUIREMENTS.md)** — dieses
@@ -65,6 +65,25 @@ ersten Fassung im Code und liegt deshalb weiterhin in der Historie
 (Commit `5160b7d`); es wurde rotiert. Eine ältere, hochgeladene
 `HANDOFF.md` aus der Anfangszeit enthält dieses alte Secret im Klartext —
 nicht wiederverwenden.
+
+## Schriften (Stride)
+
+Geist und Geist Mono liegen selbst gehostet in `fonts/` (kein Drittanbieter-Aufruf
+zur Laufzeit, SIL Open Font License 1.1 in `fonts/OFL.txt`). Dateien unverändert, nicht
+reduziert. Quelle: GitHub-Release `vercel/geist-font` **v1.8.1** (aktueller stabiler
+Release), Archiv
+`https://github.com/vercel/geist-font/releases/download/v1.8.1/geist-font-v1.8.1.zip`,
+daraus `Geist/webfonts/Geist[wght].woff2`, `GeistMono/webfonts/GeistMono[wght].woff2`
+und `OFL.txt`.
+
+| Datei | Größe | SHA-256 |
+| --- | --- | --- |
+| `fonts/Geist-Variable-1.8.1.woff2` | 69 492 Byte | `9ce2d97863cab59a0c7522534112d6c42a4e25c0e6b2ab37766761b0f82cfbd6` |
+| `fonts/GeistMono-Variable-1.8.1.woff2` | 71 236 Byte | `119f3e159fc15dd77311e929d3a657a193b57a3e625234666bc43c6e2b1127f7` |
+| `fonts/OFL.txt` | 4 383 Byte | `c683bfbcc7e087f5d37a54ef628f10387c451a83ddc459b151403a164ac46c90` |
+
+Das Design-Handoff liegt als Referenz in `docs/design-stride/`; die Prototyp-Dateien
+tragen absichtlich die Endung `.txt`, damit sie nie als Seite auf GitHub Pages laufen.
 
 ## Fallen, die schon Zeit gekostet haben
 

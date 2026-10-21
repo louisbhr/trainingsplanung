@@ -1,4 +1,4 @@
-# Halbmarathon-Tracker — Anforderungen und Ausbaustufen
+# Stride — Anforderungen und Ausbaustufen
 
 Stand: 20.10.2026 · Trainingswoche 8 von 35 · Renntag So 02.05.2027
 

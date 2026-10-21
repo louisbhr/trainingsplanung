@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body { margin: 0; background: #e8e7e2; }
+a { color: #0f6e56; } a:hover { color: #0a4f3e; }
+*::-webkit-scrollbar { display: none; }
+input:focus { outline: 2px solid #0f6e56; outline-offset: 1px; }
+</style>
+</helmet>
+
+<div style="font-family: Geist, -apple-system, sans-serif; color: #1c1c1a; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; gap: 48px; padding: 40px 32px; box-sizing: border-box;">
+
+  <aside style="width: 260px; flex-shrink: 0; display: flex; flex-direction: column; gap: 24px; padding-top: 8px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg width="32" height="32" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#0f6e56"></rect><g transform="rotate(14 32 32)"><rect x="17" y="27" width="11" height="22" rx="5.5" fill="#fff"></rect><rect x="36" y="15" width="11" height="22" rx="5.5" fill="#e0673d"></rect></g></svg>
+      <div><p style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em;">Stride · Prototyp</p><p style="margin: 2px 0 0; font-size: 12px; color: #8a897f;">Mobile · klickbar</p></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <p style="margin: 0 0 4px; font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 600; color: #8a897f; letter-spacing: 0.06em;">SCREENS</p>
+      <sc-for list="{{ jumps }}" as="j" hint-placeholder-count="10">
+        <button onClick="{{ j.go }}" style="text-align: left; border: none; font-family: inherit; font-size: 13.5px; font-weight: {{ j.weight }}; padding: 9px 12px; border-radius: 10px; background: {{ j.bg }}; color: {{ j.fg }}; cursor: pointer;" style-hover="background: #ffffff;">{{ j.label }}</button>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <p style="margin: 0; font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 600; color: #8a897f; letter-spacing: 0.06em;">VARIANTEN</p>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 12.5px; color: #5f5e5a;">Kraft-Tag</span>
+        <div style="display: flex; padding: 3px; border-radius: 10px; background: #dcdbd5;">
+          <sc-for list="{{ kvOpts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.go }}" style="flex: 1; height: 32px; border: none; border-radius: 8px; font-family: inherit; font-size: 12.5px; font-weight: 600; background: {{ o.bg }}; color: {{ o.fg }}; cursor: pointer;">{{ o.label }}</button></sc-for>
+        </div>
+        <span style="font-size: 12.5px; color: #5f5e5a; margin-top: 4px;">Lauf-Tag</span>
+        <div style="display: flex; padding: 3px; border-radius: 10px; background: #dcdbd5;">
+          <sc-for list="{{ lvOpts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.go }}" style="flex: 1; height: 32px; border: none; border-radius: 8px; font-family: inherit; font-size: 12.5px; font-weight: 600; background: {{ o.bg }}; color: {{ o.fg }}; cursor: pointer;">{{ o.label }}</button></sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <p style="margin: 0 0 4px; font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 600; color: #8a897f; letter-spacing: 0.06em;">DARSTELLUNG</p>
+      <div style="display: flex; padding: 3px; border-radius: 10px; background: #dcdbd5;">
+        <sc-for list="{{ dmOpts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.go }}" style="flex: 1; height: 32px; border: none; border-radius: 8px; font-family: inherit; font-size: 12.5px; font-weight: 600; background: {{ o.bg }}; color: {{ o.fg }}; cursor: pointer;">{{ o.label }}</button></sc-for>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <p style="margin: 0 0 4px; font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 600; color: #8a897f; letter-spacing: 0.06em;">ZUSTAND</p>
+      <sc-for list="{{ zOpts }}" as="o" hint-placeholder-count="5">
+        <button onClick="{{ o.go }}" style="text-align: left; border: none; font-family: inherit; font-size: 13px; font-weight: {{ o.weight }}; padding: 8px 12px; border-radius: 10px; background: {{ o.bg }}; color: {{ o.fg }}; cursor: pointer; display: flex; align-items: center; gap: 8px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ o.dot }};"></span>{{ o.label }}</button>
+      </sc-for>
+    </div>
+  </aside>
+
+  <div ref="{{ phoneRef }}" style="color: var(--ink, #1c1c1a); width: 390px; height: 844px; flex-shrink: 0; border-radius: 48px; background: var(--bg, #f4f3ef); overflow: hidden; position: relative; box-shadow: 0 30px 70px rgba(0,0,0,0.16), 0 0 0 1px rgba(0,0,0,0.06);">
+
+    <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+      <div style="height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 0 24px; gap: 32px;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center;">
+          <svg width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="var(--teal, #0f6e56)"></rect><g transform="rotate(14 32 32)"><rect x="17" y="27" width="11" height="22" rx="5.5" fill="#fff"></rect><rect x="36" y="15" width="11" height="22" rx="5.5" fill="#e0673d"></rect></g></svg>
+          <p style="margin: 0; font-size: 32px; font-weight: 600; letter-spacing: -0.035em;">Stride</p>
+          <p style="margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink2, #5f5e5a); max-width: 280px;">Trainingsplan, Strava-Läufe und Krafteinheiten an einem Ort.</p>
+        </div>
+        <div style="background: var(--card, #fff); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+          <label style="display: flex; flex-direction: column; gap: 6px;"><span style="font-size: 12.5px; font-weight: 500; color: var(--ink2, #5f5e5a);">E-Mail</span><input value="{{ email }}" onChange="{{ onEmail }}" type="email" style="height: 48px; border-radius: 12px; border: none; background: var(--sunk, #efeee9); padding: 0 14px; font-family: inherit; font-size: 16px; color: var(--ink, #1c1c1a);"></label>
+          <label style="display: flex; flex-direction: column; gap: 6px;"><span style="font-size: 12.5px; font-weight: 500; color: var(--ink2, #5f5e5a);">Passwort</span><input value="{{ pw }}" onChange="{{ onPw }}" type="password" placeholder="••••••••" style="height: 48px; border-radius: 12px; border: none; background: var(--sunk, #efeee9); padding: 0 14px; font-family: inherit; font-size: 16px; color: var(--ink, #1c1c1a);"></label>
+          <sc-if value="{{ loginErr }}" hint-placeholder-val="{{ false }}"><p style="margin: 0; font-size: 13px; line-height: 1.4; color: var(--danger, #b3261e); background: var(--dangerBg, #fbe4e1); padding: 10px 12px; border-radius: 10px;">Bitte das Passwort eingeben.</p></sc-if>
+          <button onClick="{{ doLogin }}" style="height: 50px; border-radius: 14px; border: none; background: var(--primary, #0f6e56); color: var(--onPrimary, #fff); font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer;">Anmelden</button>
+        </div>
+        <p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f); text-align: center;">Registrieren ist in der App nicht möglich.</p>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isApp }}" hint-placeholder-val="{{ true }}">
+      <div ref="{{ scrollRef }}" style="height: 100%; overflow-y: auto; scrollbar-width: none; box-sizing: border-box; padding-bottom: 120px;">
+        <div style="height: 54px;"></div>
+
+        <sc-if value="{{ isHeute }}" hint-placeholder-val="{{ true }}">
+          <div style="padding: 0 20px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="var(--teal, #0f6e56)"></rect><g transform="rotate(14 32 32)"><rect x="17" y="27" width="11" height="22" rx="5.5" fill="#fff"></rect><rect x="36" y="15" width="11" height="22" rx="5.5" fill="#e0673d"></rect></g></svg>
+              <span style="font-size: 16px; font-weight: 600; letter-spacing: -0.03em;">Stride</span>
+            </div>
+            <sc-if value="{{ h.showPlan }}" hint-placeholder-val="{{ true }}"><span style="font-family: 'Geist Mono', monospace; font-size: 12px; font-weight: 500; color: var(--ink2, #5f5e5a); background: var(--card, #fff); padding: 5px 10px; border-radius: 20px;">W8 / 35</span></sc-if>
+          </div>
+          <div style="padding: 24px 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: var(--ink2, #5f5e5a);">{{ h.weekLine }}</p>
+            <h1 style="margin: 4px 0 0; font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1;">{{ h.date }}</h1>
+            <sc-if value="{{ h.showPlan }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top: 18px; height: 6px; border-radius: 3px; background: var(--track, rgba(0,0,0,0.08));"><div style="width: 22.86%; height: 6px; background: var(--teal, #0f6e56); border-radius: 3px;"></div></div>
+              <div style="margin-top: 8px; display: flex; justify-content: space-between; font-family: 'Geist Mono', monospace; font-size: 11.5px; color: var(--ink2, #5f5e5a);"><span>Phase 1 · Basis</span><span>{{ h.countdown }}</span></div>
+            </sc-if>
+          </div>
+
+          <sc-if value="{{ h.showErr }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: 20px 12px 0; background: var(--dangerBg, #fbe4e1); border-radius: 22px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;">
+              <p style="margin: 0; font-size: 15px; font-weight: 600; color: var(--danger, #b3261e);">Daten nicht geladen</p>
+              <p style="margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--dangerInk, #8c1d16);">Der Datenspeicher antwortet nicht. Eintragen geht trotzdem, gespeichert wird, sobald die Verbindung zurück ist.</p>
+              <button style="align-self: flex-start; height: 40px; padding: 0 16px; border-radius: 12px; border: none; background: var(--card, #fff); color: var(--danger, #b3261e); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Neu laden</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ h.showStrava }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: 20px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 18px 20px; display: flex; align-items: center; gap: 14px;">
+              <div style="flex: 1;"><p style="margin: 0; font-size: 15px; font-weight: 600;">Strava ist nicht verbunden</p><p style="margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: var(--ink2, #5f5e5a);">Ohne Strava fehlen die Ist-Werte der Läufe.</p></div>
+              <button style="height: 40px; padding: 0 14px; border-radius: 12px; border: none; background: var(--coralBg, #faece7); color: var(--coralFg, #993c1d); font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">Verbinden</button>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ h.showKraft }}" hint-placeholder-val="{{ true }}">
+            <div style="margin: 20px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; color: var(--teal, #0f6e56);"><span style="width: 8px; height: 8px; border-radius: 50%; background: var(--teal, #0f6e56);"></span>HEUTE · KRAFT</span>
+                <span style="font-size: 11.5px; font-weight: 600; color: var(--ink2, #5f5e5a); background: var(--sunk, #efeee9); padding: 3px 9px; border-radius: 20px;">Deload</span>
+              </div>
+              <div>
+                <p style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">Full Body A</p>
+                <p style="margin: 4px 0 0; font-size: 13.5px; color: var(--ink2, #5f5e5a);">{{ h.kraftSub }}</p>
+              </div>
+              <div style="display: flex; flex-direction: column;">
+                <sc-for list="{{ h.preview }}" as="ex" hint-placeholder-count="3">
+                  <div style="display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line, #efeee9);">
+                    <sc-if value="{{ ex.saved }}" hint-placeholder-val="{{ false }}"><span style="width: 20px; height: 20px; border-radius: 50%; background: var(--teal, #0f6e56); display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg style="width: 11px; height: 11px; stroke: var(--onPrimary, #fff);" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></sc-if>
+                    <sc-if value="{{ ex.open }}" hint-placeholder-val="{{ true }}"><span style="width: 20px; height: 20px; border-radius: 50%; border: 1.5px dashed var(--ink4b, #c9c8c0); box-sizing: border-box; flex-shrink: 0;"></span></sc-if>
+                    <span style="flex: 1; font-size: 14.5px; color: {{ ex.color }};">{{ ex.name }}</span>
+                    <span style="font-family: 'Geist Mono', monospace; font-size: 13px; color: var(--ink2, #5f5e5a);">{{ ex.soll }}</span>
+                  </div>
+                </sc-for>
+                <p style="margin: 0; padding: 11px 0 0; border-top: 1px solid var(--line, #efeee9); font-size: 13px; color: var(--ink3, #8a897f);">{{ h.more }}</p>
+              </div>
+              <button onClick="{{ openKraft }}" style="height: 50px; border-radius: 14px; border: none; background: var(--primary, #0f6e56); color: var(--onPrimary, #fff); font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer;" style-hover="background: var(--primaryHover, #0b5a46);">{{ h.kraftBtn }}</button>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ h.showRuhe }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: 20px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+              <span style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink2, #5f5e5a);"><span style="width: 8px; height: 8px; border-radius: 50%; background: var(--ink4b, #c9c8c0);"></span>HEUTE · RUHE</span>
+              <div><p style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">Ruhetag</p><p style="margin: 4px 0 0; font-size: 13.5px; color: var(--ink2, #5f5e5a);">Mobility, Foam Rolling, Beine hoch.</p></div>
+              <div onClick="{{ openLaufSa }}" style="display: flex; align-items: center; gap: 12px; padding: 14px 0 0; border-top: 1px solid var(--line, #efeee9); cursor: pointer;">
+                <span style="width: 3px; height: 34px; border-radius: 2px; background: var(--purple, #534ab7);"></span>
+                <div style="flex: 1;"><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">Morgen</p><p style="margin: 2px 0 0; font-size: 14.5px; font-weight: 600;">Long run · 11 km</p></div>
+                <svg style="width: 16px; height: 16px; color: var(--ink4, #b5b4ac);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"></path></svg>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ h.showNoPlan }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: 20px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+              <div><p style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">Kein Plan aktiv</p><p style="margin: 6px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink2, #5f5e5a);">Läufe werden weiter aus Strava angezeigt. Heute: noch kein Lauf.</p></div>
+              <button onClick="{{ goPlan }}" style="height: 44px; border-radius: 12px; border: none; background: var(--sunk, #efeee9); color: var(--ink, #1c1c1a); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Zum Plan</button>
+            </div>
+          </sc-if>
+
+          <div style="margin: 12px 12px 0; background: var(--purpleBg, #eeedfe); border-radius: 22px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px;">
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; color: var(--purple, #534ab7);"><svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16v11H9l-4 4V5z"></path><path d="M8 9h8M8 12.5h5"></path></svg>COACH</span>
+            <sc-if value="{{ h.coachText }}" hint-placeholder-val="{{ true }}"><p style="margin: 0; font-size: 15px; line-height: 1.5; color: var(--purpleInk, #3d3590); text-wrap: pretty;">{{ h.coachText }}</p></sc-if>
+            <sc-if value="{{ h.coachLoading }}" hint-placeholder-val="{{ false }}"><div style="display: flex; flex-direction: column; gap: 8px; padding: 4px 0;"><div style="height: 10px; width: 92%; border-radius: 5px; background: rgba(83,74,183,0.15);"></div><div style="height: 10px; width: 60%; border-radius: 5px; background: rgba(83,74,183,0.15);"></div></div></sc-if>
+          </div>
+
+          <p style="margin: 28px 20px 10px; font-size: 13px; font-weight: 600; color: var(--ink2, #5f5e5a);">Status</p>
+          <div style="margin: 0 12px; background: var(--card, #fff); border-radius: 22px; padding: 4px 20px;">
+            <sc-for list="{{ h.ampeln }}" as="a" hint-placeholder-count="4">
+              <div onClick="{{ a.open }}" style="display: flex; align-items: center; gap: 12px; padding: 14px 0; min-height: 22px; border-top: {{ a.border }}; cursor: pointer;">
+                <span style="width: 16px; display: flex; justify-content: center; flex-shrink: 0;"><span style="width: {{ a.size }}; height: {{ a.size }}; background: {{ a.color }}; border: {{ a.ring }}; box-sizing: border-box; border-radius: {{ a.radius }}; transform: {{ a.rot }};"></span></span>
+                <span style="flex: 1; font-size: 14.5px; font-weight: 500;">{{ a.title }}</span>
+                <span style="font-size: 13px; color: var(--ink2, #5f5e5a); text-align: right;">{{ a.detail }}</span>
+                <svg style="width: 16px; height: 16px; color: var(--ink4, #b5b4ac); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5.5"></path><circle cx="12" cy="7.6" r="1.2" fill="currentColor" stroke="none"></circle></svg>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ h.showPlan }}" hint-placeholder-val="{{ true }}">
+            <p style="margin: 28px 20px 10px; font-size: 13px; font-weight: 600; color: var(--ink2, #5f5e5a);">Diese Woche</p>
+            <div onClick="{{ goWoche }}" style="margin: 0 12px; background: var(--card, #fff); border-radius: 22px; padding: 18px 16px; display: flex; flex-direction: column; gap: 16px; cursor: pointer;">
+              <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px;">
+                <sc-for list="{{ h.strip }}" as="d" hint-placeholder-count="7">
+                  <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                    <span style="font-size: 11px; color: var(--ink3, #8a897f);">{{ d.d }}</span>
+                    <span style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 600; background: {{ d.bg }}; color: {{ d.fg }}; box-shadow: {{ d.ring }};">
+                      <sc-if value="{{ d.done }}" hint-placeholder-val="{{ false }}"><svg style="width: 15px; height: 15px; stroke: var(--onPrimary, #fff);" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if>
+                      <sc-if value="{{ d.showLabel }}" hint-placeholder-val="{{ true }}">{{ d.label }}</sc-if>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px;"><span style="font-weight: 500;">Laufvolumen</span><span style="font-family: 'Geist Mono', monospace; color: var(--ink2, #5f5e5a);">{{ h.volText }}</span></div>
+                <div style="margin-top: 8px; height: 6px; border-radius: 3px; background: var(--track, rgba(0,0,0,0.07));"><div style="width: {{ h.volPct }}; height: 6px; border-radius: 3px; background: var(--coral, #c4532c);"></div></div>
+              </div>
+            </div>
+          </sc-if>
+        </sc-if>
+
+        <sc-if value="{{ isWoche }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 0 20px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px;">
+            <div>
+              <p style="margin: 0; font-size: 14px; color: var(--ink2, #5f5e5a);">{{ w.range }}</p>
+              <h1 style="margin: 4px 0 0; font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1;">Woche {{ w.n }}</h1>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button onClick="{{ w.prev }}" style="width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--card, #fff); color: var(--ink, #1c1c1a); display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: {{ w.prevOp }};"><svg style="width: 18px; height: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg></button>
+              <button onClick="{{ w.next }}" style="width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--card, #fff); color: var(--ink, #1c1c1a); display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: {{ w.nextOp }};"><svg style="width: 18px; height: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"></path></svg></button>
+            </div>
+          </div>
+          <sc-if value="{{ w.showToday }}" hint-placeholder-val="{{ false }}"><div style="padding: 12px 20px 0;"><button onClick="{{ w.today }}" style="height: 34px; padding: 0 14px; border-radius: 17px; border: none; background: var(--tealBg, #e1f5ee); color: var(--teal, #0f6e56); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Zu heute</button></div></sc-if>
+
+          <div style="margin: 20px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 18px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+              <p style="margin: 0; font-size: 12px; color: var(--ink2, #5f5e5a);">Laufvolumen</p>
+              <p style="margin: 4px 0 0; font-family: 'Geist Mono', monospace; font-size: 22px; font-weight: 600; letter-spacing: -0.03em;">{{ w.ist }} <span style="font-family: Geist, sans-serif; font-size: 14px; font-weight: 500; color: var(--ink3, #8a897f); letter-spacing: 0;">/ {{ w.soll }} km</span></p>
+              <div style="margin-top: 10px; height: 5px; border-radius: 3px; background: var(--track, rgba(0,0,0,0.07));"><div style="width: {{ w.pct }}; height: 5px; border-radius: 3px; background: var(--coral, #c4532c);"></div></div>
+            </div>
+            <div>
+              <p style="margin: 0; font-size: 12px; color: var(--ink2, #5f5e5a);">Kraft</p>
+              <p style="margin: 4px 0 0; font-family: 'Geist Mono', monospace; font-size: 22px; font-weight: 600; letter-spacing: -0.03em;">{{ w.kraft }} <span style="font-family: Geist, sans-serif; font-size: 14px; font-weight: 500; color: var(--ink3, #8a897f); letter-spacing: 0;">/ 2 Einheiten</span></p>
+              <div style="margin-top: 10px; height: 5px; border-radius: 3px; background: var(--track, rgba(0,0,0,0.07));"><div style="width: {{ w.kraftPct }}; height: 5px; border-radius: 3px; background: var(--teal, #0f6e56);"></div></div>
+            </div>
+          </div>
+
+          <sc-if value="{{ w.placeholder }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: 12px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 28px 24px; text-align: center; display: flex; flex-direction: column; gap: 6px;">
+              <p style="margin: 0; font-size: 15px; font-weight: 600;">Tagesdetails folgen</p>
+              <p style="margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink2, #5f5e5a);">Nach der Re-Kalibrierung am 28.10. stehen hier die Einheiten. Geplant sind 40 km.</p>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ w.hasRows }}" hint-placeholder-val="{{ true }}">
+            <div style="margin: 12px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 4px 0; overflow: hidden;">
+              <sc-for list="{{ w.rows }}" as="r" hint-placeholder-count="7">
+                <div style="border-top: {{ r.border }}; background: {{ r.rowBg }};">
+                  <div onClick="{{ r.toggle }}" style="display: flex; align-items: center; gap: 14px; padding: 14px 20px; cursor: {{ r.cursor }};">
+                    <div style="width: 30px; flex-shrink: 0;">
+                      <p style="margin: 0; font-size: 12px; font-weight: 600; color: {{ r.dayColor }};">{{ r.d }}</p>
+                      <p style="margin: 2px 0 0; font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--ink3, #8a897f);">{{ r.dt }}</p>
+                    </div>
+                    <span style="width: 3px; align-self: stretch; border-radius: 2px; background: {{ r.kindColor }}; flex-shrink: 0;"></span>
+                    <div style="flex: 1; min-width: 0;">
+                      <p style="margin: 0; font-size: 14.5px; font-weight: {{ r.nameWeight }}; color: {{ r.nameColor }};">{{ r.name }}</p>
+                      <p style="margin: 3px 0 0; font-size: 12px; color: var(--ink3, #8a897f); line-height: 1.35;">{{ r.sub }}</p>
+                    </div>
+                    <sc-if value="{{ r.isDone }}" hint-placeholder-val="{{ false }}"><span style="width: 24px; height: 24px; border-radius: 50%; background: {{ r.kindColor }}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg style="width: 13px; height: 13px; stroke: var(--onPrimary, #fff);" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></sc-if>
+                    <sc-if value="{{ r.isToday }}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: var(--primary, #0f6e56); color: var(--onPrimary, #fff); flex-shrink: 0;">Heute</span></sc-if>
+                    <sc-if value="{{ r.isPartial }}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: var(--amberBg, #fbf0dc); color: var(--amber, #96631a); flex-shrink: 0;">{{ r.partialText }}</span></sc-if>
+                    <sc-if value="{{ r.isFuture }}" hint-placeholder-val="{{ false }}"><span style="width: 24px; height: 24px; border-radius: 50%; border: 1.5px dashed var(--ink4b, #c9c8c0); box-sizing: border-box; flex-shrink: 0;"></span></sc-if>
+                  </div>
+                  <sc-if value="{{ r.open }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding: 0 20px 16px 84px; display: flex; flex-direction: column; gap: 6px;">
+                      <sc-for list="{{ r.details }}" as="l" hint-placeholder-count="2"><p style="margin: 0; font-size: 13px; line-height: 1.45; color: {{ l.color }};">{{ l.t }}</p></sc-for>
+                      <sc-if value="{{ r.hasAction }}" hint-placeholder-val="{{ false }}"><button onClick="{{ r.action }}" style="align-self: flex-start; margin-top: 6px; height: 44px; padding: 0 16px; border-radius: 12px; border: none; background: var(--sunk, #efeee9); color: var(--ink, #1c1c1a); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">Tag öffnen<svg style="width: 14px; height: 14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"></path></svg></button></sc-if>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </sc-if>
+
+        <sc-if value="{{ inDay }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 0 8px; display: flex; justify-content: space-between; align-items: center;">
+            <button onClick="{{ back }}" style="height: 44px; padding: 0 12px; border: none; background: transparent; color: var(--teal, #0f6e56); font-family: inherit; font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 2px; cursor: pointer;"><svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg>{{ backLabel }}</button>
+            <sc-if value="{{ isKraftA }}" hint-placeholder-val="{{ false }}"><button onClick="{{ k.toggleEdit }}" style="height: 44px; padding: 0 12px; border: none; background: transparent; color: var(--teal, #0f6e56); font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer;">{{ k.editLabel }}</button></sc-if>
+            <sc-if value="{{ isKraftB }}" hint-placeholder-val="{{ false }}"><span style="padding: 0 16px; font-family: 'Geist Mono', monospace; font-size: 12.5px; color: var(--ink2, #5f5e5a);">{{ kb.pos }}</span></sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isKraftA }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 8px 20px 0;">
+            <p style="margin: 0; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; color: var(--teal, #0f6e56);">KRAFT · DI, 20.10. · DELOAD</p>
+            <h1 style="margin: 6px 0 0; font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1;">Full Body A</h1>
+            <div style="margin-top: 16px; display: flex; justify-content: space-between; font-size: 13px;"><span style="color: var(--ink2, #5f5e5a);">{{ k.progressText }}</span><span style="font-family: 'Geist Mono', monospace; color: var(--ink2, #5f5e5a);">{{ k.pctText }}</span></div>
+            <div style="margin-top: 8px; height: 6px; border-radius: 3px; background: var(--track, rgba(0,0,0,0.08));"><div style="width: {{ k.pct }}; height: 6px; background: var(--teal, #0f6e56); border-radius: 3px;"></div></div>
+          </div>
+          <div style="margin: 20px 12px 0; display: flex; flex-direction: column; gap: 8px;">
+            <sc-for list="{{ k.list }}" as="e" hint-placeholder-count="8">
+              <div style="background: var(--card, #fff); border-radius: 22px; overflow: hidden;">
+                <div onClick="{{ e.toggle }}" style="display: flex; align-items: center; gap: 12px; padding: 16px 20px; cursor: pointer;">
+                  <sc-if value="{{ e.saved }}" hint-placeholder-val="{{ false }}"><span style="width: 24px; height: 24px; border-radius: 50%; background: var(--teal, #0f6e56); display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg style="width: 13px; height: 13px; stroke: var(--onPrimary, #fff);" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></sc-if>
+                  <sc-if value="{{ e.unsaved }}" hint-placeholder-val="{{ true }}"><span style="width: 24px; height: 24px; border-radius: 50%; border: 1.5px dashed var(--ink4b, #c9c8c0); box-sizing: border-box; flex-shrink: 0;"></span></sc-if>
+                  <div style="flex: 1; min-width: 0;">
+                    <p style="margin: 0; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 6px;">{{ e.name }}<sc-if value="{{ e.custom }}" hint-placeholder-val="{{ false }}"><span style="font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 20px; background: var(--purpleBg, #eeedfe); color: var(--purple, #534ab7);">eigene</span></sc-if></p>
+                    <p style="margin: 3px 0 0; font-size: 12.5px; color: var(--ink3, #8a897f);">{{ e.summary }}</p>
+                  </div>
+                  <sc-if value="{{ e.editing }}" hint-placeholder-val="{{ false }}"><button onClick="{{ e.remove }}" style="height: 36px; padding: 0 12px; border-radius: 10px; border: none; background: var(--dangerBg, #fbe4e1); color: var(--danger, #b3261e); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Entfernen</button></sc-if>
+                  <sc-if value="{{ e.notEditing }}" hint-placeholder-val="{{ true }}"><svg style="width: 16px; height: 16px; color: var(--ink4, #b5b4ac); flex-shrink: 0; transform: {{ e.chev }};" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg></sc-if>
+                </div>
+                <sc-if value="{{ e.open }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding: 0 20px 20px; display: flex; flex-direction: column; gap: 12px;">
+                    <p style="margin: 0; font-size: 13px; line-height: 1.45; color: var(--ink2, #5f5e5a);">Soll {{ e.soll }} · {{ e.hint }}</p>
+                    <sc-if value="{{ e.hasTip }}" hint-placeholder-val="{{ false }}"><p style="margin: 0; align-self: flex-start; font-size: 12.5px; font-weight: 600; padding: 6px 10px; border-radius: 10px; background: {{ e.tipBg }}; color: {{ e.tipFg }};">{{ e.tip }}</p></sc-if>
+                    <sc-for list="{{ e.rows }}" as="s" hint-placeholder-count="2">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="width: 54px; font-size: 12px; color: var(--ink3, #8a897f); flex-shrink: 0; line-height: 1.25;">{{ s.label }}</span>
+                        <sc-if value="{{ s.showA }}" hint-placeholder-val="{{ true }}">
+                          <div style="flex: 1; height: 48px; border-radius: 12px; background: var(--sunk, #efeee9); display: flex; align-items: center; justify-content: space-between; padding: 0 6px; min-width: 0;">
+                            <button onClick="{{ s.aDec }}" style="width: 36px; height: 36px; border-radius: 10px; border: none; background: var(--card, #fff); font-size: 18px; color: var(--ink2, #5f5e5a); cursor: pointer; font-family: inherit;">−</button>
+                            <span style="font-family: 'Geist Mono', monospace; font-size: 16px; font-weight: 600;">{{ s.aVal }}<span style="font-family: Geist, sans-serif; font-size: 11.5px; color: var(--ink3, #8a897f); font-weight: 500; margin-left: 3px;">kg</span></span>
+                            <button onClick="{{ s.aInc }}" style="width: 36px; height: 36px; border-radius: 10px; border: none; background: var(--card, #fff); font-size: 18px; color: var(--ink2, #5f5e5a); cursor: pointer; font-family: inherit;">+</button>
+                          </div>
+                        </sc-if>
+                        <div style="width: {{ s.bWidth }}; flex: {{ s.bFlex }}; height: 48px; border-radius: 12px; background: var(--sunk, #efeee9); display: flex; align-items: center; justify-content: space-between; padding: 0 6px; flex-shrink: 0; box-sizing: border-box;">
+                          <button onClick="{{ s.bDec }}" style="width: 30px; height: 36px; border-radius: 10px; border: none; background: var(--card, #fff); font-size: 16px; color: var(--ink2, #5f5e5a); cursor: pointer; font-family: inherit;">−</button>
+                          <span style="font-family: 'Geist Mono', monospace; font-size: 16px; font-weight: 600;">{{ s.bVal }}<span style="font-family: Geist, sans-serif; font-size: 11.5px; color: var(--ink3, #8a897f); font-weight: 500; margin-left: 3px;">{{ s.bUnit }}</span></span>
+                          <button onClick="{{ s.bInc }}" style="width: 30px; height: 36px; border-radius: 10px; border: none; background: var(--card, #fff); font-size: 16px; color: var(--ink2, #5f5e5a); cursor: pointer; font-family: inherit;">+</button>
+                        </div>
+                      </div>
+                    </sc-for>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <button onClick="{{ e.toggleSame }}" style="height: 44px; padding: 0 14px; border-radius: 12px; border: none; background: transparent; color: var(--teal, #0f6e56); font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;">{{ e.sameLabel }}</button>
+                      <button onClick="{{ e.save }}" style="flex: 1; height: 48px; border-radius: 14px; border: none; background: {{ e.saveBg }}; color: {{ e.saveFg }}; font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer;">{{ e.saveLabel }}</button>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+            <sc-for list="{{ k.removed }}" as="r" hint-placeholder-count="0">
+              <div style="background: var(--card, #fff); border-radius: 22px; padding: 14px 20px; display: flex; align-items: center; gap: 12px; opacity: 0.7;">
+                <div style="flex: 1;"><p style="margin: 0; font-size: 15px; font-weight: 600; color: var(--ink2, #5f5e5a);">{{ r.name }}</p><p style="margin: 3px 0 0; font-size: 12.5px; color: var(--ink3, #8a897f);">Für heute entfernt</p></div>
+                <button onClick="{{ r.restore }}" style="height: 36px; padding: 0 12px; border-radius: 10px; border: none; background: var(--sunk, #efeee9); color: var(--ink, #1c1c1a); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Zurückholen</button>
+              </div>
+            </sc-for>
+            <button onClick="{{ k.add }}" style="height: 52px; border-radius: 22px; border: 1.5px dashed var(--ink4b, #c9c8c0); background: transparent; color: var(--ink2, #5f5e5a); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">+ Übung für heute hinzufügen</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isKraftB }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 4px 20px 0;">
+            <div style="display: flex; gap: 4px;">
+              <sc-for list="{{ kb.dots }}" as="d" hint-placeholder-count="8"><span onClick="{{ d.go }}" style="flex: 1; height: 6px; border-radius: 3px; background: {{ d.bg }}; cursor: pointer;"></span></sc-for>
+            </div>
+          </div>
+          <div style="margin: 16px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; color: var(--teal, #0f6e56);"><span style="width: 8px; height: 8px; border-radius: 50%; background: var(--teal, #0f6e56);"></span>JETZT</span>
+              <span style="font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--ink3, #8a897f);">Letztes Mal {{ kb.last }}</span>
+            </div>
+            <div>
+              <p style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.15;">{{ kb.name }}</p>
+              <p style="margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--ink2, #5f5e5a);"><span style="font-family: 'Geist Mono', monospace; font-weight: 600; color: var(--ink, #1c1c1a);">{{ kb.soll }}</span> · {{ kb.hint }}</p>
+            </div>
+            <sc-if value="{{ kb.hasTip }}" hint-placeholder-val="{{ false }}"><p style="margin: 0; align-self: flex-start; font-size: 12.5px; font-weight: 600; padding: 6px 10px; border-radius: 10px; background: {{ kb.tipBg }}; color: {{ kb.tipFg }};">{{ kb.tip }}</p></sc-if>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <sc-for list="{{ kb.sets }}" as="s" hint-placeholder-count="2">
+                <sc-if value="{{ s.active }}" hint-placeholder-val="{{ false }}">
+                  <div style="background: var(--tealTint, #f3faf7); border-radius: 16px; padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: inset 0 0 0 1.5px var(--teal, #0f6e56);">
+                    <span style="font-size: 12.5px; font-weight: 600; color: var(--teal, #0f6e56);">Satz {{ s.n }}</span>
+                    <div style="display: flex; gap: 10px;">
+                      <sc-if value="{{ s.showA }}" hint-placeholder-val="{{ true }}">
+                        <div style="flex: 1.3; display: flex; align-items: center; gap: 4px;">
+                          <button onClick="{{ s.aDec }}" style="width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--card, #fff); font-size: 20px; color: var(--ink, #1c1c1a); cursor: pointer; font-family: inherit; flex-shrink: 0;">−</button>
+                          <span style="flex: 1; text-align: center; font-family: 'Geist Mono', monospace; font-size: 24px; font-weight: 600; letter-spacing: -0.03em; white-space: nowrap;">{{ s.aVal }}<span style="font-family: Geist, sans-serif; font-size: 12px; color: var(--ink3, #8a897f); font-weight: 500; margin-left: 3px; letter-spacing: 0;">kg</span></span>
+                          <button onClick="{{ s.aInc }}" style="width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--card, #fff); font-size: 20px; color: var(--ink, #1c1c1a); cursor: pointer; font-family: inherit; flex-shrink: 0;">+</button>
+                        </div>
+                      </sc-if>
+                      <div style="flex: 1; display: flex; align-items: center; gap: 4px;">
+                        <button onClick="{{ s.bDec }}" style="width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--card, #fff); font-size: 20px; color: var(--ink, #1c1c1a); cursor: pointer; font-family: inherit; flex-shrink: 0;">−</button>
+                        <span style="flex: 1; text-align: center; font-family: 'Geist Mono', monospace; font-size: 24px; font-weight: 600; letter-spacing: -0.03em; white-space: nowrap;">{{ s.bVal }}<span style="font-family: Geist, sans-serif; font-size: 12px; color: var(--ink3, #8a897f); font-weight: 500; margin-left: 3px; letter-spacing: 0;">{{ s.bUnit }}</span></span>
+                        <button onClick="{{ s.bInc }}" style="width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--card, #fff); font-size: 20px; color: var(--ink, #1c1c1a); cursor: pointer; font-family: inherit; flex-shrink: 0;">+</button>
+                      </div>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ s.inactive }}" hint-placeholder-val="{{ true }}">
+                  <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--bg, #f4f3ef);">
+                    <span style="width: 54px; font-size: 12.5px; color: var(--ink3, #8a897f);">Satz {{ s.n }}</span>
+                    <span style="flex: 1; font-family: 'Geist Mono', monospace; font-size: 14px; color: {{ s.valColor }};">{{ s.compact }}</span>
+                    <sc-if value="{{ s.done }}" hint-placeholder-val="{{ false }}"><span style="width: 22px; height: 22px; border-radius: 50%; background: var(--teal, #0f6e56); display: flex; align-items: center; justify-content: center;"><svg style="width: 12px; height: 12px; stroke: var(--onPrimary, #fff);" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></sc-if>
+                  </div>
+                </sc-if>
+              </sc-for>
+            </div>
+            <button onClick="{{ kb.primary }}" style="height: 54px; border-radius: 16px; border: none; background: var(--primary, #0f6e56); color: var(--onPrimary, #fff); font-family: inherit; font-size: 16px; font-weight: 600; cursor: pointer;" style-hover="background: var(--primaryHover, #0b5a46);">{{ kb.primaryLabel }}</button>
+          </div>
+
+          <div style="margin: 28px 20px 10px; display: flex; justify-content: space-between; align-items: baseline;">
+            <p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--ink2, #5f5e5a);">Reihenfolge</p>
+            <p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">Antippen, um sie als Nächstes zu machen</p>
+          </div>
+          <div style="margin: 0 12px; background: var(--card, #fff); border-radius: 22px; padding: 4px 0;">
+            <sc-for list="{{ kb.order }}" as="o" hint-placeholder-count="8">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-top: {{ o.border }}; background: {{ o.rowBg }};">
+                <span style="font-family: 'Geist Mono', monospace; font-size: 11.5px; color: var(--ink3, #8a897f); width: 16px; text-align: right; flex-shrink: 0;">{{ o.pos }}</span>
+                <sc-if value="{{ o.saved }}" hint-placeholder-val="{{ false }}"><span style="width: 22px; height: 22px; border-radius: 50%; background: var(--teal, #0f6e56); display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg style="width: 12px; height: 12px; stroke: var(--onPrimary, #fff);" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></sc-if>
+                <sc-if value="{{ o.isCur }}" hint-placeholder-val="{{ false }}"><span style="width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--teal, #0f6e56); box-sizing: border-box; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><span style="width: 8px; height: 8px; border-radius: 50%; background: var(--teal, #0f6e56);"></span></span></sc-if>
+                <sc-if value="{{ o.open }}" hint-placeholder-val="{{ true }}"><span style="width: 22px; height: 22px; border-radius: 50%; border: 1.5px dashed var(--ink4b, #c9c8c0); box-sizing: border-box; flex-shrink: 0;"></span></sc-if>
+                <div onClick="{{ o.go }}" style="flex: 1; min-width: 0; padding: 6px 0; cursor: {{ o.cursor }};">
+                  <p style="margin: 0; font-size: 14.5px; font-weight: {{ o.weight }}; color: {{ o.color }}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ o.name }}</p>
+                  <p style="margin: 2px 0 0; font-family: 'Geist Mono', monospace; font-size: 11.5px; color: var(--ink3, #8a897f);">{{ o.sub }}</p>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isLauf }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 8px 20px 0;">
+            <p style="margin: 0; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; color: {{ l.color }};">{{ l.over }}</p>
+            <h1 style="margin: 6px 0 0; font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1;">{{ l.title }}</h1>
+          </div>
+
+          <sc-if value="{{ l.showA }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: 20px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 18px 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
+              <div><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">Ziel</p><p style="margin: 4px 0 0; font-family: 'Geist Mono', monospace; font-size: 17px; font-weight: 600;">{{ l.planKm }}</p></div>
+              <div><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">Pace /km</p><p style="margin: 4px 0 0; font-family: 'Geist Mono', monospace; font-size: 17px; font-weight: 600;">{{ l.pace }}</p></div>
+              <div><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">HF bpm</p><p style="margin: 4px 0 0; font-family: 'Geist Mono', monospace; font-size: 17px; font-weight: 600;">{{ l.hf }}</p></div>
+            </div>
+            <sc-if value="{{ l.hasRun }}" hint-placeholder-val="{{ false }}">
+              <div style="margin: 12px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                  <div><p style="margin: 0; font-size: 15px; font-weight: 600;">Aus Strava</p><p style="margin: 3px 0 0; font-size: 12.5px; color: var(--ink3, #8a897f);">{{ l.runName }}</p></div>
+                  <span style="font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: {{ l.assignBg }}; color: {{ l.assignFg }}; white-space: nowrap;">{{ l.assignLabel }}</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px;">
+                  <sc-for list="{{ l.metrics }}" as="m" hint-placeholder-count="4"><div><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">{{ m.l }}</p><p style="margin: 4px 0 0; font-family: 'Geist Mono', monospace; font-size: 22px; font-weight: 600; letter-spacing: -0.03em;">{{ m.v }}<span style="font-family: Geist, sans-serif; font-size: 13px; color: var(--ink3, #8a897f); font-weight: 500; margin-left: 4px; letter-spacing: 0;">{{ m.u }}</span></p></div></sc-for>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; background: {{ l.verdictBg }};">
+                  <span style="width: 10px; height: 10px; border-radius: {{ l.verdictRadius }}; transform: {{ l.verdictRot }}; background: {{ l.verdictFg }}; flex-shrink: 0;"></span>
+                  <span style="font-size: 13.5px; font-weight: 500; color: {{ l.verdictFg }};">{{ l.verdict }}</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button onClick="{{ openPicker }}" style="flex: 1; height: 44px; border-radius: 12px; border: none; background: var(--sunk, #efeee9); color: var(--ink, #1c1c1a); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Anderer Lauf</button>
+                  <button onClick="{{ ignoreRun }}" style="height: 44px; padding: 0 16px; border-radius: 12px; border: none; background: transparent; color: var(--ink2, #5f5e5a); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer;">Passt nicht</button>
+                </div>
+              </div>
+            </sc-if>
+          </sc-if>
+
+          <sc-if value="{{ l.showB }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: 20px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 22px 20px; display: flex; flex-direction: column; gap: 20px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                  <p style="margin: 0; font-family: 'Geist Mono', monospace; font-size: 48px; font-weight: 600; letter-spacing: -0.04em; line-height: 1;">{{ l.km }}<span style="font-family: Geist, sans-serif; font-size: 18px; color: var(--ink3, #8a897f); font-weight: 500; margin-left: 6px; letter-spacing: 0;">km</span></p>
+                  <p style="margin: 8px 0 0; font-size: 13.5px; color: var(--ink2, #5f5e5a);">von {{ l.planKm }} · {{ l.duration }}</p>
+                </div>
+                <span style="font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: {{ l.verdictBg }}; color: {{ l.verdictFg }}; white-space: nowrap;">{{ l.verdictShort }}</span>
+              </div>
+              <div style="height: 8px; border-radius: 4px; background: var(--track, rgba(0,0,0,0.07));"><div style="width: {{ l.kmPct }}; height: 8px; border-radius: 4px; background: {{ l.color }};"></div></div>
+              <sc-for list="{{ l.ranges }}" as="r" hint-placeholder-count="2">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline;"><span style="font-size: 13px; color: var(--ink2, #5f5e5a);">{{ r.label }}</span><span style="font-family: 'Geist Mono', monospace; font-size: 15px; font-weight: 600; color: {{ r.valColor }};">{{ r.val }}</span></div>
+                  <div style="position: relative; height: 22px;">
+                    <div style="position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px; background: var(--sunk, #efeee9);"></div>
+                    <div style="position: absolute; left: {{ r.bandL }}; width: {{ r.bandW }}; top: 8px; height: 6px; border-radius: 3px; background: {{ r.bandC }};"></div>
+                    <div style="position: absolute; left: {{ r.mark }}; top: 2px; width: 4px; height: 18px; margin-left: -2px; border-radius: 2px; background: var(--ink, #1c1c1a); box-shadow: 0 0 0 2px var(--card, #fff);"></div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-family: 'Geist Mono', monospace; font-size: 10.5px; color: var(--ink3, #8a897f);"><span>{{ r.min }}</span><span>Ziel {{ r.zone }}</span><span>{{ r.max }}</span></div>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ l.hasRun }}" hint-placeholder-val="{{ false }}">
+              <div onClick="{{ openPicker }}" style="margin: 12px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 16px 20px; display: flex; align-items: center; gap: 14px; cursor: pointer;">
+                <div style="flex: 1; min-width: 0;"><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">Aus Strava</p><p style="margin: 3px 0 0; font-size: 14.5px; font-weight: 600;">{{ l.runName }}</p></div>
+                <span style="font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: {{ l.assignBg }}; color: {{ l.assignFg }}; white-space: nowrap;">{{ l.assignShort }}</span>
+                <svg style="width: 16px; height: 16px; color: var(--ink4, #b5b4ac);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"></path></svg>
+              </div>
+            </sc-if>
+          </sc-if>
+
+          <sc-if value="{{ l.showFuture }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: 12px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 24px 20px; text-align: center; display: flex; flex-direction: column; gap: 6px;">
+              <p style="margin: 0; font-size: 15px; font-weight: 600;">Noch kein Lauf</p>
+              <p style="margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink2, #5f5e5a);">Die Ist-Werte kommen nach dem Lauf automatisch aus Strava.</p>
+              <button onClick="{{ openPicker }}" style="align-self: center; margin-top: 8px; height: 44px; padding: 0 16px; border-radius: 12px; border: none; background: var(--sunk, #efeee9); color: var(--ink, #1c1c1a); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Lauf von Hand zuordnen</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ l.showStrava }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: 12px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 24px 20px; text-align: center; display: flex; flex-direction: column; gap: 6px;">
+              <p style="margin: 0; font-size: 15px; font-weight: 600;">Strava ist nicht verbunden</p>
+              <p style="margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink2, #5f5e5a);">Läufe werden nicht hier eingetragen, sie kommen aus Strava.</p>
+              <button style="margin-top: 10px; height: 50px; border-radius: 14px; border: none; background: var(--primary, #0f6e56); color: var(--onPrimary, #fff); font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer;">Mit Strava verbinden</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ l.showIgnored }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: 12px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 24px 20px; text-align: center; display: flex; flex-direction: column; gap: 6px;">
+              <p style="margin: 0; font-size: 15px; font-weight: 600;">Bewusst leer gelassen</p>
+              <p style="margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink2, #5f5e5a);">Kein Lauf an diesem Tag. Zählt als verpasst.</p>
+              <button onClick="{{ resetRun }}" style="align-self: center; margin-top: 8px; height: 44px; padding: 0 16px; border-radius: 12px; border: none; background: var(--sunk, #efeee9); color: var(--ink, #1c1c1a); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Automatik zurück</button>
+            </div>
+          </sc-if>
+          <p style="margin: 20px 20px 0; font-size: 12.5px; color: var(--ink3, #8a897f);">Splits, Zonen und Entkopplung siehst du am Laptop unter <a href="HM Tracker Desktop.dc.html">Analyse</a>.</p>
+        </sc-if>
+
+        <sc-if value="{{ isVerlauf }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 0 20px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px;">
+            <h1 style="margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1;">Verlauf</h1>
+            <div style="display: flex; padding: 3px; border-radius: 12px; background: var(--seg, #e6e5df);">
+              <button onClick="{{ v.toLauf }}" style="height: 34px; padding: 0 14px; border: none; border-radius: 9px; font-family: inherit; font-size: 13px; font-weight: 600; background: {{ v.lBg }}; color: {{ v.lFg }}; cursor: pointer;">Lauf</button>
+              <button onClick="{{ v.toKraft }}" style="height: 34px; padding: 0 14px; border: none; border-radius: 9px; font-family: inherit; font-size: 13px; font-weight: 600; background: {{ v.kBg }}; color: {{ v.kFg }}; cursor: pointer;">Kraft</button>
+            </div>
+          </div>
+          <sc-if value="{{ v.isKraft }}" hint-placeholder-val="{{ true }}">
+            <div style="margin: 20px 0 0; padding: 0 12px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;">
+              <sc-for list="{{ v.chips }}" as="c" hint-placeholder-count="4"><button onClick="{{ c.go }}" style="height: 36px; padding: 0 14px; border-radius: 18px; border: none; white-space: nowrap; font-family: inherit; font-size: 13px; font-weight: 600; background: {{ c.bg }}; color: {{ c.fg }}; cursor: pointer;">{{ c.name }}</button></sc-for>
+            </div>
+            <div style="margin: 12px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <div><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">Bestes Satzgewicht</p><p style="margin: 4px 0 0; font-family: 'Geist Mono', monospace; font-size: 30px; font-weight: 600; letter-spacing: -0.03em;">{{ v.top }}<span style="font-family: Geist, sans-serif; font-size: 14px; color: var(--ink3, #8a897f); font-weight: 500; margin-left: 4px; letter-spacing: 0;">kg</span></p></div>
+                <span style="font-size: 12.5px; font-weight: 600; color: var(--ok, #2f7d32);">{{ v.trend }}</span>
+              </div>
+              <div style="display: flex; align-items: flex-end; gap: 8px; height: 130px;">
+                <sc-for list="{{ v.bars }}" as="b" hint-placeholder-count="8">
+                  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                    <span style="font-family: 'Geist Mono', monospace; font-size: 9.5px; color: var(--ink2, #5f5e5a);">{{ b.v }}</span>
+                    <div style="width: 100%; height: {{ b.h }}; background: {{ b.bg }}; border-radius: 6px;"></div>
+                    <span style="font-family: 'Geist Mono', monospace; font-size: 10px; color: {{ b.lc }};">{{ b.l }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">Hell = Entlastungswoche</p>
+            </div>
+            <div style="margin: 12px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 4px 20px;">
+              <sc-for list="{{ v.entries }}" as="e" hint-placeholder-count="4"><div style="display: flex; justify-content: space-between; padding: 13px 0; border-top: {{ e.border }}; font-size: 14px;"><span style="font-family: 'Geist Mono', monospace; color: var(--ink2, #5f5e5a);">{{ e.d }}</span><span style="font-family: 'Geist Mono', monospace;">{{ e.v }}</span></div></sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ v.isLauf }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: 20px 12px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <sc-for list="{{ v.tiles }}" as="t" hint-placeholder-count="4"><div style="background: var(--card, #fff); border-radius: 18px; padding: 16px 18px;"><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">{{ t.l }}</p><p style="margin: 4px 0 0; font-family: 'Geist Mono', monospace; font-size: 22px; font-weight: 600; letter-spacing: -0.03em;">{{ t.v }}<span style="font-family: Geist, sans-serif; font-size: 13px; color: var(--ink3, #8a897f); font-weight: 500; margin-left: 4px; letter-spacing: 0;">{{ t.u }}</span></p></div></sc-for>
+            </div>
+            <div style="margin: 12px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+              <p style="margin: 0; font-size: 15px; font-weight: 600;">Distanz je Lauf</p>
+              <div style="display: flex; align-items: flex-end; gap: 6px; height: 120px;">
+                <sc-for list="{{ v.runBars }}" as="b" hint-placeholder-count="10"><div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px;"><div style="width: 100%; height: {{ b.h }}; background: {{ b.c }}; border-radius: 5px;"></div><span style="font-family: 'Geist Mono', monospace; font-size: 9.5px; color: var(--ink3, #8a897f);">{{ b.l }}</span></div></sc-for>
+              </div>
+            </div>
+            <div style="margin: 12px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 4px 20px;">
+              <sc-for list="{{ v.runs }}" as="r" hint-placeholder-count="6"><div style="display: flex; align-items: center; gap: 12px; padding: 13px 0; border-top: {{ r.border }};"><span style="width: 3px; height: 30px; border-radius: 2px; background: {{ r.c }};"></span><div style="flex: 1;"><p style="margin: 0; font-size: 14px; font-weight: 500;">{{ r.t }}</p><p style="margin: 2px 0 0; font-family: 'Geist Mono', monospace; font-size: 11.5px; color: var(--ink3, #8a897f);">{{ r.d }}</p></div><span style="font-family: 'Geist Mono', monospace; font-size: 13.5px;">{{ r.v }}</span></div></sc-for>
+            </div>
+          </sc-if>
+        </sc-if>
+
+        <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 0 20px;">
+            <p style="margin: 0; font-size: 14px; color: var(--ink2, #5f5e5a);">Woche 8 von 35 · 23 % geschafft</p>
+            <h1 style="margin: 4px 0 0; font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1;">Trainingsplan</h1>
+          </div>
+          <div style="margin: 20px 12px 0; background: var(--card, #fff); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">Ziel · Halbmarathon</p><p style="margin: 4px 0 0; font-family: 'Geist Mono', monospace; font-size: 40px; font-weight: 600; letter-spacing: -0.04em; color: var(--teal, #0f6e56); line-height: 1;">1:29:59</p></div>
+              <div style="text-align: right;"><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">Renntag</p><p style="margin: 4px 0 0; font-family: 'Geist Mono', monospace; font-size: 15px; font-weight: 600;">02.05.2027</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--ink2, #5f5e5a);">4:16 /km</p></div>
+            </div>
+            <div style="display: flex; gap: 3px; height: 10px;">
+              <div style="flex: 8; border-radius: 5px; background: var(--tealSoft, #cfeadf); overflow: hidden;"><div style="width: 94%; height: 100%; background: var(--teal, #0f6e56);"></div></div>
+              <div style="flex: 12; border-radius: 5px; background: var(--skySoft, #d3e7f1);"></div>
+              <div style="flex: 13; border-radius: 5px; background: var(--amberSoft, #f3e3c4);"></div>
+              <div style="flex: 2; border-radius: 5px; background: var(--purpleSoft, #dcd9fb);"></div>
+            </div>
+          </div>
+          <p style="margin: 28px 20px 10px; font-size: 13px; font-weight: 600; color: var(--ink2, #5f5e5a);">Phasen</p>
+          <div style="margin: 0 12px; background: var(--card, #fff); border-radius: 22px; padding: 4px 20px;">
+            <sc-for list="{{ p.phases }}" as="ph" hint-placeholder-count="4">
+              <div style="display: flex; align-items: center; gap: 14px; padding: 14px 0; border-top: {{ ph.border }};">
+                <span style="width: 32px; height: 32px; border-radius: 10px; background: {{ ph.bg }}; color: {{ ph.fg }}; display: flex; align-items: center; justify-content: center; font-family: 'Geist Mono', monospace; font-size: 13px; font-weight: 600; flex-shrink: 0;">{{ ph.n }}</span>
+                <div style="flex: 1; min-width: 0;"><p style="margin: 0; font-size: 14.5px; font-weight: 600;">{{ ph.name }}</p><p style="margin: 3px 0 0; font-size: 12px; color: var(--ink3, #8a897f);">{{ ph.range }} · {{ ph.focus }}</p></div>
+                <sc-if value="{{ ph.current }}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: var(--primary, #0f6e56); color: var(--onPrimary, #fff);">läuft</span></sc-if>
+              </div>
+            </sc-for>
+          </div>
+          <p style="margin: 28px 20px 10px; font-size: 13px; font-weight: 600; color: var(--ink2, #5f5e5a);">Trainingsbereiche</p>
+          <div style="margin: 0 12px; background: var(--card, #fff); border-radius: 22px; padding: 4px 20px;">
+            <sc-for list="{{ p.zones }}" as="z" hint-placeholder-count="5">
+              <div style="display: flex; align-items: center; gap: 12px; padding: 13px 0; border-top: {{ z.border }};">
+                <span style="min-width: 30px; text-align: center; font-family: 'Geist Mono', monospace; font-size: 12px; font-weight: 600; padding: 4px 6px; border-radius: 8px; background: {{ z.bg }}; color: {{ z.fg }};">{{ z.id }}</span>
+                <span style="flex: 1; font-size: 14px;">{{ z.name }}</span>
+                <div style="text-align: right;"><p style="margin: 0; font-family: 'Geist Mono', monospace; font-size: 12.5px;">{{ z.hf }}</p><p style="margin: 2px 0 0; font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--ink3, #8a897f);">{{ z.pace }}</p></div>
+              </div>
+            </sc-for>
+          </div>
+          <p style="margin: 28px 20px 10px; font-size: 13px; font-weight: 600; color: var(--ink2, #5f5e5a);">Daten und Konto</p>
+          <div style="margin: 0 12px; background: var(--card, #fff); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="flex: 1;"><p style="margin: 0; font-size: 14.5px; font-weight: 600;">Daten exportieren</p><p style="margin: 3px 0 0; font-size: 12.5px; color: var(--ink3, #8a897f);">Alle Trainingsdaten als JSON-Datei</p></div>
+              <button style="height: 40px; padding: 0 14px; border-radius: 12px; border: none; background: var(--sunk, #efeee9); color: var(--ink, #1c1c1a); font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;">Export</button>
+            </div>
+            <div style="border-top: 1px solid var(--line, #efeee9); padding-top: 16px; display: flex; flex-direction: column; gap: 10px;">
+              <div><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">Angemeldet als</p><p style="margin: 3px 0 0; font-size: 14.5px;">louis@example.com</p></div>
+              <div><p style="margin: 0; font-size: 12px; color: var(--ink3, #8a897f);">Strava</p><p style="margin: 3px 0 0; font-size: 14.5px;">{{ p.strava }}</p></div>
+              <button onClick="{{ logout }}" style="align-self: flex-start; margin-top: 4px; height: 44px; padding: 0 16px; border-radius: 12px; border: none; background: var(--dangerBg, #fbe4e1); color: var(--danger, #b3261e); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Abmelden</button>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{ showTabbar }}" hint-placeholder-val="{{ true }}">
+        <div style="position: absolute; left: 12px; right: 12px; bottom: 26px; height: 64px; border-radius: 32px; background: var(--glass, rgba(255,255,255,0.86)); backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); box-shadow: 0 8px 24px var(--track, rgba(0,0,0,0.08)), 0 0 0 0.5px var(--track, rgba(0,0,0,0.08)); display: flex; padding: 6px; z-index: 5;">
+          <div onClick="{{ tabs.heute.go }}" style="flex: 1; border-radius: 26px; background: {{ tabs.heute.bg }}; color: {{ tabs.heute.fg }}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer;"><svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1.5"></rect><rect x="13" y="3" width="8" height="5" rx="1.5"></rect><rect x="13" y="10" width="8" height="11" rx="1.5"></rect><rect x="3" y="13" width="8" height="8" rx="1.5"></rect></svg><span style="font-size: 10.5px; font-weight: 600;">Heute</span></div>
+          <div onClick="{{ tabs.woche.go }}" style="flex: 1; border-radius: 26px; background: {{ tabs.woche.bg }}; color: {{ tabs.woche.fg }}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer;"><svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M3 9h18M8 2v4M16 2v4M7 13h2M11 13h2M15 13h2M7 17h2M11 17h2"></path></svg><span style="font-size: 10.5px; font-weight: 600;">Woche</span></div>
+          <div onClick="{{ tabs.verlauf.go }}" style="flex: 1; border-radius: 26px; background: {{ tabs.verlauf.bg }}; color: {{ tabs.verlauf.fg }}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer;"><svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg><span style="font-size: 10.5px; font-weight: 600;">Verlauf</span></div>
+          <div onClick="{{ tabs.plan.go }}" style="flex: 1; border-radius: 26px; background: {{ tabs.plan.bg }}; color: {{ tabs.plan.fg }}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer;"><svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path></svg><span style="font-size: 10.5px; font-weight: 600;">Plan</span></div>
+        </div>
+      </sc-if>
+    </sc-if>
+
+    <div style="position: absolute; left: 0; right: 0; top: 0; height: 50px; display: flex; justify-content: space-between; align-items: center; padding: 6px 32px 0; pointer-events: none; background: linear-gradient(var(--bg, #f4f3ef) 60%, var(--bg0, rgba(244,243,239,0))); z-index: 6;">
+      <span style="font-size: 15px; font-weight: 600;">9:41</span>
+      <span style="width: 26px; height: 12px; border-radius: 4px; border: 1.5px solid var(--ink, #1c1c1a); box-sizing: border-box; padding: 1.5px;"><span style="display: block; width: 70%; height: 100%; background: var(--ink, #1c1c1a); border-radius: 1.5px;"></span></span>
+    </div>
+
+    <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ closeSheet }}" style="position: absolute; inset: 0; background: rgba(0,0,0,0.38); z-index: 10;"></div>
+      <div style="position: absolute; left: 0; right: 0; bottom: 0; max-height: 78%; overflow-y: auto; scrollbar-width: none; background: var(--card, #fff); border-radius: 28px 28px 0 0; padding: 10px 20px 36px; z-index: 11; box-shadow: 0 -10px 30px rgba(0,0,0,0.2); box-sizing: border-box;">
+        <div style="width: 36px; height: 5px; border-radius: 3px; background: var(--ink5, #dcdbd5); margin: 0 auto 14px;"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px;">
+          <p style="margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -0.02em;">{{ sh.title }}</p>
+          <button onClick="{{ closeSheet }}" style="width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--sunk, #efeee9); color: var(--ink2, #5f5e5a); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;"><svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+        <sc-if value="{{ sh.isInfo }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <sc-for list="{{ sh.paras }}" as="pa" hint-placeholder-count="3">
+              <div><p style="margin: 0; font-size: 12px; font-weight: 600; color: var(--ink3, #8a897f);">{{ pa.lead }}</p><p style="margin: 4px 0 0; font-size: 14.5px; line-height: 1.55; color: var(--ink, #1c1c1a); text-wrap: pretty;">{{ pa.text }}</p></div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ sh.isPick }}" hint-placeholder-val="{{ false }}">
+          <p style="margin: 0 0 12px; font-size: 13.5px; color: var(--ink2, #5f5e5a);">Strava-Läufe von einem Tag davor bis drei Tage danach.</p>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <sc-for list="{{ sh.options }}" as="o" hint-placeholder-count="4">
+              <div onClick="{{ o.pick }}" style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 16px; background: {{ o.bg }}; box-shadow: {{ o.ring }}; cursor: {{ o.cursor }}; opacity: {{ o.op }};">
+                <span style="width: 20px; height: 20px; border-radius: 50%; border: {{ o.radio }}; box-sizing: border-box; flex-shrink: 0;"></span>
+                <div style="flex: 1; min-width: 0;"><p style="margin: 0; font-size: 14.5px; font-weight: 600;">{{ o.main }}</p><p style="margin: 3px 0 0; font-size: 12.5px; color: var(--ink3, #8a897f);">{{ o.sub }}</p></div>
+              </div>
+            </sc-for>
+            <button onClick="{{ ignoreRun }}" style="margin-top: 6px; height: 48px; border-radius: 14px; border: none; background: var(--dangerBg, #fbe4e1); color: var(--danger, #b3261e); font-family: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer;">Kein Lauf an diesem Tag</button>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;zustand&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;strava&quot;,&quot;ruhetag&quot;,&quot;keinplan&quot;,&quot;fehler&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototyp&quot;},&quot;darstellung&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;hell&quot;,&quot;dunkel&quot;],&quot;default&quot;:&quot;hell&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototyp&quot;},&quot;kraftVariante&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;],&quot;default&quot;:&quot;B&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototyp&quot;},&quot;laufVariante&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;],&quot;default&quot;:&quot;B&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototyp&quot;}}">
+class Component extends DCLogic {
+  scrollRef = React.createRef();
+  EX = [
+    { name: "Squats", soll: "2×6", hint: "ca. 80 % des Woche-7-Gewichts", kind: "kg", sets: 2, reps: 6, kg: 60, last: "4×5 · 75 kg", tip: ["hold", "Deload: 60 statt 75 kg"] },
+    { name: "Deadlift", soll: "2×5", hint: "reduziertes Volumen", kind: "kg", sets: 2, reps: 5, kg: 72.5, last: "4×4 · 90 kg", tip: ["hold", "Deload: 72,5 statt 90 kg"] },
+    { name: "Nordic hamstring curl", soll: "2×5", hint: "ohne Zusatzgewicht, Steigerung über Tempo", kind: "reps", sets: 2, reps: 5, last: "3×5" },
+    { name: "Klimmzüge", soll: "2×6", hint: "skill-lastige Bewegung", kind: "reps", sets: 2, reps: 6, last: "4×6", tip: ["warn", "Seit 2 Einheiten ohne Steigerung"] },
+    { name: "Brustpresse", soll: "2×6", hint: "horizontaler Push", kind: "kg", sets: 2, reps: 6, kg: 40, last: "4×7 · 50 kg" },
+    { name: "Soleus raises", soll: "3×15/Seite", hint: "steigern, wenn 15 Wdh sauber gelingen", kind: "kg", sets: 3, reps: 15, kg: 20, last: "3×15 · 20 kg", tip: ["up", "+2,5 kg: zuletzt alle 15 Wdh sauber"] },
+    { name: "Pallof press", soll: "3×10/Seite", hint: "Anti-Rotation, ruhige Hüfte", kind: "kg", sets: 3, reps: 10, kg: 12.5, last: "3×10 · 12,5 kg" },
+    { name: "Planks (wechselnd)", soll: "3×30–45 s", hint: "Front-, Seiten-, RKC-Plank", kind: "time", sets: 3, reps: 40, last: "3×40 s" },
+  ];
+  phoneRef = React.createRef();
+  seq = 0;
+  THEMES = {
+    hell: { bg: "#f4f3ef", bg0: "rgba(244,243,239,0)", card: "#fff", cardDim: "rgba(255,255,255,0.55)", sunk: "#efeee9", line: "#efeee9", ink: "#1c1c1a", ink2: "#5f5e5a", ink3: "#8a897f", ink4: "#b5b4ac", ink4b: "#c9c8c0", ink5: "#dcdbd5", seg: "#e6e5df", track: "rgba(0,0,0,0.08)", glass: "rgba(255,255,255,0.86)",
+      primary: "#0f6e56", onPrimary: "#fff", primaryHover: "#0b5a46", teal: "#0f6e56", tealBg: "#e1f5ee", tealTint: "#f3faf7", tealSoft: "#a8d5c4",
+      coral: "#c4532c", coralFg: "#993c1d", coralBg: "#faece7", purple: "#534ab7", purpleBg: "#eeedfe", purpleInk: "#3d3590", purpleSoft: "#dcd9fb",
+      sky: "#1e6b8f", skyBg: "#e0f0f8", skySoft: "#d3e7f1", amber: "#96631a", amberBg: "#fbf0dc", amberSoft: "#f3e3c4",
+      ok: "#2f7d32", okBg: "#e3f2e1", okSoft: "#cfe8d0", danger: "#b3261e", dangerBg: "#fbe4e1", dangerInk: "#8c1d16" },
+    dunkel: { bg: "#17171a", bg0: "rgba(23,23,26,0)", card: "#26262b", cardDim: "rgba(38,38,43,0.55)", sunk: "#202024", line: "#33333a", ink: "#f2f1ec", ink2: "#b3b2ab", ink3: "#918f87", ink4: "#6e6d66", ink4b: "#55545a", ink5: "#3a3a40", seg: "#2c2c31", track: "rgba(255,255,255,0.1)", glass: "rgba(38,38,43,0.86)",
+      primary: "#5fcfa7", onPrimary: "#0c2a21", primaryHover: "#4cbf96", teal: "#5fcfa7", tealBg: "#0c3a2f", tealTint: "#142a24", tealSoft: "#2a5e4d",
+      coral: "#ef8f61", coralFg: "#ef8f61", coralBg: "#3d2013", purple: "#a49df5", purpleBg: "#262156", purpleInk: "#d0ccff", purpleSoft: "#3b3480",
+      sky: "#5fb6dd", skyBg: "#0b2f42", skySoft: "#1a4a62", amber: "#ddaa55", amberBg: "#3a2a0e", amberSoft: "#5a4520",
+      ok: "#7ed88f", okBg: "#123a1c", okSoft: "#1f5a2c", danger: "#ff8a80", dangerBg: "#4a1f1c", dangerInk: "#ffb4ab" },
+  };
+  applyTheme() {
+    const el = this.phoneRef.current; if (!el) return;
+    const t = this.THEMES[(this.state.dm ?? this.props.darstellung ?? "hell") === "dunkel" ? "dunkel" : "hell"];
+    Object.entries(t).forEach(([k, v]) => el.style.setProperty("--" + k, v));
+  }
+  componentDidMount() { this.applyTheme(); }
+  mk = (e, i) => ({ ...e, id: "ex" + this.seq++, setsV: Array.from({ length: e.sets }, () => ({ kg: e.kg ?? 0, reps: e.reps })), saved: i < 2, same: true, done: i < 2 ? e.sets : 0, removed: false });
+  state = {
+    authed: true, tab: "heute", view: null, from: "heute", laufDay: "mo", sheet: null, weekN: 8, openDay: null,
+    list: this.EX.map(this.mk), exOpen: 2, focus: 2, focusId: "ex2", dm: null, edit: false, laufAssign: "auto",
+    histMode: "lauf", histEx: 0, kv: null, lv: null, zs: null, email: "louis@example.com", pw: "", loginErr: false,
+  };
+
+  componentDidUpdate(pp, ps) {
+    this.applyTheme();
+    const k = (s) => [s.tab, s.view, s.authed, s.laufDay, s.weekN].join("|");
+    if (k(ps) !== k(this.state) && this.scrollRef.current) this.scrollRef.current.scrollTop = 0;
+  }
+
+  upd(i, fn) {
+    this.setState((s) => {
+      const list = s.list.map((e, j) => (j === i ? fn({ ...e, setsV: e.setsV.map((x) => ({ ...x })) }) : e));
+      return { list };
+    });
+  }
+
+  renderVals() {
+    const s = this.state;
+    const z = s.zs ?? this.props.zustand ?? "normal";
+    const kv = s.kv ?? this.props.kraftVariante ?? "B";
+    const lv = s.lv ?? this.props.laufVariante ?? "B";
+    const dm = s.dm ?? this.props.darstellung ?? "hell";
+    const set = (p) => () => this.setState(p);
+    const de = (n) => String(n).replace(".", ",");
+    const TEAL = "var(--teal, #0f6e56)", CORAL = "var(--coral, #c4532c)", PURPLE = "var(--purple, #534ab7)", SKY = "var(--sky, #1e6b8f)";
+
+    const tabGo = (t) => () => this.setState({ tab: t, view: null, sheet: null });
+    const tabS = (t) => ({ go: tabGo(t), bg: !s.view && s.tab === t ? "var(--tealBg, #e1f5ee)" : "transparent", fg: !s.view && s.tab === t ? TEAL : "var(--ink2, #5f5e5a)" });
+
+    const active = s.list.map((e, i) => ({ e, i })).filter((x) => !x.e.removed);
+    const savedN = active.filter((x) => x.e.saved).length;
+    const total = active.length;
+    const summaryOf = (e) => {
+      const v = e.setsV[0];
+      if (e.kind === "kg") return `${e.sets}× ${v.reps} · ${de(v.kg)} kg`;
+      if (e.kind === "time") return `${e.sets}× ${v.reps} s`;
+      return `${e.sets}× ${v.reps} Wdh`;
+    };
+    const TIP = { hold: ["var(--skyBg, #e0f0f8)", SKY], warn: ["var(--amberBg, #fbf0dc)", "var(--amber, #96631a)"], up: ["var(--tealBg, #e1f5ee)", TEAL] };
+
+    const openKraft = () => this.setState({ view: "kraft", from: s.tab, sheet: null });
+    const openLauf = (d) => () => this.setState({ view: "lauf", laufDay: d, from: s.tab, sheet: null, laufAssign: "auto" });
+
+    const ruhe = z === "ruhetag", noPlan = z === "keinplan", err = z === "fehler", strava = z === "strava";
+    const shape = {
+      gruen: { color: "var(--ok, #2f7d32)", radius: "50%", rot: "none", size: "10px", ring: "none" },
+      gelb: { color: "var(--amber, #96631a)", radius: "2px", rot: "rotate(45deg)", size: "9px", ring: "none" },
+      grau: { color: "transparent", radius: "50%", rot: "none", size: "10px", ring: "2px solid var(--ink3, #8a897f)" },
+      lade: { color: "transparent", radius: "50%", rot: "none", size: "10px", ring: "2px solid var(--ink5, #dcdbd5)" },
+    };
+    const amp = [
+      ["wochensoll", "Wochensoll", "8 / 8 km bis heute", "gruen"],
+      ["easy", "Easy-Disziplin", "3 / 3 in der Zone", "gruen"],
+      ["belastung", "Belastung", "0,82 · gewollt", "gruen"],
+      ["kraft", "Kraft-Progression", "Klimmzüge stagnieren", "gelb"],
+    ].map(([key, title, detail, st]) => {
+      if (noPlan) return [key, title, "kein Plan", "grau"];
+      if (err) return [key, title, "lädt …", "lade"];
+      if (strava && (key === "easy" || key === "belastung")) return [key, title, "Strava fehlt", "grau"];
+      return [key, title, detail, st];
+    });
+    const todayIdx = ruhe ? 4 : 1;
+    const stripDef = [["Mo", "lauf", "8"], ["Di", "kraft", "A"], ["Mi", "lauf", "8"], ["Do", "kraft", "B"], ["Fr", "ruhe", "–"], ["Sa", "long", "11"], ["So", "lauf", "3"]];
+    const C = { kraft: TEAL, lauf: CORAL, long: PURPLE, ruhe: "var(--ink5, #d9d8d1)" };
+    const BG = { kraft: "var(--tealBg, #e1f5ee)", lauf: "var(--coralBg, #faece7)", long: "var(--purpleBg, #eeedfe)", ruhe: "var(--bg, #f4f3ef)" };
+    const FG = { kraft: TEAL, lauf: "var(--coralFg, #993c1d)", long: PURPLE, ruhe: "var(--ink3, #8a897f)" };
+    const h = {
+      showPlan: !noPlan, weekLine: noPlan ? "Ohne Plan" : ruhe ? "Woche 8 · Entlastung" : "Woche 8 · Entlastung",
+      date: ruhe ? "Freitag, 23. Oktober" : "Dienstag, 20. Oktober", countdown: ruhe ? "191 Tage bis 02.05." : "194 Tage bis 02.05.",
+      showErr: err, showStrava: strava, showKraft: !ruhe && !noPlan, showRuhe: ruhe, showNoPlan: noPlan,
+      kraftSub: savedN ? `${savedN} von ${total} Übungen erfasst` : `${total} Übungen · ca. 80 % vom Woche-7-Gewicht`,
+      kraftBtn: savedN === total ? "Einheit ansehen" : savedN ? "Weiter trainieren" : "Training starten",
+      preview: active.slice(0, 3).map(({ e }) => ({ name: e.name, soll: e.soll, saved: e.saved, open: !e.saved, color: e.saved ? "var(--ink3, #8a897f)" : "var(--ink, #1c1c1a)" })),
+      more: `+ ${Math.max(0, total - 3)} weitere Übungen`,
+      coachText: err ? "" : noPlan ? "Ohne aktiven Plan gibt es keinen Tagesimpuls. Läufe zählen trotzdem." : ruhe ? "Morgen der Long Run über 11 km: ruhig anlaufen, HF unter 160 halten." : "Entlastungswoche: heute bei etwa 80 % des Woche-7-Gewichts bleiben. Gestern 8,2 km sauber in der Zone.",
+      coachLoading: err,
+      ampeln: amp.map(([key, title, detail, st], i) => ({ title, detail, ...shape[st], border: i ? "1px solid var(--line, #efeee9)" : "none", open: set({ sheet: key }) })),
+      strip: stripDef.map(([d, k, label], i) => {
+        const done = i < todayIdx && k !== "ruhe";
+        return { d, label, done, showLabel: !done, bg: done ? C[k] : BG[k], fg: FG[k], ring: i === todayIdx ? "0 0 0 2px var(--card, #fff), 0 0 0 4px var(--teal, #0f6e56)" : "none" };
+      }),
+      volText: ruhe ? "16,2 / 30 km" : "8,2 / 30 km", volPct: ruhe ? "54%" : "27%",
+    };
+
+    const mkRow = (o, i) => ({
+      d: o.d, dt: o.dt, name: o.name, sub: o.sub, kindColor: C[o.k], dayColor: o.st === "today" ? TEAL : "var(--ink, #1c1c1a)",
+      nameWeight: o.k === "ruhe" ? 400 : 600, nameColor: o.k === "ruhe" ? "var(--ink3, #8a897f)" : "var(--ink, #1c1c1a)",
+      rowBg: o.st === "today" ? "var(--tealTint, #f3faf7)" : "transparent", border: i ? "1px solid var(--line, #efeee9)" : "none",
+      isDone: o.st === "done", isToday: o.st === "today", isFuture: o.st === "future", isPartial: o.st === "partial", partialText: o.pt || "",
+      open: s.openDay === `${s.weekN}-${i}` && o.k !== "ruhe", cursor: o.k === "ruhe" ? "default" : "pointer",
+      toggle: o.k === "ruhe" ? null : () => this.setState({ openDay: s.openDay === `${s.weekN}-${i}` ? null : `${s.weekN}-${i}` }),
+      details: (o.det || []).map(([t, c]) => ({ t, color: c || "var(--ink2, #5f5e5a)" })), hasAction: !!o.act, action: o.act,
+    });
+    const W8 = [
+      { d: "Mo", dt: "19.", k: "lauf", name: "Easy run · 8 km", sub: "Ist: 8,2 km · 6:22 /km · Ø 151 bpm", st: "done", det: [["Ziel: 8 km · 6:15–6:40 /km · HF 148–160"], ["Ist: 8,2 km · 6:22 /km · Ø 151 bpm"]], act: openLauf("mo") },
+      { d: "Di", dt: "20.", k: "kraft", name: "Full Body A", sub: `${savedN}/${total} erfasst · Deload`, st: "today", det: [[`Ziel: ${total} Übungen · Deload`], ["Ca. 80 % des Woche-7-Gewichts"]], act: openKraft },
+      { d: "Mi", dt: "21.", k: "lauf", name: "Easy run · 8 km", sub: "Ziel: 6:15–6:40 /km · HF 148–160", st: "future", det: [["Ziel: 8 km · 6:15–6:40 /km · HF 148–160"]], act: openLauf("mi") },
+      { d: "Do", dt: "22.", k: "kraft", name: "Full Body B", sub: "8 Übungen · Deload", st: "future", det: [["Bulgarian split squats, Single leg RDL, Hamstring curls, Klimmzüge, Schulterpresse …"]] },
+      { d: "Fr", dt: "23.", k: "ruhe", name: "Ruhe", sub: "Mobility, Foam Rolling", st: "rest" },
+      { d: "Sa", dt: "24.", k: "long", name: "Long run · 11 km", sub: "Ziel: 6:15–6:40 /km · HF 148–160", st: "future", det: [["Ziel: 11 km · 6:15–6:40 /km · HF 148–160"]], act: openLauf("sa") },
+      { d: "So", dt: "25.", k: "lauf", name: "Recovery run · 3 km", sub: "Ziel: > 6:40 /km · HF < 148", st: "future", det: [["Ziel: 3 km · > 6:40 /km · HF < 148"], ["Ende Phase 1 – Re-Kalibrierung fällig", "var(--amber, #96631a)"]] },
+    ];
+    const W7 = [
+      { d: "Mo", dt: "12.", k: "lauf", name: "Easy run · 10 km", sub: "Ist: 10,1 km · 6:11 /km", st: "done", det: [["Ist: 10,1 km · 6:11 /km · Ø 153 bpm"]] },
+      { d: "Di", dt: "13.", k: "kraft", name: "Full Body A", sub: "8/8 erfasst", st: "done", det: [["Alle Übungen erfasst"]] },
+      { d: "Mi", dt: "14.", k: "lauf", name: "Easy run · 10 km", sub: "Ist: 10,0 km · 6:08 /km", st: "done", det: [["Ist: 10,0 km · 6:08 /km · Ø 154 bpm"]] },
+      { d: "Do", dt: "15.", k: "kraft", name: "Full Body B", sub: "7/8 erfasst", st: "partial", pt: "7/8", det: [["Teilweise erfasst (7/8): Crunches fehlen.", "var(--amber, #96631a)"]] },
+      { d: "Fr", dt: "16.", k: "ruhe", name: "Ruhe", sub: "Mobility, Foam Rolling", st: "rest" },
+      { d: "Sa", dt: "17.", k: "long", name: "Long run · 16 km", sub: "Ist: 16,2 km · 6:18 /km", st: "done", det: [["Ist: 16,2 km · 6:18 /km · Ø 155 bpm"], ["Zu schnell am Ende: max. 166 bpm über 160.", "var(--amber, #96631a)"]] },
+      { d: "So", dt: "18.", k: "lauf", name: "Recovery run · 5 km", sub: "Ist: 5,1 km · 6:52 /km", st: "done", det: [["Ist: 5,1 km · 6:52 /km · Ø 139 bpm"]] },
+    ];
+    const WK = {
+      7: { range: "12.–18. Oktober · Aufbau", rows: W7, ist: "41,3", soll: "41", pct: "100%", kraft: "2", kraftPct: "100%" },
+      8: { range: "19.–25. Oktober · Entlastung", rows: W8, ist: "8,2", soll: "30", pct: "27%", kraft: savedN === total ? "1" : "0", kraftPct: savedN === total ? "50%" : "0%" },
+      9: { range: "26. Okt. – 1. Nov. · Aufbau", rows: [], ist: "0", soll: "40", pct: "0%", kraft: "0", kraftPct: "0%" },
+    }[s.weekN];
+    const w = {
+      n: s.weekN, ...WK, rows: WK.rows.map(mkRow), hasRows: WK.rows.length > 0, placeholder: WK.rows.length === 0,
+      prev: s.weekN > 7 ? () => this.setState({ weekN: s.weekN - 1, openDay: null }) : null,
+      next: s.weekN < 9 ? () => this.setState({ weekN: s.weekN + 1, openDay: null }) : null,
+      prevOp: s.weekN > 7 ? 1 : 0.35, nextOp: s.weekN < 9 ? 1 : 0.35, showToday: s.weekN !== 8, today: set({ weekN: 8, openDay: null }),
+    };
+
+    const stepFor = (e) => (e.kind === "time" ? 5 : 1);
+    const adj = (i, si, field, d) => () => this.upd(i, (e) => {
+      const apply = (x) => { x[field] = Math.max(0, +(x[field] + d).toFixed(1)); };
+      if (e.same || si == null) e.setsV.forEach(apply); else apply(e.setsV[si]);
+      e.saved = false;
+      return e;
+    });
+    const rowsFor = (e, i) => {
+      const idxs = e.same ? [null] : e.setsV.map((_, k) => k);
+      return idxs.map((si) => {
+        const v = e.setsV[si ?? 0];
+        return {
+          label: si == null ? `Alle ${e.sets} Sätze` : `Satz ${si + 1}`, showA: e.kind === "kg", aVal: de(v.kg),
+          aDec: adj(i, si, "kg", -2.5), aInc: adj(i, si, "kg", 2.5),
+          bVal: v.reps, bUnit: e.kind === "time" ? "s" : "Wdh", bDec: adj(i, si, "reps", -stepFor(e)), bInc: adj(i, si, "reps", stepFor(e)),
+          bWidth: e.kind === "kg" ? "124px" : "auto", bFlex: e.kind === "kg" ? "none" : "1",
+        };
+      });
+    };
+    const k = {
+      progressText: `${savedN} von ${total} Übungen erfasst`, pctText: `${Math.round((savedN / Math.max(1, total)) * 100)} %`, pct: `${(savedN / Math.max(1, total)) * 100}%`,
+      editLabel: s.edit ? "Fertig" : "Anpassen", toggleEdit: set({ edit: !s.edit }),
+      list: active.map(({ e, i }) => ({
+        name: e.name, custom: !!e.custom, saved: e.saved, unsaved: !e.saved, summary: e.saved ? summaryOf(e) : `Soll ${e.soll}`,
+        open: !s.edit && s.exOpen === i, editing: s.edit, notEditing: !s.edit, chev: s.exOpen === i ? "rotate(180deg)" : "none",
+        toggle: s.edit ? null : () => this.setState({ exOpen: s.exOpen === i ? null : i }),
+        remove: (ev) => { ev && ev.stopPropagation && ev.stopPropagation(); this.upd(i, (x) => ({ ...x, removed: true })); },
+        soll: e.soll, hint: e.hint, hasTip: !!e.tip, tip: e.tip ? e.tip[1] : "", tipBg: e.tip ? TIP[e.tip[0]][0] : "", tipFg: e.tip ? TIP[e.tip[0]][1] : "",
+        rows: rowsFor(e, i), sameLabel: e.same ? "Sätze einzeln" : "Alle gleich",
+        toggleSame: () => this.upd(i, (x) => ({ ...x, same: !x.same })),
+        saveLabel: e.saved ? "Gespeichert" : "Speichern", saveBg: e.saved ? "var(--tealBg, #e1f5ee)" : TEAL, saveFg: e.saved ? TEAL : "var(--card, #fff)",
+        save: () => {
+          this.upd(i, (x) => ({ ...x, saved: true, done: x.sets }));
+          const nxt = active.find((x) => x.i > i && !x.e.saved);
+          this.setState({ exOpen: nxt ? nxt.i : null });
+        },
+      })),
+      removed: s.list.map((e, i) => ({ e, i })).filter((x) => x.e.removed).map(({ e, i }) => ({ name: e.name, restore: () => this.upd(i, (x) => ({ ...x, removed: false })) })),
+      add: () => this.setState((st) => ({ list: [...st.list, this.mk({ name: "Beinpresse", soll: "3×10", hint: "eigene Übung, nur heute", kind: "kg", sets: 3, reps: 10, kg: 80, last: "–", custom: true }, 99)], exOpen: st.list.length })),
+    };
+
+    let fpos = active.findIndex((x) => x.e.id === s.focusId);
+    if (fpos < 0) fpos = Math.max(0, active.findIndex((x) => !x.e.saved));
+    const cur = active[fpos] || active[0];
+    const move = (i, dir) => () => this.setState((st) => {
+      const L = [...st.list]; let j = i + dir;
+      while (j >= 0 && j < L.length && L[j].removed) j += dir;
+      if (j < 0 || j >= L.length) return null;
+      [L[i], L[j]] = [L[j], L[i]];
+      return { list: L };
+    });
+    const kb = (() => {
+      if (!cur) return { dots: [], sets: [], order: [] };
+      const e = cur.e, i = cur.i;
+      const nextA = active.find((x) => x.e.id !== e.id && !x.e.saved);
+      const unitOf = (x) => (x.kind === "time" ? "s" : "Wdh");
+      return {
+        pos: `${savedN} von ${total} erledigt`, name: e.name, soll: e.soll, hint: e.hint, last: e.last,
+        hasTip: !!e.tip, tip: e.tip ? e.tip[1] : "", tipBg: e.tip ? TIP[e.tip[0]][0] : "", tipFg: e.tip ? TIP[e.tip[0]][1] : "",
+        dots: active.map((x, j) => ({ bg: x.e.saved ? TEAL : j === fpos ? "var(--ink, #1c1c1a)" : "var(--ink5, #dcdbd5)", go: set({ focusId: x.e.id }) })),
+        order: active.map((x, j) => {
+          const isCur = x.e.id === e.id;
+          return {
+            pos: j + 1, name: x.e.name, saved: x.e.saved, isCur, open: !x.e.saved && !isCur,
+            sub: x.e.saved ? summaryOf(x.e) : isCur ? `läuft · Satz ${Math.min(x.e.done + 1, x.e.sets)} von ${x.e.sets}` : x.e.soll,
+            weight: isCur ? 600 : 500, color: x.e.saved ? "var(--ink3, #8a897f)" : "var(--ink, #1c1c1a)", rowBg: isCur ? "var(--tealTint, #f3faf7)" : "transparent",
+            border: j ? "1px solid var(--line, #efeee9)" : "none", cursor: isCur ? "default" : "pointer",
+            go: isCur ? null : set({ focusId: x.e.id }), movable: !x.e.saved,
+            up: j > 0 ? move(x.i, -1) : null, down: j < active.length - 1 ? move(x.i, 1) : null,
+            upOp: j > 0 ? 1 : 0.3, downOp: j < active.length - 1 ? 1 : 0.3,
+          };
+        }),
+        sets: e.setsV.map((v, si) => {
+          const done = si < e.done, act = si === e.done;
+          return {
+            n: si + 1, done, active: act, inactive: !act, compact: e.kind === "kg" ? `${de(v.kg)} kg × ${v.reps}` : `${v.reps} ${unitOf(e)}`,
+            showA: e.kind === "kg", aVal: de(v.kg), bVal: v.reps, bUnit: unitOf(e),
+            aDec: () => this.upd(i, (x) => { x.setsV.slice(si).forEach((y) => (y.kg = Math.max(0, y.kg - 2.5))); return x; }),
+            aInc: () => this.upd(i, (x) => { x.setsV.slice(si).forEach((y) => (y.kg = y.kg + 2.5)); return x; }),
+            bDec: () => this.upd(i, (x) => { x.setsV[si].reps = Math.max(0, x.setsV[si].reps - stepFor(e)); return x; }),
+            bInc: () => this.upd(i, (x) => { x.setsV[si].reps = x.setsV[si].reps + stepFor(e); return x; }),
+            bg: act ? "var(--card, #fff)" : done ? "var(--card, #fff)" : "var(--cardDim, rgba(255,255,255,0.55))", ring: act ? "0 0 0 2px var(--teal, #0f6e56)" : "none",
+            labelColor: act ? TEAL : "var(--ink3, #8a897f)", valColor: done ? "var(--ink3, #8a897f)" : act ? "var(--ink, #1c1c1a)" : "var(--ink4, #b5b4ac)", size: act ? "30px" : "22px",
+          };
+        }),
+        primaryLabel: e.done < e.sets ? `Satz ${e.done + 1} fertig` : nextA ? `Weiter: ${nextA.e.name}` : "Training abschließen",
+        primary: () => {
+          if (e.done < e.sets) this.upd(i, (x) => ({ ...x, done: x.done + 1, saved: x.done + 1 >= x.sets }));
+          else if (nextA) this.setState({ focusId: nextA.e.id });
+          else this.setState({ view: null, tab: "heute" });
+        },
+      };
+    })();
+
+    const RUNS = {
+      mo: { over: "LAUF · MO, 19.10.", title: "Easy run · 8 km", color: CORAL, planKm: "8 km", pace: "6:15–6:40", hf: "148–160", done: true, pl: 375, ph: 400, hl: 148, hh: 160, plan: 8 },
+      mi: { over: "LAUF · MI, 21.10.", title: "Easy run · 8 km", color: CORAL, planKm: "8 km", pace: "6:15–6:40", hf: "148–160", done: false, pl: 375, ph: 400, hl: 148, hh: 160, plan: 8 },
+      sa: { over: "LONG RUN · SA, 24.10.", title: "Long run · 11 km", color: PURPLE, planKm: "11 km", pace: "6:15–6:40", hf: "148–160", done: false, pl: 375, ph: 400, hl: 148, hh: 160, plan: 11 },
+    };
+    const run = RUNS[s.laufDay];
+    const ist = s.laufAssign === "other"
+      ? { km: 4.0, pace: 418, dur: "27:52", hr: 138, name: "Lauf · Do, 15.10. · 4,0 km", lab: "von Hand zugeordnet", ok: false }
+      : { km: 8.2, pace: 382, dur: "52:12", hr: 151, name: "Morgenlauf · 07:05", lab: "automatisch zugeordnet", ok: true };
+    const hasRun = run.done && !strava && s.laufAssign !== "none";
+    const mmss = (x) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`;
+    const pos = (v, a, b) => `${Math.min(100, Math.max(0, ((v - a) / (b - a)) * 100)).toFixed(1)}%`;
+    const paceIn = ist.pace >= run.pl && ist.pace <= run.ph, hrIn = ist.hr >= run.hl - 20 && ist.hr <= run.hh;
+    const l = {
+      ...run, showA: lv === "A" && !strava && !(run.done && s.laufAssign === "none"), showB: lv === "B" && hasRun,
+      hasRun, showFuture: !run.done && !strava, showStrava: strava, showIgnored: run.done && s.laufAssign === "none" && !strava,
+      runName: ist.name, assignLabel: ist.lab, assignShort: ist.ok ? "automatisch" : "von Hand", assignBg: ist.ok ? "var(--line, #efeee9)" : "var(--amberBg, #fbf0dc)", assignFg: ist.ok ? "var(--ink2, #5f5e5a)" : "var(--amber, #96631a)",
+      metrics: [{ l: "Distanz", v: de(ist.km.toFixed(1)), u: "km" }, { l: "Pace", v: mmss(ist.pace), u: "/km" }, { l: "Dauer", v: ist.dur, u: "" }, { l: "Ø HF", v: ist.hr, u: "bpm" }],
+      verdict: ist.ok ? "Im Plan: Distanz, Pace und HF passen." : `Nur ${de(ist.km.toFixed(1))} von ${run.plan} km gelaufen.`,
+      verdictShort: ist.ok ? "im Plan" : "zu kurz",
+      verdictBg: ist.ok ? "var(--okBg, #e3f2e1)" : "var(--amberBg, #fbf0dc)", verdictFg: ist.ok ? "var(--ok, #2f7d32)" : "var(--amber, #96631a)", verdictRadius: ist.ok ? "50%" : "2px", verdictRot: ist.ok ? "none" : "rotate(45deg)",
+      km: de(ist.km.toFixed(1)), duration: ist.dur, kmPct: `${Math.min(100, (ist.km / run.plan) * 100)}%`,
+      ranges: [
+        { label: "Pace", val: `${mmss(ist.pace)} /km`, valColor: paceIn ? "var(--ok, #2f7d32)" : "var(--amber, #96631a)", bandL: pos(run.pl, 345, 435), bandW: `${((run.ph - run.pl) / 90) * 100}%`, bandC: "var(--okSoft, #cfe8d0)", mark: pos(ist.pace, 345, 435), min: "5:45", max: "7:15", zone: "6:15–6:40" },
+        { label: "Ø Herzfrequenz", val: `${ist.hr} bpm`, valColor: hrIn ? "var(--ok, #2f7d32)" : "var(--amber, #96631a)", bandL: pos(run.hl, 130, 175), bandW: `${((run.hh - run.hl) / 45) * 100}%`, bandC: "var(--okSoft, #cfe8d0)", mark: pos(ist.hr, 130, 175), min: "130", max: "175", zone: "148–160" },
+      ],
+    };
+
+    const PICK = [
+      { id: "auto", main: "Mo, 19.10. · Morgenlauf", sub: "8,2 km · 6:22 /km · am Plantag", free: true },
+      { id: "other", main: "Do, 15.10. · Lauf", sub: "4,0 km · 6:58 /km · −4 Tage", free: true },
+      { id: "x1", main: "So, 18.10. · Abendlauf", sub: "5,1 km · gehört schon zu So, 18.10.", free: false },
+      { id: "x2", main: "Sa, 17.10. · Long run", sub: "16,2 km · gehört schon zu Sa, 17.10.", free: false },
+    ];
+    const INFO = {
+      wochensoll: ["Wochensoll", [["Berechnung", "Gelaufene Kilometer der Planwoche bis heute im Verhältnis zu den geplanten Kilometern derselben Tage, dazu die erledigten Krafteinheiten."], ["Bedeutung", "Grün ab 90 % der geplanten Kilometer. Gelb zwischen 70 % und 90 %. Rot darunter. Eine verpasste, bereits vergangene Einheit zählt mindestens als Gelb."], ["Grau", "Kein aktiver Plan oder die Woche hat noch keine Details."]]],
+      easy: ["Easy-Disziplin", [["Berechnung", "Die Herzfrequenz deiner letzten drei Easy-, Long- oder Recovery-Läufe im Vergleich zur Obergrenze der jeweiligen Zone."], ["Bedeutung", "Grün, wenn alle drei im Rahmen liegen. Gelb bei einem Ausreißer bis 8 Schläge über der Grenze. Rot bei zwei oder mehr Ausreißern oder einem deutlich darüber."], ["Grau", "Noch kein zugeordneter Lauf vorhanden."]]],
+      belastung: ["Belastung", [["Berechnung", "Kilometer der letzten 7 Tage geteilt durch die durchschnittlichen Wochenkilometer der 28 Tage davor."], ["Bedeutung", "1,0 heißt so viel wie zuletzt üblich. In Entlastungswochen ist ein Wert unter 1 gewollt. Über 1,3 steht auf Gelb, über 1,5 auf Rot."], ["Ehrlicher Hinweis", "Eine grobe Faustregel, gedacht als Warnsignal, keine Verletzungsprognose."]]],
+      kraft: ["Kraft-Progression", [["Berechnung", "Deine Gewichtsübungen der letzten 42 Tage, Deload-Wochen zählen nicht mit."], ["Bedeutung", "Grün, wenn keine Übung feststeckt. Gelb bei einer Übung ohne Steigerung oder unter Soll. Rot bei 2 oder mehr betroffenen Übungen oder wenn dieselbe Übung 2-mal in Folge unter Soll bleibt."], ["Grau", "Weniger als 3 Gewichtsübungen mit Daten, oder kein aktiver Plan."]]],
+    };
+    const isPick = s.sheet === "pick";
+    const sh = isPick
+      ? { title: `Lauf für ${run.over.split("· ")[1] || ""}`.replace("MO", "Mo").replace("MI", "Mi").replace("SA", "Sa"), isPick: true, isInfo: false,
+          options: PICK.map((o) => {
+            const on = (s.laufAssign === "auto" && o.id === "auto" && run.done) || (s.laufAssign === "other" && o.id === "other");
+            return { ...o, bg: on ? "var(--tealTint, #f3faf7)" : "var(--bg, #f4f3ef)", ring: on ? "0 0 0 2px var(--teal, #0f6e56)" : "none", radio: on ? "6px solid var(--teal, #0f6e56)" : "1.5px solid var(--ink4, #b5b4ac)", cursor: o.free ? "pointer" : "default", op: o.free ? 1 : 0.5,
+              pick: o.free ? () => this.setState({ laufAssign: o.id, sheet: null }) : null };
+          }) }
+      : s.sheet ? { title: INFO[s.sheet][0], isInfo: true, isPick: false, paras: INFO[s.sheet][1].map(([lead, text]) => ({ lead, text })) } : { title: "", paras: [], options: [] };
+
+    const HIST = [
+      ["Squats", [50, 55, 60, 50, 70, 72.5, 75, 60]], ["Deadlift", [60, 65, 70, 55, 80, 85, 90, 72.5]],
+      ["Brustpresse", [35, 37.5, 40, 32.5, 45, 47.5, 50, 40]], ["Soleus raises", [12.5, 15, 15, 12.5, 17.5, 17.5, 20, 20]],
+    ];
+    const hx = HIST[s.histEx]; const hmax = Math.max(...hx[1]);
+    const DATES = ["01.09.", "08.09.", "15.09.", "22.09.", "29.09.", "06.10.", "13.10.", "20.10."];
+    const runsV = [["19.10.", "Easy run", 8.2, "6:22", "lauf"], ["18.10.", "Recovery run", 5.1, "6:52", "lauf"], ["17.10.", "Long run", 16.2, "6:18", "long"], ["14.10.", "Easy run", 10.0, "6:08", "lauf"], ["12.10.", "Easy run", 10.1, "6:11", "lauf"], ["11.10.", "Recovery run", 5.0, "6:45", "lauf"], ["10.10.", "Long run", 14.1, "6:16", "long"], ["08.10.", "Easy run", 9.0, "6:05", "lauf"], ["05.10.", "Easy run", 9.2, "5:52", "lauf"], ["04.10.", "Recovery run", 4.0, "6:58", "lauf"]];
+    const v = {
+      isKraft: s.histMode === "kraft", isLauf: s.histMode === "lauf",
+      toKraft: set({ histMode: "kraft" }), toLauf: set({ histMode: "lauf" }),
+      kBg: s.histMode === "kraft" ? "var(--card, #fff)" : "transparent", kFg: s.histMode === "kraft" ? "var(--ink, #1c1c1a)" : "var(--ink2, #5f5e5a)",
+      lBg: s.histMode === "lauf" ? "var(--card, #fff)" : "transparent", lFg: s.histMode === "lauf" ? "var(--ink, #1c1c1a)" : "var(--ink2, #5f5e5a)",
+      chips: HIST.map(([name], i) => ({ name, bg: i === s.histEx ? "var(--tealBg, #e1f5ee)" : "var(--card, #fff)", fg: i === s.histEx ? TEAL : "var(--ink2, #5f5e5a)", go: set({ histEx: i }) })),
+      top: de(hx[1][7]), trend: `+${de(hx[1][6] - hx[1][0])} kg bis W7`,
+      bars: hx[1].map((x, i) => ({ v: de(x), h: Math.round((x / hmax) * 92) + "px", bg: i === 3 || i === 7 ? "var(--tealSoft, #a8d5c4)" : TEAL, l: `W${i + 1}`, lc: i === 7 ? TEAL : "var(--ink3, #8a897f)" })),
+      entries: hx[1].slice(4).reverse().map((x, i) => ({ d: DATES[7 - i], v: `${de(x)} kg`, border: i ? "1px solid var(--line, #efeee9)" : "none" })),
+      tiles: [{ l: "Letzte 7 Tage", v: "39,5", u: "km" }, { l: "Letzte 28 Tage", v: "131,0", u: "km" }, { l: "Ø Pace", v: "6:14", u: "/km" }, { l: "Läufe seit 31.08.", v: "27", u: "" }],
+      runBars: runsV.slice().reverse().map(([d, t, km, p, kk]) => ({ h: Math.round((km / 16.2) * 100) + "px", c: kk === "long" ? PURPLE : CORAL, l: d.slice(0, 2) })),
+      runs: runsV.slice(0, 6).map(([d, t, km, p, kk], i) => ({ t, d, v: `${de(km.toFixed(1))} km · ${p}`, c: kk === "long" ? PURPLE : CORAL, border: i ? "1px solid var(--line, #efeee9)" : "none" })),
+    };
+
+    const p = {
+      strava: strava ? "nicht verbunden" : "verbunden · Sync heute 07:12",
+      phases: [
+        [1, "Basis", "31.08.–25.10.", "Volumen, Maximalkraft", "var(--tealBg, #e1f5ee)", TEAL, true],
+        [2, "Aufbau", "26.10.–17.01.", "Umfang, Schwelle", "var(--skyBg, #e0f0f8)", SKY, false],
+        [3, "Spezifisch", "18.01.–18.04.", "Renntempo, lange Läufe", "var(--amberBg, #fbf0dc)", "var(--amber, #96631a)", false],
+        [4, "Taper", "19.04.–02.05.", "frisch zum Rennen", "var(--purpleBg, #eeedfe)", PURPLE, false],
+      ].map(([n, name, range, focus, bg, fg, current], i) => ({ n, name, range, focus, bg, fg, current, border: i ? "1px solid var(--line, #efeee9)" : "none" })),
+      zones: [["Z1", "Recovery", "< 148", "> 6:30 /km", "var(--skyBg, #e0f0f8)", SKY], ["Z2", "Easy", "148–163", "5:45–6:15 /km", "var(--tealBg, #e1f5ee)", TEAL], ["Z3", "Tempo", "165–170", "5:00–5:20 /km", "var(--amberBg, #fbf0dc)", "var(--amber, #96631a)"], ["Z4", "Schwelle", "172–181", "4:35–4:50 /km", "var(--coralBg, #faece7)", "var(--coralFg, #993c1d)"], ["Z5", "VO2max", "> 184", "4:05–4:20 /km", "var(--purpleBg, #eeedfe)", PURPLE]]
+        .map(([id, name, hf, pace, bg, fg], i) => ({ id, name, hf, pace, bg, fg, border: i ? "1px solid var(--line, #efeee9)" : "none" })),
+    };
+
+    const on = (cond) => ({ bg: cond ? "#fff" : "transparent", fg: cond ? "#1c1c1a" : "#5f5e5a", weight: cond ? 600 : 500 });
+    const jumpsDef = [
+      ["Heute", s.authed && !s.view && s.tab === "heute" && !s.sheet, { authed: true, view: null, tab: "heute", sheet: null }],
+      ["Woche", s.authed && !s.view && s.tab === "woche", { authed: true, view: null, tab: "woche", sheet: null, weekN: 8 }],
+      ["Kraft-Tag", s.authed && s.view === "kraft", { authed: true, view: "kraft", from: "heute", sheet: null }],
+      ["Lauf-Tag · erledigt", s.authed && s.view === "lauf" && s.laufDay === "mo" && !s.sheet, { authed: true, view: "lauf", laufDay: "mo", laufAssign: "auto", from: "woche", sheet: null }],
+      ["Lauf-Tag · offen", s.authed && s.view === "lauf" && s.laufDay === "mi", { authed: true, view: "lauf", laufDay: "mi", from: "woche", sheet: null }],
+      ["Lauf zuordnen", s.sheet === "pick", { authed: true, view: "lauf", laufDay: "mo", from: "woche", sheet: "pick" }],
+      ["Verlauf", s.authed && !s.view && s.tab === "verlauf", { authed: true, view: null, tab: "verlauf", sheet: null }],
+      ["Plan & Konto", s.authed && !s.view && s.tab === "plan", { authed: true, view: null, tab: "plan", sheet: null }],
+      ["Info-Sheet", !!s.sheet && s.sheet !== "pick", { authed: true, view: null, tab: "heute", sheet: "belastung" }],
+      ["Login", !s.authed, { authed: false, sheet: null, pw: "", loginErr: false }],
+    ];
+    const jumps = jumpsDef.map(([label, act, patch]) => ({ label, ...on(act), go: set(patch) }));
+    const seg = (cur, val, key) => ({ bg: cur === val ? "#fff" : "transparent", fg: cur === val ? "#1c1c1a" : "#5f5e5a", go: set({ [key]: val }) });
+    const zDef = [["normal", "Normal", "#2f7d32"], ["strava", "Strava getrennt", CORAL], ["ruhetag", "Ruhetag", "#8a897f"], ["keinplan", "Kein Plan", "#5f5e5a"], ["fehler", "Daten-Fehler", "#b3261e"]];
+
+    return {
+      jumps,
+      kvOpts: [{ label: "A · Liste", ...seg(kv, "A", "kv") }, { label: "B · Fokus", ...seg(kv, "B", "kv") }],
+      dmOpts: [{ label: "Hell", ...seg(dm, "hell", "dm") }, { label: "Dunkel", ...seg(dm, "dunkel", "dm") }],
+      phoneRef: this.phoneRef,
+      lvOpts: [{ label: "A · Karten", ...seg(lv, "A", "lv") }, { label: "B · Vergleich", ...seg(lv, "B", "lv") }],
+      zOpts: zDef.map(([val, label, dot]) => ({ label, dot, ...on(z === val), go: set({ zs: val }) })),
+      isLogin: !s.authed, isApp: s.authed, scrollRef: this.scrollRef,
+      isHeute: !s.view && s.tab === "heute", isWoche: !s.view && s.tab === "woche", isVerlauf: !s.view && s.tab === "verlauf", isPlan: !s.view && s.tab === "plan",
+      inDay: !!s.view, isKraftA: s.view === "kraft" && kv === "A", isKraftB: s.view === "kraft" && kv === "B", isLauf: s.view === "lauf",
+      back: set({ view: null, sheet: null }), backLabel: s.from === "woche" ? "Woche" : "Heute",
+      showTabbar: !s.view,
+      tabs: { heute: tabS("heute"), woche: tabS("woche"), verlauf: tabS("verlauf"), plan: tabS("plan") },
+      h, w, k, kb, l, v, p, sh,
+      openKraft, openLaufSa: openLauf("sa"), goWoche: tabGo("woche"), goPlan: tabGo("plan"),
+      openPicker: set({ sheet: "pick" }), ignoreRun: set({ laufAssign: "none", sheet: null }), resetRun: set({ laufAssign: "auto" }),
+      sheetOpen: !!s.sheet, closeSheet: set({ sheet: null }),
+      email: s.email, pw: s.pw, loginErr: s.loginErr,
+      onEmail: (e) => this.setState({ email: e.target.value }), onPw: (e) => this.setState({ pw: e.target.value, loginErr: false }),
+      doLogin: () => (s.pw ? this.setState({ authed: true, tab: "heute", view: null, loginErr: false }) : this.setState({ loginErr: true })),
+      logout: set({ authed: false, pw: "", loginErr: false, sheet: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

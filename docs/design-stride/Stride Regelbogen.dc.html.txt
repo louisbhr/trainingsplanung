@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body { margin: 0; background: #e8e7e2; }
+a { color: #0f6e56; } a:hover { color: #0a4f3e; }
+</style>
+</helmet>
+
+<div style="font-family: Geist, -apple-system, sans-serif; color: #1c1c1a; padding: 64px; display: flex; flex-direction: column; gap: 56px; width: 1320px;">
+
+<header style="display: flex; justify-content: space-between; align-items: flex-end; gap: 40px;">
+  <div style="display: flex; flex-direction: column; gap: 8px; max-width: 760px;">
+    <p style="margin: 0; font-family: 'Geist Mono', monospace; font-size: 13px; color: #5f5e5a; letter-spacing: 0.04em;">STRIDE · REGELBOGEN · V1</p>
+    <h1 style="margin: 0; font-size: 48px; font-weight: 600; letter-spacing: -0.03em;">Regeln für die mobile App</h1>
+    <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #5f5e5a; text-wrap: pretty;">Abgeleitet aus den neuen Screens Heute und Woche und den Farbwerten aus style.css. Alles, was danach gebaut wird, nutzt nur diese Werte.</p>
+  </div>
+  <div style="display: flex; align-items: center; gap: 16px;">
+    <dc-import name="GlassIcon" motif="kadenz" mode="default" hint-size="72px,72px" style="width: 72px; height: 72px;"></dc-import>
+    <span style="font-size: 44px; font-weight: 600; letter-spacing: -0.035em;">Stride</span>
+  </div>
+</header>
+
+<section style="display: flex; flex-direction: column; gap: 20px;">
+  <h2 style="margin: 0; font-size: 13px; font-family: 'Geist Mono', monospace; font-weight: 600; color: #5f5e5a; letter-spacing: 0.06em;">01 · MARKE</h2>
+  <div style="display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 16px;">
+    <div style="background: #fff; border-radius: 22px; padding: 28px; display: flex; flex-direction: column; gap: 20px;">
+      <p style="margin: 0; font-size: 15px; font-weight: 600;">Logo-Kombination</p>
+      <div style="display: flex; gap: 32px; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <svg width="40" height="40" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#0f6e56"></rect><g transform="rotate(14 32 32)"><rect x="17" y="27" width="11" height="22" rx="5.5" fill="#fff"></rect><rect x="36" y="15" width="11" height="22" rx="5.5" fill="#e0673d"></rect></g></svg>
+          <span style="font-size: 28px; font-weight: 600; letter-spacing: -0.035em;">Stride</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; background: #17171a; padding: 12px 16px; border-radius: 14px;">
+          <svg width="32" height="32" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#26262b"></rect><g transform="rotate(14 32 32)"><rect x="17" y="27" width="11" height="22" rx="5.5" fill="#5fcfa7"></rect><rect x="36" y="15" width="11" height="22" rx="5.5" fill="#ef8f61"></rect></g></svg>
+          <span style="font-size: 22px; font-weight: 600; letter-spacing: -0.035em; color: #f2f1ec;">Stride</span>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; line-height: 1.5; color: #5f5e5a;">
+        <p style="margin: 0;">Schriftzug: Geist 600, Laufweite −3,5 %. Immer „Stride“, nie in Großbuchstaben.</p>
+        <p style="margin: 0;">Das Ziel steht als Untertitel daneben, nie im Namen: „Halbmarathon · 02.05.2027“.</p>
+      </div>
+    </div>
+    <div style="background: #fff; border-radius: 22px; padding: 28px; display: flex; flex-direction: column; gap: 16px;">
+      <p style="margin: 0; font-size: 15px; font-weight: 600;">Wann welches Zeichen</p>
+      <div style="display: flex; gap: 16px; align-items: flex-end;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;"><dc-import name="GlassIcon" motif="kadenz" mode="default" hint-size="56px,56px" style="width: 56px; height: 56px;"></dc-import><span style="font-size: 11px; color: #8a897f;">Glas</span></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;"><svg width="32" height="32" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#0f6e56"></rect><g transform="rotate(14 32 32)"><rect x="17" y="27" width="11" height="22" rx="5.5" fill="#fff"></rect><rect x="36" y="15" width="11" height="22" rx="5.5" fill="#e0673d"></rect></g></svg><span style="font-size: 11px; color: #8a897f;">Flach</span></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;"><svg width="20" height="20" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#0f6e56"></rect><g transform="rotate(14 32 32)"><rect x="17" y="27" width="11" height="22" rx="5.5" fill="#fff"></rect><rect x="36" y="15" width="11" height="22" rx="5.5" fill="#e0673d"></rect></g></svg><span style="font-size: 11px; color: #8a897f;">min. 20</span></div>
+      </div>
+      <p style="margin: 0; font-size: 13.5px; line-height: 1.5; color: #5f5e5a;">Glas nur als App-Icon auf dem Home-Bildschirm. In der App selbst immer das flache Zeichen.</p>
+    </div>
+    <div style="background: #fff; border-radius: 22px; padding: 28px; display: flex; flex-direction: column; gap: 16px;">
+      <p style="margin: 0; font-size: 15px; font-weight: 600;">Bedeutung</p>
+      <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; line-height: 1.5; color: #5f5e5a;">
+        <p style="margin: 0;"><span style="font-weight: 600; color: #1c1c1a;">Weißer Schritt</span> – der Fuß, der landet.</p>
+        <p style="margin: 0;"><span style="font-weight: 600; color: #c4532c;">Koralle Schritt</span> – der Fuß, der abdrückt.</p>
+        <p style="margin: 0;">Die Neigung von 14° zeigt nach vorn. Nicht spiegeln, nicht drehen.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 20px;">
+  <h2 style="margin: 0; font-size: 13px; font-family: 'Geist Mono', monospace; font-weight: 600; color: #5f5e5a; letter-spacing: 0.06em;">02 · FARBEN</h2>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <sc-for list="{{ themes }}" as="t" hint-placeholder-count="2">
+      <div style="background: {{ t.surface1 }}; border-radius: 22px; padding: 28px; display: flex; flex-direction: column; gap: 22px;">
+        <p style="margin: 0; font-size: 15px; font-weight: 600; color: {{ t.text }};">{{ t.name }}</p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <p style="margin: 0; font-size: 12px; font-weight: 600; color: {{ t.text2 }};">Flächen und Text</p>
+          <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px;">
+            <sc-for list="{{ t.neutrals }}" as="c" hint-placeholder-count="6">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <div style="height: 56px; border-radius: 12px; background: {{ c.hex }}; box-shadow: inset 0 0 0 1px {{ t.line }};"></div>
+                <span style="font-size: 11.5px; font-weight: 500; color: {{ t.text }};">{{ c.name }}</span>
+                <span style="font-family: 'Geist Mono', monospace; font-size: 10.5px; color: {{ t.text3 }};">{{ c.hex }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <p style="margin: 0; font-size: 12px; font-weight: 600; color: {{ t.text2 }};">Kategorien und Status · Schrift auf Fläche</p>
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;">
+            <sc-for list="{{ t.tones }}" as="c" hint-placeholder-count="8">
+              <div style="background: {{ c.bg }}; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-size: 13px; font-weight: 600; color: {{ c.fg }};">{{ c.name }}</span>
+                <span style="font-size: 11px; color: {{ c.fg }};">{{ c.use }}</span>
+                <span style="font-family: 'Geist Mono', monospace; font-size: 10px; color: {{ c.fg }}; margin-top: 4px;">{{ c.fg }} / {{ c.bg }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+    <div style="background: #fff; border-radius: 18px; padding: 20px 22px; font-size: 13.5px; line-height: 1.5; color: #5f5e5a;"><p style="margin: 0 0 4px; font-weight: 600; color: #1c1c1a;">Teal ist die Hauptaktion</p>Primärbuttons, aktiver Tab, Fortschritt und Kraft. Pro Screen höchstens eine teal gefüllte Fläche.</div>
+    <div style="background: #fff; border-radius: 18px; padding: 20px 22px; font-size: 13.5px; line-height: 1.5; color: #5f5e5a;"><p style="margin: 0 0 4px; font-weight: 600; color: #1c1c1a;">Koralle heißt Laufen, nie Fehler</p>Fehler und „verpasst“ sind immer Rot (Danger). Koralle steht nur für Lauf-Einheiten und Lauf-Daten.</div>
+    <div style="background: #fff; border-radius: 18px; padding: 20px 22px; font-size: 13.5px; line-height: 1.5; color: #5f5e5a;"><p style="margin: 0 0 4px; font-weight: 600; color: #1c1c1a;">Nie nur Farbe</p>Kategorie = Farbe + Strich oder Punkt mit Text. Status = Farbe + Form (Kreis, Raute, Quadrat, Ring).</div>
+  </div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 20px;">
+  <h2 style="margin: 0; font-size: 13px; font-family: 'Geist Mono', monospace; font-weight: 600; color: #5f5e5a; letter-spacing: 0.06em;">03 · SCHRIFT</h2>
+  <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px;">
+    <div style="background: #fff; border-radius: 22px; padding: 12px 28px;">
+      <sc-for list="{{ typeScale }}" as="ty" hint-placeholder-count="8">
+        <div style="display: grid; grid-template-columns: 120px 1fr 150px; align-items: baseline; gap: 16px; padding: 14px 0; border-top: {{ ty.border }};">
+          <span style="font-size: 12.5px; font-weight: 600; color: #5f5e5a;">{{ ty.name }}</span>
+          <span style="font-family: {{ ty.family }}; font-size: {{ ty.size }}; font-weight: {{ ty.weight }}; letter-spacing: {{ ty.ls }}; text-transform: {{ ty.tt }}; line-height: 1.2;">{{ ty.sample }}</span>
+          <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #8a897f; text-align: right;">{{ ty.spec }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <div style="background: #fff; border-radius: 22px; padding: 24px 28px; display: flex; flex-direction: column; gap: 10px;">
+        <p style="margin: 0; font-size: 15px; font-weight: 600;">Zahlen in Mono</p>
+        <p style="margin: 0; font-family: 'Geist Mono', monospace; font-size: 30px; font-weight: 600; letter-spacing: -0.03em;">6:07 <span style="font-size: 15px; color: #8a897f; font-family: Geist, sans-serif; font-weight: 500; letter-spacing: 0;">/km</span></p>
+        <p style="margin: 0; font-size: 13.5px; line-height: 1.5; color: #5f5e5a;">Pace, km, Zeiten, Gewichte und Sätze immer in Geist Mono, damit Spalten bündig stehen. Einheiten in Geist, grau und kleiner.</p>
+      </div>
+      <div style="background: #fff; border-radius: 22px; padding: 24px 28px; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; line-height: 1.5; color: #5f5e5a;">
+        <p style="margin: 0; font-size: 15px; font-weight: 600; color: #1c1c1a;">Grenzen</p>
+        <p style="margin: 0;">Nie kleiner als 11 px. Fließtext 15 px. Eingabefelder mindestens 16 px, sonst zoomt iOS.</p>
+        <p style="margin: 0;">Deutsche Zahlen: Komma (8,2 km), Zeit mit Doppelpunkt (1:29:59).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 20px;">
+  <h2 style="margin: 0; font-size: 13px; font-family: 'Geist Mono', monospace; font-weight: 600; color: #5f5e5a; letter-spacing: 0.06em;">04 · ABSTÄNDE UND FORMEN</h2>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div style="background: #fff; border-radius: 22px; padding: 28px; display: flex; flex-direction: column; gap: 18px;">
+      <p style="margin: 0; font-size: 15px; font-weight: 600;">4er-Raster</p>
+      <div style="display: flex; align-items: flex-end; gap: 14px;">
+        <sc-for list="{{ spacing }}" as="s" hint-placeholder-count="8">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+            <div style="width: {{ s.px }}; height: {{ s.px }}; background: #e1f5ee; border-radius: 4px; box-shadow: inset 0 0 0 1px #0f6e56;"></div>
+            <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #5f5e5a;">{{ s.v }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; line-height: 1.45;">
+        <span style="font-family: 'Geist Mono', monospace; color: #8a897f;">12</span><span>Abstand der Karten zum Bildschirmrand und zueinander</span>
+        <span style="font-family: 'Geist Mono', monospace; color: #8a897f;">20</span><span>Innenabstand der Karten; Rand für Überschriften ohne Karte</span>
+        <span style="font-family: 'Geist Mono', monospace; color: #8a897f;">28</span><span>Abstand vor einer neuen Abschnitts-Überschrift</span>
+        <span style="font-family: 'Geist Mono', monospace; color: #8a897f;">44</span><span>Mindestgröße jeder Tippfläche</span>
+      </div>
+    </div>
+    <div style="background: #fff; border-radius: 22px; padding: 28px; display: flex; flex-direction: column; gap: 18px;">
+      <p style="margin: 0; font-size: 15px; font-weight: 600;">Radien</p>
+      <div style="display: flex; gap: 16px; align-items: flex-end;">
+        <sc-for list="{{ radii }}" as="r" hint-placeholder-count="5">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+            <div style="width: 72px; height: 56px; background: #f4f3ef; border-radius: {{ r.px }}; box-shadow: inset 0 0 0 1.5px #c9c8c0;"></div>
+            <span style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #5f5e5a;">{{ r.v }}</span>
+            <span style="font-size: 11px; color: #8a897f;">{{ r.use }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.45; color: #5f5e5a;">
+        <p style="margin: 0;">Weiße Karten auf warmem Grau, ohne Schatten und ohne Rahmen. Schatten nur für Elemente, die schweben: Tab-Leiste, Bottom-Sheet, Hinweis-Meldung.</p>
+        <p style="margin: 0;">Trennlinien in Listen 1 px #EFEEE9, nie bis an den Kartenrand bei Zeilen mit Icon.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 20px;">
+  <h2 style="margin: 0; font-size: 13px; font-family: 'Geist Mono', monospace; font-weight: 600; color: #5f5e5a; letter-spacing: 0.06em;">05 · BAUSTEINE</h2>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <sc-for list="{{ themes }}" as="t" hint-placeholder-count="2">
+      <div style="background: {{ t.surface0 }}; border-radius: 22px; padding: 24px; display: flex; flex-direction: column; gap: 16px; box-shadow: inset 0 0 0 1px {{ t.line }};">
+        <p style="margin: 0; font-size: 15px; font-weight: 600; color: {{ t.text }};">{{ t.name }}</p>
+
+        <div style="background: {{ t.surface2 }}; border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+          <p style="margin: 0; font-size: 11.5px; font-weight: 600; color: {{ t.text3 }}; letter-spacing: 0.06em;">BUTTONS</p>
+          <button style="height: 50px; border-radius: 14px; border: none; background: {{ t.primary }}; color: {{ t.onPrimary }}; font-family: inherit; font-size: 15px; font-weight: 600;">Training starten</button>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button style="height: 44px; border-radius: 12px; border: none; background: {{ t.surface1 }}; color: {{ t.text }}; font-family: inherit; font-size: 14px; font-weight: 500;">Anpassen</button>
+            <button style="height: 44px; border-radius: 12px; border: none; background: transparent; color: {{ t.tealFg }}; font-family: inherit; font-size: 14px; font-weight: 600;">Anderer Lauf</button>
+          </div>
+          <p style="margin: 0; font-size: 12px; color: {{ t.text3 }};">Primär 50 px · Sekundär 44 px auf Fläche · Text-Button ohne Fläche</p>
+        </div>
+
+        <div style="background: {{ t.surface2 }}; border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+          <p style="margin: 0; font-size: 11.5px; font-weight: 600; color: {{ t.text3 }}; letter-spacing: 0.06em;">STATUS</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <span style="font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: {{ t.primary }}; color: {{ t.onPrimary }};">Heute</span>
+            <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 4px 10px 4px 8px; border-radius: 20px; background: {{ t.okBg }}; color: {{ t.okFg }};"><svg style="width: 11px; height: 11px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>erledigt</span>
+            <span style="font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: {{ t.amberBg }}; color: {{ t.amberFg }};">2/3</span>
+            <span style="font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: {{ t.dangerBg }}; color: {{ t.dangerFg }};">verpasst</span>
+            <span style="font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 20px; border: 1px dashed {{ t.text3 }}; color: {{ t.text3 }};">optional</span>
+            <span style="font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: {{ t.amberBg }}; color: {{ t.amberFg }};">nachgeholt</span>
+            <span style="font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: {{ t.surface1 }}; color: {{ t.text2 }};">Deload</span>
+          </div>
+          <div style="display: flex; gap: 18px; align-items: center; padding-top: 4px;">
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: {{ t.text }};"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{ t.okFg }};"></span>gut</span>
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: {{ t.text }};"><span style="width: 9px; height: 9px; border-radius: 2px; transform: rotate(45deg); background: {{ t.amberFg }};"></span>Achtung</span>
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: {{ t.text }};"><span style="width: 10px; height: 10px; border-radius: 2.5px; background: {{ t.dangerFg }};"></span>kritisch</span>
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: {{ t.text }};"><span style="width: 10px; height: 10px; border-radius: 50%; border: 2px solid {{ t.text3 }}; box-sizing: border-box;"></span>keine Daten</span>
+          </div>
+        </div>
+
+        <div style="background: {{ t.surface2 }}; border-radius: 22px; padding: 4px 0;">
+          <div style="display: flex; align-items: center; gap: 14px; padding: 14px 20px;">
+            <div style="width: 30px;"><p style="margin: 0; font-size: 12px; font-weight: 600; color: {{ t.text }};">Mo</p><p style="margin: 2px 0 0; font-family: 'Geist Mono', monospace; font-size: 11px; color: {{ t.text3 }};">19.</p></div>
+            <span style="width: 3px; height: 34px; border-radius: 2px; background: {{ t.coral }};"></span>
+            <div style="flex: 1;"><p style="margin: 0; font-size: 14.5px; font-weight: 600; color: {{ t.text }};">Easy run · 8 km</p><p style="margin: 3px 0 0; font-size: 12px; color: {{ t.text3 }};">Ist: 8,2 km · 6:22 /km</p></div>
+            <span style="width: 24px; height: 24px; border-radius: 50%; background: {{ t.coral }}; display: flex; align-items: center; justify-content: center;"><svg style="width: 13px; height: 13px;" viewBox="0 0 24 24" fill="none" stroke="{{ t.surface2 }}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-top: 1px solid {{ t.line }};">
+            <div style="width: 30px;"><p style="margin: 0; font-size: 12px; font-weight: 600; color: {{ t.tealFg }};">Di</p><p style="margin: 2px 0 0; font-family: 'Geist Mono', monospace; font-size: 11px; color: {{ t.text3 }};">20.</p></div>
+            <span style="width: 3px; height: 34px; border-radius: 2px; background: {{ t.tealFg }};"></span>
+            <div style="flex: 1;"><p style="margin: 0; font-size: 14.5px; font-weight: 600; color: {{ t.text }};">Full Body A</p><p style="margin: 3px 0 0; font-size: 12px; color: {{ t.text3 }};">8 Übungen · Deload</p></div>
+            <span style="font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: {{ t.primary }}; color: {{ t.onPrimary }};">Heute</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-top: 1px solid {{ t.line }};">
+            <div style="width: 30px;"><p style="margin: 0; font-size: 12px; font-weight: 600; color: {{ t.text }};">Mi</p><p style="margin: 2px 0 0; font-family: 'Geist Mono', monospace; font-size: 11px; color: {{ t.text3 }};">21.</p></div>
+            <span style="width: 3px; height: 34px; border-radius: 2px; background: {{ t.coral }};"></span>
+            <div style="flex: 1;"><p style="margin: 0; font-size: 14.5px; font-weight: 600; color: {{ t.text }};">Easy run · 8 km</p><p style="margin: 3px 0 0; font-size: 12px; color: {{ t.text3 }};">Ziel: 6:15–6:40 /km</p></div>
+            <span style="width: 24px; height: 24px; border-radius: 50%; border: 1.5px dashed {{ t.text3 }}; box-sizing: border-box;"></span>
+          </div>
+          <p style="margin: 0; padding: 10px 20px 12px; font-size: 12px; color: {{ t.text3 }}; border-top: 1px solid {{ t.line }};">Erledigt = Haken im Kreis in der Farbe der Einheit · offen = gestrichelter Ring gleicher Größe</p>
+        </div>
+
+        <div style="background: {{ t.surface2 }}; border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+          <p style="margin: 0; font-size: 11.5px; font-weight: 600; color: {{ t.text3 }}; letter-spacing: 0.06em;">EINGABE</p>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 44px; font-size: 12px; color: {{ t.text3 }};">Satz 1</span>
+            <div style="flex: 1; height: 48px; border-radius: 12px; background: {{ t.surface1 }}; display: flex; align-items: center; justify-content: space-between; padding: 0 6px;">
+              <span style="width: 36px; height: 36px; border-radius: 10px; background: {{ t.surface2 }}; display: flex; align-items: center; justify-content: center; font-size: 18px; color: {{ t.text2 }};">−</span>
+              <span style="font-family: 'Geist Mono', monospace; font-size: 17px; font-weight: 600; color: {{ t.text }};">62,5 <span style="font-family: Geist, sans-serif; font-size: 12px; color: {{ t.text3 }}; font-weight: 500;">kg</span></span>
+              <span style="width: 36px; height: 36px; border-radius: 10px; background: {{ t.surface2 }}; display: flex; align-items: center; justify-content: center; font-size: 18px; color: {{ t.text2 }};">+</span>
+            </div>
+            <div style="width: 84px; height: 48px; border-radius: 12px; background: {{ t.surface1 }}; display: flex; align-items: center; justify-content: center; font-family: 'Geist Mono', monospace; font-size: 17px; font-weight: 600; color: {{ t.text }};">6 <span style="font-family: Geist, sans-serif; font-size: 12px; color: {{ t.text3 }}; font-weight: 500; margin-left: 4px;">Wdh</span></div>
+          </div>
+          <div style="display: flex; padding: 4px; border-radius: 12px; background: {{ t.surface1 }};">
+            <span style="flex: 1; height: 36px; border-radius: 9px; background: {{ t.surface2 }}; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: {{ t.text }};">Gewicht</span>
+            <span style="flex: 1; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; color: {{ t.text2 }};">Distanz</span>
+            <span style="flex: 1; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; color: {{ t.text2 }};">Pace</span>
+          </div>
+          <p style="margin: 0; font-size: 12px; color: {{ t.text3 }};">Gewicht mit Schritten von 2,5 kg, Zahl auch direkt antippbar · Segmente für Umschalter</p>
+        </div>
+
+        <div style="position: relative; height: 76px;">
+          <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 64px; border-radius: 32px; background: {{ t.glass }}; box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 0 0 0.5px {{ t.line }}; display: flex; padding: 6px;">
+            <div style="flex: 1; border-radius: 26px; background: {{ t.tealBg }}; color: {{ t.tealFg }}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;"><svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1.5"></rect><rect x="13" y="3" width="8" height="5" rx="1.5"></rect><rect x="13" y="10" width="8" height="11" rx="1.5"></rect><rect x="3" y="13" width="8" height="8" rx="1.5"></rect></svg><span style="font-size: 10.5px; font-weight: 600;">Heute</span></div>
+            <div style="flex: 1; color: {{ t.text2 }}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;"><svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M3 9h18M8 2v4M16 2v4M7 13h2M11 13h2M15 13h2M7 17h2M11 17h2"></path></svg><span style="font-size: 10.5px; font-weight: 500;">Woche</span></div>
+            <div style="flex: 1; color: {{ t.text2 }}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;"><svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg><span style="font-size: 10.5px; font-weight: 500;">Verlauf</span></div>
+            <div style="flex: 1; color: {{ t.text2 }}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;"><svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path></svg><span style="font-size: 10.5px; font-weight: 500;">Plan</span></div>
+          </div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 20px;">
+  <h2 style="margin: 0; font-size: 13px; font-family: 'Geist Mono', monospace; font-weight: 600; color: #5f5e5a; letter-spacing: 0.06em;">06 · VERHALTEN</h2>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+    <sc-for list="{{ rules }}" as="r" hint-placeholder-count="6">
+      <div style="background: #fff; border-radius: 18px; padding: 20px 22px; display: flex; flex-direction: column; gap: 6px;">
+        <p style="margin: 0; font-size: 14.5px; font-weight: 600;">{{ r.t }}</p>
+        <p style="margin: 0; font-size: 13.5px; line-height: 1.5; color: #5f5e5a; text-wrap: pretty;">{{ r.d }}</p>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const light = {
+      name: "Hell", surface0: "#f4f3ef", surface1: "#efeee9", surface2: "#ffffff", line: "#e6e5df",
+      text: "#1c1c1a", text2: "#5f5e5a", text3: "#8a897f", primary: "#0f6e56", onPrimary: "#ffffff",
+      tealFg: "#0f6e56", tealBg: "#e1f5ee", coral: "#c4532c", okFg: "#2f7d32", okBg: "#e3f2e1",
+      amberFg: "#96631a", amberBg: "#fbf0dc", dangerFg: "#b3261e", dangerBg: "#fbe4e1", glass: "rgba(255,255,255,0.86)",
+      neutrals: [["Grund", "#f4f3ef"], ["Karte", "#ffffff"], ["Vertieft", "#efeee9"], ["Text", "#1c1c1a"], ["Text 2", "#5f5e5a"], ["Text 3", "#8a897f"]],
+      tones: [["Kraft", "Krafteinheit, Primär", "#0f6e56", "#e1f5ee"], ["Lauf", "Easy, Tempo, Intervall", "#993c1d", "#faece7"], ["Long Run", "auch Coach", "#534ab7", "#eeedfe"], ["Recovery", "Zone 1, Phase Aufbau", "#1e6b8f", "#e0f0f8"], ["Hinweis", "Achtung, nachgeholt", "#96631a", "#fbf0dc"], ["Gut", "Ampel grün, erledigt", "#2f7d32", "#e3f2e1"], ["Kritisch", "Fehler, verpasst", "#b3261e", "#fbe4e1"], ["Neutral", "Deload, ohne Plan", "#5f5e5a", "#efeee9"]],
+    };
+    const dark = {
+      name: "Dunkel", surface0: "#17171a", surface1: "#202024", surface2: "#26262b", line: "#33333a",
+      text: "#f2f1ec", text2: "#b3b2ab", text3: "#918f87", primary: "#5fcfa7", onPrimary: "#0c2a21",
+      tealFg: "#5fcfa7", tealBg: "#0c3a2f", coral: "#ef8f61", okFg: "#7ed88f", okBg: "#123a1c",
+      amberFg: "#ddaa55", amberBg: "#3a2a0e", dangerFg: "#ff8a80", dangerBg: "#4a1f1c", glass: "rgba(38,38,43,0.86)",
+      neutrals: [["Grund", "#17171a"], ["Karte", "#26262b"], ["Vertieft", "#202024"], ["Text", "#f2f1ec"], ["Text 2", "#b3b2ab"], ["Text 3", "#918f87"]],
+      tones: [["Kraft", "Krafteinheit, Primär", "#5fcfa7", "#0c3a2f"], ["Lauf", "Easy, Tempo, Intervall", "#ef8f61", "#3d2013"], ["Long Run", "auch Coach", "#a49df5", "#262156"], ["Recovery", "Zone 1, Phase Aufbau", "#5fb6dd", "#0b2f42"], ["Hinweis", "Achtung, nachgeholt", "#ddaa55", "#3a2a0e"], ["Gut", "Ampel grün, erledigt", "#7ed88f", "#123a1c"], ["Kritisch", "Fehler, verpasst", "#ff8a80", "#4a1f1c"], ["Neutral", "Deload, ohne Plan", "#b3b2ab", "#202024"]],
+    };
+    const themes = [light, dark].map((t) => ({
+      ...t,
+      neutrals: t.neutrals.map(([name, hex]) => ({ name, hex })),
+      tones: t.tones.map(([name, use, fg, bg]) => ({ name, use, fg, bg })),
+    }));
+    const G = "Geist, sans-serif", M = "'Geist Mono', monospace";
+    const typeScale = [
+      ["Display", "Dienstag, 20. Oktober", G, "30px", 600, "-0.03em", "none", "30 / 600 / −3 %"],
+      ["Titel", "Full Body A", G, "24px", 600, "-0.02em", "none", "24 / 600 / −2 %"],
+      ["Überschrift", "Wochenvolumen", G, "17px", 600, "-0.01em", "none", "17 / 600"],
+      ["Fließtext", "Entlastungswoche: heute bei etwa 80 %.", G, "15px", 400, "0", "none", "15 / 400 / 150 %"],
+      ["Label", "Easy-Disziplin", G, "13px", 600, "0", "none", "13 / 500–600"],
+      ["Hinweis", "8 Übungen · Deload", G, "12px", 400, "0", "none", "12 / 400 · Text 3"],
+      ["Überzeile", "Heute · Kraft", G, "11.5px", 600, "0.06em", "uppercase", "11,5 / 600 / +6 %"],
+      ["Daten", "8,2 km · 6:22 /km", M, "17px", 600, "-0.02em", "none", "Mono 13–30 / 500–600"],
+    ].map(([name, sample, family, size, weight, ls, tt, spec], i) => ({ name, sample, family, size, weight, ls, tt, spec, border: i ? "1px solid #efeee9" : "none" }));
+    const spacing = [4, 8, 12, 16, 20, 24, 32, 44].map((v) => ({ v, px: v + "px" }));
+    const radii = [["6", "6px", "Chip"], ["12", "12px", "Feld"], ["14", "14px", "Button"], ["22", "22px", "Karte"], ["32", "32px", "Tab-Leiste"]].map(([v, px, use]) => ({ v, px, use }));
+    const rules = [
+      { t: "Eine Hauptaktion pro Screen", d: "Ein teal gefüllter Button, unten in der Karte, auf die er sich bezieht. Alles andere sekundär oder als Text-Button." },
+      { t: "Das Handy zeigt nur das Nötige", d: "Heute, Woche, Eingabe. Tiefe Analyse (Splits, Zonen, Entkopplung) gehört an den Laptop. Am Handy höchstens ein Satz plus Link." },
+      { t: "Antippen klappt auf, Pfeil öffnet", d: "Zeilen mit Chevron führen auf einen neuen Screen. Zeilen ohne Chevron klappen an Ort und Stelle auf." },
+      { t: "Erklärungen im Bottom-Sheet", d: "Jede berechnete Zahl (Ampel, Belastung, Prognose) hat ein Info-Sheet: Berechnung, Bedeutung, Grenzwerte. Gleiche Gliederung überall." },
+      { t: "Laden ohne Warten", d: "Die Seite steht sofort. Strava, Coach und Ampeln laden einzeln nach und zeigen bis dahin graue Platzhalter-Zeilen, nie einen Spinner über alles." },
+      { t: "Leere Zustände sagen, was zu tun ist", d: "Ein Satz, was fehlt, plus genau ein Button (z. B. „Mit Strava verbinden“). Keine Illustrationen." },
+    ];
+    return { themes, typeScale, spacing, radii, rules };
+  }
+}
+</script>
+</body>
+</html>

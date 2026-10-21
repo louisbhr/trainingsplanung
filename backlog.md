@@ -1,4 +1,4 @@
-# Halbmarathon-Tracker — Backlog
+# Stride — Backlog
 
 Gesammelte Feature-Ideen, die nicht in der laufenden Pipeline stecken. Bei Bedarf per
 Discovery wieder aufgreifen.
