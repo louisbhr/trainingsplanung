@@ -773,17 +773,21 @@ button.sd-set { cursor: pointer; }
 /* ---- Stepper: umbrechende Zeile, Einheit unter dem Wert ---- */
 .sd-steppers { display: flex; flex-wrap: wrap; gap: 10px 8px; }
 /* Feste Basis statt Inhaltsbreite: Wert-Button und Eingabefeld (V1) tauschen den Slot,
-   ohne dass die Stepper umbrechen oder springen. 150 + 128 + 8 Gap = 286px. */
-.sd-stepper { flex: 1 1 128px; display: flex; align-items: center; gap: 2px; min-width: 0; }
-.sd-stepper--weight { flex: 1.3 1 150px; }
+   ohne dass die Stepper umbrechen oder springen. Basis Reps = 3x44 (-, Wert, +) = 132px,
+   Gewicht = 144px (Wert 56px fuer "82,5"), Zeilen-Gap 4px: 144 + 4 + 132 = 280px.
+   Ist die Karten-Innenbreite (Viewport - 88px) kleiner, brechen die Stepper um, statt dass
+   der Wert unter 44px gequetscht wird. */
+.sd-steppers { column-gap: 4px; }
+.sd-stepper { flex: 1 1 132px; display: flex; align-items: center; gap: 0; min-width: 0; }
+.sd-stepper--weight { flex: 1.15 1 144px; }
 .sd-stepper--solo { flex-basis: 100%; }
 .sd-stepper__btn { flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: var(--card); color: var(--text-primary); font: 400 20px/1 var(--font-ui); display: inline-grid; place-items: center; cursor: pointer; transition: transform 150ms ease-out; }
 .sd-stepper__btn:active { transform: scale(0.94); }
-.sd-stepper__val { flex: 1 1 0; min-width: 36px; min-height: 44px; padding: 0 2px; border: 0; background: transparent; color: inherit; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: text; }
+.sd-stepper__val { flex: 1 1 0; min-width: 44px; min-height: 44px; padding: 0 2px; border: 0; background: transparent; color: inherit; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: text; }
 .sd-stepper__num { font-size: 24px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; white-space: nowrap; border-bottom: 1.5px dashed var(--ring-dashed); padding-bottom: 2px; }
 .sd-stepper__unit { margin-top: 3px; font-size: 11px; font-weight: 500; line-height: 1; color: var(--text-muted); }
 /* Gleicher Slot wie .sd-stepper__val: gleiche Basis, gleiche 44px Hoehe, gleicher Einheiten-Abstand. */
-.sd-stepper__field { flex: 1 1 0; min-width: 36px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.sd-stepper__field { flex: 1 1 0; min-width: 44px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .sd-stepper__input { width: 100%; min-width: 0; height: 28px; padding: 0; border: 0; border-radius: 12px; background: var(--card); color: var(--text-primary); text-align: center; font: 600 24px var(--font-mono); letter-spacing: -0.03em; outline: 2px solid var(--teal); outline-offset: 0; }
 
 /* ---- Kraft: Reihenfolge ---- */
