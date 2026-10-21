@@ -104,3 +104,38 @@ export function previousEntry(entries, beforeISO) {
       .pop() || null
   );
 }
+
+const deKg = (n) => String(round(n)).replace(".", ",");
+
+/**
+ * Kurzform von suggestProgression für den Chip im Kraft-Tag (Stride).
+ * Gleiche Entscheidung (suggestProgression liefert level), nur kürzer und mit
+ * deutscher Kommazahl. nextKg ist das Gewicht, das der Chip nennt (bei "up" der
+ * Startwert des Steppers, F4), sonst null.
+ * @returns null | { level: "up"|"hold"|"down"|"info", text, nextKg }
+ */
+export function progressionChip(soll, last) {
+  const full = suggestProgression(soll, last);
+  if (!full) return null;
+  const spec = parseSoll(soll);
+  const weights = last.sets.filter((s) => s.reps > 0).map((s) => s.kg).filter((k) => k != null && k > 0);
+  const topKg = weights.length ? Math.max(...weights) : null;
+
+  if (spec.timeBased) {
+    return { level: full.level, text: full.level === "up" ? "Länger halten" : "Zeit halten", nextKg: null };
+  }
+  if (topKg === null) {
+    return { level: full.level, text: full.level === "up" ? "Mehr Wdh oder schwerere Variante" : "Wdh steigern", nextKg: null };
+  }
+  if (spec.deload) return { level: "info", text: `Deload, ${deKg(topKg)} kg`, nextKg: null };
+
+  if (full.level === "up") {
+    const next = round(topKg + stepFor(topKg));
+    return { level: "up", text: `Heute ${deKg(next)} kg`, nextKg: next };
+  }
+  if (full.level === "down") {
+    const softer = round(topKg - stepFor(topKg));
+    return { level: "down", text: `Heute ${deKg(softer)} kg`, nextKg: softer };
+  }
+  return { level: "hold", text: `${deKg(topKg)} kg halten`, nextKg: topKg };
+}

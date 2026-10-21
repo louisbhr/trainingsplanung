@@ -62,4 +62,7 @@ export const THRESHOLDS = {
     redConsecutiveBelow: 2,
   },
   coach: { dailyLimit: 3, weeklyLimit: 2 },
+  // Reine Anzeige im Lauf-Tag (Stride F8): unter diesem Anteil der Soll-km heißt es
+  // "zu kurz". Wirkt nicht auf Ampeln, Wochensoll oder "verpasst".
+  lauf: { zuKurz: 0.9 },
 };

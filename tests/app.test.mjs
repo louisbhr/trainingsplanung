@@ -14,6 +14,11 @@ const REAL_PLAN_JSON = readFileSync(new URL("../plans/hm-2027.json", import.meta
 // beim Wechsel der UID nichts auseinanderläuft.
 const TEST_UID = readFileSync(new URL("../config.js", import.meta.url), "utf8").match(/ALLOWED_UID\s*=\s*"([^"]+)"/)[1];
 
+// C4: THRESHOLDS im config.js-Stub kommen aus der echten config.js, nicht aus einem
+// Literal. Ein fehlender Schlüssel (z. B. lauf) fiele sonst erst im Browser als
+// TypeError auf; der Stub-Wächter prüft nur Namen.
+const { THRESHOLDS: REAL_THRESHOLDS } = await import("../config.js");
+
 const FIREBASE_STUB = `
 const KEY = "test.logs";
 const read = () => JSON.parse(localStorage.getItem(KEY) || "{}");
@@ -818,8 +823,7 @@ async function noHScroll(page, where) {
   await ctx.route(/config\.js/, (r) => r.fulfill({
     contentType: "application/javascript",
     body: `export const ALLOWED_UID = "${TEST_UID}"; export const STRAVA_WORKER_URL = ""; export const STRAVA_CLIENT_ID = "277715"; export const isWorkerConfigured = false; export const COACH_URL = ""; export const WORKER_URL = "";
-      export const THRESHOLDS = { wochensoll: { gruen: 0.9, gelb: 0.7 }, easy: { gelbMaxOver: 8 },
-      belastung: { gruen: 1.3, gelb: 1.5 }, kraft: { windowDays: 42, stallSessions: 2, minExercisesWithData: 3, redAffectedCount: 2, redConsecutiveBelow: 2 }, coach: { dailyLimit: 3, weeklyLimit: 2 } };`,
+      export const THRESHOLDS = ${JSON.stringify(REAL_THRESHOLDS)};`,
   }));
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));

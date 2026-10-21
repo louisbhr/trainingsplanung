@@ -18,7 +18,10 @@
     "test:access": "node --test tests/access.test.mjs",
     "test:consistency": "node --test tests/config-consistency.test.mjs",
     "test:naming": "node --test tests/naming-guard.test.mjs",
-    "test": "node tests/plan.test.mjs && node tests/plan-golden.test.mjs && node tests/runmatch.test.mjs && node tests/progression.test.mjs && node tests/version.test.mjs && node tests/stubs.test.mjs && node tests/export.test.mjs && node --test tests/metrics.test.mjs && node --test tests/coach.test.mjs && node --test tests/worker.test.mjs && node --test tests/access.test.mjs && node --test tests/config-consistency.test.mjs && npm run test:naming && node tests/app.test.mjs",
+    "test:kraftflow": "node --test tests/kraftflow.test.mjs",
+    "test:runcompare": "node --test tests/runcompare.test.mjs",
+    "test:history-data": "node --test tests/history-data.test.mjs",
+    "test": "node tests/plan.test.mjs && node tests/plan-golden.test.mjs && node tests/runmatch.test.mjs && node tests/progression.test.mjs && node tests/version.test.mjs && node tests/stubs.test.mjs && node tests/export.test.mjs && node --test tests/metrics.test.mjs && node --test tests/coach.test.mjs && node --test tests/worker.test.mjs && node --test tests/access.test.mjs && node --test tests/config-consistency.test.mjs && node --test tests/kraftflow.test.mjs && node --test tests/runcompare.test.mjs && node --test tests/history-data.test.mjs && npm run test:naming && node tests/app.test.mjs",
     "version": "node tools/bump-version.mjs",
     "test:version": "node tests/version.test.mjs"
   },

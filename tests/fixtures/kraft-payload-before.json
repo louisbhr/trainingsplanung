@@ -1,0 +1,380 @@
+{
+  "_about": "Vorher-Payload (Auflage C1): was der Kraft-Speicherweg von Stand 6463a05 (vor Stride E2) pro Übung schreibt. Aufgenommen per Playwright gegen den damaligen app.js am 21.10.2026 (Datum 2026-09-08, Woche 2). saveLog ergänzt zusätzlich date, exercise und updatedAt; diese Felder sind hier nicht enthalten (normalisiert). before = Dokumentfelder vor dem Umbau, after (falls vorhanden) = bewusst geänderte Soll-Form.",
+  "cases": [
+    {
+      "label": "gewichtet, alle Sätze gleich",
+      "docId": "logs/2026-09-08_squats",
+      "mode": "weight",
+      "input": {
+        "week": 2,
+        "name": "Squats",
+        "soll": "3x8-10",
+        "custom": false,
+        "mode": "weight",
+        "sets": [
+          {
+            "kg": 60,
+            "reps": 8
+          },
+          {
+            "kg": 60,
+            "reps": 8
+          },
+          {
+            "kg": 60,
+            "reps": 8
+          }
+        ]
+      },
+      "before": {
+        "week": 2,
+        "name": "Squats",
+        "soll": "3x8-10",
+        "custom": false,
+        "sets": [
+          {
+            "kg": 60,
+            "reps": 8
+          },
+          {
+            "kg": 60,
+            "reps": 8
+          },
+          {
+            "kg": 60,
+            "reps": 8
+          }
+        ],
+        "topKg": 60,
+        "totalReps": 24,
+        "completed": true
+      }
+    },
+    {
+      "label": "gewichtet, Sätze unterschiedlich (80/80/85 kg, 5/5/4 Wdh)",
+      "docId": "logs/2026-09-08_deadlift",
+      "mode": "weight",
+      "input": {
+        "week": 2,
+        "name": "Deadlift",
+        "soll": "3x5",
+        "custom": false,
+        "mode": "weight",
+        "sets": [
+          {
+            "kg": 80,
+            "reps": 5
+          },
+          {
+            "kg": 80,
+            "reps": 5
+          },
+          {
+            "kg": 85,
+            "reps": 4
+          }
+        ]
+      },
+      "before": {
+        "week": 2,
+        "name": "Deadlift",
+        "soll": "3x5",
+        "custom": false,
+        "sets": [
+          {
+            "kg": 80,
+            "reps": 5
+          },
+          {
+            "kg": 80,
+            "reps": 5
+          },
+          {
+            "kg": 85,
+            "reps": 4
+          }
+        ],
+        "topKg": 85,
+        "totalReps": 14,
+        "completed": true
+      }
+    },
+    {
+      "label": "Körpergewicht, Gewichtsfeld leer",
+      "docId": "logs/2026-09-08_klimmzuege",
+      "mode": "reps",
+      "input": {
+        "week": 2,
+        "name": "Klimmzüge",
+        "soll": "3x6-8",
+        "custom": false,
+        "mode": "reps",
+        "sets": [
+          {
+            "kg": null,
+            "reps": 6
+          },
+          {
+            "kg": null,
+            "reps": 6
+          },
+          {
+            "kg": null,
+            "reps": 6
+          }
+        ]
+      },
+      "before": {
+        "week": 2,
+        "name": "Klimmzüge",
+        "soll": "3x6-8",
+        "custom": false,
+        "sets": [
+          {
+            "kg": null,
+            "reps": 6
+          },
+          {
+            "kg": null,
+            "reps": 6
+          },
+          {
+            "kg": null,
+            "reps": 6
+          }
+        ],
+        "topKg": 0,
+        "totalReps": 18,
+        "completed": true
+      }
+    },
+    {
+      "label": "Zeit-Übung, Sekunden in reps",
+      "docId": "logs/2026-09-08_planks-wechselnd",
+      "mode": "time",
+      "input": {
+        "week": 2,
+        "name": "Planks (wechselnd)",
+        "soll": "3x30-45s",
+        "custom": false,
+        "mode": "time",
+        "sets": [
+          {
+            "kg": null,
+            "reps": 40
+          },
+          {
+            "kg": null,
+            "reps": 40
+          },
+          {
+            "kg": null,
+            "reps": 40
+          }
+        ]
+      },
+      "before": {
+        "week": 2,
+        "name": "Planks (wechselnd)",
+        "soll": "3x30-45s",
+        "custom": false,
+        "sets": [
+          {
+            "kg": null,
+            "reps": 40
+          },
+          {
+            "kg": null,
+            "reps": 40
+          },
+          {
+            "kg": null,
+            "reps": 40
+          }
+        ],
+        "topKg": 0,
+        "totalReps": 120,
+        "completed": true
+      }
+    },
+    {
+      "label": "Altbestand: Gewicht 0 eingetragen (heute kg: 0)",
+      "docId": "logs/2026-09-08_brustpresse",
+      "mode": "weight",
+      "input": {
+        "week": 2,
+        "name": "Brustpresse",
+        "soll": "3x8-10",
+        "custom": false,
+        "mode": "weight",
+        "sets": [
+          {
+            "kg": 0,
+            "reps": 10
+          },
+          {
+            "kg": 0,
+            "reps": 10
+          },
+          {
+            "kg": 0,
+            "reps": 10
+          }
+        ]
+      },
+      "before": {
+        "week": 2,
+        "name": "Brustpresse",
+        "soll": "3x8-10",
+        "custom": false,
+        "sets": [
+          {
+            "kg": 0,
+            "reps": 10
+          },
+          {
+            "kg": 0,
+            "reps": 10
+          },
+          {
+            "kg": 0,
+            "reps": 10
+          }
+        ],
+        "topKg": 0,
+        "totalReps": 30,
+        "completed": true
+      },
+      "after": {
+        "week": 2,
+        "name": "Brustpresse",
+        "soll": "3x8-10",
+        "custom": false,
+        "sets": [
+          {
+            "kg": null,
+            "reps": 10
+          },
+          {
+            "kg": null,
+            "reps": 10
+          },
+          {
+            "kg": null,
+            "reps": 10
+          }
+        ],
+        "topKg": 0,
+        "totalReps": 30,
+        "completed": true
+      },
+      "afterNote": "C1: kg 0 wird kg null, topKg bleibt 0, alle Leser behandeln beides gleich."
+    },
+    {
+      "label": "Kommazahl-Gewicht 12,5 kg",
+      "docId": "logs/2026-09-08_soleus-raises",
+      "mode": "weight",
+      "input": {
+        "week": 2,
+        "name": "Soleus raises",
+        "soll": "3x15/Seite",
+        "custom": false,
+        "mode": "weight",
+        "sets": [
+          {
+            "kg": 12.5,
+            "reps": 15
+          },
+          {
+            "kg": 12.5,
+            "reps": 15
+          },
+          {
+            "kg": 12.5,
+            "reps": 15
+          }
+        ]
+      },
+      "before": {
+        "week": 2,
+        "name": "Soleus raises",
+        "soll": "3x15/Seite",
+        "custom": false,
+        "sets": [
+          {
+            "kg": 12.5,
+            "reps": 15
+          },
+          {
+            "kg": 12.5,
+            "reps": 15
+          },
+          {
+            "kg": 12.5,
+            "reps": 15
+          }
+        ],
+        "topKg": 12.5,
+        "totalReps": 45,
+        "completed": true
+      }
+    },
+    {
+      "label": "eigene Übung (custom), 4 Sätze",
+      "docId": "logs/2026-09-08_beinpresse",
+      "mode": "weight",
+      "input": {
+        "week": 2,
+        "name": "Beinpresse",
+        "soll": "4x10",
+        "custom": true,
+        "mode": "weight",
+        "sets": [
+          {
+            "kg": 100,
+            "reps": 10
+          },
+          {
+            "kg": 100,
+            "reps": 10
+          },
+          {
+            "kg": 100,
+            "reps": 10
+          },
+          {
+            "kg": 100,
+            "reps": 10
+          }
+        ]
+      },
+      "before": {
+        "week": 2,
+        "name": "Beinpresse",
+        "soll": "4x10",
+        "custom": true,
+        "sets": [
+          {
+            "kg": 100,
+            "reps": 10
+          },
+          {
+            "kg": 100,
+            "reps": 10
+          },
+          {
+            "kg": 100,
+            "reps": 10
+          },
+          {
+            "kg": 100,
+            "reps": 10
+          }
+        ],
+        "topKg": 100,
+        "totalReps": 40,
+        "completed": true
+      }
+    }
+  ]
+}
