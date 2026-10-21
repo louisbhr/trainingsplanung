@@ -1,5 +1,7 @@
 # Architektur-Review: Stride (Umbenennung, Logo, Mobile-Redesign)
 
+**Freigabe Louis 21.10.2026: "alles ja" zu E1–E4** (Gates G1–G6 mit Auflagen C1–C11; Prototyp-Dateien als `.txt`; Text-Button "+ Gewicht"; Freeze auf `main` bis zum Merge, nur Plan-Daten und Hotfixes). Die Auflagen C1–C11 sind verbindlich und gehen dem Plan vor.
+
 Stand: 21.10.2026 · architecture-reviewer · Grundlage: `docs/plan-stride.md` (Entwurf
 20.10.2026), `docs/requirements-stride.md` (FREIGEGEBEN, F1–F12 wie empfohlen, V1+V2),
 Handoff `design_handoff_stride/README.md`, Code-Stand Branch `stride-redesign` (Basis a6e6c4b):

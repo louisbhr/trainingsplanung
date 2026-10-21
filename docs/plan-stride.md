@@ -1,6 +1,6 @@
 # Umsetzungsplan: Stride (Umbenennung, Logo, Mobile-Redesign)
 
-Stand: 20.10.2026 · Planner · **ENTWURF, wartet auf Architektur-Review und Louis' Bestätigung der Gates**
+Stand: 20.10.2026 · Planner · **FREIGEGEBEN 21.10.2026** (Louis "alles ja" zu E1–E4; Auflagen C1–C11 aus `docs/review-architecture-stride.md` gehen vor)
 Grundlage: `docs/requirements-stride.md` (FREIGEGEBEN 20.10.2026, F1–F12 wie empfohlen, V1+V2
 im Umfang, V3 Backlog). Optik verbindlich: Handoff `design_handoff_stride/README.md` (ab Etappe 1
 unter `docs/design-stride/`). Format wie `docs/plan-dashboard-v2.md` / `docs/plan-login-1b.md`.
