@@ -11,10 +11,10 @@
 <meta name="apple-mobile-web-app-title" content="Stride" />
 <link rel="icon" href="icon.png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<link rel="manifest" href="manifest.webmanifest?v=202610211034" />
+<link rel="manifest" href="manifest.webmanifest?v=202610211108" />
 <!-- Preload nur für Geist (steht auf jedem Screen sofort im Bild). URL identisch zum @font-face in style.css, ohne ?v=, mit crossorigin (Review C3). Geist Mono lädt bei Bedarf, ein Preload ohne frühe Nutzung würde warnen. -->
 <link rel="preload" href="fonts/Geist-Variable-1.8.1.woff2" as="font" type="font/woff2" crossorigin />
-<link rel="stylesheet" href="style.css?v=202610211034" />
+<link rel="stylesheet" href="style.css?v=202610211108" />
 </head>
 <body>
 <div id="app">
@@ -26,17 +26,17 @@
     <button data-tab="verlauf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Verlauf</span></button>
     <button data-tab="plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Plan</span></button>
   </div>
-  <div id="infoBackdrop" class="info-backdrop" data-action="close-info"></div>
-  <div id="infoSheet" class="info-sheet" role="dialog" aria-modal="true" aria-labelledby="infoSheetTitle" hidden>
-    <div class="info-sheet-handle"></div>
-    <div class="info-sheet-head">
-      <h2 id="infoSheetTitle"></h2>
-      <button type="button" id="infoSheetClose" class="info-sheet-close" data-action="close-info" aria-label="Erklärung schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div id="infoBackdrop" class="sd-backdrop" data-action="close-sheet" hidden></div>
+  <div id="infoSheet" class="sd-sheet" role="dialog" aria-modal="true" aria-labelledby="infoSheetTitle" hidden>
+    <div class="sd-sheet__grip"></div>
+    <div class="sd-sheet__head">
+      <h2 class="sd-sheet__title" id="infoSheetTitle" tabindex="-1"></h2>
+      <button type="button" id="infoSheetClose" class="sd-sheet__close" data-action="close-sheet" aria-label="Erklärung schließen"><svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
-    <div id="infoSheetBody" class="info-sheet-body"></div>
+    <div id="infoSheetBody"></div>
   </div>
 </div>
 <noscript><p style="padding:1.25rem;font-family:sans-serif;">Diese App braucht JavaScript.</p></noscript>
-<script type="module" src="app.js?v=202610211034"></script>
+<script type="module" src="app.js?v=202610211108"></script>
 </body>
 </html>

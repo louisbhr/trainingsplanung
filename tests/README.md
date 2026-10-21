@@ -71,3 +71,41 @@ abgelegt.
 **Port 8099:** `app.test.mjs` verbindet fest mit `127.0.0.1:8099`. Vorher
 `lsof -ti :8099` prüfen; ein Server aus einem anderen Worktree würde fremden
 Code testen. Der Server muss aus dem Verzeichnis laufen, das getestet wird.
+
+## Abdeckungs-Ledger (Stride, Auflage C8)
+
+Das Ledger führt **Prüfabsichten**, die Zahl der Checks ist nur ein zweites Signal. `app.test.mjs`
+druckt am Ende „Checks je Szenario“ (`scenario("…")` steht in der ersten Zeile jedes Blocks). Regel:
+kein Szenario verschwindet, keine Absicht fällt weg. Aufgefüllt wird nicht, um eine Zahl zu halten.
+
+Baseline: der Plan nennt 336 Checks; gemessen am Merge-Base `a6e6c4b` waren es **390** (Login und
+Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 **441**.
+
+| Szenario | Prüfabsichten | a6e6c4b | E2 | E3 | Etappe |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Kopf (Woche, Typ, Phase, Countdown 237 Tage, Planbalken); Lauf-Karte sofort bedienbar; Banner „nicht verbunden“ statt Dauer-Laden, Lauf-Karte ohne Ist-Block; Coach-Karte und vier Status-Zeilen sofort; Im Detail weg; kein `style=`; kein H-Scroll; keine Konsolenfehler; Wochen-Tab zeigt „Mit Strava verbinden“ | 12 | 12 | 16 | E3 |
+| 2 | Längster Lauf des Tages (8,0 km); „im Plan“; Banner-Slot leer bei Verbindung; keine doppelten Einheiten; Pace, Ø HF, Dauer (zogen vom Heute-Kachelblock in den Lauf-Tag um, Karte zeigt nur km, Urteil, Name) | 6 | 6 | 9 | E3 |
+| 2b | Krafttag-Karte mit Titel und Anzahl; „Training starten“; Vorschau 3 Zeilen + „+ 5 weitere“; Zeilen nicht antippbar; Einstieg öffnet Kraft-Tag; Zurück „Heute“; Fortschritt nach Speichern „1 von 8“ (Rest des Blocks: Kraft-Tag, E5) | 9 | 9 | 10 | E3 (bis Kraft-Tag) |
+| 2c | Ampel Wochensoll/Detail, Belastung, Kraft rot + Detail, Easy; Info-Sheet über Tab-Leiste, Titel, Grenzwerte (42 Tage, 2 oder mehr), Fokus auf Titel, Escape + Fokus zurück; neu: Dialog-Rolle, Blockreihenfolge, Backdrop schließt | 22 | 22 | 20 | E3 |
+| 2c-2 | Timer-Race: Schließen und sofort neu öffnen bleibt offen, Escape wirkt, hidden folgt; neu: Fokus zum letzten Auslöser. A→B / B→A mit zweitem Sheet folgt in E6 | 5 | 5 | 6 | E3 |
+| 2c-4 | Tab-Leiste folgt dem Tab (Start, Woche, Tag aus Woche, Tag aus Heute, Zurück) | 6 | 6 | 6 | E3 |
+| 2d | Coach: KI-Text als Text, kein XSS (Tag und Bilanz), ein daily/weekly-Request, gleicher Hash kein zweiter; neu: Montag offen ohne Auslöser | 9 | 9 | 10 | E3 |
+| 2d-2 | Bilanz Di–So eingeklappt, Kurzform W1, per Tap auf, kein H-Scroll; neu: aria-expanded, Fokus | 5 | 5 | 6 | E3 |
+| 2e, 2f | Coach-Fallback bei abgeschaltetem Worker; kein API-Aufruf bei unlesbarem Dokument, keine Fehlerkarte | 1, 3 | 1, 3 | 1, 3 | E3 |
+| 20 | Rennlücke: kein „Woche 35“, neutrale Karte; neu: Kopf ohne Chip/Balken, „Diese Woche“ leer | 3 | 3 | 5 | E3 |
+| 20b | Renntag in Woche 35, „Rennen heute“ | 3 | 3 | 3 | E3 |
+| 21 | Nach Rennen: Kein Plan, kein Coach-Aufruf, Renndatum, neutrale Karte, fester Coach-Text; neu: Slot leer, Status mit Grund, „Zum Plan“ (go-tab) | 6 | 6 | 8 | E3 |
+| 22 | Vor Planstart: Kein Plan, Woche 1 im Wochen- und Plan-Tab, 0 % | 4 | 4 | 4 | E3 |
+| 25 | Plan-Hinweis und Strava-Redirect beide sichtbar (Toast, unverändert) | 2 | 2 | 2 | E3 |
+| 28 | Strava-Fehler: Wochensoll nicht rot, nennt Quelle, Easy/Belastung grau, keine Wochenbilanz; neu: Fehlerbanner mit „Neu laden“ | 5 | 5 | 6 | E3 |
+| 29 | Firestore-Ausfall: Kraft grau + Text, Easy rechnet, Coach ohne Dauer-Skelett, Adhärenz-Kachel „nicht geladen“ wird durch Fehlerbanner „Daten nicht geladen“ ersetzt | 7 | 7 | 7 | E3 |
+| 35a–35g (neu) | Ruhetag mit/ohne „Morgen“; Long Run; „zu kurz“ 89 % / „im Plan“ 90 %; nachgeholt; Platzhalterwoche (mit/ohne Datum, Plan aus REAL_PLAN_JSON abgeleitet); Diese Woche (7 Tage, Zustände, Volumen, Tipp öffnet Woche); Escaping Laufname | – | – | 28 | E3 |
+| 12 | Tab-Leiste klebt, Detailseiten ohne Leiste (E1 +9: Glas, Kapsel, Marke) | 4 | 13 | 13 | E1 |
+| übrige (3–11, 13–19b, 23, 24, 24p, 26, 27, 30–33) | unverändert; nur Selektoren auf Heute angepasst (27, 24p, 23, 30b) | – | – | – | – |
+
+**Bewusste Ausnahmen in 2c („Im Detail“, einzeln):** Wochenvolumen (8 Wochen, aktuelle Woche, kein Ist
+in der Zukunft), Aerobe Effizienz (−15 s/km), Adhärenz (50 %, 3 von 6), „Nächster Long Run“,
+„Nächste Woche: Aufbau“ ersetzt durch drei Checks „Im Detail ist weg, Coach/Ampeln unverändert“;
+die Rechnungen bleiben über `metrics.test.mjs` abgedeckt. **Zieht um:** „Re-Kalibrierung: 28.10.“
+aus dem Plan-Objekt wandert nach Woche („Tagesdetails folgen …“, E4) und fällt nicht weg; bis dahin
+ist diese Absicht offen. Die Aerobe/Adhärenz-Rechnung für den Coach-Request bleibt in `app.js`.

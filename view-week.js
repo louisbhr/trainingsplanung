@@ -6,8 +6,8 @@
 // Lauf-Zuordnung und Satz-Eingabe. Die Zeile ist deshalb kein Button,
 // sondern ein Container mit zwei Knöpfen, damit keine Buttons geschachtelt
 // werden.
-import { formatKm } from "./metrics.js?v=202610211034";
-import { esc, ICONS } from "./ui.js?v=202610211034";
+import { formatKm } from "./metrics.js?v=202610211108";
+import { esc, ICONS } from "./ui.js?v=202610211108";
 
 export function weekNavHTML({ n, weekType, dateRange, hasPrev, hasNext, showToday }) {
   return `<div class="week-nav">

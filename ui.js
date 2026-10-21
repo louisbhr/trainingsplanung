@@ -1,8 +1,8 @@
 // Geteilte Render-Helfer über alle Tabs hinweg (M2-4): Escaping, Icons,
-// Datumsformatierung, Toast, Fehler-/Lade-Karten, Skeleton-Zeilen und das
-// eine gemeinsame Info-Sheet (D1). Bewusst ohne Firebase-Abhängigkeiten,
+// Datumsformatierung, Toast, Fehler-/Lade-Karten und die Sheet-Fabrik
+// (createSheet, Auflage C6). Bewusst ohne Firebase-Abhängigkeiten,
 // nur plan.js für die reinen Datums-Helfer.
-import { fromISO } from "./plan.js?v=202610211034";
+import { fromISO } from "./plan.js?v=202610211108";
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -111,48 +111,102 @@ export function errorCard(msg) {
 export function loadingCard(msg = "Lädt …") {
   return `<p class="center-note">${esc(msg)}</p>`;
 }
-export function skelLine(width, height) {
-  return `<div class="skel skel-line" style="width:${width};${height ? `height:${height};` : ""}"></div>`;
+
+// ---------- Sheets (Auflage C6) ----------
+// Eine Fabrik für alle Bottom-Sheets (Info-Sheet, später Zuordnungs-Sheet).
+// Jedes Sheet hat seinen eigenen Ausblende-Timer und sein eigenes Rücksprung-
+// Ziel. Wird ein Sheet geöffnet, schließt jedes andere sofort und ohne
+// Animation, ohne dass der Fokus zu dessen Auslöser zurückspringt. Escape ist
+// ein einziger globaler Handler. Gemessen wird immer an der .open-Klasse, nie
+// an hidden: hidden hinkt dem Schließen um die Ausblendzeit hinterher.
+const SHEET_FADE_MS = 260; // etwas über der CSS-Übergangszeit (250 ms)
+const sheetRegistry = new Map(); // sheetId -> Steuerobjekt
+let escapeWired = false;
+
+// Der Auslöser kann zwischenzeitlich neu gerendert worden sein (Slots laden
+// nach, während das Sheet offen ist). Dann denselben Knopf per Attributen suchen.
+const TRIGGER_ATTRS = ["data-action", "data-info", "data-date"];
+function liveTrigger(el) {
+  if (!el) return null;
+  if (el.isConnected) return el;
+  const selector = TRIGGER_ATTRS
+    .filter((a) => el.hasAttribute?.(a))
+    .map((a) => `[${a}="${CSS.escape(el.getAttribute(a))}"]`)
+    .join("");
+  return selector ? document.querySelector(selector) : null;
 }
 
-// ---------- Info-Sheet (D1) ----------
-// Ein gemeinsames Element in index.html (#infoSheet/#infoBackdrop), wird
-// hier nur geöffnet/geschlossen, nicht pro Ampel neu erzeugt.
-let infoReturnFocus = null;
-// Ausblende-Timer des letzten Schließens. Wird beim Öffnen verworfen, sonst
-// versteckt ein alter Timer ein inzwischen neu geöffnetes Sheet.
-let infoHideTimer = null;
+function wireEscapeOnce() {
+  if (escapeWired || typeof document === "undefined") return;
+  escapeWired = true;
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeOpenSheet();
+  });
+}
 
-export function openInfo(title, bodyParagraphs, triggerEl) {
-  const sheet = document.getElementById("infoSheet");
-  const backdrop = document.getElementById("infoBackdrop");
-  if (!sheet || !backdrop) return;
-  clearTimeout(infoHideTimer);
-  infoHideTimer = null;
-  infoReturnFocus = triggerEl || null;
+export function createSheet(sheetId, backdropId) {
+  wireEscapeOnce();
+  let hideTimer = null;
+  let returnFocus = null;
+  const sheetEl = () => document.getElementById(sheetId);
+  const backdropEl = () => document.getElementById(backdropId);
+
+  function hideNow() {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+    const sheet = sheetEl(), backdrop = backdropEl();
+    if (sheet) { sheet.classList.remove("open"); sheet.hidden = true; }
+    if (backdrop) { backdrop.classList.remove("open"); backdrop.hidden = true; }
+  }
+
+  const controller = {
+    id: sheetId,
+    isOpen() { return !!sheetEl()?.classList.contains("open"); },
+    // Sofort, ohne Animation und ohne Fokus-Rückgabe (Wechsel zu einem anderen Sheet).
+    closeImmediately() { returnFocus = null; hideNow(); },
+    open(trigger) {
+      const sheet = sheetEl(), backdrop = backdropEl();
+      if (!sheet || !backdrop) return;
+      for (const other of sheetRegistry.values()) if (other !== controller) other.closeImmediately();
+      clearTimeout(hideTimer);
+      hideTimer = null;
+      returnFocus = trigger || null;
+      sheet.hidden = false;
+      backdrop.hidden = false;
+      // Reflow erzwingen statt requestAnimationFrame: so ist das Sheet sofort
+      // "offen" und ein schnelles Escape findet keinen Zwischenzustand vor.
+      void sheet.offsetWidth;
+      backdrop.classList.add("open");
+      sheet.classList.add("open");
+      sheet.querySelector(".sd-sheet__title")?.focus();
+    },
+    close() {
+      const sheet = sheetEl(), backdrop = backdropEl();
+      if (!sheet || !controller.isOpen()) return;
+      backdrop?.classList.remove("open");
+      sheet.classList.remove("open");
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(hideNow, SHEET_FADE_MS);
+      const target = liveTrigger(returnFocus);
+      returnFocus = null;
+      target?.focus();
+    },
+  };
+  sheetRegistry.set(sheetId, controller);
+  return controller;
+}
+
+// Schließt das gerade offene Sheet (Escape, ×-Knopf, Backdrop).
+export function closeOpenSheet() {
+  for (const sheet of sheetRegistry.values()) if (sheet.isOpen()) sheet.close();
+}
+
+// Info-Sheet: Titel plus Blöcke { heading, text }. Alles durch esc().
+export function openInfo(title, blocks, triggerEl) {
+  const sheet = sheetRegistry.get("infoSheet") ?? createSheet("infoSheet", "infoBackdrop");
   document.getElementById("infoSheetTitle").textContent = title;
-  document.getElementById("infoSheetBody").innerHTML = bodyParagraphs.map((p) => `<p>${esc(p)}</p>`).join("");
-  sheet.hidden = false;
-  // Reflow erzwingen statt requestAnimationFrame: so ist das Sheet sofort
-  // "offen" und ein schnelles Escape findet keinen Zwischenzustand vor.
-  void sheet.offsetWidth;
-  backdrop.classList.add("open");
-  sheet.classList.add("open");
-  document.getElementById("infoSheetClose")?.focus();
-}
-
-export function closeInfo() {
-  const sheet = document.getElementById("infoSheet");
-  const backdrop = document.getElementById("infoBackdrop");
-  // Zustand über die .open-Klasse prüfen, nicht über hidden: hidden hinkt
-  // dem Schließen um die Ausblendzeit hinterher.
-  if (!sheet || !sheet.classList.contains("open")) return;
-  backdrop.classList.remove("open");
-  sheet.classList.remove("open");
-  clearTimeout(infoHideTimer);
-  infoHideTimer = setTimeout(() => {
-    sheet.hidden = true;
-    infoHideTimer = null;
-  }, 200);
-  if (infoReturnFocus) infoReturnFocus.focus();
+  document.getElementById("infoSheetBody").innerHTML =
+    `<div class="sd-sheet__blocks">${blocks.map((b) =>
+      `<div><p class="sd-sheet__blockhead">${esc(b.heading)}</p><p class="sd-sheet__blocktext">${esc(b.text)}</p></div>`).join("")}</div>`;
+  sheet.open(triggerEl);
 }

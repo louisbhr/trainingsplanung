@@ -5,7 +5,9 @@ const { chromium } = pw;
 const BASE = "http://127.0.0.1:8099";
 const SHOTS = process.env.SHOTS;
 let fails = 0, checks = 0;
-const ok = (cond, msg) => { checks++; if (!cond) { console.log("FAIL:", msg); fails++; } else console.log("ok  :", msg); };
+// Zählt die Checks je Szenario (Ledger in tests/README.md). scenario(id) steht in der ersten Zeile jedes Blocks.
+const perScenario = new Map(); let curScenario = "0"; const scenario = (id) => { curScenario = id; };
+const ok = (cond, msg) => { checks++; perScenario.set(curScenario, (perScenario.get(curScenario) || 0) + 1); if (!cond) { console.log("FAIL:", msg); fails++; } else console.log("ok  :", msg); };
 
 // Für die Plan-Lade-Tests (A1): eine echte, gültige Kopie zum Vorbelegen
 // von localStorage, damit "JSON 404 mit Kopie" nicht künstlich wirkt.
@@ -189,30 +191,59 @@ async function noHScroll(page, where) {
   ok(doc <= 0 && over.length === 0, `${where}: nichts ragt über den Rand (${doc}px, ${JSON.stringify(over)})`);
 }
 
+// ---- Heute-Seite: stabile Haken statt Layout-Klassen (docs/ui-markup-stride.md, Abschnitt 9) ----
+// Karten tragen data-card, die Heute-Karte zusätzlich data-kind und data-progress.
+const TODAY = '#today-slot [data-card="today"]';
+const COACH = '#coach-slot [data-card="coach"]';
+const waitStatusLoaded = (page, timeout = 10000) =>
+  page.waitForSelector('[data-card="status"][aria-busy="false"]', { timeout });
+// Vier Status-Zeilen als { key, status, title, detail }.
+const statusRows = (page) =>
+  page.locator('[data-card="status"] [data-action="open-info"]').evaluateAll((els) =>
+    els.map((el) => ({
+      key: el.dataset.info,
+      status: el.dataset.status,
+      title: el.querySelector(".sd-statusrow__title").textContent.trim(),
+      detail: el.querySelector(".sd-statusrow__detail").textContent.trim(),
+    })));
+const statusByTitle = async (page) => Object.fromEntries((await statusRows(page)).map((r) => [r.title, r]));
+// Coach-Tagessatz (ohne Wochenbilanz).
+const coachText = (page) => page.textContent(`${COACH} .sd-coach__text`);
+// C5: kein style="..." im gerenderten Heute-Markup.
+const styleAttrCount = (page) => page.evaluate(() => document.querySelectorAll("#main [style], #header [style]").length);
+// Slots, die laut Spezifikation leer sein müssen, sind wirklich leer (kein Leerraum, kein Kommentar).
+const slotIsEmpty = (page, id) => page.evaluate((i) => document.getElementById(i)?.innerHTML === "", id);
+
 // ---- 1. Dashboard, nicht verbunden (07.09.2026 = W2 Montag, Easy run) ----
 // Ersetzt die alte "Heute"-Tagesansicht als Starttab (M2-4). Die
 // Tagesansicht mit dem Strava-"Verbinden"-Einstieg bleibt über den
 // Wochen-Tab erreichbar, siehe unten.
 {
+  scenario("1");
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#main .today-card");
-  ok((await page.textContent("#header h1")) === "Woche 2 · Aufbau", "Dashboard: Kopfzeile zeigt Woche + Wochentyp");
-  ok((await page.textContent("#header .badge")).includes("Phase 1 · Basis"), "Dashboard: Phasen-Badge");
-  ok((await page.textContent("#header .countdown")).includes("Noch 34 Wochen bis zum Rennen"), "Dashboard: Countdown mit bestätigtem Renndatum (237 Tage = 34 Wochen)");
+  await page.waitForSelector(TODAY);
+  ok((await page.textContent("#header")).includes("Woche 2 · Aufbau"), "Dashboard: Kopfzeile zeigt Woche + Wochentyp");
+  ok((await page.textContent("#header h1")) === "Montag, 7. September", "Dashboard: Überschrift ist das Datum");
+  ok((await page.textContent("#header")).includes("Phase 1 · Basis"), "Dashboard: Phasen-Angabe");
+  ok((await page.textContent("#header")).includes("237 Tage bis 02.05."), "Dashboard: Countdown mit bestätigtem Renndatum (237 Tage)");
+  ok((await page.locator('#header progress[aria-label="Planfortschritt, Woche 2 von 35"]').count()) === 1, "Dashboard: Planfortschritt als Balken mit Beschriftung");
   const today = await page.textContent("#today-slot");
-  ok(today.includes("Easy run") && today.includes("8 km"), "Dashboard: 'Heute dran' zeigt den Lauftag (Easy run, 8 km)");
-  // Je nach Tempo der Strava-Prüfung steht hier schon der Endzustand
-  ok(today.includes("Ist-Werte werden nach dem Lauf aus Strava geladen") || today.includes("Strava ist nicht verbunden"),
-    "Dashboard: Lauftag wartet sichtbar auf Strava, blockiert aber nicht");
+  ok((await page.locator(`${TODAY}[data-kind="lauf"]`).count()) === 1 && today.includes("Easy run") && today.includes("8 km"),
+    "Dashboard: Heute-Karte zeigt den Lauftag (Easy run, 8 km)");
+  ok((await page.locator(`${TODAY} [data-action="open-day"][data-date="2026-09-07"]`).count()) === 1,
+    "Dashboard: Lauf-Karte ist sofort bedienbar, wartet nicht auf Strava");
   // Sobald feststeht, dass Strava nicht verbunden ist: klarer Hinweis statt Dauer-Laden
-  await page.waitForSelector('#today-slot [data-action="connect-strava"]', { timeout: 5000 });
-  ok((await page.textContent("#today-slot")).includes("Strava ist nicht verbunden"), "Dashboard: Lauf-Karte nennt 'nicht verbunden' statt dauerhaft zu laden");
-  ok((await page.locator("#coach-slot .coach-card").count()) === 1, "Dashboard: Coach-Platzhalter rendert sofort");
-  ok((await page.locator("#ampel-slot .ampel-tile").count()) === 4, "Dashboard: vier Ampel-Kacheln (Platzhalter) sofort da");
-  // Placeholder oder (falls das schnelle Nachladen inzwischen durch ist)
-  // schon die echten "Im Detail"-Karten — beides zeigt: nichts blockiert.
-  ok((await page.locator("#detail-slot .card").count()) >= 1, "Dashboard: 'Im Detail' rendert sofort etwas, blockiert nicht");
+  await page.waitForSelector('#banner-slot [data-action="connect-strava"]', { timeout: 5000 });
+  ok((await page.textContent('#banner-slot [data-card="strava-disconnected"]')).includes("Strava ist nicht verbunden"),
+    "Dashboard: Banner nennt 'nicht verbunden' statt dauerhaft zu laden");
+  ok((await page.locator(`${TODAY} [role="status"]`).count()) === 0 && !(await page.textContent("#today-slot")).includes("nicht verbunden"),
+    "Dashboard: Lauf-Karte zeigt ohne Strava keinen Ist-Block (der Banner erklärt es)");
+  ok((await page.locator(COACH).count()) === 1, "Dashboard: Coach-Platzhalter rendert sofort");
+  ok((await page.locator('[data-card="status"] [data-action="open-info"]').count()) === 4, "Dashboard: vier Status-Zeilen (Platzhalter) sofort da");
+  ok((await page.locator("#detail-slot").count()) === 0 && !(await page.textContent("#main")).includes("Im Detail"),
+    "Dashboard: 'Im Detail' ist weg (F3), nichts blockiert");
+  ok((await styleAttrCount(page)) === 0, "Dashboard: kein style-Attribut im Heute-Markup (C5)");
   await shot(page, "01-dashboard-nicht-verbunden");
   await noHScroll(page, "Dashboard");
   ok(errors.length === 0, "Dashboard: keine Konsolenfehler " + JSON.stringify(errors));
@@ -226,22 +257,32 @@ async function noHScroll(page, where) {
 
 // ---- 2. Dashboard, verbunden -> Ist-Werte laden nach, ohne zu blockieren ----
 {
+  scenario("2");
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#today-slot .metric-value");
+  await page.waitForSelector(`${TODAY} .sd-result`);
   const txt = await page.textContent("#today-slot");
-  ok(txt.includes("8,0 km"), "Dashboard: längster Lauf des Tages (8,0 km statt 2,0)");
-  ok(txt.includes("6:15 /km"), "Dashboard: Pace korrekt berechnet");
-  ok(txt.includes("155 bpm"), "Dashboard: Ø HF angezeigt");
-  ok(txt.includes("50:10 min"), "Dashboard: Dauer formatiert");
+  ok(txt.includes("8,0") && txt.includes("Easy run"), "Dashboard: längster Lauf des Tages (8,0 km statt 2,0), mit Namen");
+  ok((await page.locator(`${TODAY} .sd-result`).textContent()).includes("im Plan"), "Dashboard: Lauf ist 'im Plan' (8,0 von 8 km)");
+  ok((await page.locator("#banner-slot").innerHTML()) === "", "Dashboard mit Strava: kein Banner, der Slot ist leer");
+  ok(!txt.includes("/km /km") && !txt.includes("bpm bpm"), "Dashboard: Zielwerte ohne doppelte Einheit (pace/hf tragen /km und bpm schon)");
   await shot(page, "02-dashboard-mit-strava");
   await noHScroll(page, "Dashboard mit Strava");
+  // Pace, Ø HF und Dauer zeigt nicht mehr die Heute-Karte (Markup 9.3: km, Urteil, Name),
+  // sondern der Lauf-Tag, den "Lauf ansehen" öffnet.
+  await page.click(`${TODAY} [data-action="open-day"]`);
+  await page.waitForSelector("#strava-slot .metric-value");
+  const run = await page.textContent("#strava-slot");
+  ok(run.includes("6:15 /km"), "Lauf-Tag aus Heute: Pace korrekt berechnet");
+  ok(run.includes("155 bpm"), "Lauf-Tag aus Heute: Ø HF angezeigt");
+  ok(run.includes("50:10 min"), "Lauf-Tag aus Heute: Dauer formatiert");
   ok(errors.length === 0, "Dashboard mit Strava: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
-// ---- 2b. Dashboard, Krafttag: Starten -> Übung -> Kraft-Tagesansicht -> zurück (F4) ----
+// ---- 2b. Dashboard, Krafttag: Training starten -> Kraft-Tagesansicht -> zurück (F4) ----
 {
+  scenario("2b");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -256,22 +297,22 @@ async function noHScroll(page, where) {
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   await page.clock.setFixedTime(new Date("2026-09-08T09:00:00Z")); // Di = Krafttag "Full Body A"
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#today-slot .today-card.k-kraft");
+  await page.waitForSelector(`${TODAY}[data-kind="kraft"]`);
   const before = await page.textContent("#today-slot");
   ok(before.includes("Full Body A") && before.includes("8 Übungen"), "Dashboard: Krafttag mit Titel + Übungsanzahl");
-  ok((await page.locator("#todayExList").isVisible()) === false, "Dashboard: Übungsliste startet zugeklappt");
+  ok((await page.locator(`${TODAY}[data-progress="none"] [data-action="open-day"]`).textContent()) === "Training starten",
+    "Dashboard: nicht begonnen heißt 'Training starten'");
+  ok((await page.locator(`${TODAY} .sd-preview li.sd-preview__row`).count()) === 3 &&
+     (await page.textContent(`${TODAY} .sd-preview__more`)).trim() === "+ 5 weitere Übungen",
+    "Dashboard: Vorschau zeigt die ersten drei Übungen und '+ 5 weitere Übungen'");
+  ok((await page.locator(`${TODAY} .sd-preview button, ${TODAY} .sd-preview a`).count()) === 0 &&
+     (await page.locator(`${TODAY} [data-action]`).count()) === 1,
+    "Dashboard: Vorschau-Zeilen sind nicht antippbar, der Primärbutton ist der einzige Einstieg");
 
-  await page.click('[data-action="toggle-today-exercises"]');
-  await page.waitForSelector("#todayExList.open");
-  await page.waitForFunction(() => !document.querySelector("#todayExList .ex-progress")?.textContent.includes("…"));
-  ok((await page.locator("#todayExList .ex-row").count()) === 8, "Dashboard: aufgeklappte Liste zeigt alle 8 Übungen");
-  ok((await page.textContent("#todayExList .ex-progress")).includes("0/8"), "Dashboard: Fortschritt aus Firestore nachgeladen (0/8)");
-
-  // Tippen auf eine Übungszeile öffnet die bestehende Kraft-Tagesansicht.
-  await page.locator('#todayExList .ex-row').first().click();
+  await page.click(`${TODAY} [data-action="open-day"]`);
   await page.waitForSelector('[data-ex="squats"]');
   ok((await page.textContent("#header h1")) === "Krafttraining", "Dashboard->Tagesansicht: Krafttag geöffnet");
-  ok((await page.textContent("#header .eyebrow")).includes("Dashboard"), "Dashboard->Tagesansicht: Zurück-Knopf beschriftet mit 'Dashboard'");
+  ok((await page.textContent('#header [data-action="back"]')).includes("Heute"), "Dashboard->Tagesansicht: Zurück-Knopf beschriftet mit 'Heute'");
 
   await page.locator('[data-ex="squats"] [data-kg]').fill("80");
   await page.locator('[data-ex="squats"] [data-reps]').fill("9");
@@ -279,10 +320,12 @@ async function noHScroll(page, where) {
   await page.waitForSelector('[data-status="squats"].ok');
 
   await page.click('[data-action="back"]');
-  await page.waitForSelector("#today-slot .today-card.k-kraft");
-  await page.waitForFunction(() =>
-    document.querySelector("#todayExList .ex-progress")?.textContent.includes("1/8 geloggt"));
-  ok(true, "Dashboard: zurück zeigt den aktualisierten Fortschritt (1/8 geloggt)");
+  await page.waitForSelector(`${TODAY}[data-kind="kraft"]`);
+  await page.waitForSelector(`${TODAY}[data-progress="partial"]`);
+  ok((await page.textContent(TODAY)).includes("1 von 8 Übungen erfasst"), "Dashboard: zurück zeigt den aktualisierten Fortschritt (1 von 8 erfasst)");
+  ok((await page.locator(`${TODAY} .sd-preview__row.is-done`).count()) === 1 &&
+     (await page.locator(`${TODAY} [data-action="open-day"]`).textContent()) === "Weiter trainieren",
+    "Dashboard: erste Übung als erfasst markiert, Button heißt 'Weiter trainieren'");
   await shot(page, "02b-dashboard-krafttag");
   await noHScroll(page, "Dashboard Krafttag");
   ok(errors.length === 0, "Dashboard Krafttag: keine Konsolenfehler " + JSON.stringify(errors));
@@ -291,6 +334,7 @@ async function noHScroll(page, where) {
 
 // ---- 2c. Dashboard: echte Ampeln (Wochensoll/Belastung/Kraft-Progression) + Info-Sheet (M2-5) ----
 {
+  scenario("2c");
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.addInitScript(() => {
     // Squats und Deadlift hängen bei gleichem Soll/Gewicht zwei Einheiten in
@@ -308,45 +352,32 @@ async function noHScroll(page, where) {
     }));
   });
   await page.goto(BASE + "/index.html");
-  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
+  await waitStatusLoaded(page);
 
-  const tiles = await page.locator("#ampel-slot .ampel-tile").evaluateAll((els) =>
-    els.map((el) => ({
-      title: el.querySelector(".title").textContent.trim(),
-      status: [...el.querySelector(".ampel-dot").classList].find((c) => c.startsWith("st-")),
-      detail: el.querySelector(".detail")?.textContent.trim(),
-    })));
-  const byTitle = Object.fromEntries(tiles.map((t) => [t.title, t]));
+  const byTitle = await statusByTitle(page);
 
-  ok(byTitle["Wochensoll"].status === "st-gruen", `Ampel Wochensoll: grün erwartet (${byTitle["Wochensoll"].status})`);
+  ok(byTitle["Wochensoll"].status === "gruen", `Ampel Wochensoll: grün erwartet (${byTitle["Wochensoll"].status})`);
   // 16,1 km = Montag exakt (8,02 km) + der auf Mittwoch nachgeholte Lauf vom
   // 10.09. (8,1 km, per assignRuns automatisch zugeordnet) — die Anzeige
   // zeigt die ganze Woche, nicht nur den Anteil bis heute (F5).
   ok(byTitle["Wochensoll"].detail === "16,1 / 29 km · Kraft 0/2", `Ampel Wochensoll: Detailtext (${byTitle["Wochensoll"].detail})`);
-  ok(byTitle["Belastung"].status === "st-grau", `Ampel Belastung: grau ohne 4 Wochen Historie (${byTitle["Belastung"].status})`);
-  ok(byTitle["Kraft-Progression"].status === "st-rot", `Ampel Kraft-Progression: rot bei zwei betroffenen Übungen (${byTitle["Kraft-Progression"].status})`);
+  ok(byTitle["Belastung"].status === "grau", `Ampel Belastung: grau ohne 4 Wochen Historie (${byTitle["Belastung"].status})`);
+  ok(byTitle["Kraft-Progression"].status === "rot", `Ampel Kraft-Progression: rot bei zwei betroffenen Übungen (${byTitle["Kraft-Progression"].status})`);
   ok(byTitle["Kraft-Progression"].detail.includes("Squats") && byTitle["Kraft-Progression"].detail.includes("+1 weitere"),
      `Ampel Kraft-Progression: Detailtext nennt die schlechteste Übung zuerst (${byTitle["Kraft-Progression"].detail})`);
-  ok(["st-gruen", "st-gelb", "st-rot", "st-grau"].includes(byTitle["Easy-Disziplin"].status),
+  ok(["gruen", "gelb", "rot", "grau"].includes(byTitle["Easy-Disziplin"].status),
      `Ampel Easy-Disziplin: rechnet, ohne hängen zu bleiben (${byTitle["Easy-Disziplin"].status})`);
 
-  // "Im Detail" (F8, M2-6): Wochenvolumen der aktuellen Phase (Woche 1–8),
-  // Aerobe Effizienz, Adhärenz 4 Wochen, "Als Nächstes".
-  await page.waitForSelector("#detail-slot .si-bar-col");
-  ok((await page.locator("#detail-slot .si-bar-col").count()) === 8, "Im Detail: Wochenvolumen zeigt alle 8 Wochen der Phase 'Basis'");
-  ok((await page.textContent("#detail-slot .si-bar-label.current")) === "W2", "Im Detail: aktuelle Woche im Wochenvolumen hervorgehoben");
-  ok((await page.locator("#detail-slot .si-bar-col").nth(2).locator(".si-bar-ist").count()) === 0,
-     "Im Detail: künftige Woche (W3) zeigt keinen Ist-Balken");
-  const detailTxt = await page.textContent("#detail-slot");
-  ok(detailTxt.includes("-15 s/km seit Woche 1"), `Im Detail: Aerobe Effizienz nennt das Delta seit der ersten Woche mit Daten (${detailTxt.match(/[-+]\d+ s\/km[^.]*/)?.[0]})`);
-  ok(detailTxt.includes("50 %") && detailTxt.includes("3 von 6 Einheiten"),
-     `Im Detail: Adhärenz 4 Wochen (${detailTxt.match(/\d+ %/)?.[0]}, ${detailTxt.match(/\d+ von \d+ Einheiten/)?.[0]})`);
-  ok(detailTxt.includes("Nächster Long Run: Sa 12.09., 13 km"), "Im Detail: nächster Long Run");
-  ok(detailTxt.includes("Nächste Woche: Aufbau"), "Im Detail: Typ der nächsten Woche");
-  ok(detailTxt.includes("Re-Kalibrierung: 28.10."), "Im Detail: nächste Re-Kalibrierung aus dem Plan-Objekt (Kalibrierungstest Mi 28.10.)");
+  // "Im Detail" gibt es nicht mehr (F3). Die Rechnungen dahinter bleiben über
+  // metrics.test.mjs abgedeckt; hier zählt, dass Ampeln und Coach unverändert da sind.
+  ok((await page.locator("#detail-slot").count()) === 0 && !(await page.textContent("#main")).includes("Im Detail"),
+    "Im Detail ist weg: kein Detail-Slot, keine Karten (Wochenvolumen, Aerobe Effizienz, Adhärenz, Als Nächstes)");
+  ok(JSON.stringify((await statusRows(page)).map((r) => r.title)) === JSON.stringify(["Wochensoll", "Easy-Disziplin", "Belastung", "Kraft-Progression"]),
+    "Im Detail ist weg: die Status-Liste hat unverändert vier Zeilen in fester Reihenfolge");
+  ok((await page.locator(COACH).count()) === 1, "Im Detail ist weg: die Coach-Karte steht unverändert da");
 
   // Info-Sheet (D1): öffnen per Klick, Grenzwerte aus THRESHOLDS im Text,
-  // per Escape schließen, Fokus kehrt zum Info-Knopf zurück.
+  // per Escape schließen, Fokus kehrt zur Status-Zeile zurück.
   const kraftInfoBtn = page.locator('[data-info="kraft"]');
   await kraftInfoBtn.focus();
   await kraftInfoBtn.press("Enter");
@@ -360,40 +391,60 @@ async function noHScroll(page, where) {
     return el?.closest("#infoSheet, #infoBackdrop, #tabbar")?.id || el?.id || el?.tagName;
   });
   ok(topEl === "infoSheet" || topEl === "infoBackdrop", `Info-Sheet liegt über der Tableiste (oben: ${topEl})`);
+  ok((await page.getByRole("dialog", { name: "Kraft-Progression" }).isVisible()), "Info-Sheet: Dialog mit dem Titel der Ampel");
   ok((await page.textContent("#infoSheetTitle")) === "Kraft-Progression", "Info-Sheet: Titel passt zur Ampel");
   const body = await page.textContent("#infoSheetBody");
   ok(body.includes("42 Tage"), `Info-Sheet: Grenzwert aus THRESHOLDS (windowDays) im Text (${body.slice(0, 120)})`);
   ok(body.includes("2 oder mehr"), "Info-Sheet: Grenzwert redAffectedCount im Text");
-  ok(await page.evaluate(() => document.activeElement.id === "infoSheetClose"), "Info-Sheet: Fokus springt auf den Schließen-Knopf");
+  const heads = await page.locator("#infoSheetBody .sd-sheet__blockhead").allTextContents();
+  ok(JSON.stringify(heads) === JSON.stringify(["Berechnung", "Bedeutung", "Grau"]), `Info-Sheet: Blöcke in der Reihenfolge Berechnung, Bedeutung, Grau (${heads})`);
+  ok(await page.evaluate(() => document.activeElement.id === "infoSheetTitle"), "Info-Sheet: Fokus springt auf den Titel");
   await page.keyboard.press("Escape");
   await page.waitForSelector("#infoSheet:not(.open)");
-  ok(await page.evaluate(() => document.activeElement.dataset.info === "kraft"), "Info-Sheet: Fokus kehrt zum auslösenden Info-Knopf zurück");
+  ok(await page.evaluate(() => document.activeElement.dataset.info === "kraft"), "Info-Sheet: Fokus kehrt zur auslösenden Status-Zeile zurück");
+
+  // Backdrop schließt ebenfalls, Fokus kehrt zurück. Das × sitzt im Sheet, der Backdrop-Klick
+  // trifft die obere Bildschirmhälfte (das Sheet deckt nur den unteren Teil).
+  await page.click('[data-info="wochensoll"]');
+  await page.waitForSelector("#infoSheet.open");
+  await page.waitForTimeout(300);
+  await page.mouse.click(195, 40);
+  await page.waitForSelector("#infoSheet:not(.open)");
+  ok(await page.evaluate(() => document.activeElement.dataset.info === "wochensoll"), "Info-Sheet: Klick auf den Backdrop schließt, Fokus kehrt zur Status-Zeile zurück");
   await shot(page, "02c-dashboard-ampeln-info");
   await noHScroll(page, "Dashboard Ampeln");
   ok(errors.length === 0, "Dashboard Ampeln: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
-// ---- 2c-2. Info-Sheet: schnelles Schließen + ein ANDERES Sheet öffnen (Korrekturrunde 1, Bug 1) ----
+// ---- 2c-2. Info-Sheet: schnelles Schließen + sofort wieder öffnen (Korrekturrunde 1, Bug 1; C6) ----
 // closeInfo() setzte sheet.hidden erst nach 200ms; öffnete man währenddessen
 // ein anderes Sheet, feuerte der alte Timer trotzdem noch und versteckte das
 // gerade erst geöffnete neue Sheet wieder — Escape/× wirkten danach nicht
 // mehr, weil closeInfo() sheet.hidden fälschlich als "schon zu" las.
+// Mit createSheet() hat jedes Sheet seinen eigenen Timer; der Wechsel A -> B und
+// B -> A zwischen Info- und Zuordnungs-Sheet wird in E6 ergänzt, sobald es das
+// zweite Sheet gibt.
 {
+  scenario("2c-2");
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
   await page.waitForSelector('[data-info="wochensoll"]');
   await page.click('[data-info="wochensoll"]');
   await page.waitForSelector("#infoSheet.open");
-  await page.click("#infoSheetClose"); // schließt sofort, startet den 200ms-Timer
-  await page.click('[data-info="kraft"]'); // noch innerhalb der 200ms ein ANDERES Sheet öffnen
+  // Schließen (startet den Ausblende-Timer) und im selben Atemzug ein ANDERES Sheet-Thema öffnen.
+  // Per Skript statt per Maus: das gleitende Sheet würde die Zeile für Playwright noch verdecken.
+  await page.evaluate(() => {
+    document.getElementById("infoSheetClose").click();
+    document.querySelector('[data-info="kraft"]').click();
+  });
   await page.waitForSelector("#infoSheet.open");
-  await page.waitForTimeout(300); // der alte Timer wäre jetzt längst gefeuert
+  await page.waitForTimeout(400); // der alte Timer wäre jetzt längst gefeuert
   ok(await page.locator("#infoSheet.open").isVisible(), "Info-Sheet: bleibt nach dem alten Timeout weiterhin sichtbar offen");
   ok((await page.textContent("#infoSheetTitle")) === "Kraft-Progression", "Info-Sheet: zeigt das zuletzt geöffnete Sheet");
   await page.keyboard.press("Escape");
   // Kurzes Timeout statt unbegrenzt warten: bei einer Regression hängt
-  // closeInfo() sonst (stale hidden-Zustand lässt Escape verpuffen).
+  // das Schließen sonst (stale hidden-Zustand lässt Escape verpuffen).
   let escapeWorked = true;
   try {
     await page.waitForSelector("#infoSheet:not(.open)", { timeout: 3000 });
@@ -402,16 +453,18 @@ async function noHScroll(page, where) {
   }
   ok(escapeWorked, "Info-Sheet: Escape schließt weiterhin zuverlässig (kein stale-Zustand)");
   if (escapeWorked) {
-    // hidden folgt der Ausblendzeit (200ms) — darauf warten, nicht sofort zählen
+    // hidden folgt der Ausblendzeit — darauf warten, nicht sofort zählen
     const hid = await page.waitForSelector("#infoSheet[hidden]", { state: "attached", timeout: 2000 }).then(() => true, () => false);
     ok(hid, "Info-Sheet: nach Escape auch tatsächlich hidden");
   }
+  ok(await page.evaluate(() => document.activeElement.dataset.info === "kraft"), "Info-Sheet: nach schnellem Wechsel kehrt der Fokus zum zuletzt geöffneten Auslöser zurück");
   ok(errors.length === 0, "Info-Sheet Stale-Timeout: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
 // ---- 2c-3. Wochen-Tab: heutiger Krafttag mit Teilfortschritt (Korrekturrunde 1) ----
 {
+  scenario("2c-3");
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.clock.setFixedTime(new Date("2026-09-08T09:00:00Z")); // Di = Full Body A
   await page.addInitScript(() => {
@@ -437,11 +490,12 @@ async function noHScroll(page, where) {
 
 // ---- 2c-4. Tableiste folgt immer dem angezeigten Tab (Korrekturrunde 1) ----
 {
+  scenario("2c-4");
   const { page, ctx, errors } = await newPage();
   await page.clock.setFixedTime(new Date("2026-09-08T09:00:00Z")); // Di = Krafttag
   await page.goto(BASE + "/index.html");
   const active = () => page.locator("#tabbar button.active").getAttribute("data-tab");
-  await page.waitForSelector("#today-slot .today-card");
+  await page.waitForSelector(TODAY);
   ok((await active()) === "dashboard", "Tableiste: Start auf Dashboard markiert");
   await goTab(page, "woche");
   await page.waitForSelector(".week-summary");
@@ -450,12 +504,11 @@ async function noHScroll(page, where) {
   await page.waitForSelector("[data-ex]");
   ok((await active()) === "woche", "Tableiste: Tagesansicht aus der Woche bleibt bei Woche");
   await goTab(page, "dashboard");
-  await page.click('[data-action="toggle-today-exercises"]');
-  await page.locator("#todayExList .ex-row").first().click();
+  await page.click(`${TODAY} [data-action="open-day"]`);
   await page.waitForSelector("[data-ex]");
   ok((await active()) === "dashboard", "Tableiste: Tagesansicht aus dem Dashboard bleibt bei Dashboard");
   await page.click('[data-action="back"]');
-  await page.waitForSelector("#today-slot .today-card");
+  await page.waitForSelector(TODAY);
   ok((await page.locator("#tabbar button.active").count()) === 1 && (await active()) === "dashboard", "Tableiste: nach Zurück genau ein aktiver Tab");
   ok(errors.length === 0, "Tableiste: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -467,6 +520,7 @@ async function noHScroll(page, where) {
 // die Wochenbilanz je einen eigenen /coach-Request aus (unterschieden über
 // das "kind"-Feld im Request-Body, wie im Worker-Schema).
 {
+  scenario("2d");
   const { page, ctx, errors } = await newPage({ connected: true });
   const requestKinds = [];
   let dailyBody = null;
@@ -482,16 +536,18 @@ async function noHScroll(page, where) {
   const countKind = (k) => requestKinds.filter((x) => x === k).length;
 
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#coach-slot .coach-card");
-  await page.waitForFunction(() => document.querySelector("#coach-slot .text")?.textContent.includes("<img"));
-  const coachTxt = await page.textContent("#coach-slot .text");
+  await page.waitForSelector(COACH);
+  await page.waitForFunction(() => document.querySelector('#coach-slot [data-card="coach"] .sd-coach__text')?.textContent.includes("<img"));
+  const coachTxt = await coachText(page);
   ok(coachTxt.includes("<img src=x"), `Coach: KI-Text wird als Text angezeigt, nicht ausgeführt (${coachTxt})`);
   ok((await page.evaluate(() => window.__xss)) === undefined, "Coach: eingebetteter onerror-Handler wird NICHT ausgeführt (A5)");
 
   // Montag -> Wochenbilanz automatisch ausgeklappt (F6/D4), gleiche Escaping-Regel.
-  await page.waitForSelector("#coach-slot .bilanz-heading");
-  await page.waitForFunction(() => document.querySelector("#coach-slot .bilanz-body")?.textContent.includes("<img"));
+  await page.getByRole("heading", { name: "Wochenbilanz · Woche 1" }).waitFor();
+  await page.waitForFunction(() => document.querySelector("#coach-slot #bilanzBody")?.textContent.includes("<img"));
   ok((await page.evaluate(() => window.__xss)) === undefined, "Wochenbilanz: eingebetteter onerror-Handler wird NICHT ausgeführt (A5)");
+  ok((await page.locator('#coach-slot [data-action="toggle-bilanz"]').count()) === 0 && (await page.locator("#bilanzBody").isVisible()),
+    "Wochenbilanz: montags offen, ohne Auslöser (F3)");
   ok(countKind("daily") === 1, `Coach: genau ein daily-Request beim ersten Laden (${JSON.stringify(requestKinds)})`);
   ok(dailyBody?.today?.name === "Easy run 8 km · HF bis 163", `Coach: Lauftag schickt Distanz und HF-Obergrenze mit (${dailyBody?.today?.name})`);
   ok(countKind("weekly") === 1, `Coach: genau ein weekly-Request für die Wochenbilanz (${JSON.stringify(requestKinds)})`);
@@ -499,7 +555,7 @@ async function noHScroll(page, where) {
   // Gleicher Hash beim erneuten Aufruf des Dashboards -> kein zweiter Request je kind.
   await goTab(page, "verlauf");
   await goTab(page, "dashboard");
-  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForSelector(COACH);
   await page.waitForTimeout(300);
   ok(countKind("daily") === 1, `Coach: gleicher Hash löst keinen zweiten daily-Request aus (${JSON.stringify(requestKinds)})`);
   ok(countKind("weekly") === 1, `Coach: gleicher Hash löst keinen zweiten weekly-Request aus (${JSON.stringify(requestKinds)})`);
@@ -510,6 +566,7 @@ async function noHScroll(page, where) {
 
 // ---- 2d-2. Wochenbilanz an einem anderen Wochentag: eingeklappt, per Tap auf (M2-10) ----
 {
+  scenario("2d-2");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -539,14 +596,17 @@ async function noHScroll(page, where) {
     localStorage.setItem("test.strava", JSON.stringify({ refresh_token: "rt", access_token: "at", expires_at: Math.floor(Date.now() / 1000) + 3600 }));
   });
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForSelector(COACH);
   await page.waitForSelector('[data-action="toggle-bilanz"]');
   const label = await page.textContent('[data-action="toggle-bilanz"]');
   ok(label.includes("Wochenbilanz W1"), `Wochenbilanz: Kurzform nennt die bilanzierte Woche (${label.trim()})`);
-  ok((await page.locator("#bilanzBody").isVisible()) === false, "Wochenbilanz: an einem anderen Tag als Montag eingeklappt");
+  ok((await page.locator("#bilanzBody").isVisible()) === false && (await page.getAttribute('[data-action="toggle-bilanz"]', "aria-expanded")) === "false",
+    "Wochenbilanz: an einem anderen Tag als Montag eingeklappt");
   await page.click('[data-action="toggle-bilanz"]');
   await page.waitForSelector("#bilanzBody:not([hidden])");
   ok((await page.textContent("#bilanzBody")).includes("Wochenbilanz-Text."), "Wochenbilanz: per Tap aufklappbar");
+  ok((await page.getAttribute('[data-action="toggle-bilanz"]', "aria-expanded")) === "true" && await page.evaluate(() => document.activeElement.dataset.action === "toggle-bilanz"),
+    "Wochenbilanz: aria-expanded folgt, der Fokus bleibt auf dem Auslöser");
   await noHScroll(page, "Wochenbilanz eingeklappt");
   ok(errors.length === 0, "Wochenbilanz eingeklappt: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -554,12 +614,13 @@ async function noHScroll(page, where) {
 
 // ---- 2e. Coach: abgeschalteter Worker -> Regel-Fallback ----
 {
+  scenario("2e");
   const { page, ctx, errors } = await newPage();
   await ctx.route("https://worker.test/coach", (r) => r.abort("failed"));
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#coach-slot .coach-card");
-  await page.waitForFunction(() => (document.querySelector("#coach-slot .text")?.textContent.length ?? 0) > 0);
-  const txt = await page.textContent("#coach-slot .text");
+  await page.waitForSelector(COACH);
+  await page.waitForFunction(() => (document.querySelector('#coach-slot [data-card="coach"] .sd-coach__text')?.textContent.length ?? 0) > 0);
+  const txt = await coachText(page);
   ok(txt.length > 0, `Coach: Regel-Fallback erscheint bei abgeschaltetem Worker (${txt})`);
   // Kein "keine Konsolenfehler"-Check hier: route.abort() erzeugt absichtlich
   // ein "Failed to load resource"-Netzwerkprotokoll, keinen echten App-Fehler
@@ -569,6 +630,7 @@ async function noHScroll(page, where) {
 
 // ---- 2f. Coach: Dokument nicht lesbar -> kein API-Aufruf (A4) ----
 {
+  scenario("2f");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -614,16 +676,185 @@ async function noHScroll(page, where) {
   await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
   await page.addInitScript(() => localStorage.setItem("hm-tracker.workerUrl", "https://worker.test"));
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForSelector(COACH);
   await page.waitForTimeout(300);
   ok(coachRequests === 0, `Coach: kein API-Aufruf, wenn das Coach-Dokument nicht lesbar ist (${coachRequests})`);
-  ok((await page.locator("#coach-slot .text").count()) === 1, "Coach: trotzdem ein Fallback-Text sichtbar, keine Fehlerkarte");
+  ok((await page.locator(`${COACH} .sd-coach__text`).count()) === 1 && (await page.locator("#main [data-card=\"error\"]").count()) === 0,
+    "Coach: trotzdem ein Fallback-Text sichtbar, keine Fehlerkarte");
   ok(errors.length === 0, "Coach ohne lesbares Dokument: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 35. Heute (Stride E3): Zustände der Heute-Karte und "Diese Woche" ----
+// Neue Prüfabsichten aus E3, kein Altbestand. Pläne mit Platzhalterwoche bzw. zwei Ruhetagen in Folge
+// werden aus REAL_PLAN_JSON abgeleitet (Review C8), damit die Checks mit der Re-Kalibrierung
+// am 28.10. auf main nicht brechen.
+function derivedPlan(edit) {
+  const plan = JSON.parse(REAL_PLAN_JSON);
+  edit(plan);
+  return JSON.stringify(plan);
+}
+// Woche 3 und später sind Platzhalter (Details erst nach der Re-Kalibrierung am `recal`).
+const placeholderPlanJSON = (recal) => derivedPlan((plan) => {
+  plan.detailedUntilWeek = 2;
+  plan.recalibrationDates = recal;
+  plan.weeks = plan.weeks.map((w) => w.n <= 2 ? w
+    : { n: w.n, start: w.start, phase: w.phase, weekType: w.weekType, deload: w.deload, focus: w.focus, placeholder: true, plannedKm: w.plannedKm });
+});
+const routePlan = (ctx, json) => ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ contentType: "application/json", body: json }));
+const weekStripTexts = (page) => page.locator('[data-card="week"] .sd-wd .sd-vh').allTextContents();
+
+// 35a. Ruhetag mit "Morgen"-Zeile (antippbar) und ohne (morgen ebenfalls Ruhe)
+{
+  scenario("35a");
+  const { page, ctx, errors } = await newPage({ now: "2026-09-11T09:00:00Z" }); // Fr = Ruhe, Sa = Long run 13 km
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector(`${TODAY}[data-kind="rest"]`);
+  const rest = await page.textContent(TODAY);
+  ok(rest.includes("Heute · Ruhe") && rest.includes("Ruhetag") && rest.includes("Mobility"), "Ruhetag: Karte mit Hinweistext");
+  const next = page.locator(`${TODAY} button[data-action="open-day"]`);
+  ok((await next.getAttribute("data-date")) === "2026-09-12" && (await next.textContent()).includes("Morgen") && (await next.textContent()).includes("Long run · 13 km"),
+    "Ruhetag: 'Morgen' nennt den Long Run und führt zum morgigen Tag");
+  await next.click();
+  await page.waitForSelector("#header h1");
+  ok((await page.textContent("#header h1")) === "Lauf" && (await page.textContent('#header [data-action="back"]')).includes("Heute"),
+    "Ruhetag: 'Morgen' öffnet den Lauf-Tag, Zurück heißt 'Heute'");
+  ok(errors.length === 0, "Ruhetag: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+
+  // Abgeleiteter Plan: der Long Run am Samstag entfällt, morgen ist ebenfalls Ruhe.
+  const two = await newPage({ now: "2026-09-11T09:00:00Z" });
+  await routePlan(two.ctx, derivedPlan((plan) => {
+    plan.weeks[1].sessions = plan.weeks[1].sessions.filter((s) => s.date !== "2026-09-12");
+  }));
+  await two.page.goto(BASE + "/index.html");
+  await two.page.waitForSelector(`${TODAY}[data-kind="rest"]`);
+  ok((await two.page.textContent(TODAY)).includes("Morgen") && (await two.page.textContent(TODAY)).includes("Ruhetag") &&
+     (await two.page.locator(`${TODAY} [data-action]`).count()) === 0,
+    "Ruhetag: ist morgen auch Ruhe, steht die Zeile ohne Knopf da");
+  await two.ctx.close();
+}
+
+// 35b. Long Run: eigene Art, "im Plan" bei 12,0 von 12 km
+{
+  scenario("35b");
+  const { page, ctx } = await newPage({ connected: true, now: "2026-09-05T09:00:00Z" }); // Sa W1 = Long run 12 km
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector(`${TODAY}[data-kind="long"] .sd-result`);
+  const long = await page.textContent(TODAY);
+  ok(long.includes("Heute · Long run") && long.includes("12,0") && long.includes("im Plan"), "Long Run: Karte der Art 'long' mit Ist-Wert und 'im Plan'");
+  ok(!long.includes("nachgeholt"), "Long Run: exakter Treffer ist nicht 'nachgeholt'");
+  await ctx.close();
+}
+
+// 35c. Urteil zur Distanz: 89 % ist "zu kurz", 90 % ist "im Plan" (F8, THRESHOLDS.lauf.zuKurz)
+for (const [meters, want, notWant, label] of [[7120, "zu kurz", "im Plan", "89 %"], [7200, "im Plan", "zu kurz", "90 %"]]) {
+  scenario("35c");
+  const acts = [{ id: 1, type: "Run", name: "Easy run", start_date_local: "2026-09-07T07:10:00Z", distance: meters, moving_time: 3000, average_heartrate: 150 }];
+  const { page, ctx } = await newPage({ connected: true, activities: acts });
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector(`${TODAY} .sd-result`);
+  const res = await page.textContent(`${TODAY} .sd-result`);
+  ok(res.includes(want) && !res.includes(notWant), `Lauf-Urteil: ${label} von 8 km heißt '${want}' (${res.replace(/\s+/g, " ").trim()})`);
+  await ctx.close();
+}
+
+// 35d. Nachgeholt: der Lauf vom Donnerstag gehört zum Mittwochs-Termin
+{
+  scenario("35d");
+  const { page, ctx } = await newPage({ connected: true, now: "2026-09-09T09:00:00Z" }); // Mi = Easy run + 4x20s
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector(`${TODAY} .sd-result`);
+  const res = await page.textContent(`${TODAY} .sd-result`);
+  ok(res.includes("nachgeholt") && res.includes("8,1") && res.includes("Nachgeholt"), `Nachgeholt: Pille, Distanz und Laufname (${res.replace(/\s+/g, " ").trim()})`);
+  await ctx.close();
+}
+
+// 35e. Platzhalterwoche: keine erfundenen Einheiten, ehrlicher Satz, Slot "Diese Woche" leer
+for (const [recal, wantText, label] of [
+  [["2026-09-30"], ["stehen ab dem 30.09. fest", "Geplant sind 32 km"], "mit Re-Kalibrierungsdatum"],
+  [[], ["stehen nach der Re-Kalibrierung fest"], "ohne bekanntes Datum"],
+]) {
+  scenario("35e");
+  const { page, ctx, errors } = await newPage({ now: "2026-09-16T09:00:00Z" }); // Mi W3
+  await routePlan(ctx, placeholderPlanJSON(recal));
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector(`${TODAY}[data-kind="placeholder"]`);
+  const txt = await page.textContent(TODAY);
+  ok(wantText.every((t) => txt.includes(t)), `Platzhalterwoche (${label}): Text nennt Datum und Kilometer bzw. kürzere Fassung (${txt.replace(/\s+/g, " ").trim()})`);
+  ok((await page.locator(`${TODAY} [data-action]`).count()) === 0 && (await page.textContent("#header")).includes("Woche 3 · Aufbau"),
+    `Platzhalterwoche (${label}): Karte ohne Knopf, Kopf nennt die Woche`);
+  await waitStatusLoaded(page);
+  ok((await slotIsEmpty(page, "week-slot")) && (await statusRows(page)).every((r) => r.status === "grau") &&
+     (await statusByTitle(page))["Wochensoll"].detail === "Woche ohne Details",
+    `Platzhalterwoche (${label}): 'Diese Woche' leer, Status grau mit Grund`);
+  ok(errors.length === 0, `Platzhalterwoche (${label}): keine Konsolenfehler ` + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// 35f. "Diese Woche": sieben Tage mit Zustand, Volumen, Tipp öffnet Woche; kein style-Attribut (C5)
+{
+  scenario("35f");
+  // Do 10.09.: Mo erledigt (Lauf), Di verpasst (Kraft ohne Log), Mi erledigt (nachgeholt), Do heute.
+  const { page, ctx, errors } = await newPage({ connected: true, now: "2026-09-10T09:00:00Z" });
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector('[data-card="week"]');
+  ok((await page.locator('[data-card="week"] .sd-wd').count()) === 7, "Diese Woche: immer sieben Tage");
+  const strip = await weekStripTexts(page);
+  ok(JSON.stringify(strip) === JSON.stringify([
+    "Montag, Lauf 8 km, erledigt", "Dienstag, Kraft A, verpasst", "Mittwoch, Lauf 8 km, erledigt",
+    "Donnerstag, Kraft B, offen, heute", "Freitag, Ruhetag", "Samstag, Long Run 13 km, offen", "Sonntag, Ruhetag",
+  ]), `Diese Woche: Zustand je Tag für Screenreader (${JSON.stringify(strip)})`);
+  ok((await page.locator('[data-card="week"] .sd-wd.is-done').count()) === 2 && (await page.locator('[data-card="week"] .sd-wd.is-missed').count()) === 1 &&
+     (await page.locator('[data-card="week"] .sd-wd.is-today').count()) === 1 && (await page.locator('[data-card="week"] .sd-wd--long').count()) === 1,
+    "Diese Woche: erledigt, verpasst, heute und Long Run sind unterscheidbar markiert");
+  const bar = page.locator('[data-card="week"] progress');
+  ok((await bar.getAttribute("value")) === "16.1" && (await bar.getAttribute("max")) === "29" &&
+     (await page.textContent('[data-card="week"]')).includes("16,1 / 29 km"),
+    "Diese Woche: Laufvolumen als <progress> mit Punkt im Attribut und Komma im Text (16,1 / 29 km)");
+  ok((await styleAttrCount(page)) === 0, "Heute mit allen Karten: kein style-Attribut im Markup (C5)");
+  await page.click('[data-action="go-tab"][data-tab="woche"]');
+  await page.waitForSelector(".week-summary");
+  ok((await page.locator("#tabbar button.active").getAttribute("data-tab")) === "woche" && (await page.textContent("#header .t1")).includes("Woche 2"),
+    "Diese Woche: Tipp auf die Karte öffnet den Tab Woche (aktuelle Woche), die Tab-Leiste folgt");
+  ok(errors.length === 0, "Diese Woche: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+
+  // Dasselbe mit vollständig erfasstem Dienstag: erledigt statt verpasst.
+  const full = await newPage({ connected: true, now: "2026-09-10T09:00:00Z" });
+  await full.page.addInitScript(() => {
+    const logs = {};
+    for (const ex of ["squats", "deadlift", "nordic-hamstring-curl", "klimmzuege", "brustpresse", "soleus-raises", "pallof-press", "planks-wechselnd"]) {
+      logs["2026-09-08_" + ex] = { date: "2026-09-08", exercise: ex, name: ex, soll: "3x5", topKg: 40, totalReps: 15, completed: true, sets: [{ kg: 40, reps: 5 }] };
+    }
+    localStorage.setItem("test.logs", JSON.stringify(logs));
+  });
+  await full.page.goto(BASE + "/index.html");
+  await full.page.waitForSelector('[data-card="week"]');
+  const strip2 = await weekStripTexts(full.page);
+  ok(strip2[1] === "Dienstag, Kraft A, erledigt" && (await full.page.locator('[data-card="week"] .sd-wd.is-missed').count()) === 0 &&
+     (await full.page.locator('[data-card="week"] .sd-wd.is-done').count()) === 3,
+    `Diese Woche: voll erfasster Krafttag ist erledigt, nichts verpasst (${strip2[1]})`);
+  await full.ctx.close();
+}
+
+// 35g. Fremder Text auf Heute läuft durch esc(): Strava-Laufname
+{
+  scenario("35g");
+  const acts = [{ id: 1, type: "Run", name: '<img src=x onerror="window.__xss=1">', start_date_local: "2026-09-07T07:10:00Z", distance: 8000, moving_time: 3000, average_heartrate: 150 }];
+  const { page, ctx, errors } = await newPage({ connected: true, activities: acts });
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector(`${TODAY} .sd-result`);
+  ok((await page.textContent(`${TODAY} .sd-result__name`)).includes("<img src=x") && (await page.evaluate(() => window.__xss)) === undefined &&
+     (await page.locator(`${TODAY} .sd-result img`).count()) === 0,
+    "Heute: Laufname aus Strava wird als Text angezeigt, nicht ausgeführt");
+  ok(errors.length === 0, "Heute Escaping: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
 // ---- 3. Woche: Navigation, Tag öffnen (M2-7: neue Tagesliste statt Grid) ----
 {
+  scenario("3");
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
   await goTab(page, "woche");
@@ -681,6 +912,7 @@ async function noHScroll(page, where) {
 
 // ---- 4. Kraft eintragen, speichern, nach Reload noch da ----
 {
+  scenario("4");
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
   await goTab(page, "woche");
@@ -727,6 +959,7 @@ async function noHScroll(page, where) {
 
 // ---- 5. Verlauf ----
 {
+  scenario("5");
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.addInitScript(() => {
     localStorage.setItem("test.logs", JSON.stringify({
@@ -763,6 +996,7 @@ async function noHScroll(page, where) {
 
 // ---- 6. Plan-Tab ----
 {
+  scenario("6");
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
   await goTab(page, "plan");
@@ -788,6 +1022,7 @@ async function noHScroll(page, where) {
 
 // ---- 7. Zeitzonen-Regression: 00:30 Berlin = Vortag in UTC ----
 {
+  scenario("7");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -801,7 +1036,7 @@ async function noHScroll(page, where) {
   await page.clock.setFixedTime(new Date("2026-09-08T22:30:00Z")); // = 09.09. 00:30 Berlin
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#header h1");
-  const eyebrow = await page.textContent("#header .eyebrow");
+  const eyebrow = await page.textContent("#header h1");
   ok(eyebrow.includes("Mittwoch") && eyebrow.includes("9. September"),
      `Zeitzone: 00:30 Berlin zeigt den 09.09. (war: "${eyebrow.trim()}")`);
   await ctx.close();
@@ -809,6 +1044,7 @@ async function noHScroll(page, where) {
 
 // ---- 8. Worker nicht konfiguriert -> klarer Hinweis statt Hänger ----
 {
+  scenario("8");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -841,6 +1077,7 @@ async function noHScroll(page, where) {
 
 // ---- 10. Übungen anpassen: entfernen, hinzufügen, zurückholen ----
 {
+  scenario("10");
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
   await goTab(page, "woche");
@@ -923,6 +1160,7 @@ async function noHScroll(page, where) {
 
 // ---- 9. Firestore verweigert Zugriff: als Firebase-Problem erkennbar ----
 {
+  scenario("9");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -997,6 +1235,7 @@ async function noHScroll(page, where) {
 
 // ---- 11. Verschobener Lauf: Mittwoch geplant, Donnerstag gelaufen ----
 {
+  scenario("11");
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
   await goTab(page, "woche");
@@ -1058,6 +1297,7 @@ async function noHScroll(page, where) {
 
 // ---- 12. Tableiste klebt unten (Tab-Seite mit langem Inhalt) + Detailseiten ohne Leiste ----
 {
+  scenario("12");
   const { page, ctx } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
   await goTab(page, "plan"); // lange Liste (35 Wochen)
@@ -1117,6 +1357,7 @@ async function noHScroll(page, where) {
 
 // ---- 13. Progression aus den Wiederholungen statt RPE ----
 {
+  scenario("13");
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.addInitScript(() => {
     // Vorwoche: Squats 3x10 bei 80 kg (Spanne voll), Deadlift 3x4 (unter Soll 3x5)
@@ -1167,6 +1408,7 @@ async function noHScroll(page, where) {
 
 // ---- 14. Übung im Gym ersetzen und schnell ergänzen ----
 {
+  scenario("14");
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
   await goTab(page, "woche");
@@ -1223,6 +1465,7 @@ async function noHScroll(page, where) {
 
 // ---- 15. Glasleiste ----
 {
+  scenario("15");
   const { page, ctx } = await newPage();
   await page.goto(BASE + "/index.html");
   await goTab(page, "plan"); // Tab-Seite mit langem Inhalt (Detailseiten haben keine Leiste)
@@ -1273,6 +1516,7 @@ async function noHScroll(page, where) {
 
 // ---- 16. Nur senkrecht scrollen, nichts zoomt ungefragt ----
 {
+  scenario("16");
   const { page, ctx } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
 
@@ -1323,6 +1567,7 @@ async function noHScroll(page, where) {
 
 // ---- 17. Plan-JSON 404, aber eine gültige Kopie in localStorage (A1) ----
 {
+  scenario("17");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -1342,7 +1587,7 @@ async function noHScroll(page, where) {
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#toast.show");
   ok((await page.textContent("#toast")).includes("Plan aus letzter Kopie"), "Plan-404 mit Kopie: dezenter Hinweis erscheint");
-  ok((await page.textContent("#header h1")) === "Woche 2 · Aufbau", "Plan-404 mit Kopie: App läuft normal weiter (Lauftag erkannt)");
+  ok((await page.textContent("#header")).includes("Woche 2 · Aufbau"), "Plan-404 mit Kopie: App läuft normal weiter (Lauftag erkannt)");
 
   // Satz-Logging funktioniert weiterhin mit der Kopie
   await goTab(page, "woche");
@@ -1359,6 +1604,7 @@ async function noHScroll(page, where) {
 
 // ---- 18. Plan-JSON 404, keine Kopie vorhanden (A1) ----
 {
+  scenario("18");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -1382,6 +1628,7 @@ async function noHScroll(page, where) {
 
 // ---- 19. Plan-JSON kaputt (kein gültiges JSON) — wie 404 behandelt ----
 {
+  scenario("19");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -1402,6 +1649,7 @@ async function noHScroll(page, where) {
 
 // ---- 19b. Plan-JSON 404 + Kopie mit passender schemaVersion, aber ungültiger Form (K1) ----
 {
+  scenario("19b");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -1428,6 +1676,7 @@ async function noHScroll(page, where) {
 
 // ---- 20. Simuliertes Datum in der Rennlücke -> "Bis zum Rennen" (A8/E7) ----
 {
+  scenario("20");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -1451,10 +1700,15 @@ async function noHScroll(page, where) {
   await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(gapPlan) }));
   await page.clock.setFixedTime(new Date("2027-05-05T09:00:00Z")); // 05.05.2027 Berlin
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#header h1");
-  ok((await page.textContent("#header h1")) === "Bis zum Rennen", "Rennlücke: kein 'Woche 35', Zustand 'Bis zum Rennen'");
+  await page.waitForSelector(`${TODAY}[data-kind="race"]`);
+  ok((await page.textContent("#header")).includes("Zwischen zwei Planwochen") && !(await page.textContent("#header")).includes("Woche 35"),
+     "Rennlücke: kein 'Woche 35', Kopf sagt 'Zwischen zwei Planwochen'");
   ok((await page.textContent("#today-slot")).includes("Der Plan endet vor dem Renntag"),
      "Rennlücke: 'Heute dran' zeigt die neutrale Karte statt einer erfundenen Einheit");
+  ok((await page.getByRole("heading", { name: "Bis zum Rennen" }).count()) === 1 && (await page.locator("#header progress, #header .sd-chip").count()) === 0,
+     "Rennlücke: Karte 'Bis zum Rennen' als Überschrift, Kopf ohne Chip und Balken");
+  ok((await slotIsEmpty(page, "week-slot")) && (await page.locator('[data-card="week"]').count()) === 0,
+     "Rennlücke: der Slot 'Diese Woche' bleibt wirklich leer");
   await shot(page, "21-bis-zum-rennen");
   ok(errors.length === 0, "Rennlücke: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -1462,6 +1716,7 @@ async function noHScroll(page, where) {
 
 // ---- 21. Datum nach dem Renntag -> "Kein aktiver Plan" (A8/E7) ----
 {
+  scenario("21");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -1480,16 +1735,24 @@ async function noHScroll(page, where) {
   await page.clock.setFixedTime(new Date("2027-05-03T09:00:00Z")); // Tag nach dem Rennen (So 02.05.2027)
   await page.addInitScript(() => localStorage.setItem("hm-tracker.workerUrl", "https://worker.test"));
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#header h1");
-  ok((await page.textContent("#header h1")) === "Kein aktiver Plan", "Nach dem Rennen: 'Kein aktiver Plan'");
+  await page.waitForSelector(`${TODAY}[data-kind="noplan"]`);
+  ok((await page.textContent("#header")).includes("Ohne Plan"), "Nach dem Rennen: Kopf sagt 'Ohne Plan'");
   await page.waitForTimeout(300);
   ok(coachRequests === 0, `Nach dem Rennen: kein Coach-API-Aufruf (F7, gezählt: ${coachRequests})`);
-  ok((await page.textContent("#header .countdown")).includes("Rennen am 02.05.2027"),
+  ok((await page.textContent("#header")).includes("Rennen am 02.05.2027"),
      "Nach dem Rennen: Kopfzeile nennt das vergangene Renndatum");
-  ok((await page.textContent("#today-slot")).includes("Läufe werden weiter aus Strava gezeigt"),
+  ok((await page.textContent("#today-slot")).includes("Läufe werden weiter aus Strava angezeigt"),
      "Nach dem Rennen: 'Heute dran' zeigt die neutrale Karte (F7)");
   ok((await page.textContent("#coach-slot")).includes("Ein neues Ziel legst du im Plan-Tab an"),
      "Nach dem Rennen: Coach zeigt einen festen Hinweis statt eines API-Aufrufs (F7)");
+  ok((await slotIsEmpty(page, "week-slot")) && (await statusRows(page)).length === 4,
+     "Nach dem Rennen: 'Diese Woche' bleibt leer, die Status-Zeilen stehen mit Grund (grau)");
+  // go-tab: "Zum Plan" macht dasselbe wie ein Klick auf den Tab.
+  await page.click(`${TODAY} [data-action="go-tab"][data-tab="plan"]`);
+  await page.waitForSelector(".zone-line");
+  ok((await page.locator("#tabbar button.active").getAttribute("data-tab")) === "plan", "Nach dem Rennen: 'Zum Plan' öffnet den Plan-Tab, die Tab-Leiste folgt");
+  await goTab(page, "dashboard");
+  await page.waitForSelector(`${TODAY}[data-kind="noplan"]`);
   await shot(page, "22-kein-plan");
   ok(errors.length === 0, "Nach dem Rennen: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -1497,17 +1760,20 @@ async function noHScroll(page, where) {
 
 // ---- 20b. Der Renntag liegt jetzt in Woche 35, keine Rennlücke mehr ----
 {
+  scenario("20b");
   const { page, ctx, errors } = await newPage({ now: "2027-05-02T09:00:00Z" }); // Renntag, So 02.05.2027
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#header h1");
-  ok((await page.textContent("#header h1")).startsWith("Woche 35"), "Renntag: Dashboard zeigt Woche 35, nicht 'Bis zum Rennen'");
-  ok((await page.textContent("#header .countdown")).includes("Rennen heute"), "Renntag: Countdown 'Rennen heute!'");
+  await page.waitForSelector(TODAY);
+  ok((await page.textContent("#header")).includes("Woche 35") && (await page.locator(`${TODAY}[data-kind="race"]`).count()) === 0,
+     "Renntag: Dashboard zeigt Woche 35, nicht 'Bis zum Rennen'");
+  ok((await page.textContent("#header")).includes("Rennen heute"), "Renntag: Countdown 'Rennen heute!'");
   ok(errors.length === 0, "Renntag: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
 // ---- 22. Datum vor Planstart -> Woche 1, nicht Woche 31 (I3) ----
 {
+  scenario("22");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -1520,8 +1786,8 @@ async function noHScroll(page, where) {
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-08-25T09:00:00Z")); // vor Planstart 31.08.2026
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#header h1");
-  ok((await page.textContent("#header h1")) === "Kein aktiver Plan", "Vor Planstart: 'Kein aktiver Plan' auf 'Heute'");
+  await page.waitForSelector(`${TODAY}[data-kind="noplan"]`);
+  ok((await page.textContent("#header")).includes("Ohne Plan") && (await page.textContent(TODAY)).includes("Kein Plan aktiv"), "Vor Planstart: 'Kein Plan aktiv' auf 'Heute'");
 
   await goTab(page, "woche");
   await page.waitForSelector(".day-row, .card");
@@ -1536,6 +1802,7 @@ async function noHScroll(page, where) {
 
 // ---- 23. Die Kopie wird beim normalen Laden wirklich geschrieben (I2) ----
 {
+  scenario("23");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -1552,7 +1819,7 @@ async function noHScroll(page, where) {
   // nur behaupten, das zu tun: dieser Test belegt localStorage NICHT
   // vorab, anders als die 404-Tests weiter oben).
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#main .card");
+  await page.waitForSelector('#main [data-card="today"]');
   const stored = await page.evaluate(() => localStorage.getItem("hm-tracker.plan.hm-2027"));
   ok(!!stored, "Normales Laden: es landet wirklich eine Kopie in localStorage");
   ok(!!stored && JSON.parse(stored).id === "hm-2027", "Geschriebene Kopie hat die erwartete Form (id hm-2027)");
@@ -1563,12 +1830,13 @@ async function noHScroll(page, where) {
   await page.reload();
   await page.waitForSelector("#toast.show");
   ok((await page.textContent("#toast")).includes("Plan aus letzter Kopie"), "Nach 404: die selbst geschriebene Kopie greift beim Reload wirklich");
-  ok((await page.textContent("#header h1")) === "Woche 2 · Aufbau", "Nach 404 mit echter Kopie: App läuft normal weiter");
+  ok((await page.textContent("#header")).includes("Woche 2 · Aufbau"), "Nach 404 mit echter Kopie: App läuft normal weiter");
   await ctx.close();
 }
 
 // ---- 24. Kopie mit fremder schemaVersion wird ignoriert (I2) ----
 {
+  scenario("24");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -1593,6 +1861,7 @@ async function noHScroll(page, where) {
 
 // ---- 25. Plan-Hinweis und Strava-Redirect gleichzeitig -> beide Hinweise sichtbar (M4) ----
 {
+  scenario("25");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -1627,6 +1896,7 @@ async function noHScroll(page, where) {
 // fehlenden CORS-Headers, bevor JS den Status sieht) — fetch() wirft in
 // beiden Fällen dieselbe TypeError. route.abort() simuliert genau das.
 {
+  scenario("26");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Sicherheitsnetz (M2-9/M2-10): verhindert einen echten Netzwerkaufruf an
   // den produktiven Worker, falls dieser Testkontext keine eigene
@@ -1681,6 +1951,7 @@ for (const [fail, want, notWant, label] of [
 // auf. Ohne ein gemerktes In-Flight-Promise lösen diese fünf parallelen
 // Aufrufe fünf echte Abrufe von /athlete/activities aus.
 {
+  scenario("27");
   const { page, ctx, errors } = await newPage({ connected: true });
   let activityCalls = 0;
   await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => {
@@ -1689,8 +1960,8 @@ for (const [fail, want, notWant, label] of [
     r.fulfill({ contentType: "application/json", body: JSON.stringify(p === "1" ? ACTIVITIES : []) });
   });
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#today-slot .metric-value");
-  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
+  await page.waitForSelector(`${TODAY} .sd-result`);
+  await waitStatusLoaded(page);
   await page.waitForTimeout(300); // Zeit für eventuelle, fälschlich parallele Abrufe
   ok(activityCalls === 1, `loadStrava: genau ein Abruf von /athlete/activities pro Dashboard-Start, nicht fünf (${activityCalls})`);
   ok(errors.length === 0, "loadStrava-Dedup: keine Konsolenfehler " + JSON.stringify(errors));
@@ -1699,6 +1970,7 @@ for (const [fail, want, notWant, label] of [
 
 // ---- 28. Strava verbunden, aber der Abruf schlägt fehl -> Lauf-Ampeln grau statt falschem Rot, keine Wochenbilanz-Anfrage (I2) ----
 {
+  scenario("28");
   const { page, ctx } = await newPage({ connected: true });
   await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => r.fulfill({ status: 500, body: "boom" }));
   const coachKinds = [];
@@ -1713,19 +1985,17 @@ for (const [fail, want, notWant, label] of [
   // (weeklyDue), wäre ohne den I2-Fix also auch hier ausgelöst worden.
   await page.clock.setFixedTime(new Date("2026-09-17T09:00:00Z"));
   await page.goto(BASE + "/index.html");
-  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
-  const tiles = await page.locator("#ampel-slot .ampel-tile").evaluateAll((els) =>
-    els.map((el) => ({
-      title: el.querySelector(".title").textContent.trim(),
-      status: [...el.querySelector(".ampel-dot").classList].find((c) => c.startsWith("st-")),
-      detail: el.querySelector(".detail")?.textContent.trim(),
-    })));
-  const byTitle = Object.fromEntries(tiles.map((t) => [t.title, t]));
-  ok(byTitle["Wochensoll"].status !== "st-rot", `Ampel Wochensoll: ohne Strava-Daten nicht fälschlich rot (${byTitle["Wochensoll"].status})`);
+  await waitStatusLoaded(page);
+  const byTitle = await statusByTitle(page);
+  ok(byTitle["Wochensoll"].status !== "rot", `Ampel Wochensoll: ohne Strava-Daten nicht fälschlich rot (${byTitle["Wochensoll"].status})`);
   ok((byTitle["Wochensoll"].detail || "").includes("Lauf: Strava fehlt"), `Ampel Wochensoll: benennt die fehlende Quelle statt "0 / 0 km" (${byTitle["Wochensoll"].detail})`);
-  ok(byTitle["Easy-Disziplin"].status === "st-grau", `Ampel Easy-Disziplin: grau bei Strava-Abrufsfehler statt falschem Rot (${byTitle["Easy-Disziplin"].status})`);
-  ok(byTitle["Belastung"].status === "st-grau", `Ampel Belastung: grau bei Strava-Abrufsfehler statt falschem Rot (${byTitle["Belastung"].status})`);
-  await page.waitForSelector("#coach-slot .coach-card");
+  ok(byTitle["Easy-Disziplin"].status === "grau", `Ampel Easy-Disziplin: grau bei Strava-Abrufsfehler statt falschem Rot (${byTitle["Easy-Disziplin"].status})`);
+  ok(byTitle["Belastung"].status === "grau", `Ampel Belastung: grau bei Strava-Abrufsfehler statt falschem Rot (${byTitle["Belastung"].status})`);
+  // Der Ladefehler steht als Fehlerkarte im Banner-Slot (mit "Neu laden"); die Lauf-Karte zeigt keinen Ist-Block.
+  ok((await page.locator('#banner-slot [data-card="error"][data-source="strava"][role="alert"] [data-action="reload-strava"]').count()) === 1 &&
+     (await page.locator(`${TODAY} [role="status"]`).count()) === 0 && (await page.locator('#banner-slot [data-card="strava-disconnected"]').count()) === 0,
+    "Strava-Abrufsfehler: Fehlerbanner mit 'Neu laden' statt 'nicht verbunden', Lauf-Karte ohne Ist-Block");
+  await page.waitForSelector(COACH);
   await page.waitForTimeout(500); // Zeit für eine mögliche (falsche) Wochenbilanz-Anfrage
   ok(!coachKinds.includes("weekly"), `Wochenbilanz: keine Anfrage ohne echte Strava-Daten (${JSON.stringify(coachKinds)})`);
   await ctx.close();
@@ -1733,6 +2003,7 @@ for (const [fail, want, notWant, label] of [
 
 // ---- 29. Firestore-Ausfall (Logs/Dayplans/Coach) -> Kraft-Ampel grau, Rest rechnet normal, Coach zeigt Text statt Dauer-Skelett (I1) ----
 {
+  scenario("29");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   // Nur die Logs-/Dayplan-/Coach-Pfade fallen aus — Strava bleibt bewusst
   // funktionsfähig, damit sich I1 (Firestore) sauber von I2 (Strava) trennen
@@ -1781,32 +2052,26 @@ for (const [fail, want, notWant, label] of [
   await page.addInitScript(() => localStorage.setItem("hm-tracker.workerUrl", "https://worker.test"));
   await page.goto(BASE + "/index.html");
 
-  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
-  const tiles = await page.locator("#ampel-slot .ampel-tile").evaluateAll((els) =>
-    els.map((el) => ({
-      title: el.querySelector(".title").textContent.trim(),
-      status: [...el.querySelector(".ampel-dot").classList].find((c) => c.startsWith("st-")),
-      detail: el.querySelector(".detail")?.textContent.trim(),
-    })));
-  const byTitle = Object.fromEntries(tiles.map((t) => [t.title, t]));
-  ok(byTitle["Kraft-Progression"].status === "st-grau", `Firestore-Ausfall: Kraft-Ampel grau (${byTitle["Kraft-Progression"].status})`);
+  await waitStatusLoaded(page);
+  const byTitle = await statusByTitle(page);
+  ok(byTitle["Kraft-Progression"].status === "grau", `Firestore-Ausfall: Kraft-Ampel grau (${byTitle["Kraft-Progression"].status})`);
   ok(byTitle["Kraft-Progression"].detail === "Kraftdaten nicht geladen",
      `Firestore-Ausfall: eigener Hinweistext statt "noch zu wenig Daten" (${byTitle["Kraft-Progression"].detail})`);
-  ok(["st-gruen", "st-gelb", "st-rot"].includes(byTitle["Easy-Disziplin"].status),
+  ok(["gruen", "gelb", "rot"].includes(byTitle["Easy-Disziplin"].status),
      `Firestore-Ausfall: Easy-Disziplin rechnet weiter normal statt grau zu werden (${byTitle["Easy-Disziplin"].status})`);
 
-  // "Im Detail": Adhärenz-Kachel grau/"nicht geladen", Volumen + Effizienz rendern trotzdem.
-  await page.waitForSelector("#detail-slot .si-bar-col");
-  const detailTxt = await page.textContent("#detail-slot");
-  ok(detailTxt.includes("Adhärenz 4 Wo.") && detailTxt.includes("Daten nicht geladen"),
-     `Firestore-Ausfall: Adhärenz-Kachel zeigt "Daten nicht geladen" statt einer falschen 0%-Zahl (${detailTxt})`);
+  // Statt der alten Adhärenz-Kachel ("Im Detail", F3) meldet jetzt ein Fehlerbanner den Ausfall.
+  await page.waitForSelector('#banner-slot [data-card="error"][data-source="firebase"]');
+  ok((await page.locator('#banner-slot [data-card="error"][data-source="firebase"][role="alert"] [data-action="reload"]').count()) === 1 &&
+     (await page.textContent('#banner-slot [data-card="error"]')).includes("Daten nicht geladen"),
+     "Firestore-Ausfall: Fehlerbanner 'Daten nicht geladen' mit 'Neu laden' statt einer falschen 0%-Zahl");
 
   // Coach: direkter Regel-Fallback, kein dauerhaftes Skelett (requestCoach()
   // würde ohnehin an loadCoach() scheitern — fillCoach spart sich den
   // Umweg und zeigt den Fallback sofort).
-  await page.waitForSelector("#coach-slot .coach-card");
-  await page.waitForFunction(() => (document.querySelector("#coach-slot .text")?.textContent.length ?? 0) > 0, { timeout: 5000 });
-  ok((await page.locator("#coach-slot .skel").count()) === 0, "Firestore-Ausfall: kein dauerhaftes Coach-Skelett");
+  await page.waitForSelector(COACH);
+  await page.waitForFunction(() => (document.querySelector('#coach-slot [data-card="coach"] .sd-coach__text')?.textContent.length ?? 0) > 0, { timeout: 5000 });
+  ok((await page.locator('#coach-slot [data-state="loading"], #coach-slot .sd-skel').count()) === 0, "Firestore-Ausfall: kein dauerhaftes Coach-Skelett");
 
   await noHScroll(page, "Firestore-Ausfall");
   ok(pageErrors.length === 0, "Firestore-Ausfall: keine unbehandelten Fehler " + JSON.stringify(pageErrors));
@@ -1815,6 +2080,7 @@ for (const [fail, want, notWant, label] of [
 
 // ---- 30. Strava-Paginierung: 200 + 13 Aktivitäten -> genau 2 Seiten (A6, I5) ----
 {
+  scenario("30");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
@@ -1845,7 +2111,7 @@ for (const [fail, want, notWant, label] of [
       refresh_token: "rt", access_token: "at", expires_at: Math.floor(Date.now() / 1000) + 3600 }));
   });
   await page.goto(BASE + "/index.html");
-  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
+  await waitStatusLoaded(page);
   await page.waitForTimeout(300);
   ok(activityCalls === 2, `Strava-Paginierung: 200+13 Aktivitäten brauchen genau 2 Seiten (${activityCalls})`);
   ok(errors.length === 0, "Strava-Paginierung: keine Konsolenfehler " + JSON.stringify(errors));
@@ -1854,6 +2120,7 @@ for (const [fail, want, notWant, label] of [
 
 // ---- 24. Plan-Phase 2: Woche 9 (Kalibrierungstest, optionale Kraft), 35 Wochen ----
 {
+  scenario("24p");
   // Montag 02.11.2026 = Woche 10; Woche 9 (26.10.–01.11.) liegt komplett in der Vergangenheit.
   // Der Kalibrierungstest (Mi 28.10.) läuft mit Ø HF 178 — weit über jeder Easy-Grenze.
   const acts = [
@@ -1863,12 +2130,10 @@ for (const [fail, want, notWant, label] of [
   ];
   const { page, ctx, errors } = await newPage({ connected: true, activities: acts, now: "2026-11-02T09:00:00Z" });
   await page.goto(BASE + "/index.html");
-  await page.waitForFunction(() => !document.querySelector("#ampel-slot .ampel-dot")?.classList.contains("st-loading"));
-  const tiles = await page.locator("#ampel-slot .ampel-tile").evaluateAll((els) =>
-    Object.fromEntries(els.map((el) => [el.querySelector(".title").textContent.trim(),
-      [...el.querySelector(".ampel-dot").classList].find((c) => c.startsWith("st-"))])));
-  ok(tiles["Easy-Disziplin"] === "st-gruen",
-    `Test-Lauf mit Ø HF 178 verfälscht die Easy-Disziplin nicht (${tiles["Easy-Disziplin"]})`);
+  await waitStatusLoaded(page);
+  const tiles = await statusByTitle(page);
+  ok(tiles["Easy-Disziplin"].status === "gruen",
+    `Test-Lauf mit Ø HF 178 verfälscht die Easy-Disziplin nicht (${tiles["Easy-Disziplin"].status})`);
 
   await goTab(page, "woche");
   await page.waitForSelector(".day-row");
@@ -1936,6 +2201,7 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
 
 // 30a. Abgemeldet: Anmeldebildschirm, keine Tableiste, 0 Firestore-Aufrufe
 {
+  scenario("30a");
   const { page, ctx, errors } = await authPage("signedOut");
   await page.waitForSelector('form[data-form="login"]');
   ok((await page.textContent("#header h1")) === "Anmelden", "Login: Überschrift 'Anmelden'");
@@ -1955,7 +2221,7 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
     els.map((el) => parseFloat(getComputedStyle(el).fontSize)));
   ok(sizes.length === 2 && sizes.every((n) => n >= 16), `Login: Felder mindestens 16px (${sizes})`);
   ok((await page.locator("#tabbar").isVisible()) === false, "Login: keine Tableiste ohne Anmeldung");
-  ok((await page.locator(".today-card").count()) === 0, "Login: kein Dashboard-Inhalt ohne Anmeldung");
+  ok((await page.locator('[data-card="today"]').count()) === 0, "Login: kein Dashboard-Inhalt ohne Anmeldung");
   await page.waitForTimeout(300);
   ok((await fsCalls(page)) === 0, "Login: abgemeldet = 0 Firestore-Aufrufe");
   await shot(page, "30a-login");
@@ -1972,6 +2238,7 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
 
 // 30b. Anmelden: Erfolg führt ins Dashboard, Fehler bleiben im Formular
 {
+  scenario("30b");
   const { page, ctx, errors } = await authPage("signedOut", { flags: { __SIGNIN_FAIL__: "auth/invalid-credential" } });
   await page.waitForSelector('form[data-form="login"]');
   await page.click('form[data-form="login"] button[type="submit"]');
@@ -1987,16 +2254,17 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   await page.evaluate(() => { window.__SIGNIN_FAIL__ = null; });
   await page.fill('input[name="password"]', "richtig");
   await page.click('form[data-form="login"] button[type="submit"]');
-  await page.waitForSelector("#main .today-card");
+  await page.waitForSelector('#main [data-card="today"]');
   ok((await page.evaluate(() => window.__SIGNIN_ARGS__)).join("|") === "louis@example.test|richtig", "Login: Zugangsdaten gehen unverändert an signIn");
   ok(await page.locator("#tabbar").isVisible(), "Login: nach dem Anmelden erscheint die Tableiste");
-  ok((await page.textContent("#header h1")).startsWith("Woche"), "Login: nach dem Anmelden lädt das Dashboard im selben Seitenaufruf");
+  ok((await page.textContent("#header")).includes("Woche 2"), "Login: nach dem Anmelden lädt das Dashboard im selben Seitenaufruf");
   ok(errors.length === 0, "Login: Erfolg ohne Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
 // 30c. Fremdes Konto: Kein Zugriff + Abmelden
 {
+  scenario("30c");
   const { page, ctx, errors } = await authPage("forbidden");
   await page.waitForSelector('[data-action="forbidden-logout"]');
   const txt = await page.textContent("#main");
@@ -2016,6 +2284,7 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
 
 // 30d. Anonyme Altsitzung: Einträge übertragen, still abmelden, Login
 {
+  scenario("30d");
   const { page, ctx } = await authPage("anonymous");
   await page.waitForSelector('form[data-form="login"]');
   ok((await signouts(page)) === 1, "Anonym: nach erfolgreichem Flush genau ein stilles Abmelden");
@@ -2026,6 +2295,7 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
 
 // 30e. Anonyme Altsitzung mit hängendem Flush: Karte statt Abmelden (B5)
 {
+  scenario("30e");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
   const page = await ctx.newPage();
@@ -2049,8 +2319,9 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
 
 // 30f. Konto-Karte im Plan-Tab: Anzeige, Abmelden räumt das Gerät, offene Einträge brechen ab
 {
+  scenario("30f");
   const { page, ctx, errors } = await authPage("ok");
-  await page.waitForSelector("#main .today-card");
+  await page.waitForSelector('#main [data-card="today"]');
   await goTab(page, "plan");
   await page.waitForSelector(".account-card");
   const card = await page.textContent(".account-card");
@@ -2084,8 +2355,9 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
 
 // 30g. Abmelden bei offenem zweitem Tab: Cache bleibt, der Hinweis sagt es ehrlich (Review N4)
 {
+  scenario("30g");
   const { page, ctx, errors } = await authPage("ok", { flags: { __CACHE_KEPT__: true } });
-  await page.waitForSelector("#main .today-card");
+  await page.waitForSelector('#main [data-card="today"]');
   await goTab(page, "plan");
   await page.waitForSelector(".account-card");
   await page.click('.account-card [data-action="logout"]');
@@ -2121,12 +2393,13 @@ async function coachPage({ replies, flags = {} }) {
     Object.assign(window, f);
   }, flags);
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#coach-slot .coach-card");
+  await page.waitForSelector(COACH);
   await page.waitForTimeout(500);
   return { page, ctx, seen, errors };
 }
 
 {
+  scenario("31");
   const { page, ctx, seen, errors } = await coachPage({ replies: [{ status: 200, body: { text: "Coach sagt hallo." } }] });
   ok(seen.length === 1 && seen[0] === "Bearer test-token", `Coach: Anfrage trägt Authorization: Bearer <Token> (${JSON.stringify(seen)})`);
   ok((await page.textContent("#coach-slot")).includes("Coach sagt hallo."), "Coach: Antwort wird angezeigt");
@@ -2151,7 +2424,7 @@ async function coachPage({ replies, flags = {} }) {
 {
   const { page, ctx, seen } = await coachPage({ replies: [{ status: 503, body: { error: "auth_unavailable" } }] });
   ok(seen.length === 1, `Coach: 503 auth_unavailable -> sofort Fallback, kein Retry (${seen.length})`);
-  ok((await page.locator("#coach-slot .coach-card").count()) === 1, "Coach: Karte bleibt bei 503 erhalten (Fallback)");
+  ok((await page.locator(COACH).count()) === 1, "Coach: Karte bleibt bei 503 erhalten (Fallback)");
   await ctx.close();
 }
 {
@@ -2175,7 +2448,7 @@ async function refreshPage(replies) {
     localStorage.setItem("test.strava", JSON.stringify({ refresh_token: "rt", access_token: "at", expires_at: 1 }));
   });
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#main .today-card");
+  await page.waitForSelector('#main [data-card="today"]');
   await page.waitForTimeout(800);
   return { page, ctx, seen, errors };
 }
@@ -2206,6 +2479,7 @@ const refreshOk = { status: 200, body: { access_token: "at2", refresh_token: "rt
 
 // ---- 32. Strava-Redirect überlebt den Login (B4) ----
 {
+  scenario("32");
   const exchanges = [];
   const made = await newPage();
   const { page, ctx, errors } = made;
@@ -2269,6 +2543,7 @@ async function exportPage({ activities = ACTIVITIES, stravaFail = false, share =
 }
 const stripPlan = (s) => s.replace(/"plan":[\s\S]*?"strava":/, "");
 {
+  scenario("33");
   const activities = ACTIVITIES.map((a, i) => i === 0
     ? { ...a, sport_type: "Run", map: { summary_polyline: "GEHEIMEPOLYLINE" }, athlete: { id: 42 }, start_latlng: [1, 2] }
     : a);
@@ -2346,4 +2621,5 @@ const stripPlan = (s) => s.replace(/"plan":[\s\S]*?"strava":/, "");
 
 await browser.close();
 console.log(`\n${checks - fails}/${checks} Browser-Checks bestanden`);
+console.log("Checks je Szenario: " + [...perScenario].map(([k, v]) => `${k}=${v}`).join(" "));
 process.exit(fails ? 1 : 0);
