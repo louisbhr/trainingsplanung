@@ -7,4 +7,5 @@
 - [D0 CSS-port decisions](feedback_d0_css_port_decisions.md) — class-collision checks before reusing mockup class names, additive-only .badge edit, two valid SVG-icon-sizing patterns (descendant-selector vs. framed wrapper), --text-muted dark = #918f87
 - [M2-11 Feinschliff decisions](feedback_m2_11_feinschliff_decisions.md) — 44px touch-target floor applies retroactively (start-btn/bilanz-toggle were 36px), day-row accordion refactor left dead CSS, em-dash rule scoped to the touched feature surface not a silent app-wide sweep
 - [Stride E0 decisions](project_stride_e0_decisions.md) — sd- class prefix, stepper unit below value + wrap at 320, template-cloned mockup, cq-unit pitfall with fixed tab bar
+- [Stride E3 Heute decisions](project_stride_e3_heute.md) — <progress> instead of style=--pct (C5), empty-slot :empty rule, week-strip circle sizes by container query
 - [Oct 3 spacing-pass bug patterns](feedback_spacing_pass_oct03.md) — small icon-button padding inheritance collapses content box, async-slot wrapper divs eat parent flex gap, 3-child space-between makes a "column" float/jump

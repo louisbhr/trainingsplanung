@@ -19,7 +19,7 @@ Klasse, fragt er den Designer (Review-Auflage C5).
 | Präfix | Alle neuen Klassen beginnen mit `sd-` (Stride). Grund: Alte Screens laufen bis zu ihrer Ablösung auf derselben `style.css` (Plan: „alte Klassen bleiben bis zu ihrer Ablösung“). `.card`, `.badge`, `.hint`, `.start-btn` usw. bleiben bis dahin unberührt und werden nicht wiederverwendet. |
 | Aufbau | BEM-nah: Baustein `sd-card`, Teil `sd-card__top`, Variante `sd-card--danger`. Zwei Unterstriche für Teile, zwei Bindestriche für Varianten. Keine Verschachtelung tiefer als `baustein__teil`. |
 | Zustand | `is-done`, `is-current`, `is-open`, `is-active`, `is-selected`, `is-today`, `is-rest`, `is-removed`, `is-ok`, `is-warn`. Zustände setzt der Coder per Klassenliste, nie per Inline-Style. |
-| Geometrie | Einzige erlaubte Inline-Form: **CSS-Custom-Property mit geklemmter Zahl**, z. B. `style="--pct:27"`. Erlaubt sind `--pct`, `--from`, `--to`, `--at` (jeweils 0 bis 100, höchstens eine Nachkommastelle, ohne Einheit). Nie Text aus Daten im `style`. |
+| Geometrie | Einzige erlaubte Inline-Form: **CSS-Custom-Property mit geklemmter Zahl**, z. B. `style="--pct:27"`. Erlaubt sind `--pct`, `--from`, `--to`, `--at` (jeweils 0 bis 100, höchstens eine Nachkommastelle, ohne Einheit). Nie Text aus Daten im `style`. **Seit E3 gilt für reine Fortschrittsbalken stattdessen `<progress class="sd-prog" value max>` ganz ohne `style` (Abschnitt 9.0).** Die `style`-Form bleibt nur für `sd-range` (Lauf-Tag, E6) übrig, solange es dafür keine Alternative gibt. |
 | Test-Haken | `data-action` für Klicks, `data-form` für Formulare, `data-card` / `data-kind` für Karten, `data-slug`, `data-date`, `data-run`, `data-set`, `data-field`, `data-dir` für Parameter. Dazu Rollen und `aria-label`. Layout-Klassen sind keine Test-Haken. |
 | Mockup-Klassen | `mk-*` und `.frame`/`.spec`/`.state` gehören nur dem Mockup und kommen nie in die App. |
 | Sprache | Sichtbare Texte Deutsch, Sentence case. Kein Gedankenstrich (Em-Dash) in sichtbaren Texten; der Halbgeviertstrich in Zahlenbereichen („6:15–6:40“) ist erlaubt. Zahlen deutsch („8,2 km“, „1:29:59“). |
@@ -359,8 +359,384 @@ laufen durch einen Helfer `pct(x)` (Zahl, `Number.isFinite`, auf 0 bis 100 gekle
 
 ## 8. Screen-Ergänzungen (je Etappe vom Designer nachgetragen)
 
-- **E3 Heute:** Status-Zeilen, „Diese Woche“-Streifen, Kraft-Karte mit Vorschau, Info-Sheet-Blöcke (offen).
+- **E3 Heute:** erledigt, siehe Abschnitt 9 unten (Kopf, Banner, Heute-Karten, Coach, Status, Diese Woche, Info-Sheet-Blöcke).
 - **E4 Woche:** Kopf mit Rundtasten, Summen-Karte (offen).
 - **E5 Kraft-Tag:** Feinheiten der Jetzt-Karte, Entwurf-Wiederherstellung (offen).
 - **E6 Lauf-Tag:** Zustände Zukunft, Strava fehlt, ignoriert (aus dem Prototyp, offen).
 - **E7 Verlauf und Plan**, **E8 Login:** offen.
+
+---
+
+## 9. Screen-Ergänzungen: Heute (E3)
+
+Optik: Handoff §5.1, Mockup H1 bis H6, Prototyp. CSS: Abschnitt „Heute (E3)“ am Ende von `style.css`.
+Wiederverwendet wird alles aus Abschnitt 3 (`sd-card`, `sd-btn`, `sd-pill`, `sd-eyebrow`, `sd-nextrow`, `sd-stripe`,
+`sd-result`, `sd-bilanz`, `sd-sheet__*`, `sd-ampel`, `sd-check`, `sd-ring`). **Kein `style=` auf diesem Screen.**
+
+Icon-Konstanten (einmal in `view-dashboard.js` definieren, nicht `ICONS.*` nehmen, die haben keine Größenklasse):
+```js
+const I_CHAT    = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-4 4V5z"/><path d="M8 9h8M8 12.5h5"/></svg>';
+const I_INFO    = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r="1.2" fill="currentColor" stroke="none"/></svg>';
+const I_CHEV_R  = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+const I_CHEV_D  = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+const I_CHECK_W = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';   // in .sd-wd__dot
+```
+Haken-Kreis und Ring in der Übungsvorschau kommen aus `checkCircle("kraft", 20)` und `ringOpen(20)` (`ui.js`).
+
+### 9.0 Seitenaufbau, Slots, dynamische Werte (Auflage C5)
+
+```html
+<!-- #header (Tab-Kopf OHNE brandHeadHTML(): .sd-head ist selbst die Markenzeile) -->
+<div class="sd-head">…Kopf 9.1…</div>
+<div class="sd-intro">…</div>
+
+<!-- #main: genau ein .sd-main, darin fünf Slots -->
+<div class="sd-main">
+  <div id="banner-slot"></div>   <!-- Fehlerbanner, Strava-Banner (0 bis 2 Karten) -->
+  <div id="today-slot"></div>    <!-- Heute-Karte (9.3) -->
+  <div id="coach-slot"></div>    <!-- Coach-Karte (9.4) -->
+  <div id="status-slot"></div>   <!-- Label + Status-Karte (9.5), ersetzt #ampel-slot -->
+  <div id="week-slot"></div>     <!-- Label + Diese-Woche-Karte (9.6) -->
+</div>
+```
+- Jeder Slot lädt einzeln nach. Ein **leerer Slot muss wirklich leer sein** (`innerHTML = ""`, kein Leerraum, kein Kommentar im Template), dann blendet `:empty` ihn aus und es entsteht kein 12-px-Loch.
+- `#detail-slot` („Im Detail“) entfällt komplett (F3).
+- `#main:has(> .sd-main)` und `#header:has(> .sd-head)` nullen das alte Seitenpolster bereits. Das Bodenpolster 120 px bleibt.
+
+**Dynamische Werte ohne `style` (C5).** Es gibt auf Heute genau zwei Wertbalken, beide sind native `<progress>`:
+```html
+<progress class="sd-prog" value="8" max="35" aria-label="Planfortschritt, Woche 8 von 35"></progress>
+<progress class="sd-prog sd-prog--coral" value="8.2" max="30" aria-label="Laufvolumen in Kilometern"></progress>
+```
+- Die Breite entsteht aus `value`/`max`, das Element klemmt selbst (`value` über `max` = voll, 0 = leer). Kein `style`, keine Custom Property, kein `pct()`.
+- Helfer `numAttr(x)` in `view-dashboard.js`: `Number.isFinite(x) ? String(Math.round(Math.max(0, x) * 10) / 10) : "0"`. **Punkt als Dezimaltrenner** (HTML-Attribut), nie `formatKm1()` (Komma) im Attribut. Angezeigter Text daneben nutzt `formatKm1()`.
+- `max` muss größer 0 sein. Ist die Soll-Summe 0 oder unbekannt, wird der Balken samt `.sd-weekvol`-Zeile weggelassen.
+- Platzhalterbreiten sind feste Klassen: `sd-skel--w92`, `--w60`, `--w40`, `--chip` (72 px). Nicht `skelLine(width)` aus `ui.js` benutzen (das schreibt `style`).
+- Alles andere Dynamische sind Klassen (`is-done`, `is-today`, `sd-wd--lauf`, `sd-ampel--warn` …).
+
+### 9.1 Kopf
+
+```html
+<div class="sd-head">
+  <div class="sd-brand">${markSVG(28)}<span>Stride</span></div>
+  <span class="sd-chip"><span aria-hidden="true">W8 / 35</span><span class="sd-vh">Woche 8 von 35</span></span>
+</div>
+<div class="sd-intro">
+  <p class="sd-intro__sub">Woche 8 · Entlastung</p>
+  <h1 class="sd-display">Mittwoch, 21. Oktober</h1>
+  <progress class="sd-prog" value="8" max="35" aria-label="Planfortschritt, Woche 8 von 35"></progress>
+  <div class="sd-meta"><span>Phase 1 · Basis</span><span>193 Tage bis 02.05.</span></div>
+</div>
+```
+| Zustand | Unterschied |
+| --- | --- |
+| Plan, Woche | wie oben. `sd-intro__sub` = `Woche ${n} · ${esc(weekType)}`. Meta links `Phase ${n} · ${esc(name)}`, rechts der Countdown-Text. |
+| Platzhalterwoche | wie oben, `weekType` fehlt evtl.: dann nur `Woche ${n} · ${esc(phase.name)}`. |
+| Bis zum Rennen (H5) | kein Chip, kein `<progress>`: `sd-intro__sub` „Zwischen zwei Planwochen“, `sd-meta` mit `<span>${esc(raceName)}</span><span>26 Tage bis 02.05.</span>`. |
+| Kein Plan | kein Chip, kein `<progress>`: `sd-intro__sub` „Ohne Plan“, `sd-meta` nur wenn Text da (`<span>Rennen am 02.05.2027</span>`, ein Span). |
+
+`sd-chip` und `sd-meta` brechen/laufen nie aus der Spalte: Chip ist `flex: none`, Meta bricht um (`flex-wrap`). Alle Texte der Zeile außer den festen Strings durch `esc()`.
+
+### 9.2 Banner (`#banner-slot`)
+
+Reihenfolge: Fehler zuerst, dann Strava. Beide dürfen gleichzeitig stehen.
+
+**Fehlerbanner** (Firestore/Daten nicht geladen), Baustein aus 3.10:
+```html
+<div class="sd-card sd-card--danger" role="alert" data-card="error" data-source="firebase">
+  <p class="sd-card__title sd-card__title--danger">Daten nicht geladen</p>
+  <p class="sd-card__text sd-card__text--danger">${esc(message)}</p>
+  <div class="sd-actions"><button type="button" class="sd-btn sd-btn--onbanner" data-action="reload">Neu laden</button></div>
+</div>
+```
+**Strava nicht verbunden** (nur wenn `stravaState.connected === false`; bei `null` = Prüfung läuft, kein Banner; bei Fehler `data-source="strava"` als Fehlerkarte mit `reload-strava`-Knopf „Neu laden“):
+```html
+<div class="sd-card sd-card--banner" role="status" data-card="strava-disconnected">
+  <div class="sd-banner__main">
+    <p class="sd-card__title">Strava ist nicht verbunden</p>
+    <p class="sd-card__text">Ohne Strava fehlen die Ist-Werte der Läufe.</p>
+  </div>
+  <button type="button" class="sd-btn sd-btn--coral" data-action="connect-strava">Verbinden</button>
+</div>
+```
+Auf 320 px rutscht der Button unter den Text (Flex-Wrap), nichts wird abgeschnitten. Die Lauf-Karte zeigt dann **keinen** Ist-Wert-Block (der Banner erklärt es); den alten Satz „Strava ist nicht verbunden, deshalb fehlen die Ist-Werte“ in der Karte streichen.
+
+### 9.3 Heute-Karte (`#today-slot`)
+
+Immer ein `<article>` mit `data-card="today"`, `data-kind`, Titel als `<h2 class="sd-title" id="todayTitle">` und `aria-labelledby="todayTitle"`.
+`data-kind`: `kraft | lauf | long | rest | placeholder | race | noplan`.
+
+**Kraft** (`data-progress="none|partial|done"`):
+```html
+<article class="sd-card sd-card--loose" data-card="today" data-kind="kraft" data-progress="partial" aria-labelledby="todayTitle">
+  <div class="sd-card__top">
+    <p class="sd-eyebrow sd-eyebrow--teal"><span class="sd-eyebrow__dot"></span>Heute · Kraft</p>
+    <span class="sd-pills">
+      <span class="sd-pill">Deload</span>                                   <!-- nur in Deload-Wochen -->
+      <span class="sd-pill sd-pill--optional">optional</span>              <!-- nur bei session.optional -->
+      <span class="sd-pill sd-pill--ok"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>erledigt</span>   <!-- nur data-progress=done; = pill("ok-check","erledigt") -->
+    </span>
+  </div>
+  <div>
+    <h2 class="sd-title" id="todayTitle">${esc(session.label)}</h2>
+    <p class="sd-text">3 von 8 Übungen erfasst</p>
+  </div>
+  <ul class="sd-preview" aria-label="Erste Übungen">
+    <li class="sd-preview__row is-done">${checkCircle("kraft", 20)}<span class="sd-preview__name">${esc(ex.name)}</span><span class="sd-preview__soll sd-mono">${esc(ex.soll)}</span><span class="sd-vh">erfasst</span></li>
+    <li class="sd-preview__row">${ringOpen(20)}<span class="sd-preview__name">${esc(ex.name)}</span><span class="sd-preview__soll sd-mono">${esc(ex.soll)}</span><span class="sd-vh">offen</span></li>
+    <!-- insgesamt die ersten 3 Übungen -->
+    <li class="sd-preview__more">+ 5 weitere Übungen</li>                  <!-- nur wenn mehr als 3; 1: "+ 1 weitere Übung" -->
+  </ul>
+  <button type="button" class="sd-btn sd-btn--primary" data-action="open-day" data-date="${session.date}">Weiter trainieren</button>
+</article>
+```
+| Zustand | `sd-text` | Button-Label | Zeilen |
+| --- | --- | --- | --- |
+| nicht begonnen (`none`) | `${n} Übungen` (+ ` · ` + kurzer Zusatz aus dem Plan, z. B. Deload-Hinweis; Texte durch `esc()`) | Training starten | alle `ringOpen(20)`, `.sd-vh` „offen“ |
+| begonnen (`partial`) | `${done} von ${n} Übungen erfasst` | Weiter trainieren | erfasste: `is-done` + `checkCircle`, `.sd-vh` „erfasst“ |
+| erledigt (`done`) | `${n} von ${n} Übungen erfasst` | Einheit ansehen | alle `is-done`, Pill „erledigt“ |
+
+Die Vorschau zeigt immer die ersten 3 Übungen in Planreihenfolge, nicht „die nächsten offenen“. Die Zeilen sind nicht antippbar (kein Chevron); einziger Einstieg ist der Primärbutton (`open-day` bleibt, `toggle-today-exercises` entfällt). Hat die Einheit keine Übungen, entfällt die `<ul>`.
+
+**Ruhetag** (Prototyp: Ruhe mit „Morgen“-Zeile):
+```html
+<article class="sd-card" data-card="today" data-kind="rest" aria-labelledby="todayTitle">
+  <p class="sd-eyebrow sd-eyebrow--muted"><span class="sd-eyebrow__dot"></span>Heute · Ruhe</p>
+  <div><h2 class="sd-title" id="todayTitle">Ruhetag</h2><p class="sd-text">Mobility, Foam Rolling, Beine hoch.</p></div>
+  <button type="button" class="sd-nextrow" data-action="open-day" data-date="${tomorrowISO}">
+    <span class="sd-stripe sd-stripe--long"></span>
+    <span class="sd-nextrow__main"><span class="sd-nextrow__label">Morgen</span><span class="sd-nextrow__value">Long run · 11 km</span></span>
+    ${I_CHEV_R}
+  </button>
+</article>
+```
+Streifen: `sd-stripe--kraft | --lauf | --long` nach Art der morgigen Einheit. Ist morgen auch Ruhe: kein Button, stattdessen `<div class="sd-nextrow"><span class="sd-stripe"></span><span class="sd-nextrow__main"><span class="sd-nextrow__label">Morgen</span><span class="sd-nextrow__value">Ruhetag</span></span></div>` (ohne Chevron, nicht antippbar). Morgen außerhalb des Plans oder Platzhalterwoche ohne Details: Zeile weglassen. Wert (`Long run · 11 km`) durch `esc()`.
+
+**Lauf und Long Run** (H1 bis H3). `data-kind="lauf"` bzw. `"long"` (Long Run = `LONG_RUN_TYPES`), Eyebrow `sd-eyebrow--coral` bzw. `sd-eyebrow--purple`, Text „Heute · Lauf“ bzw. „Heute · Long run“. Gerüst:
+```html
+<article class="sd-card" data-card="today" data-kind="lauf" aria-labelledby="todayTitle">
+  <p class="sd-eyebrow sd-eyebrow--coral"><span class="sd-eyebrow__dot"></span>Heute · Lauf</p>
+  <div>
+    <h2 class="sd-title" id="todayTitle">${esc(session.type)} · ${esc(session.dist)}</h2>
+    <p class="sd-text">Ziel <span class="sd-mono">${esc(session.pace)}</span> /km · HF <span class="sd-mono">${esc(session.hf)}</span> bpm</p>
+  </div>
+  <!-- Ist-Block: einer der vier unten, oder nichts -->
+  <button type="button" class="sd-btn sd-btn--primary" data-action="open-day" data-date="${session.date}">Lauf ansehen</button>
+</article>
+```
+(Steht in `session.pace`/`session.hf` die Einheit schon im Text, `/km` bzw. `bpm` im Template weglassen.) Der Button heißt in allen Lauf-Zuständen „Lauf ansehen“.
+
+Ist-Block, je nach Strava-Zustand:
+| Strava | Ist-Block |
+| --- | --- |
+| Prüfung läuft (`connected === null`) oder Läufe laden | `<div class="sd-skelstack sd-skelstack--rule" role="status"><span class="sd-skel sd-skel--w60"></span><span class="sd-skel sd-skel--w40"></span><span class="sd-vh">Lauf aus Strava wird geladen</span></div>` |
+| nicht verbunden | nichts (Banner 9.2 erklärt es) |
+| Ladefehler | nichts (Fehlerkarte im `#banner-slot`) |
+| verbunden, noch kein Lauf zugeordnet | nichts (H1) |
+| Lauf zugeordnet (H2) | siehe unten |
+
+Zugeordnet:
+```html
+<div class="sd-result">
+  <p class="sd-result__km sd-mono">${formatKm1(run.distanceKm)}<span class="sd-unit">km</span></p>
+  <span class="sd-pills">
+    <span class="sd-pill sd-pill--ok">im Plan</span>          <!-- oder: sd-pill--amber "zu kurz"; Urteil aus runcompare.js, kein Urteil = keine Pill -->
+    <span class="sd-pill sd-pill--amber">nachgeholt</span>     <!-- nur wenn a.offset !== 0 -->
+  </span>
+  <p class="sd-result__name">${esc(run.name)}</p>
+</div>
+```
+**Platzhalterwoche** (H4), kein Button:
+```html
+<article class="sd-card" data-card="today" data-kind="placeholder" aria-labelledby="todayTitle">
+  <p class="sd-eyebrow sd-eyebrow--muted"><span class="sd-eyebrow__dot"></span>Heute · Offen</p>
+  <div><h2 class="sd-title" id="todayTitle">Details nach der Re-Kalibrierung</h2><p class="sd-text">Die Einheiten dieser Woche stehen ab dem ${esc(dd.mm.)} fest. Geplant sind ${formatKm1(km)} km.</p></div>
+</article>
+```
+Ohne bekanntes Datum/Kilometer: Satz kürzen auf „Die Einheiten dieser Woche stehen nach der Re-Kalibrierung fest.“
+
+**Bis zum Rennen** (H5):
+```html
+<article class="sd-card" data-card="today" data-kind="race" aria-labelledby="todayTitle">
+  <p class="sd-eyebrow sd-eyebrow--muted"><span class="sd-eyebrow__dot"></span>Heute · Frei</p>
+  <div><h2 class="sd-title" id="todayTitle">Bis zum Rennen</h2><p class="sd-text">Der Plan endet vor dem Renntag. Für diesen Tag gibt es keine Einheit mehr.</p></div>
+  <div class="sd-nextrow"><span class="sd-stripe sd-stripe--long"></span><div class="sd-nextrow__main"><span class="sd-nextrow__label">Renntag</span><span class="sd-nextrow__value">Sonntag, 02.05.2027</span></div><span class="sd-mono sd-hint">noch 26 Tage</span></div>
+</article>
+```
+**Kein Plan** (Sekundärbutton, keine teal Fläche):
+```html
+<article class="sd-card" data-card="today" data-kind="noplan" aria-labelledby="todayTitle">
+  <div>
+    <h2 class="sd-title" id="todayTitle">Kein Plan aktiv</h2>
+    <p class="sd-text">Läufe werden weiter aus Strava angezeigt.</p>
+    <p class="sd-text">Heute: ${esc(stravaSummary)} (aus Strava)</p>     <!-- nur wenn Strava-Lauf heute da; sonst "Heute: noch kein Lauf." -->
+  </div>
+  <button type="button" class="sd-btn sd-btn--block" data-action="go-tab" data-tab="plan">Zum Plan</button>
+</article>
+```
+
+### 9.4 Coach (`#coach-slot`)
+
+Baustein `sd-card--coach` aus 3.10. Kein Fehlerzustand (Coach fällt auf den Regel-Text zurück, Hinweis F6).
+```html
+<!-- lädt -->
+<article class="sd-card sd-card--coach" data-card="coach" data-state="loading" aria-busy="true">
+  <p class="sd-eyebrow sd-eyebrow--purple">${I_CHAT}Coach</p>
+  <div class="sd-skelstack" role="status">
+    <span class="sd-skel sd-skel--purple sd-skel--w92"></span><span class="sd-skel sd-skel--purple sd-skel--w60"></span>
+    <span class="sd-vh">Coach wird vorbereitet</span>
+  </div>
+</article>
+
+<!-- geladen, ohne Wochenbilanz -->
+<article class="sd-card sd-card--coach" data-card="coach">
+  <p class="sd-eyebrow sd-eyebrow--purple">${I_CHAT}Coach</p>
+  <p class="sd-coach__text">${esc(text)}</p>
+</article>
+```
+Kein Plan / Bis zum Rennen: die geladene Variante mit dem festen Text (`coachNoPlanHTML`), ebenfalls `esc()`.
+
+Mit Wochenbilanz (F3): Montags offen, sonst eingeklappt/aufgeklappt. Die Bilanz hängt als `<div class="sd-bilanz">` an das Ende der Karte (Trennlinie kommt aus der Klasse):
+```html
+<!-- Montag, offen -->
+<div class="sd-bilanz">
+  <h2 class="sd-bilanz__heading">Wochenbilanz · Woche ${weekN}</h2>
+  <p class="sd-bilanz__body">${esc(text)}</p>
+</div>
+<!-- Di bis So, zugeklappt -->
+<div class="sd-bilanz">
+  <button type="button" class="sd-bilanz__toggle" data-action="toggle-bilanz" aria-expanded="false" aria-controls="bilanzBody">Wochenbilanz W${weekN}${I_CHEV_D}</button>
+  <p class="sd-bilanz__body" id="bilanzBody" hidden>${esc(text)}</p>
+</div>
+<!-- Di bis So, aufgeklappt: gleiches Markup, aria-expanded="true" und ohne hidden am <p> -->
+```
+Tagessatz und Bilanz laden getrennt (bestehende `renderCoachSlot()`-Logik bleibt): Bilanz-Teil fehlt, bis er da ist.
+
+### 9.5 Status (`#status-slot`)
+
+Der Slot enthält Label und Karte. Immer vier Zeilen in der Reihenfolge Wochensoll, Easy-Disziplin, Belastung, Kraft-Progression. Die Zeile ist ein Button, auch im Ladezustand (die Erklärung ist statisch).
+```html
+<h2 class="sd-label" id="statusLabel">Status</h2>
+<div class="sd-card sd-card--list" role="group" aria-labelledby="statusLabel" data-card="status" aria-busy="false">
+  <button type="button" class="sd-statusrow" data-action="open-info" data-info="wochensoll" data-status="gelb">
+    <span class="sd-statusrow__shape" aria-hidden="true"><span class="sd-ampel sd-ampel--warn"></span></span>
+    <span class="sd-statusrow__main">
+      <span class="sd-statusrow__title">Wochensoll</span>
+      <span class="sd-statusrow__detail">62 % der geplanten km</span>
+    </span>
+    ${I_INFO}
+    <span class="sd-vh">Status gelb. Erklärung öffnen</span>
+  </button>
+  <!-- weitere drei Zeilen -->
+</div>
+```
+`data-info`: `wochensoll | easy | belastung | kraft`. Titel aus `AMPEL_LABELS`, Detail aus `a.detail` (beides `esc()`).
+
+| `status` | Form (Klasse) | Text für Screenreader (`.sd-vh`) |
+| --- | --- | --- |
+| `gruen` | `sd-ampel--ok` | Status grün. Erklärung öffnen |
+| `gelb` | `sd-ampel--warn` | Status gelb. Erklärung öffnen |
+| `rot` | `sd-ampel--crit` | Status rot. Erklärung öffnen |
+| `grau` (keine Daten) | `sd-ampel--none` | Keine Daten. Erklärung öffnen |
+| lädt | `sd-ampel--load` | Status wird geladen. Erklärung öffnen |
+
+Ladezeile: Karte bekommt `aria-busy="true"`, Detail ist ein einzelner Platzhalter, der Titel ist schon echter Text:
+```html
+<span class="sd-statusrow__detail"><span class="sd-skel sd-skel--chip"></span></span>
+```
+Alle vier laden gleichzeitig, schlägt das Laden fehl, bleibt es bei den Platzhaltern (bestehendes Verhalten); `grau`-Zeilen tragen den Grund aus `a.detail` („kein aktiver Plan“, „Woche ohne Details“). Die Form allein trägt nie die Information: Titel, Detail und `.sd-vh` stehen daneben.
+
+### 9.6 Diese Woche (`#week-slot`)
+
+Nur bei Plan mit Tagesdetails. **Bei Platzhalterwoche, Kein Plan und Bis zum Rennen bleibt der Slot leer.** Die ganze Karte ist ein Button, Tipp öffnet den Tab Woche.
+```html
+<h2 class="sd-label" id="weekLabel">Diese Woche</h2>
+<button type="button" class="sd-card sd-weekcard" data-action="go-tab" data-tab="woche" data-card="week" aria-labelledby="weekLabel">
+  <span class="sd-weekstrip">
+    <span class="sd-wd sd-wd--lauf is-done">
+      <span class="sd-wd__dow" aria-hidden="true">Mo</span>
+      <span class="sd-wd__dot" aria-hidden="true">${I_CHECK_W}</span>
+      <span class="sd-vh">Montag, Lauf 8 km, erledigt</span>
+    </span>
+    <span class="sd-wd sd-wd--kraft is-today">
+      <span class="sd-wd__dow" aria-hidden="true">Di</span>
+      <span class="sd-wd__dot" aria-hidden="true">A</span>
+      <span class="sd-vh">Dienstag, Kraft A, offen, heute</span>
+    </span>
+    <span class="sd-wd sd-wd--long"> … <span class="sd-wd__dot" aria-hidden="true">11</span> … </span>
+    <span class="sd-wd sd-wd--rest"> … <span class="sd-wd__dot" aria-hidden="true">–</span> <span class="sd-vh">Freitag, Ruhetag</span></span>
+  </span>
+  <span class="sd-weekload">
+    <span class="sd-weekvol"><span class="sd-weekvol__label">Laufvolumen</span><span class="sd-weekvol__value sd-mono">8,2 / 30 km</span></span>
+    <progress class="sd-prog sd-prog--coral" value="8.2" max="30" aria-label="Laufvolumen in Kilometern"></progress>
+  </span>
+  <span class="sd-vh">Woche öffnen</span>
+</button>
+```
+Immer sieben `.sd-wd` Mo bis So.
+| Zustand | Klassen auf `.sd-wd` | Inhalt von `.sd-wd__dot` | `.sd-vh` endet auf |
+| --- | --- | --- | --- |
+| offen | Art (`sd-wd--kraft`, `sd-wd--lauf` oder `sd-wd--long`) | Kraft: Kürzel A/B (Fallback „K“), Lauf/Long: gerundete km („8“, „11“) | „offen“ |
+| erledigt | Art + `is-done` | `${I_CHECK_W}` | „erledigt“ |
+| heute | zusätzlich `is-today` (Ring außen, Wochentag teal) | wie offen/erledigt | zusätzlich „, heute“ |
+| Ruhe | `sd-wd--rest` | „–“ | „Ruhetag“ |
+| verpasst (optional, siehe Hinweis) | Art + `is-missed` | wie offen | „verpasst“ |
+
+Hinweis `is-missed`: der Handoff kennt für den Streifen nur offen/erledigt/heute. Eine vergangene, nicht erledigte Einheit sähe sonst wie eine künftige aus. `is-missed` (Danger-Fläche mit Innenring) ist eine optionale Ergänzung des Designers; der Coder setzt sie nur für Tage vor heute ohne erledigte Einheit (Woche-Tab nutzt dieselbe Regel „verpasst“). Lässt er sie weg, bleibt der Streifen handoff-treu.
+
+Die 7 Kreise schrumpfen per Container-Query: 36 px ab 360 px Spaltenbreite, 32 px darunter, 28 px unter 320 px (Desktop-Fenster mit Scrollbalken). Heute-Ring (4 px außen) bleibt frei von den Nachbarn.
+
+### 9.7 Info-Sheet-Inhalt
+
+Sheet-Gerüst, Fokus auf Titel, Escape, Backdrop wie 3.8 (`createSheet()`, Auflage C6; `#infoSheet`/`#infoBackdrop` in `index.html` bekommen die `sd-sheet`/`sd-backdrop`-Klassen und `tabindex="-1"` am Titel). Inhalt:
+```html
+<div class="sd-sheet__blocks">
+  <div><p class="sd-sheet__blockhead">Berechnung</p><p class="sd-sheet__blocktext">${esc(text)}</p></div>
+  <div><p class="sd-sheet__blockhead">Bedeutung</p><p class="sd-sheet__blocktext">${esc(text)}</p></div>
+  <div><p class="sd-sheet__blockhead">Ehrlicher Hinweis</p><p class="sd-sheet__blocktext">${esc(text)}</p></div>   <!-- nur Belastung -->
+  <div><p class="sd-sheet__blockhead">Grau</p><p class="sd-sheet__blocktext">${esc(text)}</p></div>
+</div>
+```
+- `infoContent()` liefert dafür Blöcke `{ heading, text }` (siehe Plan `openInfo(title, blocks, trigger)`), nicht mehr „Berechnung: …“ als Präfix im Fließtext. Reihenfolge immer Berechnung, Bedeutung, (Ehrlicher Hinweis), Grau.
+- Zahlen in `text` kommen aus `THRESHOLDS` (`pct()`/`comma()` wie bisher). Die Überschriften sind feste Strings.
+- Kein Lade- oder Leerzustand: Texte sind statisch. `aerobe` gehört nicht mehr zu Heute.
+
+### 9.8 `data-action`-Namen auf Heute
+
+| Name | Wo | Parameter | Wirkung |
+| --- | --- | --- | --- |
+| `open-day` | Primärbutton der Karte, „Morgen“-Zeile | `data-date` | bleibt (öffnet Kraft-/Lauf-Tag) |
+| `open-info` | Status-Zeile | `data-info` | bleibt (öffnet Info-Sheet) |
+| `close-sheet` | ×-Knopf, Backdrop-Klick | – | ersetzt `close-info` (siehe 3.8) |
+| `toggle-bilanz` | Wochenbilanz-Auslöser | – | bleibt |
+| `connect-strava` | Strava-Banner | – | bleibt |
+| `reload` | Fehlerbanner | – | bleibt |
+| `go-tab` | „Zum Plan“ (Kein Plan), Diese-Woche-Karte | `data-tab` (`woche` oder `plan`, die Schlüssel aus `index.html`) | **neu**: macht dasselbe wie ein Klick auf den Tab (`state.tab`, `selectedDate = null`, Woche: `weekNo = weekNoForTab(today)`, `render()`) |
+Entfällt: `toggle-today-exercises`, `close-info`.
+
+### 9.9 Welche Texte durch `esc()`
+
+Zusätzlich zu Abschnitt 6: `session.label`, `ex.name`, `ex.soll`, `session.type/dist/pace/hf`, `run.name`, Phasen- und Wochentyp-Namen, Rennname, `a.detail`, Coach- und Bilanz-Text, Fehlermeldung, Strava-Zusammenfassung, `Morgen`-Wert, Infotexte. **Nicht** durch `esc()`: feste Strings (Labels, Button-Namen, „erfasst“/„offen“), Icon-Konstanten, `checkCircle()`/`ringOpen()`/`pill()` (escapen selbst), `formatKm1()`-Ergebnisse, ISO-Daten in `data-date`, Klassennamen aus Auswahllisten (`sd-wd--${kind}` nur aus einer festen Map `{kraft, lauf, long}`), die `numAttr()`-Werte in `<progress>`.
+
+### 9.10 Barrierefreiheit auf Heute
+
+- Überschriften: `h1` Datum, `h2` Heute-Karte, Status, Diese Woche und Wochenbilanz-Titel. Karten-Titel haben `aria-labelledby`.
+- Status nie nur über Farbe: Ampel-Form plus Titel/Detail plus `.sd-vh`; Wochenstreifen: Haken-Form (erledigt), Label (offen), Ring und `.sd-vh` „heute“ (heute); Wochentag-Kürzel sind `aria-hidden`, der volle Name steht im `.sd-vh`.
+- Ladezustände: `role="status"` auf dem Platzhalter-Stapel, `aria-busy` auf Coach-Karte und Status-Karte, der Lade-Text steht als `.sd-vh`.
+- Fehlerbanner `role="alert"`, Strava-Banner `role="status"`.
+- Tippflächen: Status-Zeile ≥ 56 px, Diese-Woche-Karte ganze Karte, „Morgen“-Zeile ≥ 64 px, Wochenbilanz-Auslöser 44 px, Buttons 44/50 px. Die Vorschau-Zeilen sind nicht interaktiv.
+- Fokus: globales `:focus-visible` (2 px `--teal-fg`); alle Karten-Buttons haben abgerundete Ecken, der Ring folgt ihnen.
+- Bewegung: Platzhalter-Schimmer wird unter `prefers-reduced-motion` zum ruhigen grauen Balken, Chevron-Drehung der Bilanz ist abgeschaltet.
+
+### 9.11 Durch E3 überflüssig gewordene alte Klassen (Löschliste für `style.css`, nach dem Umbau)
+
+Erst löschen, wenn `view-dashboard.js` und der Heute-Teil von `app.js` nicht mehr darauf zeigen und `tests/app.test.mjs` (Selektoren `.today-card`, `.ex-row`, `.coach-card`, `.ampel-tile`, `.ampel-dot`, `.bilanz-*`, `.si-bar-*`, `#header .badge/.countdown`) auf die neuen Hooks umgestellt ist.
+- Kopf: `.countdown`, `#header .eyebrow`, `.badge`-Aufrufer `phaseBadgeHTML`/`noPlanBadgeHTML` (die Klasse `.badge` selbst bleibt, `badge()` in `ui.js` nutzen noch Kraft-/Lauf-Tag), `.tone-*` bleiben (Plan-Tab).
+- Heute-Karte: `.today-card`, `.k-kraft`, `.k-lauf`, `.k-long`, `.k-ruhe`, `.k-noplan`, `.eyebrow2`, `.name2`, `.sub`, `.loading-hint`, `.strava-fallback`, `.start-btn`, `.ex-list`, `.ex-list-head`, `.ex-row`, `.exn`, `.exs`, `.ex-hint`, `.ex-progress`.
+- Coach: `.coach-card` samt `.head/.icon/.label/.body/.text/.note/.divider`, `.bilanz-toggle`, `.bilanz-body`, `.bilanz-heading`.
+- Ampeln: `.ampel-grid`, `.ampel-tile`, `.row1`, `.ampel-dot` (+ `.st-*`), `.info-btn`.
+- Info-Sheet (alt): `.info-backdrop`, `.info-sheet`, `.info-sheet-handle`, `.info-sheet-head`, `.info-sheet-close`, `.info-sheet-body`.
+- Im Detail: `.section-label`, `.si-bars`, `.si-bar-*`, `.lg-*` samt `.si-bar-legend`, `.aerobe-*`, `.metric-tile`, `.metric-bar-track/-fill`, `.metric-sub`, `.skel-tile-body`, `.skel-bar`.
+- Platzhalter alt: `.skel`, `.skel-line`, `@keyframes skel-shimmer` (nach Entfernen von `skelLine()` aus `ui.js`).
+- Slot-Regel `#today-slot, #coach-slot, #ampel-slot, #detail-slot` (ersetzt durch `.sd-main > [id$="-slot"]`).
+- **Bleiben (noch benutzt):** `.metric-grid/-label/-value` (Lauf-Tag, Verlauf), `.center-note`, `.card.notice`, `.small-btn`, `.title-row` (Kraft-Tag, Verlauf), `.hint`, `.w-70` und die übrigen Utilities.
