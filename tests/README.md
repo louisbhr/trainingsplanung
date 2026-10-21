@@ -79,7 +79,7 @@ druckt am Ende „Checks je Szenario“ (`scenario("…")` steht in der ersten Z
 kein Szenario verschwindet, keine Absicht fällt weg. Aufgefüllt wird nicht, um eine Zahl zu halten.
 
 Baseline: der Plan nennt 336 Checks; gemessen am Merge-Base `a6e6c4b` waren es **390** (Login und
-Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 **441**.
+Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nach dem Kopf-Umbau (Seitenkopf scrollt mit, +5 in Szenario 12) **446**.
 
 | Szenario | Prüfabsichten | a6e6c4b | E2 | E3 | Etappe |
 | --- | --- | --- | --- | --- | --- |
@@ -100,7 +100,8 @@ Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 **441**.
 | 28 | Strava-Fehler: Wochensoll nicht rot, nennt Quelle, Easy/Belastung grau, keine Wochenbilanz; neu: Fehlerbanner mit „Neu laden“ | 5 | 5 | 6 | E3 |
 | 29 | Firestore-Ausfall: Kraft grau + Text, Easy rechnet, Coach ohne Dauer-Skelett, Adhärenz-Kachel „nicht geladen“ wird durch Fehlerbanner „Daten nicht geladen“ ersetzt | 7 | 7 | 7 | E3 |
 | 35a–35g (neu) | Ruhetag mit/ohne „Morgen“; Long Run; „zu kurz“ 89 % / „im Plan“ 90 %; nachgeholt; Platzhalterwoche (mit/ohne Datum, Plan aus REAL_PLAN_JSON abgeleitet); Diese Woche (7 Tage, Zustände, Volumen, Tipp öffnet Woche); Escaping Laufname | – | – | 28 | E3 |
-| 12 | Tab-Leiste klebt, Detailseiten ohne Leiste (E1 +9: Glas, Kapsel, Marke) | 4 | 13 | 13 | E1 |
+| 12 | Tab-Leiste klebt, Detailseiten ohne Leiste (E1 +9: Glas, Kapsel, Marke); neu +5: Seitenkopf scrollt auf Heute, Woche und Kraft-Tag mit weg, `#header` leer, nach Tabwechseln/Nachladern genau ein Seitenkopf | 4 | 13 | 13 → 18 | E1 (+Kopf) |
+| alle mit Kopf-Selektoren | `#header …` heißt jetzt `#main > header.sd-pagehead …` (Kopf steht im #main); Anzahl unverändert. 30a: „Karte zentriert“ misst ab Unterkante des Seitenkopfs | – | – | – | – |
 | übrige (3–11, 13–19b, 23, 24, 24p, 26, 27, 30–33) | unverändert; nur Selektoren auf Heute angepasst (27, 24p, 23, 30b) | – | – | – | – |
 
 **Bewusste Ausnahmen in 2c („Im Detail“, einzeln):** Wochenvolumen (8 Wochen, aktuelle Woche, kein Ist

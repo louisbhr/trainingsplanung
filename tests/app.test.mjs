@@ -223,11 +223,11 @@ const slotIsEmpty = (page, id) => page.evaluate((i) => document.getElementById(i
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
   await page.waitForSelector(TODAY);
-  ok((await page.textContent("#header")).includes("Woche 2 · Aufbau"), "Dashboard: Kopfzeile zeigt Woche + Wochentyp");
-  ok((await page.textContent("#header h1")) === "Montag, 7. September", "Dashboard: Überschrift ist das Datum");
-  ok((await page.textContent("#header")).includes("Phase 1 · Basis"), "Dashboard: Phasen-Angabe");
-  ok((await page.textContent("#header")).includes("237 Tage bis 02.05."), "Dashboard: Countdown mit bestätigtem Renndatum (237 Tage)");
-  ok((await page.locator('#header progress[aria-label="Planfortschritt, Woche 2 von 35"]').count()) === 1, "Dashboard: Planfortschritt als Balken mit Beschriftung");
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("Woche 2 · Aufbau"), "Dashboard: Kopfzeile zeigt Woche + Wochentyp");
+  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Montag, 7. September", "Dashboard: Überschrift ist das Datum");
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("Phase 1 · Basis"), "Dashboard: Phasen-Angabe");
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("237 Tage bis 02.05."), "Dashboard: Countdown mit bestätigtem Renndatum (237 Tage)");
+  ok((await page.locator('#main > header.sd-pagehead progress[aria-label="Planfortschritt, Woche 2 von 35"]').count()) === 1, "Dashboard: Planfortschritt als Balken mit Beschriftung");
   const today = await page.textContent("#today-slot");
   ok((await page.locator(`${TODAY}[data-kind="lauf"]`).count()) === 1 && today.includes("Easy run") && today.includes("8 km"),
     "Dashboard: Heute-Karte zeigt den Lauftag (Easy run, 8 km)");
@@ -311,8 +311,8 @@ const slotIsEmpty = (page, id) => page.evaluate((i) => document.getElementById(i
 
   await page.click(`${TODAY} [data-action="open-day"]`);
   await page.waitForSelector('[data-ex="squats"]');
-  ok((await page.textContent("#header h1")) === "Krafttraining", "Dashboard->Tagesansicht: Krafttag geöffnet");
-  ok((await page.textContent('#header [data-action="back"]')).includes("Heute"), "Dashboard->Tagesansicht: Zurück-Knopf beschriftet mit 'Heute'");
+  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Krafttraining", "Dashboard->Tagesansicht: Krafttag geöffnet");
+  ok((await page.textContent('#main > header.sd-pagehead [data-action="back"]')).includes("Heute"), "Dashboard->Tagesansicht: Zurück-Knopf beschriftet mit 'Heute'");
 
   await page.locator('[data-ex="squats"] [data-kg]').fill("80");
   await page.locator('[data-ex="squats"] [data-reps]').fill("9");
@@ -716,8 +716,8 @@ const weekStripTexts = (page) => page.locator('[data-card="week"] .sd-wd .sd-vh'
   ok((await next.getAttribute("data-date")) === "2026-09-12" && (await next.textContent()).includes("Morgen") && (await next.textContent()).includes("Long run · 13 km"),
     "Ruhetag: 'Morgen' nennt den Long Run und führt zum morgigen Tag");
   await next.click();
-  await page.waitForSelector("#header h1");
-  ok((await page.textContent("#header h1")) === "Lauf" && (await page.textContent('#header [data-action="back"]')).includes("Heute"),
+  await page.waitForSelector("#main > header.sd-pagehead h1");
+  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Lauf" && (await page.textContent('#main > header.sd-pagehead [data-action="back"]')).includes("Heute"),
     "Ruhetag: 'Morgen' öffnet den Lauf-Tag, Zurück heißt 'Heute'");
   ok(errors.length === 0, "Ruhetag: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -782,7 +782,7 @@ for (const [recal, wantText, label] of [
   await page.waitForSelector(`${TODAY}[data-kind="placeholder"]`);
   const txt = await page.textContent(TODAY);
   ok(wantText.every((t) => txt.includes(t)), `Platzhalterwoche (${label}): Text nennt Datum und Kilometer bzw. kürzere Fassung (${txt.replace(/\s+/g, " ").trim()})`);
-  ok((await page.locator(`${TODAY} [data-action]`).count()) === 0 && (await page.textContent("#header")).includes("Woche 3 · Aufbau"),
+  ok((await page.locator(`${TODAY} [data-action]`).count()) === 0 && (await page.textContent("#main > header.sd-pagehead")).includes("Woche 3 · Aufbau"),
     `Platzhalterwoche (${label}): Karte ohne Knopf, Kopf nennt die Woche`);
   await waitStatusLoaded(page);
   ok((await slotIsEmpty(page, "week-slot")) && (await statusRows(page)).every((r) => r.status === "grau") &&
@@ -815,7 +815,7 @@ for (const [recal, wantText, label] of [
   ok((await styleAttrCount(page)) === 0, "Heute mit allen Karten: kein style-Attribut im Markup (C5)");
   await page.click('[data-action="go-tab"][data-tab="woche"]');
   await page.waitForSelector(".week-summary");
-  ok((await page.locator("#tabbar button.active").getAttribute("data-tab")) === "woche" && (await page.textContent("#header .t1")).includes("Woche 2"),
+  ok((await page.locator("#tabbar button.active").getAttribute("data-tab")) === "woche" && (await page.textContent("#main > header.sd-pagehead .t1")).includes("Woche 2"),
     "Diese Woche: Tipp auf die Karte öffnet den Tab Woche (aktuelle Woche), die Tab-Leiste folgt");
   ok(errors.length === 0, "Diese Woche: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -860,20 +860,20 @@ for (const [recal, wantText, label] of [
   await goTab(page, "woche");
   await page.waitForSelector(".day-row");
   ok((await page.locator(".day-row").count()) === 7, "Woche: 7 Tage");
-  ok((await page.textContent("#header .t1")).includes("Woche 2"), "Woche: aktuelle Woche 2");
+  ok((await page.textContent("#main > header.sd-pagehead .t1")).includes("Woche 2"), "Woche: aktuelle Woche 2");
   ok((await page.locator(".day-row.today").count()) === 1, "Woche: heute markiert");
   ok((await page.locator('[data-action="week-today"]').count()) === 0, "Woche: kein 'Heute'-Knopf, wenn schon die aktuelle Woche zu sehen ist");
   await page.click('[data-action="week-next"]');
-  await page.waitForFunction(() => document.querySelector("#header .t1")?.textContent.includes("Woche 3"));
+  await page.waitForFunction(() => document.querySelector("#main > header.sd-pagehead .t1")?.textContent.includes("Woche 3"));
   ok(true, "Woche: vorwärts blättern");
   await page.click('[data-action="week-prev"]');
   await page.click('[data-action="week-prev"]');
-  await page.waitForFunction(() => document.querySelector("#header .t1")?.textContent.includes("Woche 1"));
+  await page.waitForFunction(() => document.querySelector("#main > header.sd-pagehead .t1")?.textContent.includes("Woche 1"));
   ok(true, "Woche: rückwärts blättern");
   ok(await page.locator('[data-action="week-prev"]').isDisabled(), "Woche: bei Woche 1 kein Zurück");
   ok((await page.locator('[data-action="week-today"]').count()) === 1, "Woche: 'Heute'-Knopf erscheint außerhalb der aktuellen Woche");
   await page.click('[data-action="week-today"]');
-  await page.waitForFunction(() => document.querySelector("#header .t1")?.textContent.includes("Woche 2"));
+  await page.waitForFunction(() => document.querySelector("#main > header.sd-pagehead .t1")?.textContent.includes("Woche 2"));
   ok(true, "Woche: 'Heute' springt zurück");
   await page.waitForSelector(".week-summary");
   await shot(page, "03-woche");
@@ -901,7 +901,7 @@ for (const [recal, wantText, label] of [
   // Dienstag = Krafttag über "Tag öffnen" in die Tagesansicht
   await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex]');
-  ok((await page.textContent("#header h1")) === "Krafttraining", "Tagesansicht: Krafttag geöffnet");
+  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Krafttraining", "Tagesansicht: Krafttag geöffnet");
   ok((await page.locator("[data-ex]").count()) === 8, "Krafttag: 8 Übungen");
   await page.click('[data-action="back"]');
   await page.waitForSelector(".day-row");
@@ -1002,7 +1002,7 @@ for (const [recal, wantText, label] of [
   await goTab(page, "plan");
   await page.waitForSelector(".zone-line");
   const t = await page.textContent("#main");
-  ok((await page.textContent("#header .eyebrow")).includes("Woche 2 von 35"), "Plan: aktuelle Woche (35 Wochen)");
+  ok((await page.textContent("#main > header.sd-pagehead .eyebrow")).includes("Woche 2 von 35"), "Plan: aktuelle Woche (35 Wochen)");
   ok((await page.locator(".phase-card.is-current").count()) === 1, "Plan: laufende Phase hervorgehoben");
   ok((await page.locator(".phase-card").count()) === 4, "Plan: 4 Phasenkarten, farblich getrennt");
   ok((await page.locator(".zone-line").count()) === 5, "Plan: 5 Zonen");
@@ -1035,8 +1035,8 @@ for (const [recal, wantText, label] of [
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-08T22:30:00Z")); // = 09.09. 00:30 Berlin
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#header h1");
-  const eyebrow = await page.textContent("#header h1");
+  await page.waitForSelector("#main > header.sd-pagehead h1");
+  const eyebrow = await page.textContent("#main > header.sd-pagehead h1");
   ok(eyebrow.includes("Mittwoch") && eyebrow.includes("9. September"),
      `Zeitzone: 00:30 Berlin zeigt den 09.09. (war: "${eyebrow.trim()}")`);
   await ctx.close();
@@ -1327,13 +1327,42 @@ for (const [recal, wantText, label] of [
   // Kopf: Stride-Zeichen auf allen vier Tabs
   for (const tab of ["dashboard", "woche", "verlauf", "plan"]) {
     await page.click(`[data-tab="${tab}"]`);
-    await page.waitForSelector("#header .sd-brand .sd-mark");
+    await page.waitForSelector("#main > header.sd-pagehead .sd-brand .sd-mark");
     const brand = await page.evaluate(() => {
-      const m = document.querySelector("#header .sd-brand .sd-mark").getBoundingClientRect();
-      return { w: Math.round(m.width), h: Math.round(m.height), text: document.querySelector("#header .sd-brand").textContent.trim() };
+      const m = document.querySelector("#main > header.sd-pagehead .sd-brand .sd-mark").getBoundingClientRect();
+      return { w: Math.round(m.width), h: Math.round(m.height), text: document.querySelector("#main > header.sd-pagehead .sd-brand").textContent.trim() };
     });
     ok(brand.w === 28 && brand.h === 28 && brand.text === "Stride", `Kopf ${tab}: Stride-Zeichen 28 px + Wortmarke (${brand.w}x${brand.h}, "${brand.text}")`);
   }
+
+  // Seitenkopf scrollt mit dem Inhalt weg (docs/plan-stride.md "Ansatz"): #header bleibt leer,
+  // der Kopf ist genau ein Block IM #main und liegt nach 300 px Scrollen über dem Viewport.
+  const headTopAfterScroll = (pg) => pg.evaluate(() => {
+    const m = document.getElementById("main");
+    m.scrollTop = 300;
+    return { top: document.querySelector("#main > header.sd-pagehead").getBoundingClientRect().top, scrolled: m.scrollTop };
+  });
+  const pageHeadCount = (pg) => pg.locator('#main > [data-region="pagehead"]').count();
+  await goTab(page, "dashboard");
+  await page.waitForSelector("#today-slot");
+  const heuteHead = await headTopAfterScroll(page);
+  ok(heuteHead.scrolled === 300 && heuteHead.top < 0, `Kopf Heute: scrollt mit weg (top ${Math.round(heuteHead.top)})`);
+  await goTab(page, "woche");
+  await page.waitForSelector(".day-row");
+  const wocheHead = await headTopAfterScroll(page);
+  ok(wocheHead.scrolled > 0 && wocheHead.top < 0, `Kopf Woche: scrollt mit weg (top ${Math.round(wocheHead.top)})`);
+  await openDay(page, "2026-09-08"); // Krafttag
+  await page.waitForSelector("[data-ex]");
+  const kraftHead = await headTopAfterScroll(page);
+  ok(kraftHead.scrolled > 0 && kraftHead.top < 0, `Kopf Kraft-Tag: scrollt mit weg (top ${Math.round(kraftHead.top)})`);
+  await page.click('[data-action="back"]');
+  await page.waitForSelector(".day-row");
+  ok((await page.locator("#header").innerHTML()) === "", "Kopf: #header bleibt leer (Kopf steckt im #main)");
+  for (const tab of ["dashboard", "verlauf", "plan", "woche", "dashboard"]) await goTab(page, tab);
+  await page.waitForSelector("#coach-slot");
+  await page.waitForTimeout(400); // Coach-/Strava-Nachlader haben ihre Slots gepatcht
+  ok((await pageHeadCount(page)) === 1 && (await page.locator("#main header.sd-pagehead").count()) === 1,
+     "Kopf: nach Tabwechseln und Nachladern genau ein Seitenkopf im #main");
 
   // Detailseiten: Leiste weg, nach Zurück wieder da
   await goTab(page, "woche");
@@ -1587,7 +1616,7 @@ for (const [recal, wantText, label] of [
   await page.goto(BASE + "/index.html");
   await page.waitForSelector("#toast.show");
   ok((await page.textContent("#toast")).includes("Plan aus letzter Kopie"), "Plan-404 mit Kopie: dezenter Hinweis erscheint");
-  ok((await page.textContent("#header")).includes("Woche 2 · Aufbau"), "Plan-404 mit Kopie: App läuft normal weiter (Lauftag erkannt)");
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("Woche 2 · Aufbau"), "Plan-404 mit Kopie: App läuft normal weiter (Lauftag erkannt)");
 
   // Satz-Logging funktioniert weiterhin mit der Kopie
   await goTab(page, "woche");
@@ -1701,11 +1730,11 @@ for (const [recal, wantText, label] of [
   await page.clock.setFixedTime(new Date("2027-05-05T09:00:00Z")); // 05.05.2027 Berlin
   await page.goto(BASE + "/index.html");
   await page.waitForSelector(`${TODAY}[data-kind="race"]`);
-  ok((await page.textContent("#header")).includes("Zwischen zwei Planwochen") && !(await page.textContent("#header")).includes("Woche 35"),
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("Zwischen zwei Planwochen") && !(await page.textContent("#main > header.sd-pagehead")).includes("Woche 35"),
      "Rennlücke: kein 'Woche 35', Kopf sagt 'Zwischen zwei Planwochen'");
   ok((await page.textContent("#today-slot")).includes("Der Plan endet vor dem Renntag"),
      "Rennlücke: 'Heute dran' zeigt die neutrale Karte statt einer erfundenen Einheit");
-  ok((await page.getByRole("heading", { name: "Bis zum Rennen" }).count()) === 1 && (await page.locator("#header progress, #header .sd-chip").count()) === 0,
+  ok((await page.getByRole("heading", { name: "Bis zum Rennen" }).count()) === 1 && (await page.locator("#main > header.sd-pagehead progress, #main > header.sd-pagehead .sd-chip").count()) === 0,
      "Rennlücke: Karte 'Bis zum Rennen' als Überschrift, Kopf ohne Chip und Balken");
   ok((await slotIsEmpty(page, "week-slot")) && (await page.locator('[data-card="week"]').count()) === 0,
      "Rennlücke: der Slot 'Diese Woche' bleibt wirklich leer");
@@ -1736,10 +1765,10 @@ for (const [recal, wantText, label] of [
   await page.addInitScript(() => localStorage.setItem("hm-tracker.workerUrl", "https://worker.test"));
   await page.goto(BASE + "/index.html");
   await page.waitForSelector(`${TODAY}[data-kind="noplan"]`);
-  ok((await page.textContent("#header")).includes("Ohne Plan"), "Nach dem Rennen: Kopf sagt 'Ohne Plan'");
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("Ohne Plan"), "Nach dem Rennen: Kopf sagt 'Ohne Plan'");
   await page.waitForTimeout(300);
   ok(coachRequests === 0, `Nach dem Rennen: kein Coach-API-Aufruf (F7, gezählt: ${coachRequests})`);
-  ok((await page.textContent("#header")).includes("Rennen am 02.05.2027"),
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("Rennen am 02.05.2027"),
      "Nach dem Rennen: Kopfzeile nennt das vergangene Renndatum");
   ok((await page.textContent("#today-slot")).includes("Läufe werden weiter aus Strava angezeigt"),
      "Nach dem Rennen: 'Heute dran' zeigt die neutrale Karte (F7)");
@@ -1764,9 +1793,9 @@ for (const [recal, wantText, label] of [
   const { page, ctx, errors } = await newPage({ now: "2027-05-02T09:00:00Z" }); // Renntag, So 02.05.2027
   await page.goto(BASE + "/index.html");
   await page.waitForSelector(TODAY);
-  ok((await page.textContent("#header")).includes("Woche 35") && (await page.locator(`${TODAY}[data-kind="race"]`).count()) === 0,
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("Woche 35") && (await page.locator(`${TODAY}[data-kind="race"]`).count()) === 0,
      "Renntag: Dashboard zeigt Woche 35, nicht 'Bis zum Rennen'");
-  ok((await page.textContent("#header")).includes("Rennen heute"), "Renntag: Countdown 'Rennen heute!'");
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("Rennen heute"), "Renntag: Countdown 'Rennen heute!'");
   ok(errors.length === 0, "Renntag: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
@@ -1787,16 +1816,16 @@ for (const [recal, wantText, label] of [
   await page.clock.setFixedTime(new Date("2026-08-25T09:00:00Z")); // vor Planstart 31.08.2026
   await page.goto(BASE + "/index.html");
   await page.waitForSelector(`${TODAY}[data-kind="noplan"]`);
-  ok((await page.textContent("#header")).includes("Ohne Plan") && (await page.textContent(TODAY)).includes("Kein Plan aktiv"), "Vor Planstart: 'Kein Plan aktiv' auf 'Heute'");
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("Ohne Plan") && (await page.textContent(TODAY)).includes("Kein Plan aktiv"), "Vor Planstart: 'Kein Plan aktiv' auf 'Heute'");
 
   await goTab(page, "woche");
   await page.waitForSelector(".day-row, .card");
-  ok((await page.textContent("#header .t1")).includes("Woche 1"), "Vor Planstart: Wochen-Tab zeigt Woche 1, nicht Woche 35");
+  ok((await page.textContent("#main > header.sd-pagehead .t1")).includes("Woche 1"), "Vor Planstart: Wochen-Tab zeigt Woche 1, nicht Woche 35");
 
   await goTab(page, "plan");
   await page.waitForSelector(".zone-line");
-  ok((await page.textContent("#header .eyebrow")).includes("Woche 1 von 35"), "Vor Planstart: Plan-Tab zeigt Woche 1, nicht Woche 35");
-  ok((await page.textContent("#header .eyebrow")).includes("0% geschafft"), "Vor Planstart: 0% geschafft, nicht 97%");
+  ok((await page.textContent("#main > header.sd-pagehead .eyebrow")).includes("Woche 1 von 35"), "Vor Planstart: Plan-Tab zeigt Woche 1, nicht Woche 35");
+  ok((await page.textContent("#main > header.sd-pagehead .eyebrow")).includes("0% geschafft"), "Vor Planstart: 0% geschafft, nicht 97%");
   await ctx.close();
 }
 
@@ -1830,7 +1859,7 @@ for (const [recal, wantText, label] of [
   await page.reload();
   await page.waitForSelector("#toast.show");
   ok((await page.textContent("#toast")).includes("Plan aus letzter Kopie"), "Nach 404: die selbst geschriebene Kopie greift beim Reload wirklich");
-  ok((await page.textContent("#header")).includes("Woche 2 · Aufbau"), "Nach 404 mit echter Kopie: App läuft normal weiter");
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("Woche 2 · Aufbau"), "Nach 404 mit echter Kopie: App läuft normal weiter");
   await ctx.close();
 }
 
@@ -2137,9 +2166,9 @@ for (const [fail, want, notWant, label] of [
 
   await goTab(page, "woche");
   await page.waitForSelector(".day-row");
-  ok((await page.textContent("#header .t1")).includes("Woche 10"), "W9-Test: Woche 10 aktuell");
+  ok((await page.textContent("#main > header.sd-pagehead .t1")).includes("Woche 10"), "W9-Test: Woche 10 aktuell");
   await page.click('[data-action="week-prev"]');
-  await page.waitForFunction(() => document.querySelector("#header .t1")?.textContent.includes("Woche 9"));
+  await page.waitForFunction(() => document.querySelector("#main > header.sd-pagehead .t1")?.textContent.includes("Woche 9"));
   await page.waitForSelector(".week-summary");
   const names = await page.locator(".day-row.solid .mid .n").allTextContents();
   ok(names.includes("Kalibrierungstest"), `W9: Kalibrierungstest in der Tagesliste (${names.join(", ")})`);
@@ -2164,14 +2193,14 @@ for (const [fail, want, notWant, label] of [
   // Woche 35 per Vorwärts-Blättern erreichbar, danach kein Weiter mehr
   await page.click('[data-action="week-today"]');
   for (let i = 10; i < 35; i++) await page.click('[data-action="week-next"]');
-  await page.waitForFunction(() => document.querySelector("#header .t1")?.textContent.includes("Woche 35"));
+  await page.waitForFunction(() => document.querySelector("#main > header.sd-pagehead .t1")?.textContent.includes("Woche 35"));
   ok(await page.locator('[data-action="week-next"]').isDisabled(), "Woche 35: kein Weiter");
-  ok((await page.textContent("#header .t2")).includes("26.04.") && (await page.textContent("#header .t2")).includes("02.05."), "Woche 35: 26.04.–02.05.");
+  ok((await page.textContent("#main > header.sd-pagehead .t2")).includes("26.04.") && (await page.textContent("#main > header.sd-pagehead .t2")).includes("02.05."), "Woche 35: 26.04.–02.05.");
   ok((await page.textContent("#main")).includes("Details folgen"), "Woche 35: Platzhalterkarte");
 
   await goTab(page, "plan");
   await page.waitForSelector(".zone-line");
-  ok((await page.textContent("#header .eyebrow")).includes("Woche 10 von 35"), "Plan-Tab: Woche 10 von 35");
+  ok((await page.textContent("#main > header.sd-pagehead .eyebrow")).includes("Woche 10 von 35"), "Plan-Tab: Woche 10 von 35");
   const planTxt = await page.textContent("#main");
   ok(planTxt.includes("26.10.2026–17.01.2027") && planTxt.includes("18.01.–18.04.2027") && planTxt.includes("19.04.–02.05.2027"),
     "Plan-Tab: neue Phasenzeiträume");
@@ -2204,11 +2233,13 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   scenario("30a");
   const { page, ctx, errors } = await authPage("signedOut");
   await page.waitForSelector('form[data-form="login"]');
-  ok((await page.textContent("#header h1")) === "Anmelden", "Login: Überschrift 'Anmelden'");
+  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Anmelden", "Login: Überschrift 'Anmelden'");
   const gate = await page.evaluate(() => {
     const m = document.getElementById("main").getBoundingClientRect();
+    // Der Seitenkopf steht jetzt im #main: zentriert wird in dem Raum darunter.
+    const head = document.querySelector("#main > header.sd-pagehead").getBoundingClientRect();
     const c = document.querySelector(".auth-card").getBoundingClientRect();
-    return { above: c.top - m.top, below: m.bottom - c.bottom, logo: (() => { const r = document.querySelector(".auth-brand .sd-mark--lg")?.getBoundingClientRect(); return r ? Math.round(r.width) : 0; })() };
+    return { above: c.top - head.bottom, below: m.bottom - c.bottom, logo: (() => { const r = document.querySelector(".auth-brand .sd-mark--lg")?.getBoundingClientRect(); return r ? Math.round(r.width) : 0; })() };
   });
   ok(gate.above > 40 && Math.abs(gate.above - gate.below) < 24, `Login: Karte vertikal zentriert (oben ${gate.above}, unten ${gate.below})`);
   ok(gate.logo === 64, `Login: Stride-Zeichen 64 px in der Karte (${gate.logo})`);
@@ -2257,7 +2288,7 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   await page.waitForSelector('#main [data-card="today"]');
   ok((await page.evaluate(() => window.__SIGNIN_ARGS__)).join("|") === "louis@example.test|richtig", "Login: Zugangsdaten gehen unverändert an signIn");
   ok(await page.locator("#tabbar").isVisible(), "Login: nach dem Anmelden erscheint die Tableiste");
-  ok((await page.textContent("#header")).includes("Woche 2"), "Login: nach dem Anmelden lädt das Dashboard im selben Seitenaufruf");
+  ok((await page.textContent("#main > header.sd-pagehead")).includes("Woche 2"), "Login: nach dem Anmelden lädt das Dashboard im selben Seitenaufruf");
   ok(errors.length === 0, "Login: Erfolg ohne Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
@@ -2268,7 +2299,7 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   const { page, ctx, errors } = await authPage("forbidden");
   await page.waitForSelector('[data-action="forbidden-logout"]');
   const txt = await page.textContent("#main");
-  ok((await page.textContent("#header h1")) === "Kein Zugriff", "Fremdes Konto: Überschrift 'Kein Zugriff'");
+  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Kein Zugriff", "Fremdes Konto: Überschrift 'Kein Zugriff'");
   ok(txt.includes("fremde-uid-1234567890") && txt.includes("fremd@example.test"), "Fremdes Konto: zeigt E-Mail und UID des angemeldeten Kontos");
   ok((await page.locator("#tabbar").isVisible()) === false, "Fremdes Konto: keine Tableiste");
   await page.waitForTimeout(300);

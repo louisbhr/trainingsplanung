@@ -3,29 +3,29 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610211108";
-import { loadPlans } from "./plan-store.js?v=202610211108";
+} from "./plan.js?v=202610211120";
+import { loadPlans } from "./plan-store.js?v=202610211120";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610211108";
+} from "./firebase-init.js?v=202610211120";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport,
-} from "./strava.js?v=202610211108";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610211108";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610211108";
-import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet } from "./ui.js?v=202610211108";
-import * as dash from "./view-dashboard.js?v=202610211108";
-import * as dashWeek from "./view-week.js?v=202610211108";
-import * as metrics from "./metrics.js?v=202610211108";
-import * as coach from "./coach.js?v=202610211108";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610211108";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610211108";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610211108";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610211108";
+} from "./strava.js?v=202610211120";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610211120";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610211120";
+import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet } from "./ui.js?v=202610211120";
+import * as dash from "./view-dashboard.js?v=202610211120";
+import * as dashWeek from "./view-week.js?v=202610211120";
+import * as metrics from "./metrics.js?v=202610211120";
+import * as coach from "./coach.js?v=202610211120";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610211120";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610211120";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610211120";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610211120";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -56,8 +56,28 @@ let plans = [];
 // ---------- kleine Helfer ----------
 const todayISO = () => toISO(new Date());
 
-const header = document.getElementById("header");
 const main = document.getElementById("main");
+
+// Seitenkopf scrollt mit dem Inhalt (docs/plan-stride.md "Ansatz"): er steht als
+// erster Block <header class="sd-pagehead" data-region="pagehead"> IM #main, das
+// einzige Scroll-Element. #header bleibt als leerer DOM-Platz. Damit jeder
+// main.innerHTML-Schreibzugriff den Kopf automatisch mitliefert (und nie
+// verdoppelt), setzt der Setter unten ihn vor den Inhalt; setPageHead() merkt
+// sich den Kopf und patcht ihn, falls er schon im DOM steht.
+let pageHeadHTML = "";
+const nativeInnerHTML = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
+Object.defineProperty(main, "innerHTML", {
+  get() { return nativeInnerHTML.get.call(main); },
+  set(html) {
+    nativeInnerHTML.set.call(main, `<header class="sd-pagehead" data-region="pagehead">${pageHeadHTML}</header>${html}`);
+  },
+});
+
+function setPageHead(html) {
+  pageHeadHTML = html;
+  const el = main.querySelector(":scope > [data-region='pagehead']");
+  if (el) el.innerHTML = html;
+}
 
 const state = {
   tab: "dashboard",
@@ -213,25 +233,25 @@ function paintDashboardHeader(iso, dayState, plan) {
   if (dayState === "keinPlan") {
     const goal = plans[0]?.goal;
     const past = goal && goal.raceDate < iso;
-    header.innerHTML = dash.headHTML({ sub: "Ohne Plan", title, meta: past ? [`Rennen am ${germanDate(goal.raceDate)}`] : [] });
+    setPageHead(dash.headHTML({ sub: "Ohne Plan", title, meta: past ? [`Rennen am ${germanDate(goal.raceDate)}`] : [] }));
     return;
   }
   if (dayState === "bisZumRennen") {
-    header.innerHTML = dash.headHTML({
+    setPageHead(dash.headHTML({
       sub: "Zwischen zwei Planwochen", title, meta: [plan.goal.distance, countdownText(plan, iso)],
-    });
+    }));
     return;
   }
   const w = weekNumberFor(plan, iso);
   const week = weekOf(plan, w);
   const phase = phaseOf(plan, w);
-  header.innerHTML = dash.headHTML({
+  setPageHead(dash.headHTML({
     sub: `Woche ${w} · ${week.weekType || phase.name}`,
     title,
     chip: { text: `W${w} / ${plan.totalWeeks}`, label: `Woche ${w} von ${plan.totalWeeks}` },
     progress: { value: w, max: plan.totalWeeks, label: `Planfortschritt, Woche ${w} von ${plan.totalWeeks}` },
     meta: [`Phase ${phase.n} · ${phase.name}`, countdownText(plan, iso)],
-  });
+  }));
 }
 
 // ---- Banner ----
@@ -860,7 +880,7 @@ function syncTabbar() {
 
 // Kopfbereich der vier Tab-Seiten: Marke + Wortmarke, danach der Seiteninhalt.
 function setTabHeader(html) {
-  header.innerHTML = brandHeadHTML() + html;
+  setPageHead(brandHeadHTML() + html);
 }
 
 // Detailseiten (Kraft-Tag, Lauf-Tag) blenden die schwebende Tableiste aus
@@ -887,7 +907,7 @@ function render() {
     if (state.tab === "plan") return renderPlan();
   } catch (err) {
     console.error(err);
-    header.innerHTML = `<h1>Fehler</h1>`;
+    setPageHead(`<h1>Fehler</h1>`);
     main.innerHTML = errorCard("Etwas ist schiefgelaufen: " + err.message);
   }
 }
@@ -901,7 +921,7 @@ async function renderDay(iso, { showBack, backLabel }) {
   const label = backLabel ?? `Woche ${w}`;
   setDetailMode(info.kind === "kraft" || info.kind === "lauf");
 
-  header.innerHTML = `
+  setPageHead(`
     <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} ${esc(label)}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
     <div class="title-row"><h1>${
       info.kind === "kraft" ? "Krafttraining"
@@ -910,7 +930,7 @@ async function renderDay(iso, { showBack, backLabel }) {
       : info.kind === "bisZumRennen" ? "Bis zum Rennen"
       : info.kind === "keinPlan" ? "Kein aktiver Plan"
       : "Ruhetag"
-    }</h1>${badgeForKind(info)}</div>`;
+    }</h1>${badgeForKind(info)}</div>`);
 
   if (info.kind !== "kraft") { editMode = false; replaceFor = null; quickAdd = false; }
   if (info.kind === "kraft") return renderKraftDay(info, iso);
@@ -2028,7 +2048,7 @@ let currentUser = null; // { email, uid } der angemeldeten Sitzung
 function showGate(title, html) {
   appEl.classList.add("no-session");
   appEl.classList.remove("is-detail");
-  header.innerHTML = `<h1>${esc(title)}</h1>`;
+  setPageHead(`<h1>${esc(title)}</h1>`);
   main.innerHTML = html;
 }
 
@@ -2230,7 +2250,7 @@ appEl.addEventListener("submit", async (e) => {
 
 async function init() {
   appEl.classList.add("no-session");
-  header.innerHTML = `<h1>Trainingsplan</h1>`;
+  setPageHead(`<h1>Trainingsplan</h1>`);
   main.innerHTML = loadingCard("Anmeldung wird geprüft …");
   let user;
   try {
@@ -2282,7 +2302,7 @@ async function startApp() {
     STRAVA_SINCE = addDays(plans[0].start, -35);
   } catch (err) {
     console.error(err);
-    header.innerHTML = `<h1>Trainingsplan</h1>`;
+    setPageHead(`<h1>Trainingsplan</h1>`);
     main.innerHTML = errorCard(err.message);
     // M3: Ein Strava-Redirect (?code=…) wird hier bewusst nicht mehr
     // verarbeitet, wenn schon das Plan-Laden scheitert — der Code bleibt
@@ -2296,7 +2316,7 @@ async function startApp() {
   let stravaIsError = false;
   const hasRedirect = /[?&](code|error)=/.test(location.search);
   if (hasRedirect) {
-    header.innerHTML = `<h1>Strava</h1>`;
+    setPageHead(`<h1>Strava</h1>`);
     main.innerHTML = loadingCard("Strava-Verbindung wird abgeschlossen …");
     const res = await handleAuthRedirect();
     if (res.status === "connected") stravaMsg = "Mit Strava verbunden.";
