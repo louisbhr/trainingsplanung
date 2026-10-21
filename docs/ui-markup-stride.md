@@ -46,7 +46,7 @@ Datei durch `--bg` / `--sunk` / `--card` ersetzt. Die Hell/Dunkel-Werte stehen 1
 | `--sunk` | #efeee9 | #202024 | Felder, Sekundärbutton, Range-Spur |
 | `--line` | #efeee9 | #33333a | Trennlinien |
 | `--seg` | #e6e5df | #2c2c31 | Segment-Hintergrund, Hover Sekundärbutton |
-| `--text-primary` / `-secondary` / `-muted` | #1c1c1a / #5f5e5a / #8a897f | #f2f1ec / #b3b2ab / #918f87 | Text |
+| `--text-primary` / `-secondary` / `-muted` | #1c1c1a / #5f5e5a / #767570 (Louis 21.10.: statt #8a897f, 4,5:1) | #f2f1ec / #b3b2ab / #918f87 | Text |
 | `--ink-faint` | #b5b4ac | #6e6d66 | Chevrons, Info-Icons (nie für Text) |
 | `--ring-dashed` | #c9c8c0 | #55545a | offener Ring, Stepper-Unterlinie |
 | `--ink-off` | #dcdbd5 | #3a3a40 | inaktive Punkte, Sheet-Griff, Ruhe-Streifen |

@@ -2,6 +2,8 @@
 
 **Status: FREIGEGEBEN 20.10.2026** (Louis: "alles ja"). Alle offenen Fragen F1–F12
 in Abschnitt 9 gelten wie empfohlen entschieden, ebenso V1 und V2 (V3 → Backlog).
+Nachtrag 21.10.2026: Mockup-Nachtrag E0 abgenommen; `--text-muted` hell = `#767570`
+statt `#8a897f` (Kontrast 4,5:1, bewusste Abweichung vom Handoff).
 
 Stand: 20.10.2026 · Branch `stride-redesign` (Basis `origin/main` a6e6c4b)
 
