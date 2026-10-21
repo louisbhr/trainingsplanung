@@ -221,7 +221,7 @@ button, input, select, textarea { font-family: inherit; }
   padding: calc(1rem + env(safe-area-inset-top)) 0 1rem;
   flex-shrink: 0;
 }
-.sd-pagehead:has(> :is(.sd-head, .sd-nav)) {
+.sd-pagehead:has(> :is(.sd-head, .sd-nav, .sd-weekhead)) {
   padding: calc(8px + env(safe-area-inset-top)) 0 0;
 }
 .sd-pagehead .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0; }
@@ -268,7 +268,7 @@ button, input, select, textarea { font-family: inherit; }
 /* Alter Kopf (Eyebrow/Titel/Marke) in einem genullten #main: Seitenpolster selbst tragen,
    sonst klebt er am Rand (vorher trug das der #header). */
 #main:has(> :is(.sd-main, .sd-intro, .sd-nav, .sd-head, .sd-dots, .sd-daytitle, .sd-auth))
-  > .sd-pagehead:not(:has(> :is(.sd-head, .sd-nav))) {
+  > .sd-pagehead:not(:has(> :is(.sd-head, .sd-nav, .sd-weekhead))) {
   padding-inline: max(1.25rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-left));
 }
 
@@ -565,17 +565,8 @@ select {
 /* =========================================================
    Dashboard v2 (D0) — docs/mockup-dashboard-v2.html, abgenommen 27.09.2026.
    Referenz für Markup: docs/ui-markup-dashboard-v2.md.
-   Wird von den Stride-Screens E3 bis E8 abgelöst.
+   Wird von den Stride-Screens E4 bis E8 abgelöst; die Heute-Reste sind seit E4 entfernt.
    ========================================================= */
-
-.section-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 6px 0 0; text-transform: uppercase; letter-spacing: 0.04em; }
-.countdown { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
-
-/* #main setzt sein gap NUR zwischen direkten Kindern. app.js rendert das
-   Dashboard aber in vier Lade-Slots, damit Strava/Coach/Ampeln unabhängig
-   nachladen können (M2-4). Jeder Slot bekommt dasselbe Spalten-Layout wie
-   #main, damit sein Inhalt denselben Rhythmus hat. */
-#today-slot, #coach-slot, #ampel-slot, #detail-slot { display: flex; flex-direction: column; gap: 12px; }
 
 /* Kleine Utilities für Stellen, an denen sich eine eigene Komponentenklasse
    nicht lohnt (ersetzen frühere statische style="…", Review-Minor M5).
@@ -603,144 +594,6 @@ select {
 .fg-amber { color: var(--amber-fg); }
 .bg-coral { background: var(--coral-bg); }
 .metric-value.xs { font-size: 16px; }
-
-/* ---- Coach-Karte ---- */
-.coach-card { background: var(--purple-bg); border-radius: 22px; padding: 1rem 1.25rem; }
-.coach-card .head { display: flex; gap: 9px; align-items: flex-start; }
-.coach-card .icon { width: 18px; height: 18px; color: var(--purple-fg); flex-shrink: 0; margin-top: 1px; }
-.coach-card .label { font-size: 11px; font-weight: 700; color: var(--purple-fg); margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.03em; }
-.coach-card .body { flex: 1; min-width: 0; }
-.coach-card p.text { font-size: 13px; color: var(--purple-ink); margin: 0; line-height: 1.5; }
-.coach-card p.note { font-size: 11px; color: var(--purple-ink); opacity: 0.75; margin: 4px 0 0; }
-/* 12px/10px: die Überschrift "Wochenbilanz · Woche N" klebte direkt unter der Linie. */
-.coach-card .divider { border-top: 1px solid var(--purple-line); margin: 12px 0 10px; }
-.bilanz-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; background: transparent; border: none; padding: 4px 0; color: var(--purple-fg); font-size: 12.5px; font-weight: 700; cursor: pointer; min-height: 44px; }
-.bilanz-toggle svg { width: 16px; height: 16px; transition: transform 0.18s ease; flex-shrink: 0; }
-.bilanz-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
-.bilanz-body { font-size: 13px; color: var(--purple-ink); line-height: 1.55; margin: 6px 0 0; }
-.bilanz-heading { font-size: 12px; font-weight: 700; color: var(--purple-fg); margin: 0 0 6px; }
-@media (prefers-reduced-motion: reduce) {
-  .bilanz-toggle svg { transition: none; }
-}
-
-/* ---- Ampeln 2×2 (F5) ----
-   Status wird über Farbe UND Form gezeigt (colorblind-sicher, von Louis
-   bestätigt): Kreis = grün, Raute = gelb, Quadrat = rot, Ring = grau.
-   align-items:stretch explizit: alle Kacheln einer Zeile gleich hoch. */
-.ampel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; }
-.ampel-tile { background: var(--card); border-radius: 16px; padding: 0.75rem 0.9rem; min-width: 0; }
-/* flex-start statt center: ein umbrechender Titel ("Kraft-Progression")
-   soll nicht mit dem Info-Knopf kollidieren. */
-.ampel-tile .row1 { display: flex; align-items: flex-start; gap: 8px; }
-.ampel-tile p.title { font-size: 12px; font-weight: 600; margin: 0; flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.ampel-tile p.detail { font-size: 12px; color: var(--text-secondary); margin: 4px 0 0; line-height: 1.4; }
-.ampel-dot { flex-shrink: 0; display: inline-block; width: 10px; height: 10px; }
-.ampel-dot.st-gruen { border-radius: 50%; background: var(--ok-fg); }
-.ampel-dot.st-gelb { background: var(--amber-fg); transform: rotate(45deg); border-radius: 2px; }
-.ampel-dot.st-rot { background: var(--danger-fg); border-radius: 2.5px; }
-.ampel-dot.st-grau { border-radius: 50%; background: transparent; border: 2px solid var(--text-muted); width: 8px; height: 8px; }
-.ampel-dot.st-loading { border-radius: 50%; background: transparent; border: 2px solid var(--ink-off); width: 8px; height: 8px; }
-
-/* Info-Knopf (D1): 20px sichtbar, aber ≥44px Trefffläche über ein
-   unsichtbares ::after. Immer mit aria-label auf dem Button selbst.
-   padding:0 ist Pflicht: als <button> erbt .info-btn sonst padding 6px 12px,
-   bei border-box ergibt das eine negative Inhaltsbreite und das SVG
-   (Flex-Kind) schrumpft auf unsichtbar. */
-.info-btn { position: relative; flex-shrink: 0; width: 21px; height: 21px; padding: 0; border: none; background: transparent; color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
-.info-btn::after { content: ""; position: absolute; inset: -12px; }
-.info-btn svg { width: 17px; height: 17px; }
-.info-btn:hover, .info-btn:focus-visible { color: var(--text-primary); }
-
-/* ---- Info-Sheet — ein gemeinsames Bottom-Sheet für alle Ampeln plus
-   "Aerobe Effizienz", Inhalt wird per JS ausgetauscht. Liegt wie #toast
-   direkt in #app. Optik nach Handoff §4: --card, Radius 28 oben, Griff
-   36x5, Titel 19/600, Schließen als 36px-Kreis (Trefferfläche 44px).
-   Backdrop bekommt translateZ(0) (eigene Compositing-Ebene) und beide einen
-   z-index weit über der Glasleiste: backdrop-filter-Flächen überlagern sonst
-   Geschwister mit höherem z-index. ---- */
-.info-backdrop { position: absolute; inset: 0; background: var(--backdrop); z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.18s ease; transform: translateZ(0); }
-.info-backdrop.open { opacity: 1; pointer-events: auto; }
-.info-sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--card); border-radius: 28px 28px 0 0; padding: 10px 20px calc(36px + env(safe-area-inset-bottom)); max-height: 78%; overflow-y: auto; box-shadow: var(--sheet-shadow); z-index: 51; transform: translateY(100%); transition: transform 250ms ease-out; }
-.info-sheet.open { transform: translateY(0); }
-.info-sheet[hidden] { display: none; }
-.info-sheet-handle { width: 36px; height: 5px; border-radius: 3px; background: var(--ink-off); margin: 0 auto 14px; }
-.info-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.info-sheet-head h2 { font-size: 19px; font-weight: 600; letter-spacing: -0.02em; margin: 0; min-width: 0; overflow-wrap: anywhere; }
-.info-sheet-close { position: relative; width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: var(--text-secondary); cursor: pointer; margin: -4px -4px -4px 0; flex-shrink: 0; }
-.info-sheet-close::before { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--sunk); }
-.info-sheet-close svg { position: relative; width: 18px; height: 18px; flex: none; }
-.info-sheet-body p { font-size: 14.5px; line-height: 1.55; color: var(--text-secondary); margin: 0 0 10px; }
-.info-sheet-body p:last-child { margin-bottom: 0; }
-@media (prefers-reduced-motion: reduce) {
-  .info-backdrop, .info-sheet { transition: none; }
-}
-
-/* ---- "Heute dran"-Karte (F4) — Modifier auf .card, Farbe nach Typ. ---- */
-.today-card.k-kraft { background: var(--teal-bg); }
-.today-card.k-lauf { background: var(--coral-bg); }
-.today-card.k-long { background: var(--purple-bg); }
-.today-card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-.today-card .eyebrow2 { font-size: 11px; margin: 0; opacity: 0.9; }
-.today-card .name2 { font-size: 15px; font-weight: 600; margin: 2px 0 0; }
-.today-card .sub { font-size: 12px; margin: 3px 0 0; opacity: 0.85; line-height: 1.45; }
-.today-card .sub.loading-hint { opacity: 0.7; margin-top: 4px; }
-.today-card .strava-fallback { margin-top: 8px; color: var(--coral-fg); }
-.today-card.k-kraft, .today-card.k-kraft .eyebrow2, .today-card.k-kraft .name2, .today-card.k-kraft .sub { color: var(--teal-fg); }
-.today-card.k-lauf, .today-card.k-lauf .eyebrow2, .today-card.k-lauf .name2, .today-card.k-lauf .sub { color: var(--coral-fg); }
-.today-card.k-long, .today-card.k-long .eyebrow2, .today-card.k-long .name2, .today-card.k-long .sub { color: var(--purple-fg); }
-.start-btn { font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 12px; border: none; background: var(--primary); color: var(--on-primary); cursor: pointer; flex-shrink: 0; min-height: 44px; }
-.start-btn:hover, .start-btn:active { background: var(--primary-hover); }
-.start-btn:active { transform: scale(0.96); }
-.ex-list { display: none; margin-top: 10px; border-top: 1px solid color-mix(in srgb, var(--teal-fg) 25%, transparent); padding-top: 8px; }
-.ex-list.open { display: block; }
-.ex-list .ex-list-head { display: flex; justify-content: flex-end; margin-bottom: 4px; }
-/* Name nimmt den Rest (flex:1, Ellipsis), Soll hat eine feste Mindestbreite
-   und sitzt rechtsbündig vor dem Chevron: stabile Spalte unabhängig von der
-   Namenslänge (space-between auf 3 Kindern ließ sie mittig schweben). */
-.ex-row { display: flex; width: 100%; align-items: center; gap: 8px; padding: 7px 2px; border-radius: 8px; cursor: pointer; color: var(--teal-fg); min-height: 44px; background: transparent; border: none; font: inherit; text-align: left; }
-.ex-row:hover, .ex-row:focus-visible { background: color-mix(in srgb, var(--teal-fg) 9%, transparent); }
-.ex-row .exn { font-size: 13px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ex-row .exs { font-family: var(--font-mono); font-size: 12px; opacity: 0.8; white-space: nowrap; flex-shrink: 0; min-width: 58px; text-align: right; }
-.ex-row svg { width: 15px; height: 15px; opacity: 0.6; flex-shrink: 0; }
-.ex-hint { font-size: 11px; color: var(--teal-fg); opacity: 0.8; margin: 6px 0 0; }
-.ex-progress { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: color-mix(in srgb, var(--teal-fg) 16%, transparent); color: var(--teal-fg); white-space: nowrap; }
-
-/* ---- Wochenvolumen Soll/Ist-Balkenpaare (F8, D2) ----
-   Eigener "si-"-Namensraum, bewusst NICHT .bars/.bar-col/.bar-label: diese
-   gehören dem Verlauf-Balkendiagramm. Beide Balken sind voll gefüllt (Soll =
-   --soll-fill gedämpft, Ist = --teal-fg kräftig). Ein Ist von 0 zeichnet
-   keinen Balken (kein falscher Rest-Stummel). */
-.si-bars { display: flex; align-items: flex-end; gap: 6px; height: 110px; }
-.si-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
-.si-bar-pair { display: flex; align-items: flex-end; gap: 3px; height: 92px; width: 100%; }
-.si-bar-soll { flex: 1; background: var(--soll-fill); border-radius: 3px 3px 0 0; min-height: 4px; }
-.si-bar-ist { flex: 1; background: var(--teal-fg); border-radius: 3px 3px 0 0; min-height: 3px; }
-.si-bar-label { font-size: 10px; color: var(--text-muted); }
-.si-bar-label.current { color: var(--teal-fg); font-weight: 700; }
-.si-bar-legend { display: flex; gap: 14px; margin: 8px 0 12px; }
-.si-bar-legend .lg-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
-.si-bar-legend .lg-swatch { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-.si-bar-legend .lg-swatch.lg-soll { background: var(--soll-fill); }
-.si-bar-legend .lg-swatch.lg-ist { background: var(--teal-fg); }
-
-/* ---- Aerobe Effizienz (F8) — Karte mit Delta-Zeile + Linienchart ---- */
-.aerobe-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.aerobe-head .aerobe-title { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
-.aerobe-head .aerobe-title .name { font-size: 15px; font-weight: 600; }
-.aerobe-delta { font-size: 12px; font-weight: 600; margin: 0; white-space: nowrap; }
-.aerobe-delta.good { color: var(--ok-fg); }
-.aerobe-delta.bad { color: var(--danger-fg); }
-.aerobe-chart { width: 100%; display: block; margin-top: 6px; }
-
-/* ---- Adhärenz / "Als Nächstes" (F8) — eigene Kachel-Optik innerhalb des
-   bestehenden .metric-grid; Label/Wert per Nachfahren-Selektor überschrieben
-   statt die globalen .metric-label/.metric-value zu ändern. ---- */
-.metric-tile { background: var(--card); border-radius: 16px; padding: 0.8rem 0.9rem; min-width: 0; }
-.metric-tile .metric-label { font-size: 12px; font-weight: 600; color: var(--text-primary); margin: 0; }
-.metric-tile .metric-value { font-size: 22px; font-weight: 600; margin: 4px 0 2px; }
-.metric-bar-track { height: 5px; border-radius: 3px; background: var(--track); }
-.metric-bar-fill { height: 5px; border-radius: 3px; background: var(--teal-fg); }
-.metric-sub { font-size: 11px; color: var(--text-muted); margin: 4px 0 0; line-height: 1.5; }
 
 /* ---- Wochen-Tab (F9) — Kopf-Zusammenfassung ---- */
 .week-summary { background: var(--card); border-radius: 22px; padding: 1rem 1.25rem; }
@@ -787,20 +640,6 @@ select {
 .week-nav button.icon-btn { border-radius: 50%; background: var(--card); }
 .week-nav button svg { width: 18px; height: 18px; }
 .week-today-btn { display: block; margin: 8px auto 0; }
-
-/* ---- Skeleton / Ladezustand (Dashboard rendert sofort, wartet nicht auf
-   Strava/Coach — Platzhalter statt leerer Fläche). ---- */
-.skel { position: relative; overflow: hidden; background: var(--track); border-radius: 6px; }
-.skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent); animation: skel-shimmer 1.5s infinite; }
-@keyframes skel-shimmer { to { transform: translateX(100%); } }
-@media (prefers-reduced-motion: reduce) {
-  .skel::after { animation: none; opacity: 0.5; }
-}
-.skel-line { height: 10px; margin: 6px 0; border-radius: 5px; }
-/* height:90px fest; der einzelne .skel-bar darin trägt flex:1 und füllt die
-   Höhe ohnehin komplett aus. */
-.skel-tile-body { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; height: 90px; }
-.skel-bar { flex: 1; background: var(--track); border-radius: 3px 3px 0 0; }
 
 /* Wochenzeile: Kopf ist ein eigener Knopf (Details auf/zu), die Zeile selbst
    ein Container, damit "Tag öffnen" kein Button im Button ist. */
@@ -1331,6 +1170,71 @@ button.sd-nextrow:active { opacity: 0.7; }
 @media (prefers-reduced-motion: reduce) {
   .sd-skel::after { animation: none; opacity: 0; }
   .sd-weekcard:active { transform: none; }
+}
+
+/* =====================================================================
+   Woche (E4), nur was über die sd-Bausteine hinausgeht. Die Tageszeile
+   (.sd-day, .sd-day__*) steht im Abschnitt "Woche: Tageszeilen" oben und wird
+   hier nur ergänzt. Markup: docs/ui-markup-stride.md, Abschnitt 10.
+   Dynamische Werte: <progress class="sd-prog"> wie auf Heute, nie style (C5).
+   ===================================================================== */
+
+/* ---- Kopf: Titel links, zwei Rundtasten rechts, "Zu heute" in eigener Zeile ----
+   Die Tasten sitzen oben rechts und bleiben beim Blättern an ihrem Platz, auch wenn
+   die Zeile mit "Zu heute" dazukommt. Wird es zu eng (unter ca. 310 px), rutschen
+   die Tasten unter den Titel, nichts wird abgeschnitten. */
+.sd-weekhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px 20px 0; }
+.sd-weekhead__titles { flex: 1 1 160px; min-width: 0; }
+.sd-weekhead__today { flex: 1 0 100%; display: flex; }
+.sd-weeknav { display: flex; gap: 8px; flex: none; }
+.sd-roundbtn { appearance: none; border: 0; flex: none; width: 44px; height: 44px; padding: 0; border-radius: 50%; background: var(--card); color: var(--text-primary); display: inline-grid; place-items: center; cursor: pointer; transition: background-color 150ms ease-out, transform 150ms ease-out, opacity 150ms ease-out; }
+.sd-roundbtn:active { transform: scale(0.94); }
+.sd-roundbtn:disabled, .sd-roundbtn[aria-disabled="true"] { opacity: 0.35; cursor: default; }
+.sd-roundbtn:disabled:active, .sd-roundbtn[aria-disabled="true"]:active { transform: none; }
+@media (hover: hover) { .sd-roundbtn:not(:disabled):not([aria-disabled="true"]):hover { background: color-mix(in srgb, var(--card) 90%, var(--text-primary)); } }
+/* "Zu heute": sichtbar 34 px hoch, Trefferfläche 44 px über ::after (wie .sd-seg__opt). */
+.sd-pillbtn { appearance: none; position: relative; border: 0; flex: none; height: 34px; padding: 0 14px; border-radius: 17px; background: var(--teal-bg); color: var(--teal-fg); font: 600 13px/1 var(--font-ui); display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; cursor: pointer; transition: filter 150ms ease-out, transform 150ms ease-out; }
+.sd-pillbtn::after { content: ""; position: absolute; inset: -5px -4px; }
+.sd-pillbtn:active { transform: scale(0.97); }
+@media (hover: hover) { .sd-pillbtn:hover { filter: brightness(0.96); } }
+
+/* ---- Summen-Karte: zwei Spalten, darunter je ein 5-px-Balken ----
+   Wert fluid über cqi (Container ist #main), Einheit bricht notfalls unter die Zahl.
+   Unter 360 px Spaltenbreite stehen die beiden Summen untereinander. */
+.sd-sums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; padding: 18px 20px; }
+.sd-sum { min-width: 0; display: flex; flex-direction: column; }
+.sd-sum__label { margin: 0; font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-secondary); }
+.sd-sum__value { margin: 6px 0 10px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; font-size: 22px; font-size: clamp(19px, 5.6cqi, 22px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; overflow-wrap: anywhere; }
+.sd-sum__value .sd-unit { margin-left: 0; font-size: 13px; letter-spacing: 0; }
+.sd-sum .sd-prog { height: 5px; margin-top: auto; }
+@container (max-width: 359px) {
+  .sd-sums { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+}
+
+/* ---- Tagesliste in einer Karte ----
+   overflow:hidden, damit die Heute-Tönung dem Kartenradius (22) folgt. Der Fokusring
+   liegt deshalb innen (negativer Offset), sonst würde er abgeschnitten. */
+.sd-days { overflow: hidden; }
+.sd-day__row { position: relative; }
+.sd-day__row:focus-visible { outline-offset: -3px; }
+.sd-day__status { position: relative; display: flex; align-items: center; gap: 6px; flex: none; }
+/* Globales button:active (scale) würde die ganze Zeile verkleinern: hier nur eine Tönung. */
+button.sd-day__row:active { transform: none; background: color-mix(in srgb, var(--text-primary) 7%, transparent); }
+@media (hover: hover) { button.sd-day__row:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); } }
+/* Akkordeon: Details sind per hidden zu; display:flex der Basisregel würde hidden sonst übersteuern. */
+.sd-day__detail[hidden] { display: none; }
+.sd-day__detail p { overflow-wrap: anywhere; }
+.sd-day__detail p.is-danger { color: var(--danger-fg); }
+/* Schmale Spalte: Zeilenpolster und Einzug rücken zusammen (Einzug = Polster + Datum 30 + Streifen 3 + 2 Abstände). */
+@container (max-width: 359px) {
+  .sd-day__row { gap: 12px; padding-inline: 16px; }
+  .sd-day__detail { padding-inline: 73px 16px; }
+}
+.sd-hint--center { text-align: center; padding: 4px 8px 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sd-roundbtn, .sd-pillbtn { transition: none; }
+  .sd-roundbtn:active, .sd-pillbtn:active { transform: none; }
 }
 
 /* Bewegung nur dort, wo sie etwas erklärt, und abschaltbar */

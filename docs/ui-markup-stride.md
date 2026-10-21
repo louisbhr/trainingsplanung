@@ -360,7 +360,7 @@ laufen durch einen Helfer `pct(x)` (Zahl, `Number.isFinite`, auf 0 bis 100 gekle
 ## 8. Screen-Ergänzungen (je Etappe vom Designer nachgetragen)
 
 - **E3 Heute:** erledigt, siehe Abschnitt 9 unten (Kopf, Banner, Heute-Karten, Coach, Status, Diese Woche, Info-Sheet-Blöcke).
-- **E4 Woche:** Kopf mit Rundtasten, Summen-Karte (offen).
+- **E4 Woche:** erledigt, siehe Abschnitt 10 (Kopf mit Rundtasten, Summen-Karte, Tageszeilen-Akkordeon).
 - **E5 Kraft-Tag:** Feinheiten der Jetzt-Karte, Entwurf-Wiederherstellung (offen).
 - **E6 Lauf-Tag:** Zustände Zukunft, Strava fehlt, ignoriert (aus dem Prototyp, offen).
 - **E7 Verlauf und Plan**, **E8 Login:** offen.
@@ -731,6 +731,8 @@ Zusätzlich zu Abschnitt 6: `session.label`, `ex.name`, `ex.soll`, `session.type
 
 ### 9.11 Durch E3 überflüssig gewordene alte Klassen (Löschliste für `style.css`, nach dem Umbau)
 
+**Erledigt in E4:** alle hier genannten Klassen sind aus `style.css` gelöscht (Grep über `*.js`, `index.html`, `tests/`: keine Treffer als Klasse). `.badge` und `.tone-*` bleiben.
+
 Erst löschen, wenn `view-dashboard.js` und der Heute-Teil von `app.js` nicht mehr darauf zeigen und `tests/app.test.mjs` (Selektoren `.today-card`, `.ex-row`, `.coach-card`, `.ampel-tile`, `.ampel-dot`, `.bilanz-*`, `.si-bar-*`, `#header .badge/.countdown`) auf die neuen Hooks umgestellt ist.
 - Kopf: `.countdown`, `#header .eyebrow`, `.badge`-Aufrufer `phaseBadgeHTML`/`noPlanBadgeHTML` (die Klasse `.badge` selbst bleibt, `badge()` in `ui.js` nutzen noch Kraft-/Lauf-Tag), `.tone-*` bleiben (Plan-Tab).
 - Heute-Karte: `.today-card`, `.k-kraft`, `.k-lauf`, `.k-long`, `.k-ruhe`, `.k-noplan`, `.eyebrow2`, `.name2`, `.sub`, `.loading-hint`, `.strava-fallback`, `.start-btn`, `.ex-list`, `.ex-list-head`, `.ex-row`, `.exn`, `.exs`, `.ex-hint`, `.ex-progress`.
@@ -741,3 +743,249 @@ Erst löschen, wenn `view-dashboard.js` und der Heute-Teil von `app.js` nicht me
 - Platzhalter alt: `.skel`, `.skel-line`, `@keyframes skel-shimmer` (nach Entfernen von `skelLine()` aus `ui.js`).
 - Slot-Regel `#today-slot, #coach-slot, #ampel-slot, #detail-slot` (ersetzt durch `.sd-main > [id$="-slot"]`).
 - **Bleiben (noch benutzt):** `.metric-grid/-label/-value` (Lauf-Tag, Verlauf), `.center-note`, `.card.notice`, `.small-btn`, `.title-row` (Kraft-Tag, Verlauf), `.hint`, `.w-70` und die übrigen Utilities.
+
+---
+
+## 10. Screen-Ergänzungen: Woche (E4)
+
+Optik: Handoff §5.2, Mockup W1, Prototyp (Woche). CSS: Abschnitt „Woche (E4)“ am Ende von `style.css`; die
+Tageszeile selbst (`sd-day`, `sd-day__*`) steht schon im Abschnitt „Woche: Tageszeilen“ und wurde nur ergänzt.
+Wiederverwendet: `sd-intro__sub`, `sd-display`, `sd-card`, `sd-card--list`, `sd-prog`, `sd-stripe`, `sd-pill`,
+`sd-check`, `sd-ring`, `sd-btn`, `sd-vh`, `sd-mono`, `sd-unit`, `sd-hint`. **Kein `style=` auf diesem Screen.**
+
+Icon-Konstanten (einmal in `view-week.js`, keine `ICONS.*`: die haben keine Größenklasse):
+```js
+const I_CHEV_L20 = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
+const I_CHEV_R20 = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+const I_CHEV_R   = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';   // in "Tag öffnen"
+```
+Haken-Kreis und Ring kommen aus `checkCircle(kind, 22)` und `ringOpen(22)` (`ui.js`), Pills aus `pill(tone, text)`.
+
+### 10.0 Seitenaufbau
+
+```html
+<!-- #main: erstes Kind ist der Seitenkopf (scrollt mit), danach genau ein .sd-main -->
+<header class="sd-pagehead" data-region="pagehead">
+  <div class="sd-weekhead">…Kopf 10.1…</div>        <!-- direktes Kind von .sd-pagehead, sonst greift das Seitenpolster nicht -->
+</header>
+<div class="sd-main sd-main--tight">
+  <!-- optional: Fehlerkarte aus 3.10 (role="alert"), wenn Daten nicht geladen werden konnten -->
+  <section class="sd-card sd-sums" data-card="week-sums" aria-labelledby="weekSumsTitle">…10.2…</section>
+  <section class="sd-card sd-card--list sd-days" data-card="days" role="list" aria-labelledby="weekDaysTitle">…10.3…</section>
+  <!-- nur im letzten Plan-Wochen-Zustand "Plan beendet": -->
+  <p class="sd-hint sd-hint--center">Plan beendet. Zeigt Woche 35.</p>
+</div>
+```
+Innerhalb von `section.sd-days` steht vor den Zeilen `<h2 class="sd-vh" id="weekDaysTitle">Tage dieser Woche</h2>`, in `sd-sums` entsprechend `<h2 class="sd-vh" id="weekSumsTitle">Wochensumme</h2>`
+(absolut positioniert, erzeugt keinen Abstand). Die Tageskarte ist `role="list"`, jede Zeile (auch der Ruhetag) trägt `role="listitem"`.
+**Platzhalterwoche:** `sd-sums` und `sd-days` entfallen, stattdessen die Karte aus 10.6.
+
+### 10.1 Kopf
+
+Aktuelle Woche, mittendrin:
+```html
+<div class="sd-weekhead">
+  <div class="sd-weekhead__titles">
+    <p class="sd-intro__sub">19.–25. Oktober · Entlastung</p>
+    <h1 class="sd-display">Woche 8</h1>
+  </div>
+  <div class="sd-weeknav" role="group" aria-label="Woche wechseln">
+    <button type="button" class="sd-roundbtn" data-action="week-prev" aria-label="Vorherige Woche">${I_CHEV_L20}</button>
+    <button type="button" class="sd-roundbtn" data-action="week-next" aria-label="Nächste Woche">${I_CHEV_R20}</button>
+  </div>
+</div>
+```
+| Zustand | Unterschied |
+| --- | --- |
+| Andere als die aktuelle Woche | als letztes Kind von `.sd-weekhead` zusätzlich `<div class="sd-weekhead__today"><button type="button" class="sd-pillbtn" data-action="week-today">Zu heute</button></div>`. In der aktuellen Woche **fehlt** das ganze `div` (kein verstecktes Element). |
+| Erste Woche | `data-action="week-prev"` bekommt das Attribut `disabled` (Deckkraft .35 kommt aus der Klasse). |
+| Letzte Woche | `data-action="week-next"` bekommt `disabled`. |
+| Nur eine Woche im Plan | beide `disabled`. |
+| Wochentyp unbekannt | `sd-intro__sub` zeigt nur den Zeitraum. |
+- Zeitraum: gleicher Monat `19.–25. Oktober`, über den Monatswechsel `28. Oktober–3. November` (Halbgeviertstrich, ohne Leerzeichen). Beides ein Text durch `esc()`, der Wochentyp ebenfalls.
+- `disabled` statt `aria-disabled`: `tests/app.test.mjs` prüft `isDisabled()`. Nach jedem Blättern rendert `render()` den Kopf neu und der Fokus ginge verloren; der Coder setzt ihn auf den gleichen `data-action` zurück (oder, wenn der gerade `disabled` wurde, auf den anderen Pfeil).
+- Die Tasten stehen oben rechts und springen nicht, wenn „Zu heute“ erscheint. Unter ca. 310 px Kopfbreite rutschen sie unter den Titel, sie verschwinden nie.
+
+### 10.2 Summen-Karte
+
+```html
+<section class="sd-card sd-sums" data-card="week-sums" aria-labelledby="weekSumsTitle">
+  <h2 class="sd-vh" id="weekSumsTitle">Wochensumme</h2>
+  <div class="sd-sum" data-sum="lauf">
+    <p class="sd-sum__label">Laufvolumen</p>
+    <p class="sd-sum__value sd-mono">8,2 / 30<span class="sd-unit">km</span></p>
+    <progress class="sd-prog sd-prog--coral" value="8.2" max="30" aria-label="Laufvolumen in Kilometern"></progress>
+  </div>
+  <div class="sd-sum" data-sum="kraft">
+    <p class="sd-sum__label">Kraft</p>
+    <p class="sd-sum__value sd-mono">1 / 2<span class="sd-unit">Einheiten</span></p>
+    <progress class="sd-prog" value="1" max="2" aria-label="Krafteinheiten"></progress>
+  </div>
+</section>
+```
+| Fall | Markup |
+| --- | --- |
+| Kein Ist (Strava aus, nicht verbunden oder lädt noch) | Wert nur das Soll: `30<span class="sd-unit">km</span><span class="sd-vh">geplant</span>`, `value="0"`. Keine Platzhalterbalken; wenn Strava nachlädt, rendert die Woche neu. |
+| Soll-km unbekannt oder 0 | der ganze `.sd-sum[data-sum=lauf]` entfällt, die Kraft-Summe steht allein (eine Spalte) |
+| `kraftPlanned` 0 | `.sd-sum[data-sum=kraft]` entfällt |
+| Optionale Kraft | zählt nicht in `kraftPlanned` (bleibt Regel aus M2-7: „0/1 Einheiten“) |
+- Zahlen: Text mit `formatKm1()` (Komma), Attribute mit `numAttr()` (Punkt, siehe 9.0). `max` muss größer 0 sein.
+- Zwei Spalten ab 360 px Spaltenbreite, darunter untereinander (kein Abschneiden bei 320 px). Der Wert wird fluid kleiner (19 bis 22 px) und die Einheit bricht notfalls unter die Zahl.
+
+### 10.3 Tageszeile (alle Zustände)
+
+Gerüst, eine Zeile = `.sd-day`, Kinder: `button.sd-day__row` plus `div.sd-day__detail`. Ruhetag ohne Button (10.4).
+```html
+<div class="sd-day" role="listitem" data-date="2026-10-19">
+  <button type="button" class="sd-day__row" data-action="toggle-day-detail" aria-expanded="false" aria-controls="dayDetail-2026-10-19">
+    <span class="sd-day__when">
+      <span class="sd-day__dow"><span aria-hidden="true">Mo</span><span class="sd-vh">Montag</span></span>
+      <span class="sd-day__date sd-mono">19.</span>
+    </span>
+    <span class="sd-stripe sd-stripe--lauf"></span>
+    <span class="sd-day__main">
+      <span class="sd-day__title">Easy run · 8 km</span>
+      <span class="sd-day__sub">Ist: 8,2 km · 6:22 /km</span>
+    </span>
+    <span class="sd-day__status">…Status 10.5…</span>
+  </button>
+  <div class="sd-day__detail" id="dayDetail-2026-10-19" hidden>
+    <p>Ziel: 8 km · 6:15–6:40 /km · HF 148–160</p>
+    <p>Ist: 8,2 km · 6:22 /km · Ø 163 bpm</p>
+    <p class="is-warn">Ø HF über der Zone (höchstens 160 bpm).</p>
+    <button type="button" class="sd-btn" data-action="open-day" data-date="2026-10-19">Tag öffnen${I_CHEV_R}</button>
+  </div>
+</div>
+```
+Zeilenteile:
+| Teil | Regel |
+| --- | --- |
+| Streifen | `sd-stripe--kraft` (Kraft), `sd-stripe--lauf` (Easy, Recovery, Schwelle, Intervalle, Kalibrierungstest), `sd-stripe--long` (Long Run, `LONG_RUN_TYPES`), ohne Zusatz (Ruhe). Klasse aus fester Map, nie aus Daten. |
+| Titel | `esc(session.type)` + ` · ` + `esc(session.dist)` bzw. `esc(session.label)` bei Kraft. Bricht um (`overflow-wrap: anywhere`), keine Auslassungspunkte. |
+| Sub-Zeile | Lauf offen `Ziel: …`, Lauf mit Strava `Ist: 8,2 km · 6:22 /km`, Kraft mit Fortschritt `2/8 erfasst`, ohne `Ziel: …` bzw. `8 Übungen`. Optionale Einheit: `Optional`. **Entlastungswoche (Deload): jede Kraftzeile bekommt ` · Deload` hinten an die Sub-Zeile** (so im abgenommenen Mockup W1, keine zweite Pill, weil die Statusspalte nur Platz für eine hat). Alles durch `esc()`. |
+| Wochentag | `<span aria-hidden="true">Mo</span><span class="sd-vh">Montag</span>`; in der Heute-Zeile `Donnerstag, heute` im `.sd-vh`. Das Datum `19.` bleibt sichtbar. |
+| Tönung | Heute-Zeile: `sd-day is-today` (Hintergrund `--teal-tint`, Kürzel in `--teal-fg`). Keine Tönung für verpasst/erledigt, das trägt die Statusspalte. |
+| Detailzeilen | je ein `<p>`: `Ziel: …`, `Ist: …`, bei Kraft `Übungen: A, B, C`, Hinweise zusätzlich mit `class="is-warn"` (amber, z. B. HF über Zone, Kalibrierungstest „Ø Pace und Ø HF der 30 min notieren“, optional „zählt weder im Wochensoll noch als verpasst“) oder `class="is-danger"` (selten, Fehler). Texte durch `esc()`. |
+| „Tag öffnen“ | immer als letztes Kind der Details, Sekundärbutton `sd-btn` mit Chevron (Chevron-Regel: öffnet einen neuen Screen). Der Button heißt überall „Tag öffnen“. |
+
+Statusspalte `.sd-day__status` (immer genau eine Variante, Rangfolge siehe unten). Das Wort für Screenreader steht bei Symbolen im `.sd-vh`, Pills tragen es selbst:
+| Zustand | Inhalt von `.sd-day__status` |
+| --- | --- |
+| Zukunft, offen | `${ringOpen(22)}<span class="sd-vh">offen</span>` |
+| erledigt | `${checkCircle(kind, 22)}<span class="sd-vh">erledigt</span>`, `kind` = `kraft`, `lauf` oder `long` |
+| erledigt, Ø HF über Grenze | `${pill("amber", "HF zu hoch")}` (ersetzt Haken **und** das alte Warn-Dreieck) |
+| zu kurz (Lauf unter Soll) | `${pill("amber", "zu kurz")}` |
+| nachgeholt (Lauf an anderem Tag) | `${pill("amber", "nachgeholt")}` |
+| teilweise (vergangen) | `${pill("amber", `${done}/${total}`)}` |
+| heute, offen | `${pill("primary", "Heute")}` |
+| heute, teilweise | `${pill("primary", `Heute · ${done}/${total}`)}` (eine einzige Pill) |
+| heute, erledigt | wie erledigt (Haken-Kreis), Zeile bleibt `is-today` |
+| verpasst | `${pill("danger", "verpasst")}` |
+| optionale Einheit, nicht gemacht (vergangen) | `${pill("optional", "optional")}` |
+| optionale Einheit, offen (heute oder Zukunft) | wie offen bzw. heute |
+
+**Rangfolge** (erste zutreffende Zeile gewinnt): verpasst, HF zu hoch, zu kurz, nachgeholt, teilweise, erledigt, heute (offen oder teilweise), optional nicht gemacht, Zukunft. Anforderungen 4.8 legen nur HF zu hoch vor teilweise vor Heute fest; die Stellung von „zu kurz“ und „nachgeholt“ ist eine Empfehlung des Designers (beide sind Erledigt-Varianten und stehen darum vor dem Haken). Alle weiteren zutreffenden Gründe stehen in den Detailzeilen, nie als zweite Pill.
+
+Beispiel Heute teilweise:
+```html
+<div class="sd-day is-today" role="listitem" data-date="2026-10-22">
+  <button type="button" class="sd-day__row" data-action="toggle-day-detail" aria-expanded="false" aria-controls="dayDetail-2026-10-22">
+    <span class="sd-day__when">
+      <span class="sd-day__dow"><span aria-hidden="true">Do</span><span class="sd-vh">Donnerstag, heute</span></span>
+      <span class="sd-day__date sd-mono">22.</span>
+    </span>
+    <span class="sd-stripe sd-stripe--kraft"></span>
+    <span class="sd-day__main"><span class="sd-day__title">Full Body B</span><span class="sd-day__sub">2/8 erfasst · Deload</span></span>
+    <span class="sd-day__status"><span class="sd-pill sd-pill--primary">Heute · 2/8</span></span>
+  </button>
+  <div class="sd-day__detail" id="dayDetail-2026-10-22" hidden>…</div>
+</div>
+```
+
+### 10.4 Ruhetag
+
+Kein Button, kein `aria-expanded`, kein `data-action`, keine Details; nicht fokussierbar.
+```html
+<div class="sd-day is-rest" role="listitem">
+  <div class="sd-day__row">
+    <span class="sd-day__when">
+      <span class="sd-day__dow"><span aria-hidden="true">Fr</span><span class="sd-vh">Freitag</span></span>
+      <span class="sd-day__date sd-mono">23.</span>
+    </span>
+    <span class="sd-stripe"></span>
+    <span class="sd-day__main"><span class="sd-day__title">Ruhe</span></span>
+  </div>
+</div>
+```
+Optional eine Sub-Zeile aus dem Plan (`<span class="sd-day__sub">Mobility, Foam Rolling</span>`, durch `esc()`). Ist heute Ruhetag: zusätzlich `is-today` und `Freitag, heute` im `.sd-vh`.
+
+### 10.5 Aufgeklappte Zeile (Akkordeon)
+
+Zugeklappt (Standard): `aria-expanded="false"`, `.sd-day__detail[hidden]`. Aufgeklappt:
+```html
+<div class="sd-day is-open" role="listitem" data-date="2026-10-19">
+  <button type="button" class="sd-day__row" data-action="toggle-day-detail" aria-expanded="true" aria-controls="dayDetail-2026-10-19">…</button>
+  <div class="sd-day__detail" id="dayDetail-2026-10-19">…</div>   <!-- ohne hidden -->
+</div>
+```
+- Tipp auf `toggle-day-detail`: Zeile umschalten (`is-open`, `aria-expanded`, `hidden` am Detail-`div`). **Vorher alle anderen Zeilen schließen**: es ist immer höchstens eine offen. Zweiter Tipp auf dieselbe Zeile schließt sie.
+- Der Klick auf „Tag öffnen“ (`open-day`) ist ein eigener Button im Detail, nicht in der Zeilen-Schaltfläche (keine verschachtelten Buttons).
+- Kein Chevron an der Zeile (Chevron-Regel: nur Zeilen, die einen neuen Screen öffnen, tragen einen). Hinweis auf „aufklappbar“ geben `aria-expanded` und die Berührungs-/Hover-Tönung der Zeile.
+- Beim Wechsel der Woche sind alle Zeilen zu. Beim Rücksprung aus dem Tag („‹ Woche“, E5/E6) darf der Coder die zuletzt geöffnete Zeile wieder öffnen; Pflicht ist es nicht.
+- Fokus bleibt auf dem Zeilen-Button. Beim Öffnen scrollt nichts automatisch.
+
+### 10.6 Woche ohne Details (Platzhalterwoche)
+
+Kein `sd-sums`, kein `sd-days`; der Kopf (10.1) bleibt, die Pfeile funktionieren weiter.
+```html
+<section class="sd-card" data-card="week-placeholder">
+  <h2 class="sd-card__title">Tagesdetails folgen</h2>
+  <p class="sd-card__text">Nach der Re-Kalibrierung am ${esc(dd.mm.)} stehen hier die Einheiten. Geplant sind ${formatKm1(km)} km.</p>
+</section>
+```
+Kürzungen: ohne Datum „Nach der Re-Kalibrierung stehen hier die Einheiten.“ (+ „ Geplant sind … km.“ nur wenn km bekannt); ohne beides nur der erste Satz.
+
+### 10.7 Fehler, Laden, leer
+
+- **Daten nicht geladen:** Fehlerkarte aus 3.10 (`data-source="firebase"`, Knopf „Neu laden“) als erstes Kind von `.sd-main`; Kopf bleibt, Summen/Tage zeigen den Planstand ohne Ist-Werte.
+- **Strava lädt oder fehlt:** kein eigener Platzhalter. Summen und Zeilen zeigen die Planwerte (`Ziel: …`), sobald Läufe da sind rendert die Woche neu. Banner „Strava ist nicht verbunden“ gehört zu Heute, nicht hierher.
+- **Leer:** Wochen ohne Details siehe 10.6; ein Plan ohne Wochen zeigt gar keinen Wochen-Tab-Inhalt (Heute: „Kein Plan“, E3). „Plan beendet“: Hinweiszeile unter der Liste (10.0).
+
+### 10.8 `data-action`-Namen auf Woche
+
+Alle Namen bleiben (Tests hängen daran), nur `toggle-day-detail` ändert sein Ziel (Attribute statt Klasse `.open`).
+| Name | Wo | Parameter | Wirkung |
+| --- | --- | --- | --- |
+| `week-prev` | Rundtaste links | – | `state.weekNo - 1`, nicht unter 1 |
+| `week-next` | Rundtaste rechts | – | `state.weekNo + 1`, nicht über `plan.totalWeeks` |
+| `week-today` | Pill „Zu heute“ | – | `state.weekNo = weekNoForTab(todayISO())` |
+| `toggle-day-detail` | Zeilen-Button | – (liest `aria-controls`, `closest(".sd-day")[data-date]`) | Zeile auf/zu, alle anderen zu |
+| `open-day` | „Tag öffnen“ | `data-date` | öffnet Kraft- oder Lauf-Tag (Herkunft = Woche) |
+Stabile Test-Haken: `[data-card="week-sums"]`, `[data-card="days"]`, `[data-card="week-placeholder"]`, `.sd-day[data-date]`, `[data-sum="lauf|kraft"]`.
+
+### 10.9 Welche Texte durch `esc()`
+
+Zusätzlich zu Abschnitt 6: Wochentyp, Zeitraum-Text, `session.type/dist/label`, Ziel- und Ist-Texte, alle Detailzeilen (auch Hinweise), Übungsnamen in `Übungen: …`, Planhinweis der Ruhetage, Re-Kalibrierungsdatum. **Nicht** durch `esc()`: feste Strings (Labels, „Zu heute“, „Tag öffnen“, Pill-Texte `HF zu hoch` usw.), die Icon-Konstanten, `checkCircle()` / `ringOpen()` / `pill()` (escapen selbst), `formatKm1()`-Ergebnisse, ISO-Daten in `data-date` und in der `id` `dayDetail-${iso}`, Klassen aus fester Map (`sd-stripe--${kind}`), `numAttr()`-Werte der `<progress>`.
+
+### 10.10 Barrierefreiheit auf Woche
+
+- Überschriften: `h1` „Woche 8“ (der Zeitraum steht als `sd-intro__sub` davor und gehört zur Überschrift visuell), `h2` nur unsichtbar (`Wochensumme`, `Tage dieser Woche`) oder sichtbar („Tagesdetails folgen“).
+- Akkordeon: jede Zeile ist ein `button` mit `aria-expanded` und `aria-controls` auf das Detail-`div`; geschlossene Details sind `hidden` (aus dem Lesefluss). Ruhetage haben keinen Button.
+- Status nie nur über Farbe: Haken-Kreis, Ring oder Pill mit Text plus `.sd-vh` („erledigt“, „offen“). „heute“ steht zusätzlich als Wort im Wochentag-`.sd-vh`; die Tönung allein trägt es nicht.
+- Pfeiltasten haben `aria-label` („Vorherige Woche“, „Nächste Woche“), `disabled` an der Grenze. Der Wechsel wird beim neuen Rendern über den neuen `h1` „Woche 9“ erkennbar; kein `aria-live` nötig.
+- Tippflächen: Zeile mindestens 64 px, Rundtasten 44 px, „Zu heute“ sichtbar 34 px mit 44 px Trefferfläche, „Tag öffnen“ 44 px.
+- Fokus: globales `:focus-visible`; in der Tagesliste liegt der Ring innen, weil die Karte beschneidet.
+- Bewegung: Tasten-Skalierung und Farbwechsel der Tasten sind unter `prefers-reduced-motion` aus; das Auf- und Zuklappen der Details ist ohnehin ohne Animation.
+- Responsiv: bei 320 px stehen die Summen untereinander, Zeilenpolster 16, Einzug der Details 73; lange Titel und Hinweise brechen um, Pills laufen nie aus der Karte (die Statusspalte ist `flex: none`, der Titel gibt nach).
+
+### 10.11 Durch E4 überflüssig gewordene alte Klassen (Löschliste, nach dem Umbau von `view-week.js`, `app.js` und Tests)
+
+Erst löschen, wenn `view-week.js` die alten Funktionen nicht mehr hat und `tests/app.test.mjs` (Selektoren `.day-row`, `.day-detail`, `.week-summary`, `.partial-pill`, `.optional-pill`, `.missed-pill`, `.status-icon`) auf die neuen Hooks umgestellt ist.
+- Summen: `.week-summary` samt `.line/.lbl/.val/.track/.fill`.
+- Zeilen: `.day-row` (+ `.rest`, `.solid`, `.today`, `.head`, `.dcol`, `.dcol .d/.dt`, `.mid`, `.mid .n/.s`), `.day-row .day-toggle` (+ `:hover`, `:focus-visible`, `.d/.dt/.n/.s`), `.day-row .day-open`.
+- Status: `.status-icon`, `.today-pill`, `.partial-pill`, `.optional-pill`, `.missed-pill`.
+- Details: `.day-detail` (+ `.open`, `p`, `.muted`, `.warn-text`, `.danger-text`).
+- Kopf: `.week-nav` (+ `.titles`, `p.t1`, `p.t2`, `button.icon-btn`, `button svg`), `.week-today-btn`.
+- Schon heute ohne Verwender (Grep): `.day-grid`, `.day-pill`.
+- **Bleiben (noch benutzt):** `.icon-btn`, `.small-btn` (Kraft-Tag, Lauf-Tag), `.fg-ok/.fg-amber/.fg-muted`, `.hint`, `.center-note`.
+- Aus `view-week.js` entfallen mit E4 `statusCheckHTML`, `statusWarnHTML`, `statusFutureHTML`, `statusMissedHTML`, `statusTodayHTML`, `statusPartialHTML`, `statusOptionalHTML` als HTML-Strings mit alten Klassen; die Status-Spalte baut stattdessen `checkCircle`/`ringOpen`/`pill`. Danach sind `ICONS.warn`, `ICONS.dash`, `ICONS.check`, `ICONS.prev`, `ICONS.next`, `ICONS.chevronRight` zu prüfen (ob andere Screens sie noch nutzen).
