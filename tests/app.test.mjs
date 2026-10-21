@@ -1055,9 +1055,10 @@ async function noHScroll(page, where) {
   await page.waitForSelector("[data-ex]");
 
   const vh = 844;
+  // Stride: die Leiste schwebt 26 px über dem unteren Rand (Handoff §4, Safe-Area im Test 0).
   const before = await page.locator("#tabbar").boundingBox();
-  ok(Math.abs(before.y + before.height - vh) < 2,
-     `Tableiste: sitzt am unteren Rand (${Math.round(before.y + before.height)} von ${vh})`);
+  ok(Math.abs(before.y + before.height - (vh - 26)) < 2,
+     `Tableiste: schwebt 26 px über dem unteren Rand (${Math.round(before.y + before.height)} von ${vh})`);
 
   const scrolled = await page.evaluate(() => {
     const m = document.getElementById("main");
@@ -1201,7 +1202,7 @@ async function noHScroll(page, where) {
   ok(bar.backdrop.includes("saturate"), "Glas: Sättigung angehoben");
   ok(/rgba?\([^)]*0?\.\d+\)/.test(bar.bg), `Glas: Fläche ist durchscheinend (${bar.bg})`);
   ok(bar.position === "absolute", "Glas: Leiste liegt über dem Inhalt");
-  ok(Math.abs(bar.rect.bottom - 844) < 2, "Glas: sitzt weiterhin am unteren Rand");
+  ok(Math.abs(bar.rect.bottom - (844 - 26)) < 2, "Glas: schwebt weiterhin 26 px über dem unteren Rand");
 
   // Damit die Unschärfe etwas zu tun hat, muss Inhalt darunter durchlaufen
   const passesUnder = await page.evaluate(() => {
