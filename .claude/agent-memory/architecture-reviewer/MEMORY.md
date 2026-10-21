@@ -1,1 +1,1 @@
-- [Trainingsplanung review patterns](project_trainingsplanung_review_patterns.md) — key-bearing slugs, no SW, shared github.io origin, ambiguous worker 401, AUTH_MODE rollout, pending writes per user
+- [Trainingsplanung review patterns](project_trainingsplanung_review_patterns.md) — slugs, no SW, shared origin (incl. docs/ CDN code), 401, pending writes, kg/reps facts, draft pruning, main drift

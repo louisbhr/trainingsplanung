@@ -47,3 +47,43 @@ Coach-Eingabe erweitern.
 **Einordnung:** Bewusst später. 1b bleibt auf Louis allein zugeschnitten (feste UID), der Umbau auf `users/{uid}` kommt mit diesem Vorhaben. Ändert den Ausschluss „Mehrbenutzerbetrieb“ in REQUIREMENTS.md.
 
 **Herkunft:** Louis, 2026-10-03.
+
+## Ideen — 2026-10-20 (Ende Discovery Stride-Redesign)
+
+### Pausen-Timer im Kraft-Tag — quick win · M
+
+**Was:** Nach „Satz fertig“ startet im Fokus-Kraft-Tag automatisch ein Pausen-Countdown
+(z. B. 90 s, per Tipp ±15 s oder überspringen), der beim nächsten „Satz fertig“ endet.
+
+**Warum:** Im Studio schaut Louis zwischen den Sätzen ohnehin auf die App. Ein Timer an
+genau dieser Stelle erspart den Wechsel zur Uhr-App und hält die Pausen gleichmäßig, was die
+Progressionshinweise (alle Wdh sauber oder nicht) vergleichbarer macht.
+
+**Offene Fragen:** Ton/Vibration am Ende, Verhalten bei gesperrtem Bildschirm bzw. App im
+Hintergrund (iOS hält Web-Timer an, Restzeit also aus Startzeitpunkt berechnen, nicht
+herunterzählen), feste oder je Übung unterschiedliche Pausenlänge. Reiner UI-Zustand, kein
+Firestore-Feld nötig.
+
+**Einordnung:** Bewusst aus dem Stride-Redesign herausgenommen (V3 in
+`docs/requirements-stride.md`). Setzt den Satz-für-Satz-Ablauf aus Stride voraus.
+
+**Herkunft:** Discovery Stride, Louis-Entscheid 2026-10-20.
+
+### Desktop-Analyseansicht (Ersatz für „Im Detail“) — bigger bet · L
+
+**Was:** Eine eigene Ansicht für breite Fenster, die Wochenvolumen Soll/Ist, Aerobe
+Effizienz, Adhärenz 4 Wochen und „Als Nächstes“ wieder sichtbar macht, dazu die Verläufe
+nebeneinander statt gestapelt.
+
+**Warum:** Mit Stride fällt „Im Detail“ am Handy weg (F3), obwohl es mit Dashboard v2 im
+September abgenommen wurde. Die Rechenfunktionen in `metrics.js` bleiben samt Tests nur
+erhalten, damit diese Ansicht sie wiederverwenden kann. Ohne Eintrag hier gingen die
+Trendwerte stillschweigend verloren, gerade die Aerobe Effizienz ist für die Wochen bis
+zum Rennen und für Schritt 2 (Marathon) der aussagekräftigste Fortschrittswert.
+
+**Einordnung:** Im Stride-Redesign ausdrücklich „nicht im Umfang“. Sinnvoll nach dem
+Stride-Merge und vor oder mit Schritt 2; braucht vorher eine Entscheidung, ob ab einer
+Breite umgeschaltet wird oder es ein eigener Tab ist (die Handy-Spalte bleibt sonst
+bewusst auf 480 px begrenzt).
+
+**Herkunft:** Product-Strategist, Discovery Stride 2026-10-20.
