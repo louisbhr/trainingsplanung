@@ -2,7 +2,7 @@
 // Konto-Karte. Reine String-Funktionen (wie view-dashboard.js); alles aus
 // Nutzer- oder Firebase-Daten läuft durch esc(). Die Klassen stehen in
 // style.css (Abschnitt "Anmeldung").
-import { esc } from "./ui.js?v=202610211004";
+import { esc, markSVG } from "./ui.js?v=202610211012";
 
 // Anmeldeformular. Ein echtes <form> mit autocomplete username und
 // current-password, damit der iCloud-Schlüsselbund ausfüllt und speichert.
@@ -10,7 +10,7 @@ import { esc } from "./ui.js?v=202610211004";
 export function renderLogin({ email = "", error = "", notice = "" } = {}) {
   return `<form class="card auth-card" data-form="login" novalidate>
     <div class="auth-brand">
-      <img class="auth-logo" src="icon.png" alt="" width="40" height="40" />
+      ${markSVG(64)}
       <span class="auth-brand-name">Stride</span>
     </div>
     <p class="name">Anmelden</p>

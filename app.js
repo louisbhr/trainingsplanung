@@ -3,29 +3,29 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610211004";
-import { loadPlans } from "./plan-store.js?v=202610211004";
+} from "./plan.js?v=202610211012";
+import { loadPlans } from "./plan-store.js?v=202610211012";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610211004";
+} from "./firebase-init.js?v=202610211012";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport,
-} from "./strava.js?v=202610211004";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610211004";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610211004";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610211004";
-import * as dash from "./view-dashboard.js?v=202610211004";
-import * as dashWeek from "./view-week.js?v=202610211004";
-import * as metrics from "./metrics.js?v=202610211004";
-import * as coach from "./coach.js?v=202610211004";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610211004";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610211004";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610211004";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610211004";
+} from "./strava.js?v=202610211012";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610211012";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610211012";
+import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, shortDate, longDateDE, openInfo, closeInfo } from "./ui.js?v=202610211012";
+import * as dash from "./view-dashboard.js?v=202610211012";
+import * as dashWeek from "./view-week.js?v=202610211012";
+import * as metrics from "./metrics.js?v=202610211012";
+import * as coach from "./coach.js?v=202610211012";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610211012";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610211012";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610211012";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610211012";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -202,32 +202,32 @@ function paintDashboardHeader(iso, dayState, plan) {
   if (dayState === "keinPlan") {
     const race = plans[0]?.goal;
     const past = race && race.raceDate < iso;
-    header.innerHTML = dash.headerHTML({
+    setTabHeader(dash.headerHTML({
       eyebrow: longDateDE(iso),
       title: "Kein aktiver Plan",
       badge: dash.noPlanBadgeHTML(),
       countdown: past ? `Rennen am ${germanDate(race.raceDate)}` : "",
-    });
+    }));
     return;
   }
   if (dayState === "bisZumRennen") {
-    header.innerHTML = dash.headerHTML({
+    setTabHeader(dash.headerHTML({
       eyebrow: longDateDE(iso),
       title: "Bis zum Rennen",
       badge: dash.noPlanBadgeHTML(),
       countdown: countdownText(plan, iso, dayState),
-    });
+    }));
     return;
   }
   const w = weekNumberFor(plan, iso);
   const week = weekOf(plan, w);
   const phase = phaseOf(plan, w);
-  header.innerHTML = dash.headerHTML({
+  setTabHeader(dash.headerHTML({
     eyebrow: longDateDE(iso),
     title: `Woche ${w} · ${week.weekType}`,
     badge: dash.phaseBadgeHTML(phase.n, phase.name, phase.tone),
     countdown: countdownText(plan, iso, dayState),
-  });
+  }));
 }
 
 function todayCardSlotHTML(iso, dayState, plan) {
@@ -848,9 +848,24 @@ function syncTabbar() {
     b.classList.toggle("active", b.dataset.tab === state.tab));
 }
 
+// Kopfbereich der vier Tab-Seiten: Marke + Wortmarke, danach der Seiteninhalt.
+function setTabHeader(html) {
+  header.innerHTML = brandHeadHTML() + html;
+}
+
+// Detailseiten (Kraft-Tag, Lauf-Tag) blenden die schwebende Tableiste aus
+// (CSS: #app.is-detail). Beim Öffnen springt die Seite nach oben.
+function setDetailMode(on) {
+  const app = document.getElementById("app");
+  const wasDetail = app.classList.contains("is-detail");
+  app.classList.toggle("is-detail", on);
+  if (on && !wasDetail) main.scrollTop = 0;
+}
+
 function render() {
   if (!plans.length) return; // Plan lädt noch (siehe init()); nichts zu rendern
   syncTabbar();
+  setDetailMode(false); // renderDay schaltet es für Kraft-/Lauf-Tage wieder ein
   try {
     if (state.tab === "dashboard") {
       return state.selectedDate ? renderDay(state.selectedDate, { showBack: true, backLabel: "Dashboard" }) : renderDashboard();
@@ -874,6 +889,7 @@ async function renderDay(iso, { showBack, backLabel }) {
   const w = plan ? weekNumberFor(plan, iso) : null;
   const isToday = iso === todayISO();
   const label = backLabel ?? `Woche ${w}`;
+  setDetailMode(info.kind === "kraft" || info.kind === "lauf");
 
   header.innerHTML = `
     <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} ${esc(label)}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
@@ -1632,14 +1648,14 @@ async function renderWeek() {
   const isCurrent = w === weekNoForTab(todayISO());
   const start = weekStart(plan, w);
 
-  header.innerHTML = dashWeek.weekNavHTML({
+  setTabHeader(dashWeek.weekNavHTML({
     n: w,
     weekType: week.weekType,
     dateRange: `${shortDate(start)}–${shortDate(addDays(start, 6))}`,
     hasPrev: w > 1,
     hasNext: w < plan.totalWeeks,
     showToday: !isCurrent,
-  });
+  }));
 
   if (week.placeholder) {
     const phase = phaseOf(plan, w);
@@ -1698,11 +1714,11 @@ async function renderWeek() {
 // ---------- Verlauf ----------
 async function renderHistory() {
   const m = state.historyMode;
-  header.innerHTML = `<div class="title-row"><h1>Verlauf</h1>
+  setTabHeader(`<div class="title-row"><h1>Verlauf</h1>
     <div class="seg">
       <button data-action="hist-mode" data-mode="kraft" class="${m === "kraft" ? "on" : ""}">Kraft</button>
       <button data-action="hist-mode" data-mode="lauf" class="${m === "lauf" ? "on" : ""}">Lauf</button>
-    </div></div>`;
+    </div></div>`);
   main.innerHTML = loadingCard();
   if (m === "kraft") await renderKraftHistory();
   else await renderRunHistory();
@@ -1855,8 +1871,8 @@ function renderPlan() {
   const pct = Math.round((done / plan.totalWeeks) * 100);
   const displayGoal = formatGoal(plan.goal);
 
-  header.innerHTML = `<h1>Trainingsplan</h1>
-    <p class="eyebrow mt-2">Woche ${w} von ${plan.totalWeeks} · ${pct}% geschafft</p>`;
+  setTabHeader(`<h1>Trainingsplan</h1>
+    <p class="eyebrow mt-2">Woche ${w} von ${plan.totalWeeks} · ${pct}% geschafft</p>`);
 
   main.innerHTML = `
     <div class="card goal-card">
@@ -1994,6 +2010,7 @@ let currentUser = null; // { email, uid } der angemeldeten Sitzung
 // Anmelde-, Fremdkonto- und Hinweisschirme: ohne Tableiste.
 function showGate(title, html) {
   appEl.classList.add("no-session");
+  appEl.classList.remove("is-detail");
   header.innerHTML = `<h1>${esc(title)}</h1>`;
   main.innerHTML = html;
 }

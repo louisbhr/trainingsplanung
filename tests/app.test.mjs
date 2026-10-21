@@ -162,6 +162,12 @@ const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: `$
 
 // Kein horizontales Scrollen: sonst laufen Karten/Eingabefelder aus dem Bild.
 // Wochen-Tab: Zeile aufklappen und über "Tag öffnen" in die Tagesansicht
+// Tab wechseln; auf Detailseiten (Kraft-/Lauf-Tag) gibt es keine Leiste, also erst zurück.
+async function goTab(page, tab) {
+  if (await page.locator("#app.is-detail").count()) await page.click('[data-action="back"]');
+  await page.click(`[data-tab="${tab}"]`);
+}
+
 async function openDay(page, iso) {
   const row = page.locator(`.day-row[data-date="${iso}"]`);
   await row.locator('[data-action="toggle-day-detail"]').click();
@@ -206,7 +212,7 @@ async function noHScroll(page, where) {
   await noHScroll(page, "Dashboard");
   ok(errors.length === 0, "Dashboard: keine Konsolenfehler " + JSON.stringify(errors));
 
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-07");
   await page.waitForSelector('[data-action="connect-strava"]');
   ok(true, "Wochen-Tab: 'Mit Strava verbinden' erscheint ohne Tokens (unverändert aus M1)");
@@ -410,7 +416,7 @@ async function noHScroll(page, where) {
     }));
   });
   await page.goto(BASE + "/index.html");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   const row = page.locator('.day-row[data-date="2026-09-08"]');
   await row.waitFor();
   const pill = (await row.locator(".partial-pill").textContent()).trim();
@@ -432,13 +438,13 @@ async function noHScroll(page, where) {
   const active = () => page.locator("#tabbar button.active").getAttribute("data-tab");
   await page.waitForSelector("#today-slot .today-card");
   ok((await active()) === "dashboard", "Tableiste: Start auf Dashboard markiert");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await page.waitForSelector(".week-summary");
   ok((await active()) === "woche", "Tableiste: Woche markiert im Wochen-Tab");
   await openDay(page, "2026-09-08");
   await page.waitForSelector("[data-ex]");
   ok((await active()) === "woche", "Tableiste: Tagesansicht aus der Woche bleibt bei Woche");
-  await page.click('[data-tab="dashboard"]');
+  await goTab(page, "dashboard");
   await page.click('[data-action="toggle-today-exercises"]');
   await page.locator("#todayExList .ex-row").first().click();
   await page.waitForSelector("[data-ex]");
@@ -486,8 +492,8 @@ async function noHScroll(page, where) {
   ok(countKind("weekly") === 1, `Coach: genau ein weekly-Request für die Wochenbilanz (${JSON.stringify(requestKinds)})`);
 
   // Gleicher Hash beim erneuten Aufruf des Dashboards -> kein zweiter Request je kind.
-  await page.click('[data-tab="verlauf"]');
-  await page.click('[data-tab="dashboard"]');
+  await goTab(page, "verlauf");
+  await goTab(page, "dashboard");
   await page.waitForSelector("#coach-slot .coach-card");
   await page.waitForTimeout(300);
   ok(countKind("daily") === 1, `Coach: gleicher Hash löst keinen zweiten daily-Request aus (${JSON.stringify(requestKinds)})`);
@@ -615,7 +621,7 @@ async function noHScroll(page, where) {
 {
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await page.waitForSelector(".day-row");
   ok((await page.locator(".day-row").count()) === 7, "Woche: 7 Tage");
   ok((await page.textContent("#header .t1")).includes("Woche 2"), "Woche: aktuelle Woche 2");
@@ -672,7 +678,7 @@ async function noHScroll(page, where) {
 {
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="squats"]');
 
@@ -702,7 +708,7 @@ async function noHScroll(page, where) {
 
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="squats"]');
   const sq2 = page.locator('[data-ex="squats"]');
@@ -724,7 +730,7 @@ async function noHScroll(page, where) {
     }));
   });
   await page.goto(BASE + "/index.html");
-  await page.click('[data-tab="verlauf"]');
+  await goTab(page, "verlauf");
   await page.waitForSelector("#ex-picker");
   ok((await page.locator(".bar").count()) === 2, "Verlauf Kraft: 2 Balken");
   const heights = await page.locator(".bar").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
@@ -754,7 +760,7 @@ async function noHScroll(page, where) {
 {
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
-  await page.click('[data-tab="plan"]');
+  await goTab(page, "plan");
   await page.waitForSelector(".zone-line");
   const t = await page.textContent("#main");
   ok((await page.textContent("#header .eyebrow")).includes("Woche 2 von 35"), "Plan: aktuelle Woche (35 Wochen)");
@@ -820,7 +826,7 @@ async function noHScroll(page, where) {
   await page.goto(BASE + "/index.html");
   // Der "Strava noch nicht eingerichtet"-Hinweis erscheint in der
   // Tagesansicht (Wochen-Tab), nicht mehr auf dem Dashboard-Starttab.
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-07");
   await page.waitForSelector("#strava-slot .card");
   ok((await page.textContent("#strava-slot")).includes("Strava noch nicht eingerichtet"),
@@ -833,7 +839,7 @@ async function noHScroll(page, where) {
 {
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="squats"]');
   ok((await page.locator("[data-ex]").count()) === 8, "Anpassen: Ausgangslage 8 Übungen");
@@ -888,7 +894,7 @@ async function noHScroll(page, where) {
   // Nach Reload muss die angepasste Liste stehen
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="beinpresse"]');
   ok((await page.locator('[data-ex="deadlift"]').count()) === 0, "Anpassen: Entfernung überlebt den Reload");
@@ -961,7 +967,7 @@ async function noHScroll(page, where) {
 
   // Der Fehler-Karten-Vergleich (Firebase vs. Strava) lebt in der
   // Tagesansicht (#strava-slot), nicht auf dem Dashboard-Starttab.
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-07");
   await page.waitForSelector("#strava-slot .error-card");
   const runTxt = await page.textContent("#strava-slot");
@@ -973,7 +979,7 @@ async function noHScroll(page, where) {
   await shot(page, "09-firebase-fehler-lauftag");
 
   // Krafttag: Meldung muss stehen bleiben, nicht als Toast verschwinden
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-08");
   await page.waitForSelector("#main .error-card");
   ok((await page.textContent("#main")).includes("Gespeicherte Sätze nicht geladen"),
@@ -989,7 +995,7 @@ async function noHScroll(page, where) {
 {
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-09"); // Mi = Easy run + 4x20s
   await page.waitForSelector("#strava-slot .card");
   const txt = await page.textContent("#strava-slot");
@@ -1032,7 +1038,7 @@ async function noHScroll(page, where) {
   // Überlebt den Reload
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-09");
   await page.waitForSelector("#strava-slot .card");
   ok((await page.textContent("#strava-slot")).includes("Nachgeholt"), "Zuordnung überlebt den Reload");
@@ -1046,13 +1052,12 @@ async function noHScroll(page, where) {
   await ctx.close();
 }
 
-// ---- 12. Tableiste klebt unten ----
+// ---- 12. Tableiste klebt unten (Tab-Seite mit langem Inhalt) + Detailseiten ohne Leiste ----
 {
   const { page, ctx } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
-  await page.click('[data-tab="woche"]');
-  await openDay(page, "2026-09-08"); // Krafttag, lange Liste
-  await page.waitForSelector("[data-ex]");
+  await goTab(page, "plan"); // lange Liste (35 Wochen)
+  await page.waitForSelector("#main .goal-card");
 
   const vh = 844;
   // Stride: die Leiste schwebt 26 px über dem unteren Rand (Handoff §4, Safe-Area im Test 0).
@@ -1069,9 +1074,40 @@ async function noHScroll(page, where) {
 
   const after = await page.locator("#tabbar").boundingBox();
   ok(Math.abs(after.y - before.y) < 1, "Tableiste: bleibt beim Scrollen an Ort und Stelle");
+  const lastBottom = await page.evaluate(() => document.getElementById("main").lastElementChild.getBoundingClientRect().bottom);
+  ok(lastBottom <= after.y + 1, `Tableiste: letztes Element scrollt ganz über die Leiste (${Math.round(lastBottom)} <= ${Math.round(after.y)})`);
   ok((await page.evaluate(() => document.documentElement.scrollHeight - document.documentElement.clientHeight)) <= 0,
      "Tableiste: die Seite selbst scrollt nicht mit");
   await shot(page, "15-leiste-unten");
+
+  // Kopf: Stride-Zeichen auf allen vier Tabs
+  for (const tab of ["dashboard", "woche", "verlauf", "plan"]) {
+    await page.click(`[data-tab="${tab}"]`);
+    await page.waitForSelector("#header .sd-brand .sd-mark");
+    const brand = await page.evaluate(() => {
+      const m = document.querySelector("#header .sd-brand .sd-mark").getBoundingClientRect();
+      return { w: Math.round(m.width), h: Math.round(m.height), text: document.querySelector("#header .sd-brand").textContent.trim() };
+    });
+    ok(brand.w === 28 && brand.h === 28 && brand.text === "Stride", `Kopf ${tab}: Stride-Zeichen 28 px + Wortmarke (${brand.w}x${brand.h}, "${brand.text}")`);
+  }
+
+  // Detailseiten: Leiste weg, nach Zurück wieder da
+  await goTab(page, "woche");
+  await openDay(page, "2026-09-08"); // Krafttag
+  await page.waitForSelector("[data-ex]");
+  ok((await page.locator("#app.is-detail").count()) === 1 && !(await page.locator("#tabbar").isVisible()),
+     "Kraft-Tag: Tableiste ausgeblendet (#app.is-detail)");
+  await page.click('[data-action="back"]');
+  await page.waitForSelector(".day-row");
+  ok((await page.locator("#app.is-detail").count()) === 0 && (await page.locator("#tabbar").isVisible()),
+     "Zurück vom Kraft-Tag: Tableiste wieder sichtbar");
+  await openDay(page, "2026-09-09"); // Lauftag
+  await page.waitForSelector("#strava-slot");
+  ok((await page.locator("#app.is-detail").count()) === 1 && !(await page.locator("#tabbar").isVisible()),
+     "Lauf-Tag: Tableiste ausgeblendet");
+  await page.click('[data-action="back"]');
+  await page.waitForSelector(".day-row");
+  ok((await page.locator("#tabbar").isVisible()), "Zurück vom Lauf-Tag: Tableiste wieder sichtbar");
   await ctx.close();
 }
 
@@ -1090,7 +1126,7 @@ async function noHScroll(page, where) {
     }));
   });
   await page.goto(BASE + "/index.html");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-08");
   await page.waitForSelector(".tip");
 
@@ -1129,7 +1165,7 @@ async function noHScroll(page, where) {
 {
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="squats"]');
 
@@ -1166,7 +1202,7 @@ async function noHScroll(page, where) {
   // Überlebt den Reload
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="kurzhantelbank"]');
   ok((await page.locator('[data-ex="brustpresse"]').count()) === 0, "Ersetzen: überlebt den Reload");
@@ -1185,9 +1221,8 @@ async function noHScroll(page, where) {
 {
   const { page, ctx } = await newPage();
   await page.goto(BASE + "/index.html");
-  await page.click('[data-tab="woche"]');
-  await openDay(page, "2026-09-08");
-  await page.waitForSelector("[data-ex]");
+  await goTab(page, "plan"); // Tab-Seite mit langem Inhalt (Detailseiten haben keine Leiste)
+  await page.waitForSelector("#main .goal-card");
 
   const bar = await page.locator("#tabbar").evaluate((el) => {
     const cs = getComputedStyle(el);
@@ -1209,7 +1244,7 @@ async function noHScroll(page, where) {
     const m = document.getElementById("main");
     const bar = document.getElementById("tabbar").getBoundingClientRect();
     m.scrollTop = m.scrollHeight / 2;
-    return [...document.querySelectorAll("[data-ex]")].some((el) => {
+    return [...document.querySelectorAll("#main .card")].some((el) => {
       const r = el.getBoundingClientRect();
       return r.top < bar.top && r.bottom > bar.top;
     });
@@ -1236,9 +1271,9 @@ async function noHScroll(page, where) {
   // darunter zoomt iOS Safari hinein und die Seite lässt sich danach
   // seitlich schieben.
   const views = [
-    ["Krafttag", async () => { await page.click('[data-tab="woche"]'); await openDay(page, "2026-09-08"); await page.waitForSelector("[data-ex]"); }],
+    ["Krafttag", async () => { await goTab(page, "woche"); await openDay(page, "2026-09-08"); await page.waitForSelector("[data-ex]"); }],
     ["Übung hinzufügen", async () => { await page.click('[data-action="quick-add"]'); await page.waitForSelector("#new-ex-name"); }],
-    ["Verlauf", async () => { await page.click('[data-tab="verlauf"]'); await page.waitForSelector("#ex-picker"); }],
+    ["Verlauf", async () => { await goTab(page, "verlauf"); await page.waitForSelector("#ex-picker"); }],
   ];
   for (const [name, go] of views) {
     await go();
@@ -1301,7 +1336,7 @@ async function noHScroll(page, where) {
   ok((await page.textContent("#header h1")) === "Woche 2 · Aufbau", "Plan-404 mit Kopie: App läuft normal weiter (Lauftag erkannt)");
 
   // Satz-Logging funktioniert weiterhin mit der Kopie
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await openDay(page, "2026-09-08");
   await page.waitForSelector('[data-ex="squats"]');
   await page.locator('[data-ex="squats"] [data-kg]').fill("80");
@@ -1479,11 +1514,11 @@ async function noHScroll(page, where) {
   await page.waitForSelector("#header h1");
   ok((await page.textContent("#header h1")) === "Kein aktiver Plan", "Vor Planstart: 'Kein aktiver Plan' auf 'Heute'");
 
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await page.waitForSelector(".day-row, .card");
   ok((await page.textContent("#header .t1")).includes("Woche 1"), "Vor Planstart: Wochen-Tab zeigt Woche 1, nicht Woche 35");
 
-  await page.click('[data-tab="plan"]');
+  await goTab(page, "plan");
   await page.waitForSelector(".zone-line");
   ok((await page.textContent("#header .eyebrow")).includes("Woche 1 von 35"), "Vor Planstart: Plan-Tab zeigt Woche 1, nicht Woche 35");
   ok((await page.textContent("#header .eyebrow")).includes("0% geschafft"), "Vor Planstart: 0% geschafft, nicht 97%");
@@ -1826,7 +1861,7 @@ for (const [fail, want, notWant, label] of [
   ok(tiles["Easy-Disziplin"] === "st-gruen",
     `Test-Lauf mit Ø HF 178 verfälscht die Easy-Disziplin nicht (${tiles["Easy-Disziplin"]})`);
 
-  await page.click('[data-tab="woche"]');
+  await goTab(page, "woche");
   await page.waitForSelector(".day-row");
   ok((await page.textContent("#header .t1")).includes("Woche 10"), "W9-Test: Woche 10 aktuell");
   await page.click('[data-action="week-prev"]');
@@ -1860,7 +1895,7 @@ for (const [fail, want, notWant, label] of [
   ok((await page.textContent("#header .t2")).includes("26.04.") && (await page.textContent("#header .t2")).includes("02.05."), "Woche 35: 26.04.–02.05.");
   ok((await page.textContent("#main")).includes("Details folgen"), "Woche 35: Platzhalterkarte");
 
-  await page.click('[data-tab="plan"]');
+  await goTab(page, "plan");
   await page.waitForSelector(".zone-line");
   ok((await page.textContent("#header .eyebrow")).includes("Woche 10 von 35"), "Plan-Tab: Woche 10 von 35");
   const planTxt = await page.textContent("#main");
@@ -1898,10 +1933,10 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   const gate = await page.evaluate(() => {
     const m = document.getElementById("main").getBoundingClientRect();
     const c = document.querySelector(".auth-card").getBoundingClientRect();
-    return { above: c.top - m.top, below: m.bottom - c.bottom, logo: !!document.querySelector(".auth-logo") };
+    return { above: c.top - m.top, below: m.bottom - c.bottom, logo: (() => { const r = document.querySelector(".auth-brand .sd-mark--lg")?.getBoundingClientRect(); return r ? Math.round(r.width) : 0; })() };
   });
   ok(gate.above > 40 && Math.abs(gate.above - gate.below) < 24, `Login: Karte vertikal zentriert (oben ${gate.above}, unten ${gate.below})`);
-  ok(gate.logo, "Login: App-Name-/Logo-Zeile in der Karte");
+  ok(gate.logo === 64, `Login: Stride-Zeichen 64 px in der Karte (${gate.logo})`);
   const email = page.locator('form[data-form="login"] input[name="email"]');
   const pw = page.locator('form[data-form="login"] input[name="password"]');
   ok((await email.getAttribute("autocomplete")) === "username", "Login: E-Mail-Feld mit autocomplete=username (Schlüsselbund)");
@@ -2007,7 +2042,7 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
 {
   const { page, ctx, errors } = await authPage("ok");
   await page.waitForSelector("#main .today-card");
-  await page.click('[data-tab="plan"]');
+  await goTab(page, "plan");
   await page.waitForSelector(".account-card");
   const card = await page.textContent(".account-card");
   ok(card.includes("louis@example.test") && card.includes(TEST_UID), "Konto-Karte: zeigt E-Mail und UID");
@@ -2042,7 +2077,7 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
 {
   const { page, ctx, errors } = await authPage("ok", { flags: { __CACHE_KEPT__: true } });
   await page.waitForSelector("#main .today-card");
-  await page.click('[data-tab="plan"]');
+  await goTab(page, "plan");
   await page.waitForSelector(".account-card");
   await page.click('.account-card [data-action="logout"]');
   await page.waitForSelector('form[data-form="login"]');
@@ -2219,7 +2254,7 @@ async function exportPage({ activities = ACTIVITIES, stravaFail = false, share =
   }, share);
   await page.goto(BASE + "/index.html");
   await page.waitForSelector('[data-tab="plan"]');
-  await page.click('[data-tab="plan"]');
+  await goTab(page, "plan");
   await page.waitForSelector('[data-action="export-data"]');
   return { ...made, urls };
 }
