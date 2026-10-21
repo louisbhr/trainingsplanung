@@ -3,29 +3,29 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610211120";
-import { loadPlans } from "./plan-store.js?v=202610211120";
+} from "./plan.js?v=202610211125";
+import { loadPlans } from "./plan-store.js?v=202610211125";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610211120";
+} from "./firebase-init.js?v=202610211125";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport,
-} from "./strava.js?v=202610211120";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610211120";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610211120";
-import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet } from "./ui.js?v=202610211120";
-import * as dash from "./view-dashboard.js?v=202610211120";
-import * as dashWeek from "./view-week.js?v=202610211120";
-import * as metrics from "./metrics.js?v=202610211120";
-import * as coach from "./coach.js?v=202610211120";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610211120";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610211120";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610211120";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610211120";
+} from "./strava.js?v=202610211125";
+import { suggestProgression, previousEntry } from "./progression.js?v=202610211125";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610211125";
+import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet } from "./ui.js?v=202610211125";
+import * as dash from "./view-dashboard.js?v=202610211125";
+import * as dashWeek from "./view-week.js?v=202610211125";
+import * as metrics from "./metrics.js?v=202610211125";
+import * as coach from "./coach.js?v=202610211125";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610211125";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610211125";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610211125";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610211125";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -60,18 +60,17 @@ const main = document.getElementById("main");
 
 // Seitenkopf scrollt mit dem Inhalt (docs/plan-stride.md "Ansatz"): er steht als
 // erster Block <header class="sd-pagehead" data-region="pagehead"> IM #main, das
-// einzige Scroll-Element. #header bleibt als leerer DOM-Platz. Damit jeder
-// main.innerHTML-Schreibzugriff den Kopf automatisch mitliefert (und nie
-// verdoppelt), setzt der Setter unten ihn vor den Inhalt; setPageHead() merkt
-// sich den Kopf und patcht ihn, falls er schon im DOM steht.
+// einzige Scroll-Element. #header bleibt als leerer DOM-Platz. renderMain()
+// schreibt Kopf + Inhalt; setPageHead() merkt sich den Kopf und patcht ihn,
+// falls er schon im DOM steht.
 let pageHeadHTML = "";
-const nativeInnerHTML = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
-Object.defineProperty(main, "innerHTML", {
-  get() { return nativeInnerHTML.get.call(main); },
-  set(html) {
-    nativeInnerHTML.set.call(main, `<header class="sd-pagehead" data-region="pagehead">${pageHeadHTML}</header>${html}`);
-  },
-});
+
+// Einziger Schreibweg für den Seiteninhalt: Kopf + Inhalt in #main. Direkte
+// `main.innerHTML =`-Zuweisungen sind verboten (Test "renderMain"), sonst
+// fehlt der Kopf. Eine Ausnahme ohne Kopf gibt es bewusst nicht.
+function renderMain(html) {
+  main.innerHTML = `<header class="sd-pagehead" data-region="pagehead">${pageHeadHTML}</header>${html}`;
+}
 
 function setPageHead(html) {
   pageHeadHTML = html;
@@ -335,10 +334,10 @@ function paintDashboardMain(iso, dayState, plan) {
   state.bilanzExpanded = false;
   const coachHTML = dayState === "keinPlan" ? dash.coachHTML(COACH_NO_PLAN_TEXT) : dash.coachLoadingHTML();
   // Kein Leerraum zwischen den Slot-Tags: ein leerer Slot muss wirklich leer sein.
-  main.innerHTML = `<div class="sd-main"><div id="banner-slot">${bannersMarkup()}</div>` +
+  renderMain(`<div class="sd-main"><div id="banner-slot">${bannersMarkup()}</div>` +
     `<div id="today-slot">${todayCardSlotHTML(iso, dayState, plan)}</div>` +
     `<div id="coach-slot">${coachHTML}</div>` +
-    `<div id="status-slot">${dash.statusCardHTML(null)}</div><div id="week-slot"></div></div>`;
+    `<div id="status-slot">${dash.statusCardHTML(null)}</div><div id="week-slot"></div></div>`);
   fillTodayCard(iso, dayState, plan);
   fillAmpeln(iso, dayState, plan);
   fillWeekCard(iso, dayState, plan);
@@ -908,7 +907,7 @@ function render() {
   } catch (err) {
     console.error(err);
     setPageHead(`<h1>Fehler</h1>`);
-    main.innerHTML = errorCard("Etwas ist schiefgelaufen: " + err.message);
+    renderMain(errorCard("Etwas ist schiefgelaufen: " + err.message));
   }
 }
 
@@ -936,24 +935,24 @@ async function renderDay(iso, { showBack, backLabel }) {
   if (info.kind === "kraft") return renderKraftDay(info, iso);
   if (info.kind === "lauf") return renderRunDay(info, iso);
   if (info.kind === "placeholder") {
-    main.innerHTML = `<div class="card"><p class="name">Details folgen</p>
-      <p class="hint">${esc(info.focus || "")} — die genauen Werte tragen wir nach der Re-Kalibrierung nach.</p></div>`;
+    renderMain(`<div class="card"><p class="name">Details folgen</p>
+      <p class="hint">${esc(info.focus || "")} — die genauen Werte tragen wir nach der Re-Kalibrierung nach.</p></div>`);
     return;
   }
   if (info.kind === "bisZumRennen") {
-    main.innerHTML = `<div class="card notice">
+    renderMain(`<div class="card notice">
       <p class="name">Bis zum Rennen</p>
-      <p class="hint">Der Plan endet vor dem Renntag, für diesen Tag gibt es keine Einheit mehr.</p></div>`;
+      <p class="hint">Der Plan endet vor dem Renntag, für diesen Tag gibt es keine Einheit mehr.</p></div>`);
     return;
   }
   if (info.kind === "keinPlan") {
-    main.innerHTML = `<div class="card notice">
+    renderMain(`<div class="card notice">
       <p class="name">Kein aktiver Plan</p>
-      <p class="hint">Für dieses Datum liegt kein Trainingsplan vor.</p></div>`;
+      <p class="hint">Für dieses Datum liegt kein Trainingsplan vor.</p></div>`);
     return;
   }
-  main.innerHTML = `<div class="card notice">
-    <p class="name">Ruhetag</p><p class="hint">Mobility, Foam Rolling, Beine hoch.</p></div>`;
+  renderMain(`<div class="card notice">
+    <p class="name">Ruhetag</p><p class="hint">Mobility, Foam Rolling, Beine hoch.</p></div>`);
 }
 
 // ---------- Krafttag ----------
@@ -976,7 +975,7 @@ function sameSets(sets) {
 }
 
 async function renderKraftDay(info, iso) {
-  main.innerHTML = loadingCard("Lade gespeicherte Sätze …");
+  renderMain(loadingCard("Lade gespeicherte Sätze …"));
 
   let saved = {};
   let loadError = null;
@@ -1076,7 +1075,7 @@ function paintKraftDay(info, iso, loadError) {
     .map((sl) => info.exercises.find((ex) => slug(ex.name) === sl))
     .filter(Boolean);
 
-  main.innerHTML =
+  renderMain(
     (loadError
       ? `<div class="card error-card">
            <p class="name">Gespeicherte Sätze nicht geladen</p>
@@ -1105,7 +1104,7 @@ function paintKraftDay(info, iso, loadError) {
              <button class="small-btn" data-action="restore-exercise" data-slug="${slug(ex.name)}">Zurückholen</button>
            </div></div>`).join("") +
         addFormHTML(iso)
-      : "");
+      : ""));
 }
 
 function addFormHTML(iso) {
@@ -1458,10 +1457,10 @@ function resetRunLink(planDate) {
 }
 
 async function renderRunDay(info, iso) {
-  main.innerHTML =
+  renderMain(
     planRunCard(info) +
     `<div id="strava-slot">${loadingCard("Strava wird geprüft …")}</div>` +
-    `<div class="strava-note">${ICONS.run}<p>${esc(info.note || "Wird nicht hier eingetragen — die Daten kommen automatisch aus Strava.")}</p></div>`;
+    `<div class="strava-note">${ICONS.run}<p>${esc(info.note || "Wird nicht hier eingetragen — die Daten kommen automatisch aus Strava.")}</p></div>`);
 
   const slot = document.getElementById("strava-slot");
   const s = await loadStrava();
@@ -1690,12 +1689,12 @@ async function renderWeek() {
 
   if (week.placeholder) {
     const phase = phaseOf(plan, w);
-    main.innerHTML = `<div class="card"><p class="name">${esc(phase.name)}</p>
-      <p class="hint">${esc(week.focus.replace(/\.$/, ""))}. Details folgen nach der Re-Kalibrierung.</p></div>`;
+    renderMain(`<div class="card"><p class="name">${esc(phase.name)}</p>
+      <p class="hint">${esc(week.focus.replace(/\.$/, ""))}. Details folgen nach der Re-Kalibrierung.</p></div>`);
     return;
   }
 
-  main.innerHTML = loadingCard("Woche wird geladen …");
+  renderMain(loadingCard("Woche wird geladen …"));
   // Ein Firestore-/Strava-Ausfall darf die Wochenliste nicht leer lassen
   // (analog zum Dashboard, F7-Prinzip): mit leeren Daten weiterrendern statt
   // die Ansicht dauerhaft bei "Woche wird geladen …" hängen zu lassen — die
@@ -1730,7 +1729,7 @@ async function renderWeek() {
   const todayState = planDayState(today, plans);
   const planIsOver = todayState === "bisZumRennen" || (todayState === "keinPlan" && today > plan.start);
 
-  main.innerHTML =
+  renderMain(
     dashWeek.weekSummaryHTML({
       ist: Math.round(istKm * 10) / 10,
       soll: sollKm,
@@ -1739,7 +1738,7 @@ async function renderWeek() {
       kraftPlanned: kraftCounted.length,
     }) +
     days.map((d) => (d.isRest ? dashWeek.restRowHTML(d.d, d.dt) : dashWeek.dayRowHTML(d))).join("") +
-    (planIsOver && w === plan.totalWeeks ? dashWeek.planBeendetHintHTML(plan.totalWeeks) : "");
+    (planIsOver && w === plan.totalWeeks ? dashWeek.planBeendetHintHTML(plan.totalWeeks) : ""));
 }
 
 // ---------- Verlauf ----------
@@ -1750,7 +1749,7 @@ async function renderHistory() {
       <button data-action="hist-mode" data-mode="kraft" class="${m === "kraft" ? "on" : ""}">Kraft</button>
       <button data-action="hist-mode" data-mode="lauf" class="${m === "lauf" ? "on" : ""}">Lauf</button>
     </div></div>`);
-  main.innerHTML = loadingCard();
+  renderMain(loadingCard());
   if (m === "kraft") await renderKraftHistory();
   else await renderRunHistory();
 }
@@ -1764,7 +1763,7 @@ async function renderKraftHistory() {
   try {
     logs = await loadLogsForExercise(state.historyExercise);
   } catch (err) {
-    main.innerHTML = errorCard("Verlauf konnte nicht geladen werden: " + err.message);
+    renderMain(errorCard("Verlauf konnte nicht geladen werden: " + err.message));
     return;
   }
 
@@ -1785,12 +1784,12 @@ async function renderKraftHistory() {
   const picker = `<select id="ex-picker" aria-label="Übung wählen">${options}</select>`;
 
   if (!points.length) {
-    main.innerHTML = `${picker}<p class="center-note">Noch nichts erfasst für diese Übung.</p>`;
+    renderMain(`${picker}<p class="center-note">Noch nichts erfasst für diese Übung.</p>`);
     wirePicker();
     return;
   }
 
-  main.innerHTML = `${picker}
+  renderMain(`${picker}
     <div class="card">
       <p class="name">${usesWeight ? "Bestes Satzgewicht" : "Wiederholungen gesamt"}</p>
       <p class="hint">Letzte ${points.length} Einheiten</p>
@@ -1800,7 +1799,7 @@ async function renderKraftHistory() {
       <p class="name">Einträge</p>
       ${points.slice().reverse().map((p) => `<div class="row list-row"><span>${shortDate(p.date)}</span>
         <span class="fg-secondary">${p.topKg > 0 ? p.topKg + " kg" : "–"} · ${p.totalReps} Wdh</span></div>`).join("")}
-    </div>`;
+    </div>`);
   wirePicker();
 }
 
@@ -1817,21 +1816,21 @@ async function renderRunHistory() {
   const s = await loadStrava();
 
   if (!isWorkerConfigured) {
-    main.innerHTML = `<div class="card error-card"><p class="name">Strava noch nicht eingerichtet</p>
-      <p class="hint">Siehe README, Abschnitt „Strava".</p></div>`;
+    renderMain(`<div class="card error-card"><p class="name">Strava noch nicht eingerichtet</p>
+      <p class="hint">Siehe README, Abschnitt „Strava".</p></div>`);
     return;
   }
   if (s.error) {
-    main.innerHTML = errorCard(s.error);
+    renderMain(errorCard(s.error));
     return;
   }
   if (s.connected === false) {
-    main.innerHTML = `<button class="primary-btn" data-action="connect-strava">Mit Strava verbinden</button>`;
+    renderMain(`<button class="primary-btn" data-action="connect-strava">Mit Strava verbinden</button>`);
     return;
   }
   const runs = s.runs || [];
   if (!runs.length) {
-    main.innerHTML = `<p class="center-note">Noch keine Läufe seit ${shortDate(STRAVA_SINCE)} in Strava.</p>`;
+    renderMain(`<p class="center-note">Noch keine Läufe seit ${shortDate(STRAVA_SINCE)} in Strava.</p>`);
     return;
   }
 
@@ -1843,7 +1842,7 @@ async function renderRunHistory() {
     ? withPace.reduce((a, r) => a + r.paceSecPerKm, 0) / withPace.length
     : null;
 
-  main.innerHTML = `
+  renderMain(`
     <div class="card">
       <div class="metric-grid">
         <div><p class="metric-label">Letzte 7 Tage</p><p class="metric-value">${metrics.formatKm1(km7)} km</p></div>
@@ -1861,7 +1860,7 @@ async function renderRunHistory() {
       <p class="name">Läufe</p>
       ${last.slice().reverse().map((r) => `<div class="row list-row"><span>${shortDate(r.date)} ${esc(r.name)}</span>
         <span class="fg-secondary">${metrics.formatKm1(r.distanceKm)} km · ${esc(r.paceLabel)}</span></div>`).join("")}
-    </div>`;
+    </div>`);
 }
 
 function sumKm(runs, days) {
@@ -1905,7 +1904,7 @@ function renderPlan() {
   setTabHeader(`<h1>Trainingsplan</h1>
     <p class="eyebrow mt-2">Woche ${w} von ${plan.totalWeeks} · ${pct}% geschafft</p>`);
 
-  main.innerHTML = `
+  renderMain(`
     <div class="card goal-card">
       <p class="metric-label">Ziel</p>
       <p class="goal-time">${esc(displayGoal.time)}</p>
@@ -1949,7 +1948,7 @@ function renderPlan() {
     </div>
 
     ${currentUser ? renderExportCard() : ""}
-    ${currentUser ? renderAccountCard(currentUser) : ""}`;
+    ${currentUser ? renderAccountCard(currentUser) : ""}`);
 }
 
 // ---------- Interaktion ----------
@@ -2049,7 +2048,7 @@ function showGate(title, html) {
   appEl.classList.add("no-session");
   appEl.classList.remove("is-detail");
   setPageHead(`<h1>${esc(title)}</h1>`);
-  main.innerHTML = html;
+  renderMain(html);
 }
 
 function showLogin(email = "", error = "", notice = "") {
@@ -2251,13 +2250,13 @@ appEl.addEventListener("submit", async (e) => {
 async function init() {
   appEl.classList.add("no-session");
   setPageHead(`<h1>Trainingsplan</h1>`);
-  main.innerHTML = loadingCard("Anmeldung wird geprüft …");
+  renderMain(loadingCard("Anmeldung wird geprüft …"));
   let user;
   try {
     user = await authReady();
   } catch (err) {
     console.error(err);
-    main.innerHTML = errorCard(err.message);
+    renderMain(errorCard(err.message));
     return;
   }
   const access = accessState(user, ALLOWED_UID);
@@ -2274,7 +2273,7 @@ async function init() {
 async function startApp() {
   // Tab-Leiste zeigt sofort einen Zustand, auch während der Plan noch lädt.
   document.querySelector('[data-tab="dashboard"]').classList.add("active");
-  main.innerHTML = loadingCard("Plan wird geladen …");
+  renderMain(loadingCard("Plan wird geladen …"));
 
   // A1: Der Plan wird asynchron geladen. Scheitert das ganz (kein Abruf,
   // keine Kopie), gibt es eine dauerhafte Fehlerkarte statt eines leeren
@@ -2303,7 +2302,7 @@ async function startApp() {
   } catch (err) {
     console.error(err);
     setPageHead(`<h1>Trainingsplan</h1>`);
-    main.innerHTML = errorCard(err.message);
+    renderMain(errorCard(err.message));
     // M3: Ein Strava-Redirect (?code=…) wird hier bewusst nicht mehr
     // verarbeitet, wenn schon das Plan-Laden scheitert — der Code bleibt
     // dann in der URL stehen. Das ist kein Datenverlust: der Code ist
@@ -2317,7 +2316,7 @@ async function startApp() {
   const hasRedirect = /[?&](code|error)=/.test(location.search);
   if (hasRedirect) {
     setPageHead(`<h1>Strava</h1>`);
-    main.innerHTML = loadingCard("Strava-Verbindung wird abgeschlossen …");
+    renderMain(loadingCard("Strava-Verbindung wird abgeschlossen …"));
     const res = await handleAuthRedirect();
     if (res.status === "connected") stravaMsg = "Mit Strava verbunden.";
     else if (res.status !== "none") { stravaMsg = res.message; stravaIsError = true; }

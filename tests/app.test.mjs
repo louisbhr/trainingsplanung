@@ -1358,6 +1358,11 @@ for (const [recal, wantText, label] of [
   await page.click('[data-action="back"]');
   await page.waitForSelector(".day-row");
   ok((await page.locator("#header").innerHTML()) === "", "Kopf: #header bleibt leer (Kopf steckt im #main)");
+  // Statische Sperre: #main wird nur über renderMain() geschrieben, sonst fehlt der Seitenkopf.
+  const appSrc = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+  const directWrites = appSrc.split("\n").filter((l) => /\bmain\.innerHTML\s*=(?!=)/.test(l) && !l.trim().startsWith("//"));
+  ok(directWrites.length === 1 && directWrites[0].includes("pagehead"),
+     `Kopf: app.js schreibt #main nur in renderMain (${directWrites.length} direkte Zuweisung)`);
   for (const tab of ["dashboard", "verlauf", "plan", "woche", "dashboard"]) await goTab(page, tab);
   await page.waitForSelector("#coach-slot");
   await page.waitForTimeout(400); // Coach-/Strava-Nachlader haben ihre Slots gepatcht
@@ -1582,8 +1587,9 @@ for (const [recal, wantText, label] of [
   // Sicherheitsabstände greifen (auf dem Home-Bildschirm liegt sonst der
   // Kopf unter der Uhr)
   const insets = await page.evaluate(() => {
-    const cs = getComputedStyle(document.getElementById("header"));
-    return { top: cs.paddingTop, left: cs.paddingLeft };
+    // Oben trägt der Seitenkopf den Statusbar-Abstand, seitlich das Polster von #main.
+    return { top: getComputedStyle(document.querySelector("#main > header.sd-pagehead")).paddingTop,
+             left: getComputedStyle(document.getElementById("main")).paddingLeft };
   });
   ok(parseFloat(insets.top) >= 16, `Sicherheitsabstand oben berücksichtigt (${insets.top})`);
   ok(parseFloat(insets.left) >= 20, `Sicherheitsabstand seitlich berücksichtigt (${insets.left})`);
