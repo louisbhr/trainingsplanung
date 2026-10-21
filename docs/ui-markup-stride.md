@@ -361,7 +361,7 @@ laufen durch einen Helfer `pct(x)` (Zahl, `Number.isFinite`, auf 0 bis 100 gekle
 
 - **E3 Heute:** erledigt, siehe Abschnitt 9 unten (Kopf, Banner, Heute-Karten, Coach, Status, Diese Woche, Info-Sheet-Blöcke).
 - **E4 Woche:** erledigt, siehe Abschnitt 10 (Kopf mit Rundtasten, Summen-Karte, Tageszeilen-Akkordeon).
-- **E5 Kraft-Tag:** Feinheiten der Jetzt-Karte, Entwurf-Wiederherstellung (offen).
+- **E5 Kraft-Tag:** Design erledigt, siehe Abschnitt 11 (Kopf, Dots, Jetzt-Karte, Sätze, Stepper, Reihenfolge, Strava-Zeile, Ladefehler, Anpassen-Modus E5b, Löschliste 11.14).
 - **E6 Lauf-Tag:** Zustände Zukunft, Strava fehlt, ignoriert (aus dem Prototyp, offen).
 - **E7 Verlauf und Plan**, **E8 Login:** offen.
 
@@ -989,3 +989,353 @@ Erst löschen, wenn `view-week.js` die alten Funktionen nicht mehr hat und `test
 - Schon heute ohne Verwender (Grep): `.day-grid`, `.day-pill`.
 - **Bleiben (noch benutzt):** `.icon-btn`, `.small-btn` (Kraft-Tag, Lauf-Tag), `.fg-ok/.fg-amber/.fg-muted`, `.hint`, `.center-note`.
 - Aus `view-week.js` entfallen mit E4 `statusCheckHTML`, `statusWarnHTML`, `statusFutureHTML`, `statusMissedHTML`, `statusTodayHTML`, `statusPartialHTML`, `statusOptionalHTML` als HTML-Strings mit alten Klassen; die Status-Spalte baut stattdessen `checkCircle`/`ringOpen`/`pill`. Danach sind `ICONS.warn`, `ICONS.dash`, `ICONS.check`, `ICONS.prev`, `ICONS.next`, `ICONS.chevronRight` zu prüfen (ob andere Screens sie noch nutzen).
+- **Stand 21.10.2026 (Designer, E5-Durchgang):** Die oben gelisteten Klassen sind aus `style.css` gelöscht (Grep über `*.js`, `*.html`, `tests/` ohne Treffer; Treffer auf `toggle-day-detail` sind die `data-action`, nicht die Klasse), ebenso `.fg-ok`, `.fg-amber` und das Token `--soll-fill`. Geblieben: `.icon-btn`, `.small-btn`, `.fg-muted`, `.hint`, `.center-note`.
+
+---
+
+## 11. Screen-Ergänzungen: Kraft-Tag (E5)
+
+Optik: Handoff §5.3 (Variante B „Fokus“), Mockup K1 bis K8 (`docs/mockup-stride-luecken.html`, abgenommen), Prototyp „Kraft-Tag B“.
+CSS: Abschnitt „Kraft-Tag (E5)“ am Ende von `style.css`; die Bausteine selbst (`sd-nav`, `sd-dots`, `sd-now__*`, `sd-set*`, `sd-stepper*`, `sd-order__*`, `sd-edit__*`, `sd-tip*`) stehen im E1-Teil.
+**Kein `style=` auf diesem Screen.** Alle Zahlen und Namen sind Text oder `data-*`, keine Geometrie.
+
+Icon-Konstanten (einmal im Kraft-Modul definieren; `checkCircle("kraft", 22)` und `ringOpen(22)` kommen aus `ui.js`):
+```js
+const I_CHEV_L = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
+// Laufender Ring (Übung ist Jetzt-Übung, noch nicht gespeichert): neuer kleiner Helfer neben ringOpen
+const ringRun = (n) => `<span class="sd-ring sd-ring--${n} sd-ring--run"></span>`;
+```
+
+### 11.0 Seitenaufbau und Slots
+
+```html
+<header class="sd-pagehead" data-region="pagehead">
+  <h1 class="sd-vh">${esc(session.label)}</h1>
+  <nav class="sd-nav" aria-label="Kopfzeile">…11.1…</nav>
+  <div class="sd-dots" role="group" aria-label="Übungen">…11.2…</div>
+</header>
+<div class="sd-main sd-main--tight">
+  <p class="sd-vh" id="kraftLive" role="status" aria-live="polite"></p>   <!-- 11.13, immer leer gerendert -->
+  <div id="banner-slot">…Ladefehler 11.9 oder nichts…</div>
+  <div id="now-slot">…Alles-erfasst-Karte 11.8 (optional) + Jetzt-Karte 11.3…</div>
+  <div id="order-slot">…Label-Zeile + Reihenfolge-Karte 11.6…</div>
+  <div id="session-slot"></div>                                           <!-- Strava-Zeile 11.7, lädt async nach -->
+  <button type="button" class="sd-btn sd-btn--text sd-btn--block" data-action="toggle-edit">Anpassen</button>
+</div>
+```
+- Ein leerer Slot muss wirklich leer sein (`:empty` blendet ihn aus, Regel aus 9.0). `#session-slot` bleibt so lange leer, bis Strava-Daten da sind.
+- Das Seitenpolster macht `#main:has(> .sd-main)`; unten bleiben die 32 px von `#app.is-detail`. Die Tab-Leiste ist auf dieser Seite aus.
+- Dots stehen **im** `<header>` (nach `sd-nav`), nicht im `.sd-main`; der Kopf scrollt mit.
+- Zustand `editMode` (Anpassen, 11.10) ersetzt `.sd-dots`, `now-slot`, `order-slot`, `session-slot` und den „Anpassen“-Knopf durch einen anderen Aufbau.
+
+### 11.1 Kopfzeile
+
+```html
+<nav class="sd-nav" aria-label="Kopfzeile">
+  <button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back">${I_CHEV_L}Heute</button>
+  <span class="sd-nav__meta">5 von 8 erledigt</span>
+</nav>
+```
+| Fall | Unterschied |
+| --- | --- |
+| Herkunft Heute / Woche | Label „Heute“ bzw. „Woche“ (fester String), `data-action="back"` bleibt |
+| Zähler | `${done} von ${total} erledigt`; `done` = gespeicherte Übungen (`st.saved`), `total` = Übungen ohne die für heute entfernten |
+| Keine Übungen | `<span class="sd-nav__meta">Keine Übungen</span>`, keine Dots |
+| Anpassen-Modus | `<button type="button" class="sd-btn sd-btn--text" data-action="toggle-edit">Fertig</button>` statt `sd-nav__meta` (K2) |
+| Laden | `sd-nav__meta` leer, aber im Markup (kein Sprung beim Nachladen) |
+
+### 11.2 Fortschrittspunkte
+
+Ein Segment pro Übung in Plan-Reihenfolge (entfernte fehlen, Ersetzungen stehen an der Stelle der ersetzten Übung, eigene am Ende).
+```html
+<div class="sd-dots" role="group" aria-label="Übungen">
+  <button type="button" class="sd-dots__seg is-done" data-action="focus-exercise" data-slug="${esc(slug)}" aria-label="${esc(name)}, erledigt"></button>
+  <button type="button" class="sd-dots__seg is-current" data-action="focus-exercise" data-slug="${esc(slug)}" aria-label="${esc(name)}, aktuelle Übung" aria-current="true"></button>
+  <button type="button" class="sd-dots__seg" data-action="focus-exercise" data-slug="${esc(slug)}" aria-label="${esc(name)}, offen"></button>
+</div>
+```
+- Farbe: `is-done` teal, `is-current` Textfarbe, sonst `--ink-off`. Ist die Jetzt-Übung schon gespeichert, trägt das Segment nur `is-current` (die Reihenfolge-Liste darunter zeigt den Haken) und `aria-label="${esc(name)}, aktuelle Übung, erledigt"`.
+- Tipp = `focus-exercise` (auch auf erledigte Übungen, F6). Die Seite scrollt nicht.
+- Trefferfläche 44 px hoch über `::after`; bei 8 Übungen und 320 px nur ca. 31 px breit (bekannte Ausnahme, die Liste ist die Alternative).
+
+### 11.3 Jetzt-Karte
+
+Immer ein `<article>`; `data-mode` ist Test-Haken: `weight` (kg × Wdh), `reps` (nur Wdh), `time` (Sekunden).
+```html
+<article class="sd-card sd-now" data-card="now" data-slug="${esc(slug)}" data-mode="weight" aria-labelledby="nowTitle">
+  <div class="sd-card__top">
+    <p class="sd-eyebrow sd-eyebrow--teal"><span class="sd-eyebrow__dot"></span>Jetzt</p>
+    <span class="sd-last sd-mono">Letztes Mal 3×15 · 20 kg</span>
+  </div>
+  <div>
+    <h2 class="sd-now__name" id="nowTitle">${esc(name)}</h2>
+    <p class="sd-now__soll"><b>${esc(soll)}</b> · ${esc(hint)}</p>
+  </div>
+  <p class="sd-tip sd-tip--up">${esc(chip.text)}</p>
+  <div class="sd-sets">…Sätze 11.4…</div>
+  <button type="button" class="sd-btn sd-btn--primary sd-btn--lg" data-action="finish-set">Satz 2 fertig</button>
+  <button type="button" class="sd-btn sd-btn--text sd-btn--block" data-action="finish-early">Mit 1 Satz abschließen</button>
+</article>
+```
+| Teil | Regel |
+| --- | --- |
+| Eyebrow | „Jetzt“. Ist die Übung gespeichert und kein Satz aktiv (alle Sätze fertig): „Erledigt“ (`sd-eyebrow--teal`, gleicher Punkt) |
+| Letztes Mal | `<span class="sd-last sd-mono">Letztes Mal ${n}×${reps}</span>`; mit Gewicht ` · ${kg} kg` (Top-Gewicht, Komma), Zeit `${n}×${sec} s`. **Ohne Historie** entfällt das ganze `<span>`, der Kopf zeigt nur die Eyebrow |
+| Soll-Zeile | `<b>` = Soll (Mono 600). Ohne Hinweis nur `<p class="sd-now__soll"><b>…</b></p>` (kein Trennpunkt) |
+| Chip | `<p class="sd-tip sd-tip--${level}">` mit `level` aus `progressionChip()`: `up` (teal, „Heute 62,5 kg“), `hold` (sky, „60 kg halten“), `down` (amber, „Heute 57,5 kg“), `info` (nur `sd-tip`, neutral, „Deload, 72,5 kg“). `sd-tip--stall` (amber, „Seit 2 Einheiten ohne Steigerung“) ist als Variante vorhanden, falls der Coder die Stagnation getrennt zeigen will. **Kein Chip ohne Vorschlag** (Element weglassen). Text durch `esc()` |
+| Primärbutton | 11.5 |
+| „Mit n Sätzen abschließen“ | 11.5; nur solange mindestens ein Satz fertig **und** noch ein Satz offen/aktiv ist |
+| Speicherfehler | `<p class="sd-notice sd-notice--danger" role="alert" data-slot="save-error">Nicht gespeichert: ${esc(message)}. Der Satz bleibt offen, versuch es noch einmal.</p>` zwischen `.sd-sets` und Primärbutton. Verschwindet beim nächsten Versuch. Zusätzlich der Toast wie heute |
+
+### 11.4 Sätze
+
+Eine Liste `.sd-sets` mit genau einem aktiven Satz (außer die Übung ist vollständig fertig, dann keiner). Reihenfolge immer Satz 1 bis n.
+
+**Fertig** (antippbar, öffnet den Satz wieder; kein Chevron, es öffnet keinen Screen):
+```html
+<button type="button" class="sd-set is-done" data-action="reopen-set" data-set="0" aria-label="Satz 1 wieder öffnen, bisher 20 kg × 15">
+  <span class="sd-set__label">Satz 1</span><span class="sd-set__value sd-mono">20 kg × 15</span>${checkCircle("kraft", 22)}
+</button>
+```
+**Offen** (nicht antippbar; Wert in `--text-secondary`, nicht `--ink-faint`):
+```html
+<div class="sd-set is-open"><span class="sd-set__label">Satz 3</span><span class="sd-set__value sd-mono">20 kg × 15</span><span class="sd-vh">offen</span></div>
+```
+**Aktiv** (Satzkopf, rechts höchstens ein Text-Button; darunter die Stepper):
+```html
+<div class="sd-set sd-set--active" role="group" aria-label="Satz 2">
+  <div class="sd-set__head"><span class="sd-set__title">Satz 2</span></div>
+  <div class="sd-steppers">…Stepper 11.4a…</div>
+</div>
+```
+Wertformat in `sd-set__value` (Komma als Dezimaltrenner, Mono): `weight` → `62,5 kg × 6`; `reps` → `6 Wdh`; `time` → `30 s`. Nach „+ Gewicht“ (Modus bleibt `reps`, aber Gewichtswert > 0 oder Stepper sichtbar) → `0 kg × 6`.
+- **Offene Sätze** zeigen den Startwert, der gelten würde (Gewicht des aktiven Satzes, Wdh laut letzter Einheit), er ändert sich mit, wenn im aktiven Satz das Gewicht geändert wird.
+- **Wieder geöffneter fertiger Satz** (F6, `reopen-set`): wird zum aktiven Satz, Markup identisch zu „Aktiv“, Stepper mit den gespeicherten Werten. Der zuvor aktive Satz wird wieder „Offen“ (oder „Fertig“, wenn er schon fertig war). Es gibt keine eigene Kennzeichnung.
+- **Alle Sätze fertig** (Übung gespeichert): nur „Fertig“-Zeilen, kein aktiver Satz, Eyebrow „Erledigt“.
+
+**11.4a Stepper** (Baustein 3.6, Texte exakt so):
+| Modus | Stepper |
+| --- | --- |
+| `weight` | zwei: `sd-stepper sd-stepper--weight` (`data-field="kg"`, Gruppe `aria-label="Gewicht in kg"`, Einheit „kg“, Schritt ±2,5) und `sd-stepper` (`data-field="reps"`, Gruppe „Wiederholungen“, Einheit „Wdh“, Schritt ±1) |
+| `reps` | einer: `sd-stepper sd-stepper--solo` (`reps`, wie oben). Im Satzkopf rechts `<button type="button" class="sd-btn sd-btn--text" data-action="add-weight">+ Gewicht</button>` |
+| `reps` nach „+ Gewicht“ | wie `weight`, aber Gruppe `aria-label="Zusatzgewicht in kg"`, Start 0 kg; der Satzkopf-Button entfällt |
+| `time` | einer: `sd-stepper--solo` mit `data-field="sec"`, Gruppe `aria-label="Dauer in Sekunden"`, Einheit „s“, Schritt ±5; Tasten `aria-label="Sekunden verringern"` / `"Sekunden erhöhen"`, Wert `aria-label="Sekunden eintippen, aktuell 30 s"`. Kein „+ Gewicht“ |
+Knopf-Labels: „Gewicht verringern“, „Gewicht erhöhen“, „Wiederholungen verringern“, „Wiederholungen erhöhen“. Untergrenze 0: der „−“-Knopf bekommt `disabled` (Deckkraft .35 aus der Basisregel). Zahl: `<span class="sd-stepper__num sd-mono" aria-live="polite">62,5</span>`.
+
+**V1 Direkte Eingabe** (Tipp auf den Wert, `edit-value`): der `sd-stepper__val`-Button wird ersetzt durch
+```html
+<span class="sd-stepper__field"><input class="sd-stepper__input" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Gewicht in kg" value="82,5"><span class="sd-stepper__unit">kg</span></span>
+```
+- `inputmode="decimal"` für `kg`, `inputmode="numeric"` für `reps` und `sec`; `aria-label` = Gruppenname („Wiederholungen“, „Dauer in Sekunden“). `value` ist ein geprüfter, formatierter Zahlentext (durch `esc()`, Komma). Inhalt markiert, Fokus im Feld. Schrift 24 px (also kein iOS-Zoom).
+- Im Satzkopf erscheint rechts `<button type="button" class="sd-btn sd-btn--text" data-action="commit-value">Fertig</button>`. **Er ersetzt „+ Gewicht“**, solange das Feld offen ist; danach kommt „+ Gewicht“ zurück.
+- Übernommen wird bei Enter, „Fertig“, Verlassen des Feldes oder Tipp auf ± (Komma parsen, ungültig = alter Wert). Es ist immer nur ein Feld offen.
+
+### 11.5 Primärbutton und Abschließen
+
+Genau ein Primärbutton, immer `sd-btn sd-btn--primary sd-btn--lg`:
+| Zustand | Label | `data-action` | Zusatz |
+| --- | --- | --- | --- |
+| Satz n aktiv | `Satz ${n} fertig` (n = 1-basiert) | `finish-set` | |
+| speichert (nach letztem Satz) | `Speichert …` | `finish-set` | `disabled`, `aria-busy="true"` |
+| Übung fertig, es gibt eine weitere offene | `Weiter: ${esc(nextName)}` | `next-exercise` | `data-slug="${esc(nextSlug)}"` |
+| Übung fertig, nichts mehr offen | `Training abschließen` | `finish-session` | geht zur Herkunft (Heute oder Woche), speichert nichts mehr |
+| Übung ohne Sätze (nicht möglich) | – | – | wird nicht gerendert |
+Die Beschriftung ist der ganze Weg einer Einheit: „Satz n fertig“ → „Weiter: …“ → „Training abschließen“. Lange Namen brechen im Button um (nie abgeschnitten).
+
+**„Mit n Sätzen abschließen“** (F6):
+```html
+<button type="button" class="sd-btn sd-btn--text sd-btn--block" data-action="finish-early">Mit 2 Sätzen abschließen</button>
+```
+Text: `Mit ${n} ${n === 1 ? "Satz" : "Sätzen"} abschließen`, n = Zahl der fertigen Sätze (nur sie werden gespeichert, Auflage C1). Sichtbar ab n ≥ 1, solange noch ein Satz offen ist; sonst weglassen.
+
+### 11.6 Reihenfolge-Liste
+
+```html
+<div class="sd-label-row"><p class="sd-label" id="orderLabel">Reihenfolge</p><p class="sd-hint">Antippen, um sie als Nächstes zu machen</p></div>
+<div class="sd-card sd-card--list sd-order" data-card="order" role="group" aria-labelledby="orderLabel">
+  <button type="button" class="sd-order__row is-done" data-action="focus-exercise" data-slug="${esc(slug)}">
+    <span class="sd-order__pos sd-mono">1</span>${checkCircle("kraft", 22)}
+    <span class="sd-order__main"><span class="sd-order__name">${esc(name)}</span><span class="sd-order__sub sd-mono">2× 6 · 60 kg</span><span class="sd-vh">erledigt</span></span>
+  </button>
+  …
+</div>
+```
+| Zeile | Klassen / Status-Kreis | Untertitel |
+| --- | --- | --- |
+| erledigt | `is-done`, `checkCircle("kraft", 22)` | Zusammenfassung der **gespeicherten** Sätze: `2× 6 · 60 kg` (Anzahl gespeicherter Sätze, Wdh, Top-Gewicht), `2× 5 Wdh`, `2× 30 s` |
+| Jetzt, nicht gespeichert | `is-current` + `aria-current="true"`, `ringRun(22)` | `läuft · Satz 2 von 3` (`.sd-vh` entfällt, der Text sagt es) |
+| Jetzt, schon gespeichert (F6) | `is-current is-done`, Haken-Kreis | Zusammenfassung wie „erledigt“ |
+| offen | ohne Klasse, `ringOpen(22)` | Soll als Text, z. B. `3×10/Seite`, `.sd-vh` „offen“ |
+| eigene Übung | wie ihr Zustand | Untertitel mit Präfix `eigene · ` (`eigene · 3×10`), keine Pill (die Zeile ist einzeilig) |
+| für heute entfernt | **nicht in der Liste** (und nicht in Dots, Zähler) | nur im Anpassen-Modus (11.10, `is-removed`) |
+Name einzeilig mit Auslassungspunkten (`sd-order__name`), Untertitel ebenso. Zeile mindestens 48 px. Tipp = `focus-exercise`; die Seite scrollt nicht, der Fokus bleibt auf der getippten Zeile.
+
+### 11.7 Strava-Zeile (F7)
+
+Erscheint nur, wenn Strava verbunden ist und für den Tag eine Einheit mit Dauer oder Herzfrequenz existiert. Nicht antippbar, ohne Chevron.
+```html
+<div id="session-slot"><div class="sd-card sd-card--pad-sm" data-card="strava-session">
+  <dl class="sd-kv"><dt>Einheit laut Strava</dt><dd class="sd-mono">58 min · Ø 121 bpm · max 158 bpm</dd></dl>
+</div></div>
+```
+Teile entfallen einzeln, wenn der Wert fehlt (`58 min`, `Ø 121 bpm`, `max 158 bpm`); optional zuletzt ` · Relative Effort 42`. Nicht verbunden, Fehler oder keine Einheit: der Slot bleibt leer (kein Platzhalter, kein Hinweis; das Heute-Banner erklärt Strava). Alle Texte durch `esc()`.
+
+### 11.8 Alles erfasst
+
+Sind alle Übungen gespeichert, steht über der Jetzt-Karte (im `#now-slot`) eine ruhige Hinweiskarte; die Jetzt-Karte bleibt für Korrekturen bedienbar und der Primärbutton heißt „Training abschließen“.
+```html
+<div class="sd-card sd-card--done" data-card="all-done">
+  <span class="sd-check sd-check--22"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+  <div><p class="sd-card__title">Alle 8 Übungen erfasst</p><p class="sd-card__text">Zum Korrigieren eine Übung antippen.</p></div>
+</div>
+```
+Titel: `Alle ${n} Übungen erfasst`, bei genau einer Übung „Die Übung ist erfasst“. Zähler in der Kopfzeile `8 von 8 erledigt`, alle Dots `is-done`, außer dem aktuellen.
+Die Karte ist getönt (`--teal-bg`), nicht gefüllt: die einzige gefüllte Fläche bleibt der Primärbutton.
+
+### 11.9 Fehler, Laden, leer
+
+**Ladefehler** (K8), im `#banner-slot`, direkt unter der Kopfzeile:
+```html
+<div class="sd-card sd-card--danger" role="alert" data-card="load-error" data-source="firebase">
+  <p class="sd-card__title sd-card__title--danger">Gespeicherte Sätze nicht geladen</p>
+  <p class="sd-card__text sd-card__text--danger">${esc(message)}</p>
+  <p class="sd-card__text sd-card__text--danger">Eintragen geht trotzdem. Gespeichert wird erst, wenn das behoben ist.</p>
+  <div class="sd-actions"><button type="button" class="sd-btn sd-btn--onbanner" data-action="reload">Neu laden</button></div>
+</div>
+```
+**Laden** (ersetzt `loadingCard`): Kopfzeile wie 11.1 (Zähler leer), im `.sd-main` nur
+```html
+<article class="sd-card sd-now" data-card="now" aria-busy="true" role="status">
+  <div class="sd-skelstack sd-skelstack--fill">
+    <span class="sd-skel sd-skel--w40"></span><span class="sd-skel sd-skel--name"></span>
+    <span class="sd-skel sd-skel--set"></span><span class="sd-skel sd-skel--set"></span>
+    <span class="sd-skel sd-skel--btn"></span>
+    <span class="sd-vh">Gespeicherte Sätze werden geladen</span>
+  </div>
+</article>
+```
+**Leer** (Einheit ohne Übungen oder alle für heute entfernt), statt Dots, Jetzt-Karte und Liste (der „Anpassen“-Knopf unten entfällt, die Karte trägt ihn):
+```html
+<div class="sd-card sd-card--center" data-card="no-exercises">
+  <h2 class="sd-card__title">Keine Übungen für heute</h2>
+  <p class="sd-card__text">Im Anpassen-Modus lassen sich Übungen zurückholen oder hinzufügen.</p>
+  <div class="sd-actions"><button type="button" class="sd-btn sd-btn--md" data-action="toggle-edit">Anpassen</button></div>
+</div>
+```
+**Speichern** (optimistisch): Primärbutton `disabled` + „Speichert …“; bei Fehler Rücknahme (Satz wieder aktiv), Meldung `data-slot="save-error"` (11.3) und Toast.
+**Entwurf wiederhergestellt** (V2): kein eigenes Element; nach dem Rendern ein Toast „Eingaben von vorhin wiederhergestellt“ (vorhandener `#toast`), nur wenn wirklich Werte aus dem Entwurf kommen.
+
+### 11.10 Anpassen-Modus (E5b)
+
+Eigene Ansicht statt Umbau der Jetzt-Karte (K2, K3). Kein Dots, keine Jetzt-Karte, keine Reihenfolge-Liste, keine Strava-Zeile.
+```html
+<header class="sd-pagehead" data-region="pagehead">
+  <nav class="sd-nav" aria-label="Kopfzeile">
+    <button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back">${I_CHEV_L}Heute</button>
+    <button type="button" class="sd-btn sd-btn--text" data-action="toggle-edit">Fertig</button>
+  </nav>
+  <div class="sd-daytitle">
+    <p class="sd-eyebrow sd-eyebrow--teal sd-eyebrow--plain">Anpassen · Di, 20.10.</p>
+    <h1 class="sd-display">${esc(session.label)}</h1>
+    <p class="sd-target">Änderungen gelten nur für heute.</p>
+  </div>
+</header>
+<div class="sd-main">
+  <div class="sd-card sd-card--list" data-card="edit-list">…Zeilen…</div>
+  <button type="button" class="sd-btn sd-btn--dashed" data-action="quick-add">+ Übung hinzufügen</button>   <!-- oder das Formular 11.10b -->
+</div>
+```
+Der Zähler „x von y erledigt“ entfällt hier. „Anpassen“ und „Fertig“ sind derselbe Knopf (`toggle-edit`), er behält den Namen durch den Ablauf. `+ Übung hinzufügen` gibt es **nur** hier, nicht mehr in der Normalansicht.
+
+**Zeilen** (`sd-edit__row`, Reihenfolge wie im Plan, entfernte an ihrer Stelle):
+```html
+<div class="sd-edit__row" data-slug="${esc(slug)}">
+  <div class="sd-edit__lead">${checkCircle("kraft", 22)}<div class="sd-edit__main"><p class="sd-edit__name">${esc(name)}</p><p class="sd-edit__sub sd-mono">2× 6 · 60 kg</p></div></div>
+  <div class="sd-edit__actions">
+    <button type="button" class="sd-btn" data-action="replace-exercise" data-slug="${esc(slug)}" aria-label="Ersetzen: ${esc(name)}">Ersetzen</button>
+    <button type="button" class="sd-btn sd-btn--danger" data-action="remove-exercise" data-slug="${esc(slug)}" aria-label="Entfernen: ${esc(name)}">Entfernen</button>
+  </div>
+</div>
+```
+| Zeile | Unterschied |
+| --- | --- |
+| gespeichert | `checkCircle("kraft", 22)`, Sub = Zusammenfassung wie 11.6 |
+| offen | `ringOpen(22)`, Sub = Soll |
+| eigene Übung | im Namen `<span class="sd-pill sd-pill--purple">eigene</span>` nach dem Namen |
+| für heute entfernt | `sd-edit__row is-removed`, `ringOpen(22)`, Sub „Für heute entfernt“ (kein Mono), nur ein Knopf: `<button type="button" class="sd-btn" data-action="restore-exercise" data-slug="…" aria-label="Zurückholen: ${esc(name)}">Zurückholen</button>` |
+| Ersetzen offen | `<div class="sd-edit__row" data-replace="${esc(slug)}">`: die Knopfgruppe ist durch das Formular (unten) ersetzt, die anderen Zeilen bleiben unverändert |
+Schmale Spalte (unter ca. 340 px): die Knöpfe rutschen unter den Namen und teilen sich die Breite (CSS-Container-Query, kein Zutun).
+
+**Ersetzen-Formular** (in der Zeile, K3 links):
+```html
+<form class="sd-edit__form" data-form="replace">
+  <p class="sd-hint">Ersetzt ${esc(name)} an dieser Stelle.</p>
+  <label class="sd-field"><span class="sd-field__label">Neue Übung</span><input class="sd-input" type="text" id="rep-ex-name" name="name" autocomplete="off"></label>
+  <label class="sd-field"><span class="sd-field__label">Soll</span><input class="sd-input" type="text" id="rep-ex-soll" name="soll" value="${esc(soll)}" autocomplete="off"></label>
+  <p class="sd-notice sd-notice--danger" role="alert" data-slot="form-error">Bitte einen Namen eingeben.</p>   <!-- nur bei Fehler -->
+  <div class="sd-actions">
+    <button type="submit" class="sd-btn sd-btn--primary sd-btn--grow" data-action="confirm-replace" data-slug="${esc(slug)}">Übernehmen</button>
+    <button type="button" class="sd-btn sd-btn--text" data-action="cancel-replace">Abbrechen</button>
+  </div>
+</form>
+```
+**11.10b Hinzufügen-Formular** (ersetzt den gestrichelten Knopf, K3 rechts):
+```html
+<form class="sd-card" data-form="add-exercise">
+  <div><h2 class="sd-card__title">Übung hinzufügen</h2><p class="sd-hint">Gilt nur für diesen Tag (20.10.).</p></div>
+  <label class="sd-field"><span class="sd-field__label">Name</span><input class="sd-input" type="text" id="new-ex-name" name="name" placeholder="z. B. Beinpresse" autocomplete="off"></label>
+  <label class="sd-field"><span class="sd-field__label">Soll</span><input class="sd-input" type="text" id="new-ex-soll" name="soll" placeholder="z. B. 3x8-10" autocomplete="off"></label>
+  <p class="sd-notice sd-notice--danger" role="alert" data-slot="form-error">Bitte einen Namen eingeben.</p>   <!-- nur bei Fehler -->
+  <div class="sd-actions">
+    <button type="submit" class="sd-btn sd-btn--primary sd-btn--grow" data-action="add-exercise">Hinzufügen</button>
+    <button type="button" class="sd-btn sd-btn--text" data-action="cancel-add">Abbrechen</button>
+  </div>
+</form>
+```
+- `id` (`rep-ex-*`, `new-ex-*`) bleiben, weil bestehende Tests und Handler sie nutzen; `name` kommt dazu. Felder 48 px hoch, 16 px Schrift.
+- Aus dem Platzhalter „Name, z. B. Beinpresse“ wird das Label „Name“ plus Platzhalter „z. B. Beinpresse“ (Platzhalter ersetzt kein Label).
+- Fokus: beim Öffnen auf das erste Feld, beim Abbrechen oder Übernehmen zurück auf den auslösenden Knopf (bei Übernehmen auf die Zeile bzw. den „Hinzufügen“-Knopf der neuen Ansicht).
+- Ein Klick auf `data-action` **und** das `submit`-Ereignis (Enter im Feld) führen zur selben Funktion; der Coder verhindert die Doppelauslösung (`preventDefault` im Submit).
+
+### 11.11 `data-action`-Namen auf dem Kraft-Tag
+
+Unverändert (Tests hängen daran): `back`, `reload`, `toggle-edit`, `quick-add`, `add-exercise`, `cancel-add`, `replace-exercise`, `confirm-replace`, `cancel-replace`, `remove-exercise`, `restore-exercise`.
+Neu (Abschnitt 5, hier mit Stelle): 
+| Name | Wo | Parameter | Wirkung |
+| --- | --- | --- | --- |
+| `focus-exercise` | Dots, Reihenfolge-Zeilen | `data-slug` | Jetzt-Übung wechseln (auch erledigte) |
+| `step` | ±-Knöpfe | `data-field` (`kg|reps|sec`), `data-dir` (`-1|1`) | Wert ± Schritt (kg 2,5, Wdh 1, s 5); Gewicht wirkt auf die folgenden Sätze, Wdh/s nur auf den Satz |
+| `edit-value` | Stepper-Wert | `data-field` | Feld öffnen (V1) |
+| `commit-value` | „Fertig“ im Satzkopf | – | Feld übernehmen |
+| `add-weight` | „+ Gewicht“ im Satzkopf | – | Gewichts-Stepper einblenden (Start 0) |
+| `finish-set` | Primärbutton | – | „Satz n fertig“; nach dem letzten Satz Speichern |
+| `finish-early` | Text-Button | – | „Mit n Sätzen abschließen“ |
+| `reopen-set` | fertiger Satz | `data-set` (0-basiert) | Satz wieder aktiv |
+| `next-exercise` | Primärbutton, wenn Übung fertig | `data-slug` der nächsten offenen | „Weiter: …“ |
+| `finish-session` | Primärbutton, wenn alles fertig | – | „Training abschließen“ → zurück zur Herkunft |
+Entfallen: `toggle-sets` („Sätze einzeln / Alle gleich“, jeder Satz ist jetzt einzeln), `save` (kein Speichern-Knopf mehr, gespeichert wird mit dem letzten Satz bzw. „Mit n Sätzen abschließen“).
+Stabile Test-Haken: `[data-card="now"][data-slug][data-mode]`, `[data-card="order"]`, `[data-card="all-done"]`, `[data-card="load-error"]`, `[data-card="strava-session"]`, `[data-card="no-exercises"]`, `[data-form="replace"]`, `[data-form="add-exercise"]`, `[data-slot="save-error"]`, `.sd-set.is-done|.is-open|.sd-set--active`, `.sd-order__row.is-current`.
+
+### 11.12 Welche Texte durch `esc()`
+
+Zusätzlich zu Abschnitt 6: Übungsname **auch in `aria-label`** (Dots, Ersetzen, Entfernen, Zurückholen), `soll`, `hint`, Chip-Text, Name der nächsten Übung im Primärbutton, `data-slug`, Ladefehler- und Speicherfehlertext, `value` der Formulare und des Stepper-Feldes, Strava-Texte, Datumstexte der Anpassen-Überschrift. **Nicht**: feste Strings („Satz n fertig“, „Jetzt“, „Anpassen“ …), Icon-Konstanten, `checkCircle`/`ringOpen`/`ringRun` (feste Klassen), bereits formatierte Zahlen aus den Helfern (`62,5`), `data-field`/`data-dir`-Werte aus fester Liste. Werte aus dem Entwurf (V2) erscheinen nur als geprüfte Zahlen.
+
+### 11.13 Barrierefreiheit, Fokus, Responsive
+
+- **Live-Region:** `<p class="sd-vh" id="kraftLive" role="status" aria-live="polite">` bleibt leer gerendert; nach einer Aktion setzt der Coder den Text **nach** dem Einfügen (z. B. im nächsten Frame), sonst liest ein neu eingefügter Knoten nichts vor. Texte: nach `finish-set` „Satz 2 fertig. Als Nächstes Satz 3.“, nach dem Speichern „Squats gespeichert. Als Nächstes Deadlift.“ bzw. „Alle Übungen erfasst.“, nach `focus-exercise` „Jetzt: Deadlift.“ Rendert der Coder bei jedem Schritt `#main` ganz neu, muss `#kraftLive` außerhalb der neu geschriebenen Knoten liegen (oder der Text kommt über den vorhandenen Toast).
+- **Fokus nach dem Neu-Rendern:** nach `finish-set`, `next-exercise`, `finish-early` auf den neuen Primärbutton; nach `focus-exercise` auf den getippten Dot bzw. die getippte Zeile (gleicher `data-slug`); nach `reopen-set` auf den ersten Stepper-Knopf des Satzes; nach `edit-value` ins Feld, nach `commit-value` auf den Wert-Button; nach `add-weight` auf den neuen Gewichts-Wert. Fokus nie auf `body` fallen lassen.
+- Stepper: jede Taste `aria-label`, Wert `aria-live="polite"`. Status nie nur über Farbe: Haken-Kreis, Ring, Text („läuft · Satz 2 von 3“, `.sd-vh` „erledigt“ / „offen“). Dots tragen den Status im `aria-label`.
+- Tippflächen: Stepper-Tasten 44 × 44, Wert 44 hoch, Primärbutton 54, Text-Buttons 44, Satzzeilen mindestens 44, Reihenfolge-Zeilen 48, Dots 44 hoch (Breite bei 8 Übungen und 320 px ca. 31 px, bekannte Ausnahme).
+- 320 px: die beiden Stepper stehen untereinander, jeder über die volle Breite; Kopf (`sd-card__top`) umbricht; „Letztes Mal …“ rutscht unter „Jetzt“; Anpassen-Zeilen: Knöpfe unter dem Namen. Bei 1280 px bleibt die 480-px-Spalte zentriert.
+- `prefers-reduced-motion`: Tasten-Skalierung und Hover-Übergänge aus (bestehende Regel am Dateiende deckt `.sd-btn`, `.sd-stepper__btn`).
+
+### 11.14 Durch E5 überflüssig werdende alte Klassen (Löschliste, **nicht** vorab löschen)
+
+Erst löschen, wenn `view-kraft.js` die alten Funktionen (`exerciseCard`, `simpleRowHTML`, `perSetRowsHTML`, `saveButtonHTML`, `toggleSets`, `readCard`, `fillSessionSlot` alt) nicht mehr hat und `tests/app.test.mjs` auf die neuen Haken umgestellt ist. Vorher je Klasse greppen (`*.js`, `*.html`, `tests/`).
+- Karten: `.card.summary-card` (+ `.name`, `.hint`), `.card.done` (+ `p.hint`), `.card.removed`, `.card.current`, `.card.session-card` (+ `.name`, `.hint`, `.metric-label`, `.metric-value`).
+- Eingabe: `input[type="number"]` (Regel), `.set-row` (+ `.set-label`), `.times`, `.ex-body`, `.hint.tiny`, `.status` (+ `:empty`, `.ok`, `.warn`).
+- Speichern: `.save-btn` (+ `svg`, `.wide`, `.is-saved`, `:disabled`, `.icon-btn.save-btn`), `.primary-btn` **nicht** (Lauf-Tag und Verlauf nutzen sie noch).
+- Anpassen: `.add-inline`, `.add-form` (+ `input[type="text"]`), `.edit-actions`, `.custom-tag`, `.danger-btn` **nicht** (`view-account.js` nutzt es für „Abmelden“).
+- Progression: `.tip`, `.tip-up`, `.tip-hold`, `.tip-down`, `.tip-info` (ersetzt durch `.sd-tip--*`).
+- Nach E5 prüfen: `.done-dot`, `.strava-note` (E6), `.link-btn` (E6), `.small-btn` (E6), `.seg`, die Utilities `.jc-between`, `.ai-start`, `.gap-10`, `.gap-8`, `.flex-1`, `.min-w-0`, `.mt-6`, `.mt-8`, `.mb-8`, `.w-full`, `.w-70`, `.fs-11`, `.fg-secondary` (je einzeln greppen, mehrere werden erst nach E6 frei).
+- Aus `app.js` entfallen mit E5: `data-action="toggle-sets"`, `data-action="save"`, Ids `session-slot` (bleibt, aber mit neuem Inhalt), `progress-line`, `data-ex`, `data-status`, `data-kg`, `data-reps`.
