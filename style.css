@@ -210,16 +210,23 @@ button, input, select, textarea { font-family: inherit; }
      zum Containing Block für position: fixed. */
   isolation: isolate;
 }
-#header {
-  /* Nur #header und #main sind Container für cqi-Größen (Display, große Distanz). */
+/* Der Seitenkopf lebt seit E3 als erstes Kind von #main (.sd-pagehead) und scrollt
+   mit. #header bleibt im HTML, ist aber immer leer. */
+#header:empty { display: none; }
+.sd-pagehead {
+  /* Nur .sd-pagehead und #main sind Container für cqi-Größen (Display, große Distanz). */
   container-type: inline-size;
-  padding: calc(1rem + env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
-           0.75rem max(1.25rem, env(safe-area-inset-left));
+  /* Alter Kopf: Seitenpolster kommt von #main (1.25rem), Kopf selbst nur oben/unten.
+     Oben trägt der Kopf den Statusbar-Abstand, weil #main oben kein Polster mehr hat. */
+  padding: calc(1rem + env(safe-area-inset-top)) 0 1rem;
   flex-shrink: 0;
 }
-#header .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0; }
-#header .title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
-#header h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.sd-pagehead:has(> :is(.sd-head, .sd-nav)) {
+  padding: calc(8px + env(safe-area-inset-top)) 0 0;
+}
+.sd-pagehead .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0; }
+.sd-pagehead .title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.sd-pagehead h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; margin: 0; min-width: 0; overflow-wrap: anywhere; }
 /* Fällt auf --sunk/--text-secondary zurück, wenn keine .tone-* Klasse
    gesetzt ist ("Ohne Plan"-Badge, F7). Wo bisher inline style="background:
    …;color:…" genutzt wurde (badge()-Helfer in app.js), gewinnt das Inline-
@@ -233,7 +240,8 @@ button, input, select, textarea { font-family: inherit; }
   flex: 1 1 auto; min-height: 0;
   /* Unten 120px: die schwebende Tab-Leiste (64px + 26px Abstand) liegt über
      dem Inhalt, der letzte Block muss darüber hinaus scrollen können. */
-  padding: 1rem max(1.25rem, env(safe-area-inset-right))
+  /* Oben 0: das erste Kind ist immer .sd-pagehead und bringt Statusbar-Abstand mit. */
+  padding: 0 max(1.25rem, env(safe-area-inset-right))
            calc(120px + env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
   /* 12px: nächste Stufe auf dem 4/8/12/16-Raster zwischen Karten/Blöcken. */
   display: flex; flex-direction: column; gap: 12px;
@@ -257,8 +265,11 @@ button, input, select, textarea { font-family: inherit; }
 #main:has(> :is(.sd-main, .sd-intro, .sd-nav, .sd-head, .sd-dots, .sd-daytitle, .sd-auth)) {
   padding-inline: 0; padding-top: 0; gap: 0;
 }
-#header:has(> :is(.sd-head, .sd-nav)) {
-  padding: calc(8px + env(safe-area-inset-top)) 0 0;
+/* Alter Kopf (Eyebrow/Titel/Marke) in einem genullten #main: Seitenpolster selbst tragen,
+   sonst klebt er am Rand (vorher trug das der #header). */
+#main:has(> :is(.sd-main, .sd-intro, .sd-nav, .sd-head, .sd-dots, .sd-daytitle, .sd-auth))
+  > .sd-pagehead:not(:has(> :is(.sd-head, .sd-nav))) {
+  padding-inline: max(1.25rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-left));
 }
 
 /* Alte Karte (nur noch bis zur Ablösung der Screens): weiß auf --bg, ohne Rahmen. */
@@ -375,9 +386,9 @@ button:disabled { opacity: 0.35; cursor: default; }
 }
 .link-btn svg { width: 14px; height: 14px; }
 
-#header h1 .of { font-weight: 400; font-size: 14px; color: var(--text-secondary); }
-#header .title-row .row { flex-shrink: 0; }
-#header .icon-btn svg { width: 18px; height: 18px; }
+.sd-pagehead h1 .of { font-weight: 400; font-size: 14px; color: var(--text-secondary); }
+.sd-pagehead .title-row .row { flex-shrink: 0; }
+.sd-pagehead .icon-btn svg { width: 18px; height: 18px; }
 
 .card.summary-card { background: var(--teal-bg); }
 .card.summary-card .name, .card.summary-card .hint { color: var(--teal-fg); }
@@ -896,10 +907,10 @@ select {
 /* ---- Kopf und Seitentitel ---- */
 .sd-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0 20px; }
 .sd-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; letter-spacing: -0.035em; }
-/* Marke als bloßes Kind des alten #header (ohne .sd-head, sonst würde dessen Polster genullt):
-   Seitenpolster bleibt vom Header, nur der Abstand nach unten (Mockup: 24px bis Eyebrow,
-   hier 20px, weil der alte Header unten schon 0.75rem trägt und die Zeile darunter eng sitzt). */
-#header > .sd-brand { margin: 0 0 20px; min-height: 28px; }
+/* Marke als bloßes Kind des alten .sd-pagehead (ohne .sd-head, sonst würde dessen Polster genullt):
+   Seitenpolster bleibt vom Kopf, nur der Abstand nach unten (Mockup: 24px bis Eyebrow,
+   hier 20px, weil die Zeile darunter eng sitzt). */
+.sd-pagehead > .sd-brand { margin: 0 0 20px; min-height: 28px; }
 .sd-chip { font: 500 12px var(--font-mono); color: var(--text-secondary); background: var(--card); padding: 5px 10px; border-radius: 20px; white-space: nowrap; }
 .sd-intro { padding: 24px 20px 0; }
 .sd-intro--tight { padding-top: 8px; }

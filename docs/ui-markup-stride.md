@@ -401,7 +401,8 @@ Haken-Kreis und Ring in der Übungsvorschau kommen aus `checkCircle("kraft", 20)
 ```
 - Jeder Slot lädt einzeln nach. Ein **leerer Slot muss wirklich leer sein** (`innerHTML = ""`, kein Leerraum, kein Kommentar im Template), dann blendet `:empty` ihn aus und es entsteht kein 12-px-Loch.
 - `#detail-slot` („Im Detail“) entfällt komplett (F3).
-- `#main:has(> .sd-main)` und `#header:has(> .sd-head)` nullen das alte Seitenpolster bereits. Das Bodenpolster 120 px bleibt.
+- Seit E3 steckt der Kopf in `<header class="sd-pagehead" data-region="pagehead">` als erstes Kind von `#main` (scrollt mit, trägt `env(safe-area-inset-top)` als padding-top); `#header` bleibt leer und ist `display: none`.
+- `#main:has(> .sd-main)` und `.sd-pagehead:has(> .sd-head)` nullen das alte Seitenpolster bereits. Das Bodenpolster 120 px bleibt.
 
 **Dynamische Werte ohne `style` (C5).** Es gibt auf Heute genau zwei Wertbalken, beide sind native `<progress>`:
 ```html
