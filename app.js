@@ -3,30 +3,35 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610211153";
-import { loadPlans } from "./plan-store.js?v=202610211153";
+} from "./plan.js?v=202610211227";
+import { loadPlans } from "./plan-store.js?v=202610211227";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610211153";
+} from "./firebase-init.js?v=202610211227";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport,
-} from "./strava.js?v=202610211153";
-import { suggestProgression, previousEntry } from "./progression.js?v=202610211153";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610211153";
-import { distanceStatus, hrStatus } from "./runcompare.js?v=202610211153";
-import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet } from "./ui.js?v=202610211153";
-import * as dash from "./view-dashboard.js?v=202610211153";
-import * as dashWeek from "./view-week.js?v=202610211153";
-import * as metrics from "./metrics.js?v=202610211153";
-import * as coach from "./coach.js?v=202610211153";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610211153";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610211153";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610211153";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610211153";
+} from "./strava.js?v=202610211227";
+import { previousEntry, progressionChip } from "./progression.js?v=202610211227";
+import {
+  exerciseMode, startSets, lastTimeText, applyWeightForward, initialFocus, nextOpenExercise,
+  stepValue, buildLogPayload, MAX_VALUE,
+} from "./kraftflow.js?v=202610211227";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610211227";
+import { distanceStatus, hrStatus } from "./runcompare.js?v=202610211227";
+import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet } from "./ui.js?v=202610211227";
+import * as dash from "./view-dashboard.js?v=202610211227";
+import * as dashWeek from "./view-week.js?v=202610211227";
+import * as kraftView from "./view-kraft.js?v=202610211227";
+import * as metrics from "./metrics.js?v=202610211227";
+import * as coach from "./coach.js?v=202610211227";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610211227";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610211227";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610211227";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610211227";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -116,14 +121,12 @@ function defaultHistoryExercise() {
   return slug(catalog[0]?.name || "Squats");
 }
 
-// Kraft-Eingaben der gerade sichtbaren Tagesansicht
+// Kraft-Zustand der gerade sichtbaren Tagesansicht (slug -> Ablauf der Übung)
 const logState = new Map();
 // Pro Tag angepasste Übungsliste: { removed: [slug], added: [{name, soll, hint}] }
 let dayPlan = { removed: [], added: [] };
 let currentKraftDay = { info: null, iso: null };
 let editMode = false;
-let replaceFor = null; // Slug der Übung, die gerade getauscht wird
-let quickAdd = false;  // Maske zum schnellen Hinzufügen offen
 // Strava: null = noch nicht geladen, false = nicht verbunden
 let stravaState = { runs: null, error: null, errorSource: null, connected: null };
 // Plan-Datum -> { run, offset, source }
@@ -894,6 +897,7 @@ function setDetailMode(on) {
 }
 
 function render() {
+  kraftOpen = false; // renderKraftDay setzt es wieder, sobald der Kraft-Tag die Seite ist
   if (!plans.length) return; // Plan lädt noch (siehe init()); nichts zu rendern
   syncTabbar();
   setDetailMode(false); // renderDay schaltet es für Kraft-/Lauf-Tage wieder ein
@@ -921,6 +925,8 @@ async function renderDay(iso, { showBack, backLabel }) {
   const isToday = iso === todayISO();
   const label = backLabel ?? `Woche ${w}`;
   setDetailMode(info.kind === "kraft" || info.kind === "lauf");
+  // Der Kraft-Tag baut Kopf und Inhalt komplett selbst (view-kraft.js)
+  if (info.kind === "kraft") return renderKraftDay(info, iso, label);
 
   setPageHead(`
     <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} ${esc(label)}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
@@ -933,8 +939,6 @@ async function renderDay(iso, { showBack, backLabel }) {
       : "Ruhetag"
     }</h1>${badgeForKind(info)}</div>`);
 
-  if (info.kind !== "kraft") { editMode = false; replaceFor = null; quickAdd = false; }
-  if (info.kind === "kraft") return renderKraftDay(info, iso);
   if (info.kind === "lauf") return renderRunDay(info, iso);
   if (info.kind === "placeholder") {
     renderMain(`<div class="card"><p class="name">Details folgen</p>
@@ -958,12 +962,28 @@ async function renderDay(iso, { showBack, backLabel }) {
 }
 
 // ---------- Krafttag ----------
-function setsCountFromSoll(soll) {
-  const m = String(soll).match(/(\d+)\s*x/i);
-  const n = m ? parseInt(m[1], 10) : 3;
-  return Math.min(Math.max(n, 1), 8);
-}
+// Stride E5: Satz für Satz statt Formular. logState hält je Übung den Ablauf
+// (Sätze mit done-Flag, aktiver Satz, gespeichert?), focusExerciseId die
+// Jetzt-Übung. Rechenregeln (Startwerte, Gewicht wirkt vorwärts, Payload) stehen
+// in kraftflow.js, das Markup in view-kraft.js; hier nur Zustand, Laden,
+// Speichern und Verdrahtung.
+let focusExerciseId = null;
+let kraftOpen = false;      // Kraft-Tag ist gerade die sichtbare Seite
+let kraftGen = 0;           // zählt Öffnungen: späte Antworten einer alten Öffnung werden verworfen
+let kraftLoadError = null;
+let kraftBackLabel = "Heute";
+let kraftSaved = {};        // gespeicherte Dokumente des Tages (slug -> Dokument), auch für „Zurückholen“
+let kraftSessionHTML = "";  // Strava-Zeile; bleibt über Neuzeichnungen erhalten
+let editForm = null;        // { kind: "add"|"replace", slug?, name, soll, error } im Anpassen-Modus
 
+// Wie lange „Speichert …“ höchstens steht. Mit Offline-Cache löst das Promise
+// erst beim Sync auf; darauf will im Gym niemand warten, also gilt der Satz
+// danach als gespeichert (optimistisch) und wird nur bei einem Fehler zurückgenommen.
+const SAVE_OPTIMISTIC_MS = 800;
+
+const firstUndone = (sets) => sets.findIndex((s) => !s.done);
+
+// Eingabetext mit Komma oder Punkt -> Zahl; leer oder keine Zahl = null
 function numOrNull(v) {
   const t = String(v ?? "").trim().replace(",", ".");
   if (t === "") return null;
@@ -971,16 +991,19 @@ function numOrNull(v) {
   return isFinite(n) ? n : null;
 }
 
-function sameSets(sets) {
-  if (!sets || sets.length < 2) return true;
-  return sets.every((s) => s.kg === sets[0].kg && s.reps === sets[0].reps);
-}
-
-async function renderKraftDay(info, iso) {
-  renderMain(loadingCard("Lade gespeicherte Sätze …"));
+async function renderKraftDay(info, iso, backLabel) {
+  const gen = ++kraftGen;
+  kraftOpen = true;
+  editMode = false;
+  editForm = null;
+  kraftBackLabel = backLabel;
+  kraftSessionHTML = "";
+  kraftLoadError = null;
+  ensureKraftLive();
+  setPageHead(kraftView.headHTML({ label: info.label, backLabel, exercises: null }));
+  renderMain(kraftView.loadingMainHTML());
 
   let saved = {};
-  let loadError = null;
   try {
     [saved, dayPlan, allLogs] = await Promise.all([
       loadLogsForDate(iso),
@@ -992,36 +1015,25 @@ async function renderKraftDay(info, iso) {
     dayPlan = { removed: [], added: [] };
     // Als Karte, nicht als Toast: die Meldung muss stehen bleiben, sonst
     // sieht man nur leere Felder und rät.
-    loadError = err.source === "firebase" ? err.message : "Laden fehlgeschlagen: " + err.message;
+    kraftLoadError = err.source === "firebase" ? err.message : "Laden fehlgeschlagen: " + err.message;
   }
+  if (gen !== kraftGen || !kraftOpen) return; // Nutzer ist schon woanders
 
   currentKraftDay = { info, iso };
-  buildLogState(effectiveExercises(info), saved);
-  paintKraftDay(info, iso, loadError);
-  fillSessionSlot(iso);
+  kraftSaved = saved;
+  buildLogState(effectiveExercises(info), iso);
+  focusExerciseId = pickInitialFocus();
+  paintKraft();
+  fillSessionSlot(iso, gen);
 }
 
-// Herzfrequenz und Dauer der Einheit aus Strava — ohne jede Eingabe.
-// Über die einzelne Übung sagt das nichts, über die Einheit als Ganzes
-// und ihren Verlauf über die Wochen schon.
-async function fillSessionSlot(iso) {
-  const slot = document.getElementById("session-slot");
-  if (!slot) return;
+// Herzfrequenz und Dauer der Einheit aus Strava — ohne jede Eingabe (F7).
+async function fillSessionSlot(iso, gen) {
   const s = await loadStrava();
-  if (!slot.isConnected || s.error || !s.connected) return;
-  const session = sessionForDate(iso);
-  if (!session) return;
-  slot.innerHTML = `<div class="card session-card">
-    <div class="row jc-between">
-      <p class="name">Einheit (Strava)</p>
-      <span class="hint">${esc(formatDuration(session.movingTimeSec))}</span>
-    </div>
-    <div class="metric-grid mt-8">
-      <div><p class="metric-label">Ø HF</p><p class="metric-value sm">${session.avgHr ? session.avgHr + " bpm" : "–"}</p></div>
-      <div><p class="metric-label">Max HF</p><p class="metric-value sm">${session.maxHr ? session.maxHr + " bpm" : "–"}</p></div>
-    </div>
-    ${session.effort != null ? `<p class="hint mt-6">Relative Effort ${session.effort}</p>` : ""}
-  </div>`;
+  if (gen !== kraftGen || !kraftOpen || s.error || !s.connected) return;
+  kraftSessionHTML = kraftView.stravaSessionHTML(sessionForDate(iso));
+  const slot = document.getElementById("session-slot");
+  if (slot) slot.innerHTML = kraftSessionHTML;
 }
 
 // Plan-Übungen ohne die entfernten, plus die selbst hinzugefügten.
@@ -1044,200 +1056,361 @@ function effectiveExercises(info) {
   return out;
 }
 
-function buildLogState(exercises, saved) {
+// Zustand einer Übung aus Plan, Verlauf und dem heutigen Dokument (F4/F5).
+function buildExerciseState(ex, rec, iso) {
+  const s = slug(ex.name);
+  const last = previousEntry((allLogs ?? []).filter((l) => l.exercise === s), iso);
+  const chip = progressionChip(ex.soll, last);
+  const saved = !!rec?.completed && rec.sets?.length > 0;
+  // Wurde heute mit Gewicht gespeichert, obwohl das letzte Mal ohne: Gewichts-Modus beibehalten.
+  const forceWeight = saved && rec.sets.some((x) => x.kg > 0);
+  const baseMode = exerciseMode(ex.soll, last);
+  const mode = exerciseMode(ex.soll, last, forceWeight);
+  const sets = startSets(ex.soll, saved ? rec : null, last, chip, mode);
+  return {
+    slug: s, name: ex.name, soll: ex.soll, hint: ex.hint || "", custom: !!ex.custom,
+    chip: chip ? { level: chip.level, text: chip.text } : null,
+    lastText: last ? lastTimeText({ ...last, soll: last.soll ?? ex.soll }) : null,
+    mode, weightAdded: mode === "weight" && baseMode === "reps",
+    sets,
+    activeIndex: saved ? null : firstUndone(sets),
+    saved,
+    savedSets: saved ? rec.sets.map((x) => ({ kg: x.kg ?? null, reps: x.reps ?? null })) : [],
+    saving: false, saveError: null, editing: null,
+  };
+}
+
+// prev: bisheriger Zustand (nach Anpassen bleibt die Eingabe der übrigen Übungen erhalten)
+function buildLogState(exercises, iso, prev = null) {
   logState.clear();
   for (const ex of exercises) {
     const s = slug(ex.name);
-    const rec = saved[s];
-    const count = setsCountFromSoll(ex.soll);
-    const sets = rec?.sets?.length
-      ? rec.sets.map((x) => ({ kg: x.kg ?? null, reps: x.reps ?? null }))
-      : Array.from({ length: count }, () => ({ kg: null, reps: null }));
-    logState.set(s, {
-      slug: s, name: ex.name, soll: ex.soll, hint: ex.hint || "", custom: !!ex.custom,
-      tip: progressionTip(s, ex.soll),
-      setCount: Math.max(count, sets.length),
-      sets,
-      perSet: !sameSets(sets),
-      saved: !!rec?.completed,
-    });
+    const old = prev?.get(s);
+    logState.set(s, old
+      ? { ...old, name: ex.name, soll: ex.soll, hint: ex.hint || "", custom: !!ex.custom }
+      : buildExerciseState(ex, kraftSaved[s], iso));
   }
 }
 
-// Was die Zahlen vom letzten Mal für heute nahelegen — ersetzt die
-// Frage nach dem Anstrengungsgrad.
-function progressionTip(exSlug, soll) {
-  if (!allLogs || !currentKraftDay.iso) return null;
-  const history = allLogs.filter((l) => l.exercise === exSlug);
-  return suggestProgression(soll, previousEntry(history, currentKraftDay.iso));
+// Start: erste nicht gespeicherte Übung; ist alles gespeichert, die letzte
+// (dort steht dann „Training abschließen“).
+function pickInitialFocus() {
+  const list = [...logState.values()];
+  return initialFocus(list) ?? list[list.length - 1]?.slug ?? null;
 }
 
-function paintKraftDay(info, iso, loadError) {
-  const removedList = dayPlan.removed
-    .map((sl) => info.exercises.find((ex) => slug(ex.name) === sl))
-    .filter(Boolean);
-
-  renderMain(
-    (loadError
-      ? `<div class="card error-card">
-           <p class="name">Gespeicherte Sätze nicht geladen</p>
-           <p class="hint">${esc(loadError)}</p>
-           <p class="hint mt-6">Eintragen geht trotzdem — gespeichert wird aber erst, wenn das behoben ist.</p>
-           <button data-action="reload" class="mt-8">Neu laden</button>
-         </div>`
-      : "") +
-    `<div class="card summary-card">
-       <div class="row jc-between ai-start gap-10">
-         <div class="min-w-0">
-           <p class="name">${esc(info.label)}</p>
-           <p class="hint" id="progress-line">${progressText()}</p>
-         </div>
-         <button class="small-btn" data-action="toggle-edit">${editMode ? "Fertig" : "Anpassen"}</button>
-       </div>
-     </div>` +
-    `<div id="session-slot"></div>` +
-    [...logState.values()].map(exerciseCard).join("") +
-    (editMode ? "" : `<button class="add-inline" data-action="quick-add">+ Übung hinzufügen</button>`) +
-    (quickAdd ? addFormHTML(iso) : "") +
-    (editMode
-      ? removedList.map((ex) => `<div class="card removed">
-           <div class="row jc-between gap-10">
-             <div class="min-w-0"><p class="name">${esc(ex.name)}</p><p class="hint">Für diesen Tag entfernt</p></div>
-             <button class="small-btn" data-action="restore-exercise" data-slug="${slug(ex.name)}">Zurückholen</button>
-           </div></div>`).join("") +
-        addFormHTML(iso)
-      : ""));
+function focusedState() {
+  return logState.get(focusExerciseId) ?? null;
 }
 
-function addFormHTML(iso) {
-  return `<div class="card">
-    <p class="name">Übung hinzufügen</p>
-    <p class="hint mb-8">Gilt nur für diesen Tag (${shortDate(iso)}).</p>
-    <div class="add-form">
-      <input type="text" id="new-ex-name" placeholder="Name, z. B. Beinpresse" autocomplete="off" />
-      <input type="text" id="new-ex-soll" placeholder="Soll, z. B. 3x8-10" autocomplete="off" />
-      <div class="row gap-8">
-        <button class="save-btn flex-1" data-action="add-exercise">Hinzufügen</button>
-        <button data-action="cancel-add">Abbrechen</button>
-      </div>
-    </div>
-  </div>`;
+// Übungen für die Ansicht; die Jetzt-Übung kennt ihre „Weiter“-Übung.
+function exerciseVMs() {
+  const list = [...logState.values()];
+  const savedMap = Object.fromEntries(list.map((s) => [s.slug, s.saved]));
+  const next = nextOpenExercise(list.map((s) => s.slug), focusExerciseId, savedMap);
+  return list.map((st) => (st.slug === focusExerciseId && next
+    ? { ...st, nextSlug: next, nextName: logState.get(next).name }
+    : st));
 }
 
-function replaceFormHTML(st) {
-  return `<div class="add-form">
-    <p class="hint">Ersetzt ${esc(st.name)} an dieser Stelle.</p>
-    <input type="text" id="rep-ex-name" placeholder="Neue Übung" value="" autocomplete="off" />
-    <input type="text" id="rep-ex-soll" placeholder="Soll" value="${esc(st.soll)}" autocomplete="off" />
-    <div class="row gap-8">
-      <button class="save-btn flex-1" data-action="confirm-replace" data-slug="${st.slug}">Übernehmen</button>
-      <button data-action="cancel-replace">Abbrechen</button>
-    </div>
-  </div>`;
-}
-
-function progressText() {
-  const total = logState.size;
-  const done = [...logState.values()].filter((s) => s.saved).length;
-  return `${done} von ${total} Übungen erfasst`;
-}
-
-function exerciseCard(st) {
-  return `<div class="card${st.saved ? " done" : ""}" data-ex="${st.slug}">
-    <div class="row jc-between ai-start gap-10">
-      <div class="min-w-0">
-        <p class="name">${esc(st.name)}${st.custom ? ' <span class="custom-tag">eigene</span>' : ""}</p>
-        <p class="hint">Soll ${esc(st.soll)}${st.hint ? " · " + esc(st.hint) : ""}</p>
-        ${st.tip ? `<p class="tip tip-${st.tip.level}">${esc(st.tip.text)}</p>` : ""}
-      </div>
-      ${editMode
-        ? ""
-        : `<button data-action="toggle-sets" data-slug="${st.slug}" class="small-btn">${st.perSet ? "Alle gleich" : "Sätze einzeln"}</button>`}
-    </div>
-    ${editMode && replaceFor !== st.slug
-      ? `<div class="row edit-actions">
-           <button class="small-btn" data-action="replace-exercise" data-slug="${st.slug}">Ersetzen</button>
-           <button class="small-btn danger-btn" data-action="remove-exercise" data-slug="${st.slug}">Entfernen</button>
-         </div>`
-      : ""}
-    <div class="ex-body">${
-      replaceFor === st.slug ? replaceFormHTML(st) : st.perSet ? perSetRowsHTML(st) : simpleRowHTML(st)
-    }</div>
-    <p class="hint status" data-status="${st.slug}"></p>
-  </div>`;
-}
-
-function saveButtonHTML(st, wide) {
-  const label = st.saved ? "Gespeichert" : "Speichern";
-  return `<button class="save-btn${wide ? " wide" : ""}${st.saved ? " is-saved" : ""}"
-    data-action="save" data-slug="${st.slug}" aria-label="${label}">${ICONS.check}<span>${label}</span></button>`;
-}
-
-function simpleRowHTML(st) {
-  const kg = st.sets[0]?.kg ?? "";
-  const reps = st.sets[0]?.reps ?? "";
-  return `<div class="row">
-    <input type="number" inputmode="decimal" step="0.5" data-kg value="${kg}" placeholder="kg" aria-label="Gewicht" />
-    <span class="times">×</span>
-    <input type="number" inputmode="numeric" data-reps value="${reps}" placeholder="Wdh" aria-label="Wiederholungen" />
-  </div>
-  <p class="hint tiny">Gilt für alle ${st.setCount} Sätze</p>
-  ${saveButtonHTML(st, true)}`;
-}
-
-function perSetRowsHTML(st) {
-  let rows = "";
-  for (let s = 0; s < st.setCount; s++) {
-    const kg = st.sets[s]?.kg ?? "";
-    const reps = st.sets[s]?.reps ?? "";
-    rows += `<div class="set-row">
-      <span class="set-label">Satz ${s + 1}</span>
-      <input type="number" inputmode="decimal" step="0.5" data-kg value="${kg}" placeholder="kg" aria-label="Gewicht Satz ${s + 1}" />
-      <input type="number" inputmode="numeric" data-reps value="${reps}" placeholder="Wdh" aria-label="Wiederholungen Satz ${s + 1}" />
-    </div>`;
+function editRows(info) {
+  const removed = new Set(dayPlan.removed);
+  const replacements = new Map(dayPlan.added.filter((e) => e.replaces).map((e) => [e.replaces, e]));
+  const rowOf = (st) => ({
+    slug: st.slug, name: st.name, soll: st.soll, custom: st.custom, saved: st.saved,
+    savedSets: st.savedSets, mode: st.mode, removed: false,
+  });
+  const rows = [];
+  for (const ex of info.exercises) {
+    const sl = slug(ex.name);
+    const rep = replacements.get(sl);
+    const st = logState.get(rep ? slug(rep.name) : sl);
+    if (rep || !removed.has(sl)) { if (st) rows.push(rowOf(st)); continue; }
+    rows.push({ slug: sl, name: ex.name, removed: true });
   }
-  return rows + saveButtonHTML(st, true);
+  for (const st of logState.values()) if (!rows.some((r) => r.slug === st.slug)) rows.push(rowOf(st));
+  return rows;
 }
 
-// Liest die aktuell sichtbaren Eingaben in den State zurück
-function readCard(st) {
-  const card = document.querySelector(`[data-ex="${st.slug}"]`);
-  if (!card) return;
-  // Zeigt die Karte gerade die Ersetzen-Maske, gibt es keine Eingabefelder
-  if (!card.querySelector("[data-kg]")) return;
-  if (st.perSet) {
-    st.sets = [...card.querySelectorAll(".set-row")].map((row) => ({
-      kg: numOrNull(row.querySelector("[data-kg]").value),
-      reps: numOrNull(row.querySelector("[data-reps]").value),
-    }));
+// Zeichnet Kopf + Inhalt neu. #main ist das Scroll-Element: die Position bleibt,
+// die Seite springt weder bei „Satz fertig“ noch beim Wechsel der Jetzt-Übung.
+function paintKraft(focus = null) {
+  if (!kraftOpen || !currentKraftDay.info) return;
+  const { info, iso } = currentKraftDay;
+  const scrollTop = main.scrollTop;
+  if (editMode) {
+    setPageHead(kraftView.editHeadHTML({ label: info.label, backLabel: kraftBackLabel, dateText: `${dayNameDE(iso)}, ${shortDate(iso)}` }));
+    renderMain(kraftView.editMainHTML({ rows: editRows(info), form: editForm, dateText: shortDate(iso) }));
   } else {
-    const kg = numOrNull(card.querySelector("[data-kg]").value);
-    const reps = numOrNull(card.querySelector("[data-reps]").value);
-    st.sets = Array.from({ length: st.setCount }, () => ({ kg, reps }));
+    const exercises = exerciseVMs();
+    setPageHead(kraftView.headWithDotsHTML({ label: info.label, backLabel: kraftBackLabel, exercises, focusSlug: focusExerciseId }));
+    renderMain(kraftView.mainHTML({ exercises, focusSlug: focusExerciseId, loadError: kraftLoadError, sessionHTML: kraftSessionHTML }));
   }
+  main.scrollTop = scrollTop;
+  applyKraftFocus(focus);
 }
 
-function readAllCards() {
-  for (const st of logState.values()) readCard(st);
+// ---------- Fokus und Ansage (Markup 11.13) ----------
+// Fokus nach dem Neuzeichnen: dorthin, wo die Bedienung weitergeht, nie auf body.
+function applyKraftFocus(f) {
+  if (!f) return;
+  const q = (sel) => main.querySelector(sel);
+  const attr = (v) => CSS.escape(String(v));
+  let el = null;
+  if (f.kind === "primary") el = q('[data-card="now"] .sd-btn--primary:not([disabled])');
+  else if (f.kind === "item") el = q(`${f.via === "dot" ? ".sd-dots__seg" : ".sd-order__row"}[data-slug="${attr(f.slug)}"]`);
+  else if (f.kind === "stepper") el = q(".sd-set--active [data-action='step']:not([disabled])");
+  else if (f.kind === "step") {
+    el = q(`.sd-set--active [data-action="step"][data-field="${attr(f.field)}"][data-dir="${attr(f.dir)}"]:not([disabled])`)
+      ?? q(`.sd-set--active [data-action="step"][data-field="${attr(f.field)}"]:not([disabled])`);
+  } else if (f.kind === "value") el = q(`.sd-set--active [data-action="edit-value"][data-field="${attr(f.field)}"]`);
+  else if (f.kind === "input") { el = q(".sd-stepper__input"); el?.select?.(); }
+  else if (f.kind === "selector") el = q(f.selector);
+  if (!el && f.kind === "primary") return; // „Speichert …“ ist deaktiviert; der nächste Zeichenlauf setzt den Fokus
+  // preventScroll: der Fokus darf die Seite nicht verschieben (die Position bleibt, Markup 11.2/11.6)
+  (el ?? q(".sd-main button:not([disabled])"))?.focus({ preventScroll: true });
 }
 
-function toggleSets(slugName) {
+// Live-Region liegt in #app, außerhalb der neu geschriebenen Knoten; der Text
+// kommt erst im nächsten Frame, sonst liest ein neu eingefügter Knoten nichts vor.
+function ensureKraftLive() {
+  if (document.getElementById("kraftLive")) return;
+  const live = document.createElement("p");
+  live.id = "kraftLive";
+  live.className = "sd-vh";
+  live.setAttribute("role", "status");
+  live.setAttribute("aria-live", "polite");
+  document.getElementById("app").appendChild(live);
+}
+
+function announceKraft(text) {
+  const live = document.getElementById("kraftLive");
+  if (!live) return;
+  live.textContent = "";
+  requestAnimationFrame(() => { live.textContent = text; });
+}
+
+// ---------- Eingabe: Stepper und direkte Eingabe (V1) ----------
+const STEP_KIND = { kg: "kg", reps: "reps", sec: "time" };
+const FIELD_NAME = { kg: "Gewicht", reps: "Wiederholungen", sec: "Sekunden" };
+const FIELD_UNIT = { kg: " kg", reps: "", sec: " s" };
+
+function setField(st, i, field, value) {
+  if (field === "kg") st.sets = applyWeightForward(st.sets, i, value);
+  else st.sets = st.sets.map((s, idx) => (idx === i ? { ...s, reps: value } : s));
+}
+
+function fieldValue(st, i, field) {
+  const s = st.sets[i];
+  return (field === "kg" ? s?.kg : s?.reps) ?? 0;
+}
+
+// Geprüfter Zahlenwert aus dem Eingabetext; ungültig = null (alter Wert bleibt).
+function parseFieldValue(text, field) {
+  const n = numOrNull(text);
+  if (n == null || n < 0 || n > MAX_VALUE) return null;
+  return field === "kg" ? Math.round(n * 10) / 10 : Math.round(n);
+}
+
+// Wert aus dem offenen Eingabefeld in den aktiven Satz schreiben (idempotent).
+function applyEditing(st) {
+  const input = main.querySelector(".sd-stepper__input");
+  const text = input ? input.value : st.editing.text;
+  const v = parseFieldValue(text, st.editing.field);
+  if (v != null && st.activeIndex != null) setField(st, st.activeIndex, st.editing.field, v);
+}
+
+// Offenes Eingabefeld übernehmen und schließen (Enter, Fertig, Tipp auf ±, anderer Satz …).
+function commitEditing(st) {
+  if (!st?.editing) return;
+  applyEditing(st);
+  st.editing = null;
+}
+
+function kraftStep(field, dir) {
+  const st = focusedState();
+  if (!st || st.activeIndex == null || st.saving || !STEP_KIND[field]) return;
+  commitEditing(st);
+  const i = st.activeIndex;
+  const v = stepValue(STEP_KIND[field], fieldValue(st, i, field), dir);
+  setField(st, i, field, v);
+  paintKraft({ kind: "step", field, dir: String(dir) });
+  announceKraft(`${FIELD_NAME[field]} ${kraftView.fmtNum(v)}${FIELD_UNIT[field]}`);
+}
+
+function kraftEditValue(field) {
+  const st = focusedState();
+  if (!st || st.activeIndex == null || st.saving || !STEP_KIND[field]) return;
+  commitEditing(st);
+  st.editing = { field, text: kraftView.fmtNum(fieldValue(st, st.activeIndex, field)) };
+  paintKraft({ kind: "input" });
+}
+
+function kraftCommitValue() {
+  const st = focusedState();
+  if (!st?.editing) return;
+  const { field } = st.editing;
+  commitEditing(st);
+  paintKraft({ kind: "value", field });
+}
+
+function kraftCancelValue() {
+  const st = focusedState();
+  if (!st?.editing) return;
+  const { field } = st.editing;
+  st.editing = null;
+  paintKraft({ kind: "value", field });
+}
+
+// Fokus verlässt das Feld: Wert still übernehmen, aber nicht sofort neu zeichnen.
+// Ein Tipp auf „Satz fertig“ blurt das Feld zuerst; würde der Knopf dabei ersetzt,
+// ginge der Tipp ins Leere. Jede Aktion zeichnet ohnehin neu; sonst räumt der Timer auf.
+let editBlurTimer = null;
+function kraftBlurValue() {
+  const st = focusedState();
+  if (!st?.editing) return;
+  applyEditing(st);
+  clearTimeout(editBlurTimer);
+  editBlurTimer = setTimeout(() => {
+    const open = focusedState();
+    if (!kraftOpen || editMode || !open?.editing) return; // inzwischen hat eine Aktion neu gezeichnet
+    open.editing = null;
+    paintKraft();
+  }, 400);
+}
+
+function kraftAddWeight() {
+  const st = focusedState();
+  if (!st || st.mode !== "reps" || st.saving) return;
+  commitEditing(st);
+  st.mode = "weight";
+  st.weightAdded = true;
+  st.sets = st.sets.map((s) => ({ ...s, kg: s.kg ?? 0 }));
+  paintKraft({ kind: "value", field: "kg" });
+}
+
+// ---------- Ablauf: Satz fertig, Übung wechseln, speichern ----------
+function snapshotOf(st) {
+  return JSON.parse(JSON.stringify({ sets: st.sets, activeIndex: st.activeIndex, saved: st.saved, savedSets: st.savedSets }));
+}
+
+function kraftFocusExercise(slugName, via) {
   const st = logState.get(slugName);
   if (!st) return;
-  readCard(st);
-  st.perSet = !st.perSet;
-  const card = document.querySelector(`[data-ex="${slugName}"]`);
-  card.querySelector(".ex-body").innerHTML = st.perSet ? perSetRowsHTML(st) : simpleRowHTML(st);
-  card.querySelector("[data-action='toggle-sets']").textContent = st.perSet ? "Alle gleich" : "Sätze einzeln";
+  commitEditing(focusedState());
+  focusExerciseId = slugName;
+  // Eine gespeicherte Übung mit offenen Sätzen (vorzeitig abgeschlossen) wird wieder bedienbar.
+  if (st.activeIndex == null && !st.saving && firstUndone(st.sets) !== -1) st.activeIndex = firstUndone(st.sets);
+  paintKraft({ kind: "item", slug: slugName, via });
+  announceKraft(`Jetzt: ${st.name}.`);
 }
 
-// --- Übungen anpassen ---
+function kraftFinishSet() {
+  const st = focusedState();
+  if (!st || st.saving || st.activeIndex == null) return;
+  commitEditing(st);
+  const i = st.activeIndex;
+  const snapshot = snapshotOf(st);
+  st.sets = st.sets.map((s, idx) => (idx === i ? { ...s, done: true } : s));
+  const after = st.sets.findIndex((s, idx) => idx > i && !s.done);
+  const next = after !== -1 ? after : firstUndone(st.sets);
+  if (next === -1) return saveKraftExercise(st, snapshot);
+  st.activeIndex = next;
+  paintKraft({ kind: "primary" });
+  announceKraft(`Satz ${i + 1} fertig. Als Nächstes Satz ${next + 1}.`);
+}
+
+// „Mit n Sätzen abschließen“: gespeichert werden nur die fertigen Sätze (Auflage C1).
+function kraftFinishEarly() {
+  const st = focusedState();
+  if (!st || st.saving || st.activeIndex == null || !st.sets.some((s) => s.done)) return;
+  commitEditing(st);
+  saveKraftExercise(st, snapshotOf(st));
+}
+
+function kraftReopenSet(index) {
+  const st = focusedState();
+  if (!st || st.saving || !st.sets[index]?.done) return;
+  commitEditing(st);
+  st.sets = st.sets.map((s, idx) => (idx === index ? { ...s, done: false } : s));
+  st.activeIndex = index;
+  paintKraft({ kind: "stepper" });
+  announceKraft(`Satz ${index + 1} wieder geöffnet.`);
+}
+
+function kraftNextExercise(slugName) {
+  kraftFocusExercise(slugName, "primary");
+  applyKraftFocus({ kind: "primary" });
+}
+
+function kraftFinishSession() {
+  state.selectedDate = null;
+  runPickerFor = null;
+  render();
+}
+
+function weekForLog(dateISO) {
+  // Woche immer aus Datum + Plan ableiten (F0a Punkt 6). Kraft-Log-Einträge
+  // gibt es nur an Krafttagen einer ausformulierten Woche, deshalb ist hier
+  // immer ein Plan aktiv — die Woche wird trotzdem nie als null geschrieben
+  // (Lücke aus dem Architektur-Review, explizit abgesichert).
+  const planForDate = activePlanFor(dateISO, plans);
+  const week = planForDate ? weekNumberFor(planForDate, dateISO) : null;
+  if (week == null) console.error("Kein Plan/keine Woche für Kraft-Log am " + dateISO + " — sollte nicht vorkommen.");
+  return week;
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Speichert die fertigen Sätze über den bestehenden Weg (saveLog, gleiches Payload).
+// Optimistisch: „Speichert …“ steht höchstens SAVE_OPTIMISTIC_MS, danach gilt die
+// Übung als gespeichert. Fehler (sofort oder später) nehmen alles zurück.
+async function saveKraftExercise(st, snapshot) {
+  const { iso } = currentKraftDay;
+  const gen = kraftGen;
+  const payload = buildLogPayload({
+    week: weekForLog(iso), name: st.name, soll: st.soll, custom: st.custom,
+    sets: st.sets.filter((s) => s.done), mode: st.mode,
+  });
+  st.saving = true;
+  st.saveError = null;
+  st.activeIndex = null;
+  paintKraft({ kind: "primary" });
+
+  const write = (async () => saveLog(iso, st.slug, payload))().then(() => null, (err) => err ?? new Error("Unbekannter Fehler"));
+  const early = await Promise.race([write, sleep(SAVE_OPTIMISTIC_MS).then(() => null)]);
+  if (early) return rollbackSave(st, snapshot, early, gen);
+
+  st.saving = false;
+  st.saved = true;
+  st.savedSets = payload.sets;
+  kraftSaved[st.slug] = { completed: true, sets: payload.sets };
+  write.then((err) => { if (err) rollbackSave(st, snapshot, err, gen); });
+  if (!kraftOpen || gen !== kraftGen) return;
+
+  const list = [...logState.values()];
+  const next = nextOpenExercise(list.map((s) => s.slug), st.slug, Object.fromEntries(list.map((s) => [s.slug, s.saved])));
+  announceKraft(next ? `${st.name} gespeichert. Als Nächstes ${logState.get(next).name}.` : "Alle Übungen erfasst.");
+  paintKraft(focusExerciseId === st.slug ? { kind: "primary" } : null);
+}
+
+function rollbackSave(st, snapshot, err, gen) {
+  console.error(err);
+  Object.assign(st, snapshot, { saving: false, saveError: err.message || String(err) });
+  delete kraftSaved[st.slug];
+  if (snapshot.saved) kraftSaved[st.slug] = { completed: true, sets: snapshot.savedSets };
+  toast("Speichern fehlgeschlagen: " + st.saveError, true);
+  if (!kraftOpen || gen !== kraftGen || editMode) return;
+  focusExerciseId = st.slug;
+  paintKraft({ kind: "primary" });
+}
+
+// ---------- Übungen anpassen ----------
 function toggleEditMode() {
-  readAllCards();
+  commitEditing(focusedState());
   editMode = !editMode;
-  replaceFor = null;
-  quickAdd = false;
-  paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null);
+  editForm = null;
+  paintKraft({ kind: "selector", selector: '[data-action="toggle-edit"]' });
 }
 
 function persistDayPlan() {
@@ -1248,7 +1421,6 @@ function persistDayPlan() {
 }
 
 function removeExercise(slugName) {
-  readAllCards();
   const st = logState.get(slugName);
   if (st?.custom) {
     const entry = dayPlan.added.find((ex) => slug(ex.name) === slugName);
@@ -1258,13 +1430,29 @@ function removeExercise(slugName) {
   } else if (!dayPlan.removed.includes(slugName)) {
     dayPlan.removed.push(slugName);
   }
-  refreshExercises();
+  refreshExercises({ kind: "selector", selector: `[data-action="restore-exercise"][data-slug="${CSS.escape(slugName)}"]` });
 }
 
 function restoreExercise(slugName) {
-  readAllCards();
   dayPlan.removed = dayPlan.removed.filter((s) => s !== slugName);
-  refreshExercises();
+  refreshExercises({ kind: "selector", selector: `[data-action="remove-exercise"][data-slug="${CSS.escape(slugName)}"]` });
+}
+
+function openAddForm() {
+  editForm = { kind: "add", name: "", soll: "", error: null };
+  paintKraft({ kind: "selector", selector: "#new-ex-name" });
+}
+
+function openReplaceForm(slugName) {
+  const st = logState.get(slugName);
+  if (!st) return;
+  editForm = { kind: "replace", slug: slugName, name: "", soll: st.soll, error: null };
+  paintKraft({ kind: "selector", selector: "#rep-ex-name" });
+}
+
+function closeEditForm(returnSelector) {
+  editForm = null;
+  paintKraft({ kind: "selector", selector: returnSelector });
 }
 
 function addExercise(replaces = null) {
@@ -1272,21 +1460,15 @@ function addExercise(replaces = null) {
   const sollEl = document.getElementById(replaces ? "rep-ex-soll" : "new-ex-soll");
   const name = (nameEl?.value || "").trim();
   const soll = (sollEl?.value || "").trim() || "3x8-10";
-  if (!name) {
-    nameEl?.focus();
-    toast("Bitte einen Namen eintragen.", true);
-    return;
-  }
+  const base = { kind: replaces ? "replace" : "add", slug: replaces, name, soll: (sollEl?.value || "").trim() };
+  const fail = (error) => {
+    editForm = { ...base, error };
+    paintKraft({ kind: "selector", selector: replaces ? "#rep-ex-name" : "#new-ex-name" });
+  };
+  if (!name) return fail("Bitte einen Namen eingeben.");
   const s = slug(name);
-  if (!s) {
-    toast("Der Name ergibt keine gültige Übung.", true);
-    return;
-  }
-  if (logState.has(s)) {
-    toast("Diese Übung steht heute schon auf der Liste.", true);
-    return;
-  }
-  readAllCards();
+  if (!s) return fail("Der Name ergibt keine gültige Übung.");
+  if (logState.has(s)) return fail("Diese Übung steht heute schon auf der Liste.");
   if (replaces) {
     // Tausch: die ersetzte Übung verschwindet, die neue rückt an ihre Stelle
     dayPlan.added = dayPlan.added.filter((ex) => ex.replaces !== replaces);
@@ -1298,79 +1480,17 @@ function addExercise(replaces = null) {
   } else {
     dayPlan.added.push({ name, soll, hint: "Eigene Übung" });
   }
-  replaceFor = null;
-  quickAdd = false;
-  refreshExercises();
+  editForm = null;
+  refreshExercises({ kind: "selector", selector: replaces ? `.sd-edit__row[data-slug="${CSS.escape(s)}"] button` : '[data-action="quick-add"]' });
 }
 
-// Zustand der sichtbaren Eingaben behalten, Liste neu aufbauen
-function refreshExercises() {
-  const keep = {};
-  for (const st of logState.values()) {
-    keep[st.slug] = { sets: st.sets, completed: st.saved };
-  }
-  buildLogState(effectiveExercises(currentKraftDay.info), keep);
+// Eingaben der übrigen Übungen behalten, Liste neu aufbauen
+function refreshExercises(focus = null) {
+  const prev = new Map(logState);
+  buildLogState(effectiveExercises(currentKraftDay.info), currentKraftDay.iso, prev);
+  if (!logState.has(focusExerciseId)) focusExerciseId = pickInitialFocus();
   persistDayPlan();
-  paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null);
-}
-
-function saveExercise(slugName, dateISO) {
-  const st = logState.get(slugName);
-  if (!st) return;
-  readCard(st);
-
-  const hasInput = st.sets.some((s) => s.kg !== null || s.reps !== null);
-  const status = document.querySelector(`[data-status="${slugName}"]`);
-  if (!hasInput) {
-    status.textContent = "Nichts eingetragen.";
-    status.className = "hint status warn";
-    return;
-  }
-
-  // Woche immer aus Datum + Plan ableiten (F0a Punkt 6). Kraft-Log-Einträge
-  // gibt es nur an Krafttagen einer ausformulierten Woche, deshalb ist hier
-  // immer ein Plan aktiv — die Woche wird trotzdem nie als null geschrieben
-  // (Lücke aus dem Architektur-Review, explizit abgesichert).
-  const planForDate = activePlanFor(dateISO, plans);
-  const week = planForDate ? weekNumberFor(planForDate, dateISO) : null;
-  if (week == null) console.error("Kein Plan/keine Woche für Kraft-Log am " + dateISO + " — sollte nicht vorkommen.");
-
-  const payload = {
-    ...(week != null ? { week } : {}),
-    name: st.name,
-    soll: st.soll,
-    custom: st.custom,
-    sets: st.sets.map((s) => ({ kg: s.kg, reps: s.reps })),
-    topKg: Math.max(...st.sets.map((s) => s.kg ?? 0)),
-    totalReps: st.sets.reduce((a, s) => a + (s.reps ?? 0), 0),
-    completed: true,
-  };
-
-  // Optimistisch bestätigen: mit Offline-Cache landet der Schreibvorgang
-  // lokal und wird später synchronisiert — das Promise löst dann erst
-  // beim Sync auf, darauf wollen wir im Gym nicht warten.
-  st.saved = true;
-  status.textContent = "Gespeichert.";
-  status.className = "hint status ok";
-  const card = document.querySelector(`[data-ex="${slugName}"]`);
-  card?.classList.add("done");
-  const btn = card?.querySelector("[data-action='save']");
-  if (btn) {
-    btn.classList.add("is-saved");
-    btn.querySelector("span").textContent = "Gespeichert";
-  }
-  const line = document.getElementById("progress-line");
-  if (line) line.textContent = progressText();
-
-  saveLog(dateISO, slugName, payload).catch((err) => {
-    console.error(err);
-    st.saved = false;
-    status.textContent = "Speichern fehlgeschlagen: " + err.message;
-    status.className = "hint status warn";
-    card?.classList.remove("done");
-    btn?.classList.remove("is-saved");
-    if (btn) btn.querySelector("span").textContent = "Speichern";
-  });
+  paintKraft(focus);
 }
 
 // ---------- Lauftag ----------
@@ -2040,17 +2160,30 @@ document.getElementById("app").addEventListener("click", async (e) => {
   if (action === "week-prev") return goToWeek(Math.max(1, state.weekNo - 1), action);
   if (action === "week-next") return goToWeek(Math.min(plans[0].totalWeeks, state.weekNo + 1), action);
   if (action === "week-today") return goToWeek(weekNoForTab(todayISO()));
-  if (action === "toggle-sets") return toggleSets(target.dataset.slug);
   if (action === "toggle-edit") return toggleEditMode();
   if (action === "remove-exercise") return removeExercise(target.dataset.slug);
   if (action === "restore-exercise") return restoreExercise(target.dataset.slug);
-  if (action === "add-exercise") return addExercise();
-  if (action === "quick-add") { quickAdd = true; paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null); document.getElementById("new-ex-name")?.focus(); return; }
-  if (action === "cancel-add") { quickAdd = false; return paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null); }
-  if (action === "replace-exercise") { readAllCards(); replaceFor = target.dataset.slug; paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null); document.getElementById("rep-ex-name")?.focus(); return; }
-  if (action === "cancel-replace") { replaceFor = null; return paintKraftDay(currentKraftDay.info, currentKraftDay.iso, null); }
-  if (action === "confirm-replace") return addExercise(target.dataset.slug);
-  if (action === "save") return saveExercise(target.dataset.slug, currentDateISO());
+  // Formulare: Klick und Enter führen zur selben Funktion; preventDefault verhindert das zweite submit
+  if (action === "add-exercise") { e.preventDefault(); return addExercise(); }
+  if (action === "confirm-replace") { e.preventDefault(); return addExercise(target.dataset.slug); }
+  if (action === "quick-add") return openAddForm();
+  if (action === "cancel-add") return closeEditForm('[data-action="quick-add"]');
+  if (action === "replace-exercise") return openReplaceForm(target.dataset.slug);
+  if (action === "cancel-replace") {
+    return closeEditForm(`[data-action="replace-exercise"][data-slug="${CSS.escape(editForm?.slug ?? "")}"]`);
+  }
+  if (action === "focus-exercise") {
+    return kraftFocusExercise(target.dataset.slug, target.classList.contains("sd-dots__seg") ? "dot" : "row");
+  }
+  if (action === "step") return kraftStep(target.dataset.field, Number(target.dataset.dir));
+  if (action === "edit-value") return kraftEditValue(target.dataset.field);
+  if (action === "commit-value") return kraftCommitValue();
+  if (action === "add-weight") return kraftAddWeight();
+  if (action === "finish-set") return kraftFinishSet();
+  if (action === "finish-early") return kraftFinishEarly();
+  if (action === "reopen-set") return kraftReopenSet(Number(target.dataset.set));
+  if (action === "next-exercise") return kraftNextExercise(target.dataset.slug);
+  if (action === "finish-session") return kraftFinishSession();
   if (action === "hist-mode") { state.historyMode = target.dataset.mode; return render(); }
   if (action === "connect-strava") return startAuthorization();
   if (action === "pick-run") { runPickerFor = target.dataset.date; return render(); }
@@ -2066,9 +2199,21 @@ document.getElementById("app").addEventListener("click", async (e) => {
   }
 });
 
-function currentDateISO() {
-  return state.tab === "woche" && state.selectedDate ? state.selectedDate : todayISO();
-}
+// Direkte Eingabe (V1) im Kraft-Tag: Enter übernimmt, Escape verwirft, Verlassen
+// übernimmt still, Tippen hält den Text fürs Neuzeichnen fest.
+const isValueInput = (e) => e.target instanceof Element && e.target.matches(".sd-stepper__input");
+document.getElementById("app").addEventListener("keydown", (e) => {
+  if (!isValueInput(e)) return;
+  if (e.key === "Enter") { e.preventDefault(); kraftCommitValue(); }
+  else if (e.key === "Escape") { e.preventDefault(); kraftCancelValue(); }
+});
+document.getElementById("app").addEventListener("input", (e) => {
+  const st = focusedState();
+  if (isValueInput(e) && st?.editing) st.editing.text = e.target.value;
+});
+document.getElementById("app").addEventListener("focusout", (e) => {
+  if (isValueInput(e)) kraftBlurValue();
+});
 
 // Tabwechsel: Tab-Leiste und "go-tab" (Zum Plan, Diese Woche) teilen sich diesen Weg.
 const TAB_KEYS = ["dashboard", "woche", "verlauf", "plan"];
@@ -2281,6 +2426,12 @@ async function forbiddenLogout(btn) {
 }
 
 appEl.addEventListener("submit", async (e) => {
+  // Kraft-Formulare (Anpassen): der Klick auf den Submit-Knopf hat schon gehandelt und das submit verhindert.
+  const kraftForm = e.target.closest('form[data-form="add-exercise"], form[data-form="replace"]');
+  if (kraftForm) {
+    e.preventDefault();
+    return kraftForm.dataset.form === "replace" ? addExercise(editForm?.slug) : addExercise();
+  }
   const form = e.target.closest('form[data-form="login"]');
   if (!form) return;
   e.preventDefault();

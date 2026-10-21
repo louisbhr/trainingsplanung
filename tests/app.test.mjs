@@ -67,6 +67,9 @@ export async function authHeaders({ force } = {}) {
 }
 export async function ensureSignedIn() { return AUTH_USERS.ok; }
 export async function saveLog(dateISO, slug, data) { fs();
+  // Test-Haken: __SAVE_DELAY__ (ms) verzögert, __SAVE_FAIL__ (Text) lässt das Schreiben scheitern.
+  if (window.__SAVE_DELAY__) await new Promise((r) => setTimeout(r, window.__SAVE_DELAY__));
+  if (window.__SAVE_FAIL__) throw new Error(window.__SAVE_FAIL__);
   const s = read(); s[dateISO + "_" + slug] = { date: dateISO, exercise: slug, ...data }; write(s);
 }
 export async function loadLog(d, s) { fs(); return read()[d + "_" + s] || null; }
@@ -227,6 +230,58 @@ const styleAttrCount = (page) => page.evaluate(() => document.querySelectorAll("
 // Slots, die laut Spezifikation leer sein müssen, sind wirklich leer (kein Leerraum, kein Kommentar).
 const slotIsEmpty = (page, id) => page.evaluate((i) => document.getElementById(i)?.innerHTML === "", id);
 
+// ---- Kraft-Tag (Stride E5): stabile Haken, docs/ui-markup-stride.md Abschnitt 11 ----
+// Jetzt-Karte [data-card="now"][data-slug][data-mode], Sätze .sd-set(.is-done|.is-open|.sd-set--active),
+// Reihenfolge .sd-order__row, Fortschrittspunkte .sd-dots__seg. Gesprochen wird nur über data-action.
+const NOW = '[data-card="now"][data-slug]';
+const PRIMARY = '[data-card="now"] .sd-btn--primary';
+const KRAFT_META = "#main > header.sd-pagehead .sd-nav__meta";
+const waitKraft = (page) => page.waitForSelector(NOW);
+const nowSlug = (page) => page.getAttribute('[data-card="now"]', "data-slug");
+const nowMode = (page) => page.getAttribute('[data-card="now"]', "data-mode");
+const primaryText = async (page) => (await page.textContent(PRIMARY)).trim();
+const primaryAction = (page) => page.getAttribute(PRIMARY, "data-action");
+const kraftMeta = async (page) => (await page.textContent(KRAFT_META)).trim();
+// Zustand je Satz: "done", "open" oder "active"
+const setStates = (page) => page.locator('[data-card="now"] .sd-set').evaluateAll((els) =>
+  els.map((el) => (el.classList.contains("sd-set--active") ? "active" : el.classList.contains("is-done") ? "done" : "open")));
+// Werte der nicht aktiven Sätze als Text ("80 kg × 9"), aktive als "*"
+const setValues = (page) => page.locator('[data-card="now"] .sd-set').evaluateAll((els) =>
+  els.map((el) => (el.classList.contains("sd-set--active") ? "*" : el.querySelector(".sd-set__value").textContent.trim())));
+// Zahl im Stepper des aktiven Satzes ("62,5")
+const stepperNum = (page, field) =>
+  page.textContent(`.sd-set--active [data-action="edit-value"][data-field="${field}"] .sd-stepper__num`);
+const orderSlugs = (page) => page.locator(".sd-order__row").evaluateAll((els) => els.map((e) => e.dataset.slug));
+const dotStates = (page) => page.locator(".sd-dots__seg").evaluateAll((els) =>
+  els.map((e) => (e.classList.contains("is-current") ? "current" : e.classList.contains("is-done") ? "done" : "open")));
+// V1: Tipp auf den Wert, Zahl eintippen, Enter
+async function enterValue(page, field, text) {
+  await page.click(`.sd-set--active [data-action="edit-value"][data-field="${field}"]`);
+  await page.fill(".sd-stepper__input", text);
+  await page.press(".sd-stepper__input", "Enter");
+}
+// Sätze der Jetzt-Übung abhaken, bis der Primärbutton nicht mehr "Satz n fertig" heißt (gespeichert).
+async function finishExercise(page) {
+  for (let i = 0; i < 12; i++) {
+    await page.waitForSelector(`${PRIMARY}:not([disabled])`);
+    if ((await primaryAction(page)) !== "finish-set") return;
+    await page.click(PRIMARY);
+  }
+}
+// Gespeichertes Log-Dokument aus dem Stub-Speicher (null = nicht geschrieben)
+const storedLog = (page, iso, slug) =>
+  page.evaluate(([k]) => JSON.parse(localStorage.getItem("test.logs") || "{}")[k] ?? null, [`${iso}_${slug}`]);
+const storedLogKeys = (page) => page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem("test.logs") || "{}")));
+const liveText = (page) => page.evaluate(() => document.getElementById("kraftLive")?.textContent ?? null);
+const waitLive = (page, text) =>
+  page.waitForFunction((t) => document.getElementById("kraftLive")?.textContent === t, text, { timeout: 3000 }).then(() => true, () => false);
+// Kraft-Tag über den Wochen-Tab öffnen (Di 08.09. = "Full Body A")
+async function openKraftViaWeek(page, iso = "2026-09-08") {
+  await goTab(page, "woche");
+  await openDay(page, iso);
+  await waitKraft(page);
+}
+
 // ---- 1. Dashboard, nicht verbunden (07.09.2026 = W2 Montag, Easy run) ----
 // Ersetzt die alte "Heute"-Tagesansicht als Starttab (M2-4). Die
 // Tagesansicht mit dem Strava-"Verbinden"-Einstieg bleibt über den
@@ -323,14 +378,17 @@ const slotIsEmpty = (page, id) => page.evaluate((i) => document.getElementById(i
     "Dashboard: Vorschau-Zeilen sind nicht antippbar, der Primärbutton ist der einzige Einstieg");
 
   await page.click(`${TODAY} [data-action="open-day"]`);
-  await page.waitForSelector('[data-ex="squats"]');
-  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Krafttraining", "Dashboard->Tagesansicht: Krafttag geöffnet");
-  ok((await page.textContent('#main > header.sd-pagehead [data-action="back"]')).includes("Heute"), "Dashboard->Tagesansicht: Zurück-Knopf beschriftet mit 'Heute'");
+  await waitKraft(page);
+  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Full Body A" && (await nowSlug(page)) === "squats",
+    "Dashboard->Tagesansicht: Krafttag geöffnet (Titel der Einheit im Kopf, erste Übung ist Jetzt)");
+  ok((await page.textContent('#main > header.sd-pagehead [data-action="back"]')).includes("Heute") && (await kraftMeta(page)) === "0 von 8 erledigt",
+    "Dashboard->Tagesansicht: Zurück-Knopf beschriftet mit 'Heute', Zähler '0 von 8 erledigt'");
 
-  await page.locator('[data-ex="squats"] [data-kg]').fill("80");
-  await page.locator('[data-ex="squats"] [data-reps]').fill("9");
-  await page.click('[data-ex="squats"] [data-action="save"]');
-  await page.waitForSelector('[data-status="squats"].ok');
+  await enterValue(page, "kg", "80");
+  await enterValue(page, "reps", "9");
+  await finishExercise(page);
+  await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+  ok((await kraftMeta(page)) === "1 von 8 erledigt", "Dashboard->Tagesansicht: nach der ersten Übung '1 von 8 erledigt'");
 
   await page.click('[data-action="back"]');
   await page.waitForSelector(`${TODAY}[data-kind="kraft"]`);
@@ -514,11 +572,11 @@ const slotIsEmpty = (page, id) => page.evaluate((i) => document.getElementById(i
   await page.waitForSelector('[data-card="week-sums"]');
   ok((await active()) === "woche", "Tableiste: Woche markiert im Wochen-Tab");
   await openDay(page, "2026-09-08");
-  await page.waitForSelector("[data-ex]");
+  await waitKraft(page);
   ok((await active()) === "woche", "Tableiste: Tagesansicht aus der Woche bleibt bei Woche");
   await goTab(page, "dashboard");
   await page.click(`${TODAY} [data-action="open-day"]`);
-  await page.waitForSelector("[data-ex]");
+  await waitKraft(page);
   ok((await active()) === "dashboard", "Tableiste: Tagesansicht aus dem Dashboard bleibt bei Dashboard");
   await page.click('[data-action="back"]');
   await page.waitForSelector(TODAY);
@@ -926,9 +984,9 @@ for (const [recal, wantText, label] of [
 
   // Dienstag = Krafttag über "Tag öffnen" in die Tagesansicht, Rücksprung "‹ Woche"
   await openDay(page, "2026-09-08");
-  await page.waitForSelector('[data-ex]');
-  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Krafttraining", "Tagesansicht: Krafttag geöffnet");
-  ok((await page.locator("[data-ex]").count()) === 8, "Krafttag: 8 Übungen");
+  await waitKraft(page);
+  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Full Body A", "Tagesansicht: Krafttag geöffnet (Titel der Einheit im Kopf)");
+  ok((await page.locator(".sd-order__row").count()) === 8, "Krafttag: 8 Übungen");
   ok((await page.locator('[data-action="back"]').textContent()).trim() === "Woche", "Tagesansicht aus der Woche: Rücksprung heißt 'Woche' (‹ Woche)");
   await page.click('[data-action="back"]');
   await waitWeekRows(page);
@@ -1037,49 +1095,49 @@ for (const [recal, wantText, notText, label] of [
   await ctx.close();
 }
 
-// ---- 4. Kraft eintragen, speichern, nach Reload noch da ----
+// ---- 4. Kraft eintragen, speichern, nach Reload noch da (Stride E5: Satz für Satz) ----
 {
   scenario("4");
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
-  await goTab(page, "woche");
-  await openDay(page, "2026-09-08");
-  await page.waitForSelector('[data-ex="squats"]');
+  await openKraftViaWeek(page);
 
-  const squats = page.locator('[data-ex="squats"]');
-  ok((await squats.textContent()).includes("Gilt für alle 3 Sätze"), "Kraft: einfacher Modus mit Satzanzahl");
-  await squats.locator("[data-kg]").fill("80");
-  await squats.locator("[data-reps]").fill("9");
-  await squats.locator('[data-action="save"]').click();
-  await page.waitForSelector('[data-status="squats"].ok');
-  ok((await squats.locator(".status").textContent()) === "Gespeichert.", "Kraft: Speicher-Rückmeldung");
-  ok((await page.textContent("#progress-line")) === "1 von 8 Übungen erfasst", "Kraft: Fortschritt aktualisiert");
+  ok(JSON.stringify(await setStates(page)) === '["active","open","open"]' && (await nowMode(page)) === "weight" && (await primaryText(page)) === "Satz 1 fertig",
+    "Kraft: Satz-für-Satz-Ansicht, drei Sätze (einer aktiv), Gewichts-Modus, Primärbutton 'Satz 1 fertig'");
+  await enterValue(page, "kg", "80");
+  await enterValue(page, "reps", "9");
+  await page.click(PRIMARY);
+  ok(JSON.stringify(await setStates(page)) === '["done","active","open"]' && (await setValues(page))[0] === "80 kg × 9" && (await primaryText(page)) === "Satz 2 fertig",
+    "Kraft: Satz 1 fertig ('80 kg × 9'), Satz 2 wird aktiv, Primärbutton 'Satz 2 fertig'");
+  ok((await stepperNum(page, "kg")) === "80" && (await stepperNum(page, "reps")) === "8",
+    "Kraft: Gewicht des vorigen Satzes gilt weiter, Wiederholungen starten wieder beim Startwert");
 
-  // ohne Eingabe speichern -> Warnung
-  const dl = page.locator('[data-ex="deadlift"]');
-  await dl.locator('[data-action="save"]').click();
-  ok((await dl.locator(".status").textContent()) === "Nichts eingetragen.", "Kraft: leere Eingabe wird abgefangen");
+  // Einzelsätze: Satz 3 bekommt mehr Gewicht
+  await page.click(PRIMARY);
+  await enterValue(page, "kg", "85");
+  await page.click(PRIMARY);
+  await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+  ok((await primaryText(page)) === "Weiter: Deadlift", "Kraft: Speicher-Rückmeldung, Primärbutton heißt 'Weiter: Deadlift'");
+  ok((await kraftMeta(page)) === "1 von 8 erledigt", "Kraft: Fortschritt aktualisiert");
+  const doc = await storedLog(page, "2026-09-08", "squats");
+  ok(JSON.stringify(doc.sets) === JSON.stringify([{ kg: 80, reps: 9 }, { kg: 80, reps: 8 }, { kg: 85, reps: 8 }]) && doc.topKg === 85 && doc.totalReps === 25,
+    "Kraft: gespeichert sind die drei Einzelsätze (80/9, 80/8, 85/8), Summen stimmen " + JSON.stringify(doc));
 
-  // Einzelsätze
-  await squats.locator('[data-action="toggle-sets"]').click();
-  ok((await squats.locator(".set-row").count()) === 3, "Kraft: Umschalten auf 3 Einzelsätze");
-  const kgs = await squats.locator("[data-kg]").evaluateAll((els) => els.map((e) => e.value));
-  ok(kgs.join(",") === "80,80,80", "Kraft: Werte bleiben beim Umschalten erhalten");
-  await squats.locator(".set-row").nth(2).locator("[data-kg]").fill("85");
-  await squats.locator('[data-action="save"]').click();
+  // Ohne fertigen Satz gibt es nichts zu speichern: kein "Mit n Sätzen abschließen", kein Speichern-Knopf
+  await page.click(PRIMARY);
+  ok((await nowSlug(page)) === "deadlift" && (await page.locator('[data-action="finish-early"], [data-action="save"]').count()) === 0,
+    "Kraft: leere Übung lässt sich nicht speichern (kein 'Mit n Sätzen abschließen', kein Speichern-Knopf)");
   await shot(page, "04-krafttag");
   await noHScroll(page, "Krafttag");
 
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
-  await goTab(page, "woche");
-  await openDay(page, "2026-09-08");
-  await page.waitForSelector('[data-ex="squats"]');
-  const sq2 = page.locator('[data-ex="squats"]');
-  ok((await sq2.locator(".set-row").count()) === 3, "Kraft: nach Reload wieder Einzelsatz-Ansicht (Werte unterschiedlich)");
-  const kgs2 = await sq2.locator("[data-kg]").evaluateAll((els) => els.map((e) => e.value));
-  ok(kgs2.join(",") === "80,80,85", "Kraft: Werte nach Reload erhalten");
-  ok((await page.textContent("#progress-line")) === "1 von 8 Übungen erfasst", "Kraft: Fortschritt nach Reload");
+  await openKraftViaWeek(page);
+  ok((await nowSlug(page)) === "deadlift", "Kraft: nach Reload startet die erste nicht gespeicherte Übung (Deadlift)");
+  await page.click('.sd-order__row[data-slug="squats"]');
+  ok(JSON.stringify(await setStates(page)) === '["done","done","done"]' && JSON.stringify(await setValues(page)) === '["80 kg × 9","80 kg × 8","85 kg × 8"]',
+    "Kraft: Werte nach Reload erhalten (80 kg × 9, 80 kg × 8, 85 kg × 8, alle fertig)");
+  ok((await kraftMeta(page)) === "1 von 8 erledigt", "Kraft: Fortschritt nach Reload");
   ok(errors.length === 0, "Kraft: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
@@ -1202,85 +1260,86 @@ for (const [recal, wantText, notText, label] of [
   await ctx.close();
 }
 
-// ---- 10. Übungen anpassen: entfernen, hinzufügen, zurückholen ----
+// ---- 10. Übungen anpassen: entfernen, hinzufügen, zurückholen (Stride E5: Anpassen-Ansicht) ----
 {
   scenario("10");
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
-  await goTab(page, "woche");
-  await openDay(page, "2026-09-08");
-  await page.waitForSelector('[data-ex="squats"]');
-  ok((await page.locator("[data-ex]").count()) === 8, "Anpassen: Ausgangslage 8 Übungen");
+  await openKraftViaWeek(page);
+  const editRows = (n) => page.locator(".sd-edit__row" + (n === "all" ? "" : ":not(.is-removed)"));
+  ok((await page.locator(".sd-order__row").count()) === 8, "Anpassen: Ausgangslage 8 Übungen");
 
-  // Speichern-Knopf ist eine sichtbare Hauptaktion, kein weißer Kasten
-  const btn = page.locator('[data-ex="squats"] [data-action="save"]');
-  const look = await btn.evaluate((el) => ({
+  // Der Primärbutton ist eine sichtbare Hauptaktion, kein weißer Kasten
+  const look = await page.locator(PRIMARY).evaluate((el) => ({
     bg: getComputedStyle(el).backgroundColor,
     text: el.textContent.trim(),
     w: el.getBoundingClientRect().width,
   }));
-  ok(look.bg === "rgb(15, 110, 86)", `Speichern: eingefärbt statt weiß (${look.bg})`);
-  ok(look.text === "Speichern", "Speichern: beschriftet, nicht nur ein Symbol");
-  ok(look.w > 200, `Speichern: volle Breite (${Math.round(look.w)}px)`);
+  ok(look.bg === "rgb(15, 110, 86)", `Primärbutton: eingefärbt statt weiß (${look.bg})`);
+  ok(look.text === "Satz 1 fertig", "Primärbutton: beschriftet, nicht nur ein Symbol");
+  ok(look.w > 200, `Primärbutton: volle Breite (${Math.round(look.w)}px)`);
 
   await page.click('[data-action="toggle-edit"]');
-  await page.waitForSelector('[data-action="add-exercise"]');
-  ok((await page.locator('[data-action="remove-exercise"]').count()) === 8, "Anpassen: Entfernen-Knopf je Übung");
+  await page.waitForSelector('[data-card="edit-list"]');
+  ok((await page.locator('[data-action="remove-exercise"]').count()) === 8 && (await page.locator('[data-card="now"], .sd-dots').count()) === 0,
+    "Anpassen: eigene Ansicht, Entfernen-Knopf je Übung, keine Jetzt-Karte und keine Punkte");
 
-  await page.click('[data-ex="deadlift"] [data-action="remove-exercise"]');
+  await page.click('.sd-edit__row[data-slug="deadlift"] [data-action="remove-exercise"]');
   await page.waitForSelector('[data-action="restore-exercise"]');
-  ok((await page.locator("[data-ex]").count()) === 7, "Anpassen: Übung entfernt");
+  ok((await editRows().count()) === 7 && (await editRows("all").count()) === 8,
+    "Anpassen: Übung entfernt (bleibt als 'Für heute entfernt' in der Zeile stehen)");
 
+  await page.click('[data-action="quick-add"]');
   await page.fill("#new-ex-name", "Beinpresse");
   await page.fill("#new-ex-soll", "4x10");
   await page.click('[data-action="add-exercise"]');
-  await page.waitForSelector('[data-ex="beinpresse"]');
-  ok((await page.locator("[data-ex]").count()) === 8, "Anpassen: eigene Übung hinzugefügt");
-  ok((await page.textContent('[data-ex="beinpresse"]')).includes("Soll 4x10"), "Anpassen: Sollvorgabe übernommen");
-  ok((await page.locator('[data-ex="beinpresse"] .custom-tag').count()) === 1, "Anpassen: als eigene Übung markiert");
+  await page.waitForSelector('.sd-edit__row[data-slug="beinpresse"]');
+  ok((await editRows().count()) === 8, "Anpassen: eigene Übung hinzugefügt");
+  ok((await page.textContent('.sd-edit__row[data-slug="beinpresse"] .sd-edit__sub')).includes("4×10"), "Anpassen: Sollvorgabe übernommen");
+  ok((await page.locator('.sd-edit__row[data-slug="beinpresse"] .sd-pill--purple').count()) === 1, "Anpassen: als eigene Übung markiert");
 
   // Doppelte Namen werden abgefangen
+  await page.click('[data-action="quick-add"]');
   await page.fill("#new-ex-name", "Beinpresse");
   await page.click('[data-action="add-exercise"]');
-  ok((await page.locator("[data-ex]").count()) === 8, "Anpassen: doppelte Übung wird abgelehnt");
+  ok((await editRows().count()) === 8 && (await page.textContent('[data-form="add-exercise"] [data-slot="form-error"]')).includes("schon auf der Liste"),
+    "Anpassen: doppelte Übung wird abgelehnt (Meldung im Formular)");
+  await page.click('[data-action="cancel-add"]');
 
   await page.click('[data-action="toggle-edit"]');
-  await page.waitForSelector('[data-action="toggle-sets"]');
+  await waitKraft(page);
   await shot(page, "11-uebungen-anpassen");
   await noHScroll(page, "Anpassen");
 
   // In die eigene Übung eintragen und speichern
-  const bp = page.locator('[data-ex="beinpresse"]');
-  await bp.locator("[data-kg]").fill("120");
-  await bp.locator("[data-reps]").fill("10");
-  await bp.locator('[data-action="save"]').click();
-  await page.waitForSelector('[data-status="beinpresse"].ok');
-  ok((await bp.locator('[data-action="save"]').textContent()).includes("Gespeichert"),
-     "Speichern: Knopf zeigt den erledigten Zustand");
-  ok((await page.locator('[data-ex="beinpresse"].done').count()) === 1, "Speichern: Karte wird als erledigt markiert");
+  await page.click('.sd-order__row[data-slug="beinpresse"]');
+  await enterValue(page, "kg", "120");
+  await enterValue(page, "reps", "10");
+  await finishExercise(page);
+  await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+  ok((await primaryText(page)).startsWith("Weiter:"), "Speichern: Primärbutton zeigt den erledigten Zustand ('Weiter: …')");
+  ok((await page.locator('.sd-order__row.is-done[data-slug="beinpresse"]').count()) === 1, "Speichern: Zeile wird als erledigt markiert");
 
   // Nach Reload muss die angepasste Liste stehen
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
-  await goTab(page, "woche");
-  await openDay(page, "2026-09-08");
-  await page.waitForSelector('[data-ex="beinpresse"]');
-  ok((await page.locator('[data-ex="deadlift"]').count()) === 0, "Anpassen: Entfernung überlebt den Reload");
-  ok((await page.locator('[data-ex="beinpresse"] [data-kg]').inputValue()) === "120", "Anpassen: Werte der eigenen Übung bleiben");
+  await openKraftViaWeek(page);
+  ok((await page.locator('.sd-order__row[data-slug="deadlift"]').count()) === 0, "Anpassen: Entfernung überlebt den Reload");
+  await page.click('.sd-order__row[data-slug="beinpresse"]');
+  ok((await setValues(page)).every((v) => v === "120 kg × 10") && (await setValues(page)).length === 4, "Anpassen: Werte der eigenen Übung bleiben (4 Sätze, 120 kg × 10)");
 
   // Zurückholen
   await page.click('[data-action="toggle-edit"]');
   await page.click('[data-action="restore-exercise"]');
-  await page.waitForSelector('[data-ex="deadlift"]');
-  ok((await page.locator("[data-ex]").count()) === 9,
-     "Anpassen: Übung zurückgeholt (8 aus dem Plan + die eigene)");
+  await page.waitForSelector('.sd-edit__row[data-slug="deadlift"] [data-action="remove-exercise"]');
+  ok((await editRows().count()) === 9, "Anpassen: Übung zurückgeholt (8 aus dem Plan + die eigene)");
 
   // Andere Tage bleiben unberührt
   await page.click('[data-action="toggle-edit"]');
   await page.click('[data-action="back"]');
   await openDay(page, "2026-09-10");
-  await page.waitForSelector("[data-ex]");
-  ok((await page.locator('[data-ex="beinpresse"]').count()) === 0, "Anpassen: gilt nur für den bearbeiteten Tag");
+  await waitKraft(page);
+  ok((await page.locator('.sd-order__row[data-slug="beinpresse"]').count()) === 0, "Anpassen: gilt nur für den bearbeiteten Tag");
   ok(errors.length === 0, "Anpassen: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
@@ -1350,12 +1409,16 @@ for (const [recal, wantText, notText, label] of [
   // Krafttag: Meldung muss stehen bleiben, nicht als Toast verschwinden
   await goTab(page, "woche");
   await openDay(page, "2026-09-08");
-  await page.waitForSelector("#main .error-card");
+  await page.waitForSelector('#banner-slot [data-card="load-error"]');
   ok((await page.textContent("#main")).includes("Gespeicherte Sätze nicht geladen"),
      "Krafttag: Ladefehler als dauerhafte Karte");
-  ok((await page.locator("[data-ex]").count()) === 8, "Krafttag: Eingabe bleibt trotz Fehler möglich");
+  ok((await page.locator(".sd-order__row").count()) === 8 && (await primaryText(page)) === "Satz 1 fertig",
+     "Krafttag: Eingabe bleibt trotz Fehler möglich (8 Übungen, Satz 1 bedienbar)");
+  ok((await page.locator('[data-card="load-error"][role="alert"] [data-action="reload"]').count()) === 1 &&
+     (await page.textContent('[data-card="load-error"]')).includes("Missing or insufficient permissions."),
+     "Krafttag: Fehlerkarte nennt die Originalmeldung und bietet 'Neu laden' an");
   await page.waitForTimeout(7000); // länger als die Toast-Dauer
-  ok((await page.locator("#main .error-card").count()) === 1, "Krafttag: Meldung verschwindet nicht wieder");
+  ok((await page.locator('[data-card="load-error"]').count()) === 1, "Krafttag: Meldung verschwindet nicht wieder");
   await shot(page, "10-firebase-fehler-krafttag");
   await ctx.close();
 }
@@ -1488,7 +1551,7 @@ for (const [recal, wantText, notText, label] of [
   const wocheHead = await headTopAfterScroll(page);
   ok(wocheHead.scrolled > 0 && wocheHead.top < 0, `Kopf Woche: scrollt mit weg (top ${Math.round(wocheHead.top)}, gescrollt ${wocheHead.scrolled})`);
   await openDay(page, "2026-09-08"); // Krafttag
-  await page.waitForSelector("[data-ex]");
+  await waitKraft(page);
   const kraftHead = await headTopAfterScroll(page);
   ok(kraftHead.scrolled > 0 && kraftHead.top < 0, `Kopf Kraft-Tag: scrollt mit weg (top ${Math.round(kraftHead.top)})`);
   await page.click('[data-action="back"]');
@@ -1508,7 +1571,7 @@ for (const [recal, wantText, notText, label] of [
   // Detailseiten: Leiste weg, nach Zurück wieder da
   await goTab(page, "woche");
   await openDay(page, "2026-09-08"); // Krafttag
-  await page.waitForSelector("[data-ex]");
+  await waitKraft(page);
   ok((await page.locator("#app.is-detail").count()) === 1 && !(await page.locator("#tabbar").isVisible()),
      "Kraft-Tag: Tableiste ausgeblendet (#app.is-detail)");
   await page.click('[data-action="back"]');
@@ -1525,7 +1588,7 @@ for (const [recal, wantText, notText, label] of [
   await ctx.close();
 }
 
-// ---- 13. Progression aus den Wiederholungen statt RPE ----
+// ---- 13. Progression aus den Wiederholungen statt RPE (Stride E5: Chip, Startwerte, Letztes Mal, Strava-Zeile) ----
 {
   scenario("13");
   const { page, ctx, errors } = await newPage({ connected: true });
@@ -1541,93 +1604,98 @@ for (const [recal, wantText, notText, label] of [
     }));
   });
   await page.goto(BASE + "/index.html");
-  await goTab(page, "woche");
-  await openDay(page, "2026-09-08");
-  await page.waitForSelector(".tip");
+  await openKraftViaWeek(page);
+  await page.waitForSelector('[data-card="now"] .sd-tip');
+  const chip = async (slug) => {
+    await page.click(`.sd-order__row[data-slug="${slug}"]`);
+    const el = page.locator('[data-card="now"] .sd-tip');
+    return (await el.count()) ? { text: (await el.textContent()).trim(), cls: await el.getAttribute("class") } : null;
+  };
 
-  const squats = await page.textContent('[data-ex="squats"] .tip');
-  ok(squats.includes("80 kg") && squats.includes("85 kg"),
-     `Progression: Spanne ausgeschöpft -> mehr Gewicht (${squats})`);
-  ok((await page.locator('[data-ex="squats"] .tip-up').count()) === 1, "Progression: als Steigerung eingefärbt");
+  const squats = await chip("squats");
+  ok(squats?.text === "Heute 85 kg" && squats.cls.includes("sd-tip--up"),
+     `Progression: Spanne ausgeschöpft -> mehr Gewicht, als Steigerung eingefärbt (${squats?.text})`);
+  ok((await stepperNum(page, "kg")) === "85" && (await stepperNum(page, "reps")) === "10",
+     "Startwerte (F4): vorgeschlagenes Gewicht und Wiederholungen der letzten Einheit stehen schon im Stepper");
+  ok((await page.textContent('[data-card="now"] .sd-last')).trim() === "Letztes Mal 3×10 · 80 kg", "Letztes Mal: '3×10 · 80 kg'");
 
-  const dl = await page.textContent('[data-ex="deadlift"] .tip');
-  ok(dl.includes("unter dem Soll"), `Progression: unter dem Soll erkannt (${dl})`);
-  ok((await page.locator('[data-ex="deadlift"] .tip-down').count()) === 1, "Progression: als Rücknahme eingefärbt");
+  const dl = await chip("deadlift");
+  ok(dl?.text === "Heute 95 kg" && dl.cls.includes("sd-tip--down"), `Progression: unter dem Soll erkannt, als Rücknahme eingefärbt (${dl?.text})`);
 
-  const kz = await page.textContent('[data-ex="klimmzuege"] .tip');
-  ok(!kz.includes("kg"), `Progression: Körpergewichtsübung ohne Gewichtsvorschlag (${kz})`);
+  const kz = await chip("klimmzuege");
+  ok(kz && !kz.text.includes("kg") && (await nowMode(page)) === "reps",
+     `Progression: Körpergewichtsübung ohne Gewichtsvorschlag, Wdh-Modus (${kz?.text})`);
 
-  ok((await page.locator('[data-ex="brustpresse"] .tip').count()) === 0,
-     "Progression: ohne Vorgeschichte kein Vorschlag");
+  ok((await chip("brustpresse")) === null, "Progression: ohne Vorgeschichte kein Vorschlag");
 
-  // Herzfrequenz der Einheit aus Strava
-  await page.waitForSelector(".session-card");
-  const sess = await page.textContent(".session-card");
-  ok(sess.includes("118 bpm") && sess.includes("155 bpm"), `Einheit: Herzfrequenz aus Strava (${sess.replace(/\s+/g, " ").slice(0, 80)})`);
-  ok(sess.includes("64:28 min") || sess.includes("1:04:28"), "Einheit: Dauer angezeigt");
+  // Herzfrequenz und Dauer der Einheit aus Strava (F7)
+  await page.waitForSelector('[data-card="strava-session"]');
+  const sess = (await page.textContent('[data-card="strava-session"]')).replace(/\s+/g, " ");
+  ok(sess.includes("64 min") && sess.includes("Ø 118 bpm") && sess.includes("max 155 bpm"), `Einheit: Dauer und Herzfrequenz aus Strava (${sess.trim()})`);
   ok(sess.includes("Relative Effort 15"), "Einheit: Relative Effort angezeigt");
+  ok((await page.locator('[data-card="strava-session"] button, [data-card="strava-session"] a').count()) === 0, "Einheit: Strava-Zeile ist nicht antippbar");
   await noHScroll(page, "Progression");
   await shot(page, "16-progression");
 
-  // Kein RPE-Feld — die Eingabe bleibt kg und Wdh
-  ok((await page.locator('[data-ex="squats"] input').count()) === 2,
-     "Progression: keine zusätzliche Eingabe nötig");
+  // Kein RPE-Feld: pro Satz nur Gewicht und Wiederholungen
+  await page.click('.sd-order__row[data-slug="squats"]');
+  ok((await page.locator(".sd-set--active .sd-stepper").count()) === 2 && (await page.locator("input").count()) === 0,
+     "Progression: keine zusätzliche Eingabe nötig (zwei Stepper, kein Textfeld)");
   ok(errors.length === 0, "Progression: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
-// ---- 14. Übung im Gym ersetzen und schnell ergänzen ----
+// ---- 14. Übung im Gym ersetzen und schnell ergänzen (Stride E5: beides im Anpassen-Modus) ----
 {
   scenario("14");
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
-  await goTab(page, "woche");
-  await openDay(page, "2026-09-08");
-  await page.waitForSelector('[data-ex="squats"]');
+  await openKraftViaWeek(page);
+  const editSlugs = () => page.locator(".sd-edit__row").evaluateAll((els) => els.map((e) => e.dataset.slug));
 
-  // Hinzufügen ohne Umweg über den Bearbeitungsmodus
-  ok((await page.locator('[data-action="quick-add"]').count()) === 1,
-     "Ergänzen: Knopf steht direkt unter der Liste");
+  // Hinzufügen gibt es nur im Anpassen-Modus, nicht mehr in der Normalansicht
+  ok((await page.locator('[data-action="quick-add"]').count()) === 0, "Ergänzen: in der Normalansicht kein '+ Übung hinzufügen' mehr");
+  await page.click('[data-action="toggle-edit"]');
+  ok((await page.locator('[data-action="quick-add"]').count()) === 1, "Ergänzen: der Knopf steht im Anpassen-Modus unter der Liste");
   await page.click('[data-action="quick-add"]');
   await page.fill("#new-ex-name", "Beinpresse");
   await page.fill("#new-ex-soll", "4x10");
   await page.click('[data-action="add-exercise"]');
-  await page.waitForSelector('[data-ex="beinpresse"]');
-  ok((await page.locator("[data-ex]").count()) === 9, "Ergänzen: Übung ist da");
-  const order = await page.locator("[data-ex]").evaluateAll((els) => els.map((e) => e.dataset.ex));
+  await page.waitForSelector('.sd-edit__row[data-slug="beinpresse"]');
+  const order = await editSlugs();
+  ok(order.length === 9, "Ergänzen: Übung ist da");
   ok(order[order.length - 1] === "beinpresse", "Ergänzen: neue Übung hängt hinten an");
 
   // Ersetzen: Bank belegt, also Brustpresse gegen Kurzhantelbank tauschen
-  await page.click('[data-action="toggle-edit"]');
-  await page.click('[data-ex="brustpresse"] [data-action="replace-exercise"]');
+  await page.click('.sd-edit__row[data-slug="brustpresse"] [data-action="replace-exercise"]');
   await page.waitForSelector("#rep-ex-name");
   ok((await page.inputValue("#rep-ex-soll")) === "3x8-10", "Ersetzen: Sollvorgabe wird übernommen");
   await page.fill("#rep-ex-name", "Kurzhantelbank");
   await page.click('[data-action="confirm-replace"]');
-  await page.waitForSelector('[data-ex="kurzhantelbank"]');
+  await page.waitForSelector('.sd-edit__row[data-slug="kurzhantelbank"]');
 
-  const after = await page.locator("[data-ex]").evaluateAll((els) => els.map((e) => e.dataset.ex));
+  const after = await editSlugs();
   ok(!after.includes("brustpresse"), "Ersetzen: alte Übung ist weg");
   ok(after.indexOf("kurzhantelbank") === order.indexOf("brustpresse"),
      `Ersetzen: neue Übung steht an derselben Stelle (${after.indexOf("kurzhantelbank")})`);
-  ok((await page.textContent('[data-ex="kurzhantelbank"]')).includes("Ersetzt Brustpresse"),
-     "Ersetzen: Herkunft bleibt sichtbar");
+  await page.click('[data-action="toggle-edit"]');
+  await page.click('.sd-order__row[data-slug="kurzhantelbank"]');
+  ok((await page.textContent(".sd-now__soll")).includes("Ersetzt Brustpresse"), "Ersetzen: Herkunft bleibt sichtbar ('Ersetzt Brustpresse')");
   await shot(page, "17-uebung-ersetzen");
   await noHScroll(page, "Ersetzen");
 
   // Überlebt den Reload
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
-  await goTab(page, "woche");
-  await openDay(page, "2026-09-08");
-  await page.waitForSelector('[data-ex="kurzhantelbank"]');
-  ok((await page.locator('[data-ex="brustpresse"]').count()) === 0, "Ersetzen: überlebt den Reload");
+  await openKraftViaWeek(page);
+  ok((await page.locator('.sd-order__row[data-slug="brustpresse"]').count()) === 0 && (await page.locator('.sd-order__row[data-slug="kurzhantelbank"]').count()) === 1,
+     "Ersetzen: überlebt den Reload");
 
   // Tausch rückgängig -> Original kommt zurück
   await page.click('[data-action="toggle-edit"]');
-  await page.click('[data-ex="kurzhantelbank"] [data-action="remove-exercise"]');
-  await page.waitForSelector('[data-ex="brustpresse"]');
-  ok((await page.locator('[data-ex="kurzhantelbank"]').count()) === 0,
+  await page.click('.sd-edit__row[data-slug="kurzhantelbank"] [data-action="remove-exercise"]');
+  await page.waitForSelector('.sd-edit__row[data-slug="brustpresse"] [data-action="remove-exercise"]');
+  ok((await page.locator('.sd-edit__row[data-slug="kurzhantelbank"]').count()) === 0,
      "Ersetzen: Tausch entfernt, Original zurück");
   ok(errors.length === 0, "Ersetzen: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -1694,8 +1762,9 @@ for (const [recal, wantText, notText, label] of [
   // darunter zoomt iOS Safari hinein und die Seite lässt sich danach
   // seitlich schieben.
   const views = [
-    ["Krafttag", async () => { await goTab(page, "woche"); await openDay(page, "2026-09-08"); await page.waitForSelector("[data-ex]"); }],
-    ["Übung hinzufügen", async () => { await page.click('[data-action="quick-add"]'); await page.waitForSelector("#new-ex-name"); }],
+    ["Krafttag", async () => { await goTab(page, "woche"); await openDay(page, "2026-09-08"); await waitKraft(page); }],
+    ["Direkte Eingabe (V1)", async () => { await page.click('.sd-set--active [data-action="edit-value"][data-field="kg"]'); await page.waitForSelector(".sd-stepper__input"); }],
+    ["Übung hinzufügen", async () => { await page.click('[data-action="toggle-edit"]'); await page.click('[data-action="quick-add"]'); await page.waitForSelector("#new-ex-name"); }],
     ["Verlauf", async () => { await goTab(page, "verlauf"); await page.waitForSelector("#ex-picker"); }],
   ];
   for (const [name, go] of views) {
@@ -1763,12 +1832,13 @@ for (const [recal, wantText, notText, label] of [
   // Satz-Logging funktioniert weiterhin mit der Kopie
   await goTab(page, "woche");
   await openDay(page, "2026-09-08");
-  await page.waitForSelector('[data-ex="squats"]');
-  await page.locator('[data-ex="squats"] [data-kg]').fill("80");
-  await page.locator('[data-ex="squats"] [data-reps]').fill("9");
-  await page.click('[data-ex="squats"] [data-action="save"]');
-  await page.waitForSelector('[data-status="squats"].ok');
-  ok((await page.locator('[data-ex="squats"] .status').textContent()) === "Gespeichert.", "Plan-404 mit Kopie: Satz-Logging funktioniert");
+  await waitKraft(page);
+  await enterValue(page, "kg", "80");
+  await enterValue(page, "reps", "9");
+  await finishExercise(page);
+  await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+  const kopieDoc = await storedLog(page, "2026-09-08", "squats");
+  ok((await primaryText(page)) === "Weiter: Deadlift" && kopieDoc?.week === 2 && kopieDoc.sets.length === 3, "Plan-404 mit Kopie: Satz-Logging funktioniert");
   await shot(page, "19-plan-404-mit-kopie");
   await ctx.close();
 }
@@ -2792,6 +2862,503 @@ const stripPlan = (s) => s.replace(/"plan":[\s\S]*?"strava":/, "");
   ok(await page.locator("#toast.error").count() === 0 && !(await page.textContent("#export-status")).includes("fehlgeschlagen"),
     "Export: Abbruch des Teilens zeigt keinen Fehler");
   ok(await page.isEnabled('[data-action="export-data"]'), "Export: Knopf nach Abbruch wieder aktiv");
+  await ctx.close();
+}
+
+// ============================================================================
+// 36. Kraft-Tag "Fokus" (Stride E5a, neu). Markup: docs/ui-markup-stride.md Abschnitt 11.
+// ============================================================================
+
+// ---- 36a. Satz für Satz durch den ganzen Tag, Training abschließen -> zurück zur Herkunft (Heute UND Woche) ----
+for (const origin of ["Heute", "Woche"]) {
+  scenario("36a");
+  const { page, ctx, errors } = await newPage();
+  await page.clock.setFixedTime(new Date("2026-09-08T09:00:00Z"));
+  await page.goto(BASE + "/index.html");
+  if (origin === "Heute") {
+    await page.waitForSelector(TODAY);
+    await page.click(`${TODAY} [data-action="open-day"]`);
+    await waitKraft(page);
+  } else {
+    await openKraftViaWeek(page);
+  }
+  const tag = `Satz-Ablauf (von ${origin})`;
+  ok((await page.locator('#app.is-detail').count()) === 1 && !(await page.locator("#tabbar").isVisible()), `${tag}: Tableiste ausgeblendet`);
+  ok((await page.textContent('#main > header.sd-pagehead [data-action="back"]')).trim() === origin, `${tag}: Zurück heißt '${origin}'`);
+
+  await page.click(PRIMARY);
+  ok(JSON.stringify(await setStates(page)) === '["done","active","open"]' && (await primaryText(page)) === "Satz 2 fertig" && (await activeAction(page)) === "finish-set",
+     `${tag}: Satz 1 fertig -> Satz 2 aktiv, Fokus bleibt auf dem Primärbutton`);
+  await page.click(PRIMARY);
+  ok(JSON.stringify(await setStates(page)) === '["done","done","active"]' && (await primaryText(page)) === "Satz 3 fertig", `${tag}: Satz 2 fertig -> Satz 3 aktiv`);
+  await page.click(PRIMARY);
+  await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+  ok(JSON.stringify(await setStates(page)) === '["done","done","done"]' && (await primaryText(page)) === "Weiter: Deadlift" && (await page.textContent('[data-card="now"] .sd-eyebrow')).includes("Erledigt"),
+     `${tag}: nach dem letzten Satz gespeichert, Eyebrow 'Erledigt', Primärbutton 'Weiter: Deadlift'`);
+  ok((await storedLogKeys(page)).join() === "2026-09-08_squats" && (await kraftMeta(page)) === "1 von 8 erledigt", `${tag}: genau ein Dokument geschrieben, Zähler 1 von 8`);
+
+  const weiter = [];
+  for (let i = 0; i < 7; i++) {
+    weiter.push(await primaryText(page));
+    await page.click(PRIMARY);
+    await finishExercise(page);
+  }
+  ok(weiter[0] === "Weiter: Deadlift" && weiter[1] === "Weiter: Nordic hamstring curl" && weiter[6] === "Weiter: Planks (wechselnd)" && weiter.length === 7,
+     `${tag}: 'Weiter: …' führt durch alle 8 Übungen in Plan-Reihenfolge (${weiter.join(" | ")})`);
+  ok((await primaryText(page)) === "Training abschließen" && (await primaryAction(page)) === "finish-session", `${tag}: nach der letzten Übung heißt der Primärbutton 'Training abschließen'`);
+  ok((await page.textContent('[data-card="all-done"]')).includes("Alle 8 Übungen erfasst") && (await kraftMeta(page)) === "8 von 8 erledigt" && (await storedLogKeys(page)).length === 8,
+     `${tag}: Karte 'Alle 8 Übungen erfasst', Zähler 8 von 8, 8 Dokumente`);
+  ok(await waitLive(page, "Alle Übungen erfasst."), `${tag}: Live-Region meldet 'Alle Übungen erfasst.'`);
+
+  await page.click(PRIMARY);
+  if (origin === "Heute") {
+    await page.waitForSelector(TODAY);
+    ok((await page.locator("#app.is-detail").count()) === 0 && (await page.locator("#tabbar").isVisible()) && (await page.locator("#tabbar button.active").getAttribute("data-tab")) === "dashboard",
+       `${tag}: Training abschließen führt zurück zu Heute (Tab-Leiste wieder da)`);
+  } else {
+    await waitWeekRows(page);
+    ok((await weekTitle(page)) === "Woche 2" && (await page.locator("#tabbar button.active").getAttribute("data-tab")) === "woche",
+       `${tag}: Training abschließen führt zurück zur Woche`);
+  }
+  ok(errors.length === 0, `${tag}: keine Konsolenfehler ` + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 36b. Fokus wechseln: per Liste und per Fortschrittspunkt, Seite springt nicht, Eingaben bleiben ----
+{
+  scenario("36b");
+  const { page, ctx, errors } = await newPage();
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  const planOrder = await orderSlugs(page);
+  await page.click(PRIMARY); // Squats: Satz 1 fertig
+
+  const before = await page.evaluate(() => { const m = document.getElementById("main"); m.scrollTop = 150; return m.scrollTop; });
+  await page.dispatchEvent('.sd-order__row[data-slug="klimmzuege"]', "click");
+  const afterRow = await page.evaluate(() => document.getElementById("main").scrollTop);
+  ok((await nowSlug(page)) === "klimmzuege" && (await page.locator(".sd-order__row.is-current").count()) === 1 &&
+     (await page.getAttribute(".sd-order__row.is-current", "data-slug")) === "klimmzuege" && (await page.getAttribute(".sd-order__row.is-current", "aria-current")) === "true",
+     "Fokus: Tipp auf eine Zeile macht die Übung zur Jetzt-Übung (genau eine aktuelle Zeile, aria-current)");
+  ok(before > 0 && afterRow === before, `Fokus: die Seite springt nicht (scrollTop ${before} -> ${afterRow})`);
+  ok(await page.evaluate(() => document.activeElement?.classList.contains("sd-order__row") && document.activeElement.dataset.slug === "klimmzuege"),
+     "Fokus: nach dem Tipp bleibt der Fokus auf der getippten Zeile");
+  ok(JSON.stringify(await orderSlugs(page)) === JSON.stringify(planOrder), "Fokus: Plan-Reihenfolge der Liste bleibt unverändert");
+
+  await page.dispatchEvent('.sd-dots__seg[data-slug="brustpresse"]', "click");
+  const ds = await dotStates(page);
+  ok((await nowSlug(page)) === "brustpresse" && ds[planOrder.indexOf("brustpresse")] === "current" && ds.filter((d) => d === "current").length === 1,
+     "Fokus: Tipp auf einen Fortschrittspunkt wechselt die Übung, genau ein aktueller Punkt");
+  ok(await page.evaluate(() => document.activeElement?.classList.contains("sd-dots__seg") && document.activeElement.dataset.slug === "brustpresse"),
+     "Fokus: nach dem Tipp auf den Punkt bleibt der Fokus auf dem Punkt");
+  ok((await page.getAttribute('.sd-dots__seg[data-slug="brustpresse"]', "aria-label")) === "Brustpresse, aktuelle Übung" &&
+     (await page.getAttribute('.sd-dots__seg[data-slug="deadlift"]', "aria-label")) === "Deadlift, offen",
+     "Fokus: Punkte tragen den Status im aria-label");
+
+  await page.dispatchEvent('.sd-order__row[data-slug="squats"]', "click");
+  ok(JSON.stringify(await setStates(page)) === '["done","active","open"]', "Fokus: beim Zurückwechseln ist Satz 1 von Squats noch fertig (nichts ging verloren)");
+  ok(errors.length === 0, "Fokus: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 36c. Stepper: Gewicht wirkt auf folgende Sätze, Wdh nur auf den Satz; Schrittweiten und Untergrenze 0 ----
+{
+  scenario("36c");
+  const { page, ctx } = await newPage();
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  const step = (field, dir) => page.click(`.sd-set--active [data-action="step"][data-field="${field}"][data-dir="${dir}"]`);
+
+  ok((await page.isDisabled('.sd-set--active [data-action="step"][data-field="kg"][data-dir="-1"]')) && (await stepperNum(page, "kg")) === "0",
+     "Stepper: Gewicht startet ohne Historie bei 0, '−' ist gesperrt (Untergrenze 0)");
+  await step("kg", 1);
+  ok((await stepperNum(page, "kg")) === "2,5", "Stepper: Gewicht ±2,5 kg (0 -> 2,5)");
+  await step("kg", 1);
+  ok((await stepperNum(page, "kg")) === "5" && JSON.stringify(await setValues(page)) === '["*","5 kg × 8","5 kg × 8"]',
+     "Stepper: Gewicht wirkt auf die folgenden Sätze (5 kg in Satz 2 und 3)");
+  await step("reps", 1);
+  ok((await stepperNum(page, "reps")) === "9" && JSON.stringify(await setValues(page)) === '["*","5 kg × 8","5 kg × 8"]',
+     "Stepper: Wiederholungen ±1 und nur für diesen Satz (Satz 2 und 3 bleiben bei 8)");
+  await step("reps", -1); await step("reps", -1);
+  await page.click(PRIMARY);
+  ok((await stepperNum(page, "kg")) === "5" && (await stepperNum(page, "reps")) === "8" && (await setValues(page))[0] === "5 kg × 7",
+     "Stepper: Satz 2 startet mit dem Gewicht von Satz 1 und dem Wdh-Startwert; Satz 1 steht bei '5 kg × 7'");
+  await step("kg", -1);
+  ok(JSON.stringify(await setValues(page)) === '["5 kg × 7","*","2,5 kg × 8"]', "Stepper: Gewicht in Satz 2 ändern lässt fertige Sätze unberührt, wirkt auf Satz 3");
+
+  for (let i = 0; i < 8; i++) await step("reps", -1);
+  ok((await stepperNum(page, "reps")) === "0" && (await page.isDisabled('.sd-set--active [data-action="step"][data-field="reps"][data-dir="-1"]')),
+     "Stepper: Wiederholungen enden bei 0 ('−' gesperrt)");
+  ok((await page.getAttribute('.sd-set--active [data-action="step"][data-field="kg"][data-dir="1"]', "aria-label")) === "Gewicht erhöhen" &&
+     (await page.getAttribute('.sd-set--active .sd-stepper--weight', "aria-label")) === "Gewicht in kg" &&
+     (await page.getAttribute('.sd-set--active [data-action="edit-value"][data-field="kg"]', "aria-label")) === "Gewicht eintippen, aktuell 2,5 kg",
+     "Stepper: Tasten und Gruppe tragen aria-labels");
+
+  // Zeit-Übung: Sekunden ±5, Gruppe "Dauer in Sekunden", kein "+ Gewicht"
+  await page.click('.sd-order__row[data-slug="planks-wechselnd"]');
+  ok((await nowMode(page)) === "time" && (await page.locator(".sd-set--active .sd-stepper").count()) === 1 && (await stepperNum(page, "sec")) === "30" &&
+     (await page.getAttribute(".sd-set--active .sd-stepper", "aria-label")) === "Dauer in Sekunden" && (await page.locator('[data-action="add-weight"]').count()) === 0,
+     "Stepper Zeit: ein Stepper in Sekunden (Start 30 s), Gruppe 'Dauer in Sekunden', kein '+ Gewicht'");
+  await page.click('.sd-set--active [data-action="step"][data-field="sec"][data-dir="1"]');
+  ok((await stepperNum(page, "sec")) === "35" && (await page.getAttribute('.sd-set--active [data-action="step"][data-field="sec"][data-dir="1"]', "aria-label")) === "Sekunden erhöhen",
+     "Stepper Zeit: Schritt ±5 s (30 -> 35)");
+  for (let i = 0; i < 7; i++) await page.click('.sd-set--active [data-action="step"][data-field="sec"][data-dir="-1"]');
+  ok((await stepperNum(page, "sec")) === "0" && (await page.isDisabled('.sd-set--active [data-action="step"][data-field="sec"][data-dir="-1"]')),
+     "Stepper Zeit: endet bei 0 s");
+  await ctx.close();
+}
+
+// ---- 36d. V1 direkte Eingabe: Tipp auf den Wert, Zahlentastatur, >= 16 px, Enter/Fertig/Verlassen/± übernehmen ----
+{
+  scenario("36d");
+  const { page, ctx } = await newPage();
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  await page.click('.sd-set--active [data-action="edit-value"][data-field="kg"]');
+  const input = await page.locator(".sd-stepper__input").evaluate((el) => ({
+    px: parseFloat(getComputedStyle(el).fontSize), mode: el.getAttribute("inputmode"), label: el.getAttribute("aria-label"),
+    value: el.value, focused: document.activeElement === el, selected: el.selectionStart === 0 && el.selectionEnd === el.value.length,
+  }));
+  ok(input.px >= 16 && input.mode === "decimal" && input.label === "Gewicht in kg" && input.focused && input.selected,
+     `V1: Feld hat Fokus, Inhalt markiert, inputmode decimal, aria-label, Schrift ${input.px}px (>= 16)`);
+  ok((await page.locator('.sd-set__head [data-action="commit-value"]').textContent()).trim() === "Fertig" && (await page.locator(".sd-stepper__input").count()) === 1,
+     "V1: im Satzkopf erscheint 'Fertig', es ist nur ein Feld offen");
+  await page.fill(".sd-stepper__input", "82,5");
+  await page.press(".sd-stepper__input", "Enter");
+  ok((await stepperNum(page, "kg")) === "82,5" && (await setValues(page))[1] === "82,5 kg × 8" && (await page.locator(".sd-stepper__input").count()) === 0,
+     "V1: Enter übernimmt die Kommazahl (82,5), Feld schließt, Gewicht gilt für Satz 2 und 3");
+  ok((await activeAction(page)) === "edit-value" && (await page.evaluate(() => document.activeElement.dataset.field)) === "kg", "V1: nach dem Übernehmen steht der Fokus wieder auf dem Wert");
+  await enterValue(page, "kg", "abc");
+  ok((await stepperNum(page, "kg")) === "82,5", "V1: ungültige Eingabe lässt den alten Wert stehen");
+
+  await page.click('.sd-set--active [data-action="edit-value"][data-field="reps"]');
+  ok((await page.getAttribute(".sd-stepper__input", "inputmode")) === "numeric" && (await page.getAttribute(".sd-stepper__input", "aria-label")) === "Wiederholungen",
+     "V1: Wiederholungen mit numerischer Tastatur");
+  await page.fill(".sd-stepper__input", "11");
+  await page.click('[data-action="commit-value"]');
+  ok((await stepperNum(page, "reps")) === "11" && (await activeAction(page)) === "edit-value", "V1: 'Fertig' übernimmt den Wert");
+
+  // Verlassen und Tipp auf ± übernehmen den getippten Wert
+  await page.click('.sd-set--active [data-action="edit-value"][data-field="reps"]');
+  await page.fill(".sd-stepper__input", "5");
+  await page.click('.sd-set--active [data-action="step"][data-field="kg"][data-dir="1"]');
+  ok((await stepperNum(page, "reps")) === "5" && (await stepperNum(page, "kg")) === "85", "V1: Tipp auf ± übernimmt zuerst den getippten Wert");
+  await page.click('.sd-set--active [data-action="edit-value"][data-field="kg"]');
+  await page.fill(".sd-stepper__input", "70");
+  await page.click(PRIMARY); // ohne Enter: das Verlassen übernimmt, der Tipp auf "Satz fertig" geht nicht verloren
+  ok((await setValues(page))[0] === "70 kg × 5" && JSON.stringify(await setStates(page)) === '["done","active","open"]',
+     "V1: 'Satz fertig' direkt aus dem offenen Feld übernimmt den Wert (70 kg × 5), der Tipp geht nicht verloren");
+  await page.click('.sd-set--active [data-action="edit-value"][data-field="kg"]');
+  await page.press(".sd-stepper__input", "Escape");
+  ok((await page.locator(".sd-stepper__input").count()) === 0 && (await stepperNum(page, "kg")) === "70", "V1: Escape schließt das Feld ohne Änderung");
+  await ctx.close();
+}
+
+// ---- 36e. "+ Gewicht" in einer Nur-Wdh-Übung (E3), Zeit-Übung ohne ----
+{
+  scenario("36e");
+  const { page, ctx } = await newPage();
+  await page.addInitScript(() => {
+    if (localStorage.getItem("test.logs")) return; // der Init-Skript läuft bei jedem Reload erneut
+    localStorage.setItem("test.logs", JSON.stringify({
+      "2026-09-01_klimmzuege": { date: "2026-09-01", exercise: "klimmzuege", completed: true, soll: "3x6-8",
+        sets: [{ kg: null, reps: 8 }, { kg: null, reps: 8 }, { kg: 0, reps: 8 }] },
+    }));
+  });
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  await page.click('.sd-order__row[data-slug="klimmzuege"]');
+  ok((await nowMode(page)) === "reps" && (await page.locator(".sd-set--active .sd-stepper--solo").count()) === 1 && (await page.locator(".sd-set--active .sd-stepper").count()) === 1 &&
+     (await page.textContent('.sd-set__head [data-action="add-weight"]')).trim() === "+ Gewicht",
+     "+ Gewicht: Übung ohne Gewicht (null und Altbestand 0) zeigt nur Wiederholungen und den Text-Button '+ Gewicht'");
+  await page.click('[data-action="add-weight"]');
+  ok((await nowMode(page)) === "weight" && (await page.locator(".sd-set--active .sd-stepper").count()) === 2 && (await stepperNum(page, "kg")) === "0" &&
+     (await page.getAttribute(".sd-set--active .sd-stepper--weight", "aria-label")) === "Zusatzgewicht in kg" && (await page.locator('[data-action="add-weight"]').count()) === 0,
+     "+ Gewicht: Gewichts-Stepper erscheint (Start 0, 'Zusatzgewicht in kg'), der Knopf verschwindet");
+  ok((await activeAction(page)) === "edit-value" && (await page.evaluate(() => document.activeElement.dataset.field)) === "kg", "+ Gewicht: Fokus wandert auf den neuen Gewichts-Wert");
+  await enterValue(page, "kg", "10");
+  await finishExercise(page);
+  const doc = await storedLog(page, "2026-09-08", "klimmzuege");
+  ok(JSON.stringify(doc.sets) === JSON.stringify([{ kg: 10, reps: 8 }, { kg: 10, reps: 8 }, { kg: 10, reps: 8 }]) && doc.topKg === 10,
+     "+ Gewicht: Zusatzgewicht wird mitgespeichert (kg 10 in allen Sätzen) " + JSON.stringify(doc.sets));
+  await page.reload();
+  await page.waitForSelector("#tabbar button.active");
+  await openKraftViaWeek(page);
+  await page.click('.sd-order__row[data-slug="klimmzuege"]');
+  ok((await nowMode(page)) === "weight" && JSON.stringify(await setValues(page)) === '["10 kg × 8","10 kg × 8","10 kg × 8"]',
+     "+ Gewicht: nach dem Reload bleibt die Übung im Gewichts-Modus (heute mit Gewicht gespeichert)");
+  await ctx.close();
+}
+
+// ---- 36f. Vorzeitig abschließen: nur die fertigen Sätze, nie Startwerte (Auflage C1) ----
+{
+  scenario("36f");
+  const { page, ctx } = await newPage();
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  ok((await page.locator('[data-action="finish-early"]').count()) === 0, "Früh abschließen: ohne fertigen Satz kein Knopf");
+  await enterValue(page, "kg", "80");
+  await enterValue(page, "reps", "9");
+  await page.click(PRIMARY);
+  ok((await page.textContent('[data-action="finish-early"]')).trim() === "Mit 1 Satz abschließen", "Früh abschließen: nach einem Satz 'Mit 1 Satz abschließen' (Einzahl)");
+  await enterValue(page, "reps", "7");
+  await page.click(PRIMARY);
+  ok((await page.textContent('[data-action="finish-early"]')).trim() === "Mit 2 Sätzen abschließen", "Früh abschließen: nach zwei Sätzen 'Mit 2 Sätzen abschließen'");
+  await page.click('[data-action="finish-early"]');
+  await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+  const doc = await storedLog(page, "2026-09-08", "squats");
+  ok(JSON.stringify(doc.sets) === JSON.stringify([{ kg: 80, reps: 9 }, { kg: 80, reps: 7 }]) && doc.totalReps === 16 && doc.topKg === 80,
+     "Früh abschließen: gespeichert sind genau die 2 fertigen Sätze, der vorbelegte dritte (80 × 8) fehlt " + JSON.stringify(doc.sets));
+  ok(JSON.stringify(await setStates(page)) === '["done","done","open"]' && (await primaryText(page)) === "Weiter: Deadlift" && (await kraftMeta(page)) === "1 von 8 erledigt" &&
+     (await page.locator('[data-action="finish-early"]').count()) === 0,
+     "Früh abschließen: Satz 3 bleibt offen, Primärbutton 'Weiter: Deadlift', Knopf weg, Zähler 1 von 8");
+  await page.reload();
+  await page.waitForSelector("#tabbar button.active");
+  await openKraftViaWeek(page);
+  await page.click('.sd-order__row[data-slug="squats"]');
+  ok(JSON.stringify(await setStates(page)) === '["done","done","active"]' && (await primaryText(page)) === "Satz 3 fertig",
+     "Früh abschließen: wieder geöffnet kommen die 2 gespeicherten Sätze plus der restliche Satz laut Soll");
+  ok(JSON.stringify((await storedLog(page, "2026-09-08", "squats")).sets.length) === "2", "Früh abschließen: das Öffnen ändert das gespeicherte Dokument nicht");
+  await ctx.close();
+}
+
+// ---- 36g. Korrektur (F6): gespeicherte Übung und fertigen Satz wieder öffnen, erneutes Speichern überschreibt ----
+{
+  scenario("36g");
+  const { page, ctx, errors } = await newPage();
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  await enterValue(page, "kg", "60");
+  await finishExercise(page);
+  await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+
+  await page.click('[data-action="reopen-set"][data-set="1"]');
+  ok(JSON.stringify(await setStates(page)) === '["done","active","done"]' && (await stepperNum(page, "kg")) === "60" && (await stepperNum(page, "reps")) === "8" &&
+     (await page.getAttribute('.sd-set--active', "aria-label")) === "Satz 2" && (await activeAction(page)) === "step",
+     "Korrektur: Tipp auf den fertigen Satz 2 öffnet ihn wieder (Stepper mit gespeicherten Werten), Fokus im Stepper");
+  for (let i = 0; i < 4; i++) await page.click('.sd-set--active [data-action="step"][data-field="reps"][data-dir="1"]');
+  ok((await primaryText(page)) === "Satz 2 fertig", "Korrektur: Primärbutton 'Satz 2 fertig'");
+  await page.click(PRIMARY);
+  await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+  const doc = await storedLog(page, "2026-09-08", "squats");
+  ok(doc.sets.length === 3 && doc.sets[1].reps === 12 && doc.totalReps === 28 && (await storedLogKeys(page)).filter((k) => k.endsWith("_squats")).length === 1,
+     "Korrektur: erneutes Speichern überschreibt dasselbe Dokument (Satz 2 jetzt 12 Wdh, ein Dokument) " + JSON.stringify(doc.sets));
+  ok((await primaryText(page)) === "Weiter: Deadlift" && (await kraftMeta(page)) === "1 von 8 erledigt", "Korrektur: danach wieder 'Weiter: Deadlift', Zähler unverändert");
+
+  // gespeicherte Übung per Liste und per Punkt wieder zur Jetzt-Übung machen
+  await page.click('.sd-order__row[data-slug="deadlift"]');
+  ok((await dotStates(page))[0] === "done" && (await page.getAttribute('.sd-dots__seg[data-slug="squats"]', "aria-label")) === "Squats, erledigt",
+     "Korrektur: erledigte Übung ist im Punkt als erledigt markiert (aria-label 'Squats, erledigt')");
+  await page.click('.sd-dots__seg[data-slug="squats"]');
+  ok((await nowSlug(page)) === "squats" && (await page.textContent('[data-card="now"] .sd-eyebrow')).includes("Erledigt") && (await dotStates(page))[0] === "current" &&
+     (await page.getAttribute('.sd-dots__seg[data-slug="squats"]', "aria-label")) === "Squats, aktuelle Übung, erledigt",
+     "Korrektur: Tipp auf den erledigten Punkt macht Squats wieder aktuell (Eyebrow 'Erledigt', aria-label '… aktuelle Übung, erledigt')");
+  await page.click('.sd-order__row[data-slug="deadlift"]');
+  await page.click('.sd-order__row[data-slug="squats"]');
+  ok((await nowSlug(page)) === "squats" && (await page.locator('.sd-order__row.is-current.is-done[data-slug="squats"]').count()) === 1,
+     "Korrektur: Tipp auf die erledigte Zeile macht sie wieder aktuell (is-current + is-done)");
+  ok(errors.length === 0, "Korrektur: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 36h. Firestore-Stub-Write gleich dem Vorher-Payload (Auflage C1, Fixture kraft-payload-before.json) ----
+{
+  scenario("36h");
+  const FIX = JSON.parse(readFileSync(new URL("./fixtures/kraft-payload-before.json", import.meta.url), "utf8"));
+  const { page, ctx, errors } = await newPage();
+  await page.addInitScript(() => {
+    // Körpergewicht: letzte Einheit ohne Gewicht -> Wdh-Modus (F5). Eigene Übung über die Tagesanpassung.
+    localStorage.setItem("test.logs", JSON.stringify({
+      "2026-09-01_klimmzuege": { date: "2026-09-01", exercise: "klimmzuege", completed: true, soll: "3x6-8",
+        sets: [{ kg: null, reps: 6 }, { kg: null, reps: 6 }, { kg: null, reps: 6 }] },
+    }));
+    localStorage.setItem("test.dayplan.2026-09-08", JSON.stringify({ removed: [], added: [{ name: "Beinpresse", soll: "4x10", hint: "Eigene Übung" }] }));
+  });
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  for (const c of FIX.cases) {
+    const slug = c.docId.replace(/^logs\/\d{4}-\d{2}-\d{2}_/, "");
+    await page.click(`.sd-order__row[data-slug="${slug}"]`);
+    await page.waitForSelector(`[data-card="now"][data-slug="${slug}"]`);
+    const modeOk = (await nowMode(page)) === c.mode;
+    for (const set of c.input.sets) {
+      if (c.mode === "weight" && set.kg > 0) await enterValue(page, "kg", String(set.kg).replace(".", ","));
+      await enterValue(page, c.mode === "time" ? "sec" : "reps", String(set.reps));
+      await page.click(PRIMARY);
+    }
+    await page.waitForSelector(`${PRIMARY}:not([disabled])`);
+    const doc = await storedLog(page, "2026-09-08", slug);
+    const expected = c.after ?? c.before;
+    const { date, exercise, ...rest } = doc ?? {};
+    ok(modeOk && doc && (await storedLogKeys(page)).includes(c.docId.replace(/^logs\//, "")) && date === "2026-09-08" && exercise === slug,
+       `Payload '${c.label}': Modus ${c.mode}, gleiche Doc-ID (${c.docId}), date und exercise gesetzt`);
+    ok(JSON.stringify(Object.keys(doc ?? {})) === JSON.stringify(["date", "exercise", ...Object.keys(expected)]) && JSON.stringify(rest) === JSON.stringify(expected),
+       `Payload '${c.label}': gleiche Feldnamen in gleicher Reihenfolge und gleiche Werte ${JSON.stringify(rest)}`);
+  }
+  ok(errors.length === 0, "Payload: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ---- 36i. Speichern: "Speichert …", optimistisch, Rücknahme bei Fehler (sofort und spät) ----
+{
+  scenario("36i");
+  // A: der Schreibvorgang scheitert sofort
+  {
+    const { page, ctx } = await newPage();
+    await page.addInitScript(() => { window.__SAVE_FAIL__ = "Kaputt"; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await enterValue(page, "kg", "80");
+    for (let i = 0; i < 3; i++) await page.click(PRIMARY);
+    await page.waitForSelector('[data-slot="save-error"]');
+    ok((await page.textContent('[data-slot="save-error"]')).includes("Nicht gespeichert: Kaputt") && (await page.getAttribute('[data-slot="save-error"]', "role")) === "alert",
+       "Rücknahme: Fehler steht als Meldung in der Karte (role=alert, mit Originaltext)");
+    ok(JSON.stringify(await setStates(page)) === '["done","done","active"]' && (await primaryText(page)) === "Satz 3 fertig",
+       "Rücknahme: der letzte Satz ist wieder aktiv, Primärbutton 'Satz 3 fertig'");
+    ok((await kraftMeta(page)) === "0 von 8 erledigt" && (await dotStates(page))[0] === "current" && !(await storedLogKeys(page)).length,
+       "Rücknahme: nichts als gespeichert gezählt, Punkt nicht erledigt, kein Dokument geschrieben");
+    ok((await page.textContent("#toast.error")).includes("Speichern fehlgeschlagen"), "Rücknahme: zusätzlich der Fehler-Toast");
+    await page.evaluate(() => { window.__SAVE_FAIL__ = null; });
+    await page.click(PRIMARY);
+    await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+    ok((await page.locator('[data-slot="save-error"]').count()) === 0 && (await storedLogKeys(page)).length === 1 && (await kraftMeta(page)) === "1 von 8 erledigt",
+       "Rücknahme: erneuter Versuch klappt, Meldung weg, ein Dokument");
+    await ctx.close();
+  }
+  // B: "Speichert …" solange das Schreiben dauert
+  {
+    const { page, ctx } = await newPage();
+    await page.addInitScript(() => { window.__SAVE_DELAY__ = 500; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    for (let i = 0; i < 3; i++) await page.click(PRIMARY);
+    ok((await primaryText(page)) === "Speichert …" && (await page.isDisabled(PRIMARY)) && (await page.getAttribute(PRIMARY, "aria-busy")) === "true",
+       "Speichert: Primärbutton 'Speichert …' ist gesperrt und aria-busy");
+    await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+    ok((await primaryText(page)) === "Weiter: Deadlift", "Speichert: danach 'Weiter: Deadlift'");
+    await ctx.close();
+  }
+  // C: Offline-Cache: nach 800 ms gilt die Übung optimistisch als gespeichert, ein späterer Fehler nimmt sie zurück
+  {
+    const { page, ctx } = await newPage();
+    await page.addInitScript(() => { window.__SAVE_DELAY__ = 1400; window.__SAVE_FAIL__ = "Spät"; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    for (let i = 0; i < 3; i++) await page.click(PRIMARY);
+    await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+    ok((await kraftMeta(page)) === "1 von 8 erledigt", "Optimistisch: nach dem Zeitfenster gilt die Übung als gespeichert (Offline-Cache wartet nicht)");
+    await page.waitForSelector('[data-slot="save-error"]', { timeout: 4000 });
+    ok((await kraftMeta(page)) === "0 von 8 erledigt" && (await page.textContent('[data-slot="save-error"]')).includes("Spät") && (await primaryText(page)) === "Satz 3 fertig",
+       "Optimistisch: der späte Fehler nimmt alles zurück (0 von 8, Meldung, Satz 3 wieder aktiv)");
+    await ctx.close();
+  }
+}
+
+// ---- 36j. Live-Region #kraftLive: außerhalb des neu gezeichneten #main, Text kommt erst nach dem Einfügen ----
+{
+  scenario("36j");
+  const { page, ctx } = await newPage();
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  const live = await page.evaluate(() => {
+    const el = document.getElementById("kraftLive");
+    return { exists: !!el, role: el?.getAttribute("role"), polite: el?.getAttribute("aria-live"), inMain: !!document.querySelector("#main #kraftLive"), text: el?.textContent };
+  });
+  ok(live.exists && live.role === "status" && live.polite === "polite" && !live.inMain && live.text === "",
+     "Live-Region: #kraftLive (role=status, polite) liegt außerhalb von #main und startet leer");
+  await page.click(PRIMARY);
+  ok(await waitLive(page, "Satz 1 fertig. Als Nächstes Satz 2."), "Live-Region: nach 'Satz 1 fertig' -> 'Satz 1 fertig. Als Nächstes Satz 2.'");
+  await page.click(PRIMARY);
+  await page.click(PRIMARY);
+  ok(await waitLive(page, "Squats gespeichert. Als Nächstes Deadlift."), "Live-Region: nach dem Speichern -> 'Squats gespeichert. Als Nächstes Deadlift.'");
+  await page.click('.sd-order__row[data-slug="klimmzuege"]');
+  ok(await waitLive(page, "Jetzt: Klimmzüge."), "Live-Region: nach dem Wechsel -> 'Jetzt: Klimmzüge.'");
+  ok((await page.evaluate(() => document.getElementById("kraftLive").isConnected && document.querySelectorAll("#kraftLive").length === 1)), "Live-Region: bleibt über alle Neuzeichnungen derselbe einzelne Knoten");
+  await ctx.close();
+}
+
+// ---- 36k. Strava-Zeile der Einheit (F7): mit Daten, ohne Verbindung, Teile entfallen einzeln ----
+{
+  scenario("36k");
+  const wt = (extra) => [{ id: 7, type: "WeightTraining", name: "Weights", start_date_local: "2026-09-08T10:10:00Z", distance: 0, moving_time: 3868, ...extra }];
+  const line = (page) => page.textContent('[data-card="strava-session"] dd').then((t) => t.replace(/\s+/g, " ").trim());
+  {
+    const { page, ctx } = await newPage({ connected: true });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.waitForSelector('[data-card="strava-session"]');
+    ok((await line(page)) === "64 min · Ø 118 bpm · max 155 bpm · Relative Effort 15" && (await page.textContent('[data-card="strava-session"] dt')).trim() === "Einheit laut Strava",
+       "Strava-Zeile: 'Einheit laut Strava' mit Dauer, Ø und max HF, Relative Effort");
+    await page.click('.sd-order__row[data-slug="deadlift"]');
+    ok((await page.locator('#session-slot [data-card="strava-session"]').count()) === 1, "Strava-Zeile: bleibt nach einem Fokus-Wechsel stehen");
+    await ctx.close();
+  }
+  {
+    const { page, ctx } = await newPage({ connected: true, activities: wt({ average_heartrate: 118.4, max_heartrate: 155 }) });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.waitForSelector('[data-card="strava-session"]');
+    ok((await line(page)) === "64 min · Ø 118 bpm · max 155 bpm", "Strava-Zeile: ohne Relative Effort entfällt der Teil");
+    await ctx.close();
+  }
+  {
+    const { page, ctx } = await newPage({ connected: true, activities: wt({}) });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.waitForSelector('[data-card="strava-session"]');
+    ok((await line(page)) === "64 min", "Strava-Zeile: nur die Dauer, wenn keine Herzfrequenz da ist");
+    await ctx.close();
+  }
+  {
+    const { page, ctx } = await newPage({ connected: false });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.waitForTimeout(500);
+    ok((await page.locator('[data-card="strava-session"]').count()) === 0 && (await slotIsEmpty(page, "session-slot")), "Strava-Zeile: nicht verbunden -> kein Platzhalter, Slot wirklich leer");
+    await ctx.close();
+  }
+  {
+    const { page, ctx } = await newPage({ connected: true, activities: [] });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.waitForTimeout(500);
+    ok((await page.locator('[data-card="strava-session"]').count()) === 0 && (await slotIsEmpty(page, "session-slot")), "Strava-Zeile: verbunden, aber keine Einheit an dem Tag -> Slot leer");
+    await ctx.close();
+  }
+}
+
+// ---- 36l. Kraft-Tag allgemein: kein style=, Tab-Leiste weg, Scroll nach oben beim Öffnen, leerer Tag, 320 px ----
+{
+  scenario("36l");
+  const { page, ctx, errors } = await newPage();
+  await page.clock.setFixedTime(new Date("2026-09-08T09:00:00Z"));
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector(TODAY);
+  const heuteScroll = await page.evaluate(() => { const m = document.getElementById("main"); m.scrollTop = 120; return m.scrollTop; });
+  await page.dispatchEvent(`${TODAY} [data-action="open-day"]`, "click");
+  await waitKraft(page);
+  ok(heuteScroll > 0 && (await page.evaluate(() => document.getElementById("main").scrollTop)) === 0, `Kraft-Tag: öffnet oben (vorher gescrollt ${heuteScroll})`);
+  ok((await styleAttrCount(page)) === 0, "Kraft-Tag: kein style= im gerenderten Markup (Normalansicht)");
+  ok(!(await page.locator("#tabbar").isVisible()) && (await page.locator("#header").innerHTML()) === "", "Kraft-Tag: Tab-Leiste ausgeblendet, #header leer");
+  await page.setViewportSize({ width: 320, height: 640 });
+  await noHScroll(page, "Kraft-Tag 320 px");
+  const stacked = await page.locator(".sd-set--active .sd-stepper").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  ok(stacked.length === 2 && stacked[1] > stacked[0], `Kraft-Tag 320 px: die beiden Stepper stehen untereinander (${stacked.join("/")})`);
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  // Anpassen-Ansicht und leerer Tag
+  await page.click('[data-action="toggle-edit"]');
+  await page.waitForSelector('[data-card="edit-list"]');
+  ok((await styleAttrCount(page)) === 0, "Kraft-Tag: kein style= in der Anpassen-Ansicht");
+  for (let i = 0; i < 8; i++) await page.click('[data-action="remove-exercise"]');
+  await page.click('[data-action="toggle-edit"]');
+  await page.waitForSelector('[data-card="no-exercises"]');
+  ok((await page.textContent('[data-card="no-exercises"]')).includes("Keine Übungen für heute") && (await kraftMeta(page)) === "Keine Übungen" &&
+     (await page.locator(".sd-dots, .sd-order, [data-card='now']").count()) === 0 && (await page.locator('[data-action="toggle-edit"]').count()) === 1,
+     "Leer: Karte 'Keine Übungen für heute', Zähler 'Keine Übungen', keine Punkte/Liste/Jetzt-Karte, nur ein 'Anpassen'");
+  await page.click('[data-card="no-exercises"] [data-action="toggle-edit"]');
+  await page.waitForSelector('[data-card="edit-list"]');
+  ok((await page.locator('.sd-edit__row.is-removed [data-action="restore-exercise"]').count()) === 8, "Leer: 'Anpassen' führt zum Zurückholen (8 entfernte Übungen)");
+  ok(errors.length === 0, "Kraft-Tag: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
