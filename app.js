@@ -3,35 +3,36 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610211227";
-import { loadPlans } from "./plan-store.js?v=202610211227";
+} from "./plan.js?v=202610211239";
+import { loadPlans } from "./plan-store.js?v=202610211239";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610211227";
+} from "./firebase-init.js?v=202610211239";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport,
-} from "./strava.js?v=202610211227";
-import { previousEntry, progressionChip } from "./progression.js?v=202610211227";
+} from "./strava.js?v=202610211239";
+import { previousEntry, progressionChip } from "./progression.js?v=202610211239";
 import {
   exerciseMode, startSets, lastTimeText, applyWeightForward, initialFocus, nextOpenExercise,
   stepValue, buildLogPayload, MAX_VALUE,
-} from "./kraftflow.js?v=202610211227";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610211227";
-import { distanceStatus, hrStatus } from "./runcompare.js?v=202610211227";
-import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet } from "./ui.js?v=202610211227";
-import * as dash from "./view-dashboard.js?v=202610211227";
-import * as dashWeek from "./view-week.js?v=202610211227";
-import * as kraftView from "./view-kraft.js?v=202610211227";
-import * as metrics from "./metrics.js?v=202610211227";
-import * as coach from "./coach.js?v=202610211227";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610211227";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610211227";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610211227";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610211227";
+  draftKey, serializeDraft, parseDraft, staleDraftKeys, dropSavedFromDraft,
+} from "./kraftflow.js?v=202610211239";
+import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610211239";
+import { distanceStatus, hrStatus } from "./runcompare.js?v=202610211239";
+import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet } from "./ui.js?v=202610211239";
+import * as dash from "./view-dashboard.js?v=202610211239";
+import * as dashWeek from "./view-week.js?v=202610211239";
+import * as kraftView from "./view-kraft.js?v=202610211239";
+import * as metrics from "./metrics.js?v=202610211239";
+import * as coach from "./coach.js?v=202610211239";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610211239";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610211239";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610211239";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610211239";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -1023,6 +1024,7 @@ async function renderKraftDay(info, iso, backLabel) {
   kraftSaved = saved;
   buildLogState(effectiveExercises(info), iso);
   focusExerciseId = pickInitialFocus();
+  restoreKraftDraft(iso);
   paintKraft();
   fillSessionSlot(iso, gen);
 }
@@ -1148,6 +1150,75 @@ function paintKraft(focus = null) {
   }
   main.scrollTop = scrollTop;
   applyKraftFocus(focus);
+  persistKraftDraft();
+}
+
+// ---------- Entwurf (V2, Auflage C2) ----------
+// Schutz vor verlorenen Eingaben (Tab neu geladen, App im Hintergrund beendet).
+// Gespeichert wird je Kraft-Tag unter hm-tracker.kraftDraft.<Datum> und nur für
+// Übungen, die noch nicht gespeichert sind. Das Lesen und Schreiben steht nur
+// hier (kraftflow.js bleibt rein); jeder Zugriff ist abgesichert, die App läuft
+// auch ohne Speicher. Persistiert wird in paintKraft: jede Eingabe zeichnet neu.
+const draftSeen = new Set(); // Tage, deren Entwurf in dieser Sitzung geschrieben oder gemeldet wurde
+
+function draftRead(iso) {
+  try { return localStorage.getItem(draftKey(iso)); } catch { return null; }
+}
+
+function draftWrite(iso, text) {
+  try { localStorage.setItem(draftKey(iso), text); } catch { /* ohne Speicher kein Entwurf */ }
+}
+
+function draftRemove(iso) {
+  try { localStorage.removeItem(draftKey(iso)); } catch { /* ohne Speicher kein Entwurf */ }
+}
+
+// Beim Start: Entwürfe älter als 7 Tage löschen. Ein anderer Tag räumt nie ab.
+function purgeStaleDrafts() {
+  try {
+    const keys = Object.keys(localStorage);
+    for (const key of staleDraftKeys(keys, todayISO())) localStorage.removeItem(key);
+  } catch { /* ohne Speicher nichts zu räumen */ }
+}
+
+// Hat der Nutzer in dieser Übung etwas verändert (Wert oder fertiger Satz)?
+function isDirty(st, iso) {
+  const start = buildExerciseState(st, null, iso).sets;
+  const key = (sets) => JSON.stringify(sets.map((x) => [x.kg ?? null, x.reps ?? null, !!x.done]));
+  return key(st.sets) !== key(start);
+}
+
+function persistKraftDraft() {
+  const { iso } = currentKraftDay;
+  if (!kraftOpen || !iso) return;
+  const ex = {};
+  for (const st of logState.values()) {
+    if (st.saved || !isDirty(st, iso)) continue;
+    ex[st.slug] = { sets: st.sets, doneSets: st.sets.filter((x) => x.done).length };
+  }
+  if (!Object.keys(ex).length) return draftRemove(iso);
+  draftWrite(iso, serializeDraft({ focus: Object.hasOwn(ex, focusExerciseId) ? focusExerciseId : null, ex }));
+  draftSeen.add(iso);
+}
+
+// Gespeichertes Dokument gewinnt (R9); der Rest des Entwurfs füllt die Übungen.
+function restoreKraftDraft(iso) {
+  const raw = draftRead(iso);
+  if (raw == null) return;
+  const savedSlugs = [...logState.values()].filter((st) => st.saved).map((st) => st.slug);
+  const draft = dropSavedFromDraft(parseDraft(raw, [...logState.keys()]), savedSlugs);
+  if (!draft) return draftRemove(iso); // kaputt, fremd oder überholt: verwerfen
+  for (const [name, d] of Object.entries(draft.ex)) {
+    const st = logState.get(name);
+    // Nie alle Sätze fertig wiederherstellen: so bliebe nichts zu bedienen.
+    const done = Math.min(d.doneSets, d.sets.length - 1);
+    st.sets = d.sets.map((x, i) => ({ kg: x.kg, reps: x.reps, done: i < done }));
+    st.activeIndex = firstUndone(st.sets);
+    if (st.mode === "reps" && st.sets.some((x) => x.kg > 0)) { st.mode = "weight"; st.weightAdded = true; }
+  }
+  if (draft.focus) focusExerciseId = draft.focus;
+  if (!draftSeen.has(iso)) toast("Eingaben von vorhin wiederhergestellt");
+  draftSeen.add(iso);
 }
 
 // ---------- Fokus und Ansage (Markup 11.13) ----------
@@ -1270,6 +1341,7 @@ function kraftBlurValue() {
   const st = focusedState();
   if (!st?.editing) return;
   applyEditing(st);
+  persistKraftDraft();
   clearTimeout(editBlurTimer);
   editBlurTimer = setTimeout(() => {
     const open = focusedState();
@@ -1344,6 +1416,7 @@ function kraftNextExercise(slugName) {
 }
 
 function kraftFinishSession() {
+  if (currentKraftDay.iso) draftRemove(currentKraftDay.iso);
   state.selectedDate = null;
   runPickerFor = null;
   render();
@@ -2496,6 +2569,7 @@ async function startApp() {
     plans = result.plans;
     planHint = result.hint;
 
+    purgeStaleDrafts();
     state.weekNo = weekNoForTab(todayISO());
     state.historyExercise = defaultHistoryExercise();
     // F0: 35 Tage Vorlauf statt der alten 14 — die Belastungs-Ampel braucht

@@ -3362,6 +3362,233 @@ for (const origin of ["Heute", "Woche"]) {
   await ctx.close();
 }
 
+// ---- 37. V2 Satz-Entwurf (Auflage C2): hm-tracker.kraftDraft.<Datum> in localStorage ----
+{
+  const DRAFT = "hm-tracker.kraftDraft.";
+  const TOAST_TEXT = "Eingaben von vorhin wiederhergestellt";
+  const NOW_ISO = "2026-09-08T09:00:00Z"; // heute = Di 08.09. (Kraft-Tag)
+  const draftKeys = (page) => page.evaluate((p) => Object.keys(localStorage).filter((k) => k.startsWith(p)).sort(), DRAFT);
+  const draftOf = (page, iso) => page.evaluate((k) => { const r = localStorage.getItem(k); return r ? JSON.parse(r) : null; }, DRAFT + iso);
+  const draftRaw = (page, iso) => page.evaluate((k) => localStorage.getItem(k), DRAFT + iso);
+  const toastState = (page) => page.evaluate(() => { const t = document.getElementById("toast"); return { text: t?.textContent ?? "", shown: !!t && t.classList.contains("show") }; });
+  const mkDraft = (ex, focus = null) => JSON.stringify({ v: 1, focus, ex });
+  const sets3 = (kg, reps) => [0, 1, 2].map(() => ({ kg, reps }));
+  const stepKg = (page, dir) => page.click(`.sd-set--active [data-action="step"][data-field="kg"][data-dir="${dir}"]`);
+  const seed = (page, entries) => page.addInitScript((e) => { for (const [k, v] of Object.entries(e)) localStorage.setItem(k, v); }, entries);
+  const today = () => newPage({ now: NOW_ISO });
+
+  // A: Neuladen mitten in der Übung: Sätze, fertige Sätze, Fokus, Toast (einmal)
+  {
+    scenario("37a");
+    const { page, ctx, errors } = await today();
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    ok((await draftKeys(page)).length === 0, "Entwurf: ein bloßes Öffnen schreibt nichts");
+    await page.click(PRIMARY);                    // Squats Satz 1 fertig
+    await stepKg(page, "1");                      // Satz 2: Gewicht +2,5
+    const kgSquat = await stepperNum(page, "kg");
+    await page.click('.sd-order__row[data-slug="deadlift"]');
+    await page.click(PRIMARY);                    // Deadlift Satz 1 fertig
+    const d = await draftOf(page, "2026-09-08");
+    ok(d && d.v === 1 && d.focus === "deadlift" && d.ex.squats.doneSets === 1 && d.ex.deadlift.doneSets === 1 && d.ex.squats.sets.length === 3,
+       "Entwurf: Fokus und je Übung Sätze mit fertigen Sätzen stehen unter hm-tracker.kraftDraft.2026-09-08");
+    ok((await draftKeys(page)).join() === DRAFT + "2026-09-08", "Entwurf: genau ein Schlüssel, das Datum des Kraft-Tags");
+    await page.reload();
+    await openKraftViaWeek(page);
+    const t1 = await toastState(page);
+    ok(t1.shown && t1.text === TOAST_TEXT, "Entwurf: nach dem Neuladen erscheint 'Eingaben von vorhin wiederhergestellt'");
+    ok((await nowSlug(page)) === "deadlift" && JSON.stringify(await setStates(page)) === '["done","active","open"]', "Entwurf: Fokus (Deadlift) und fertiger Satz kommen zurück");
+    await page.click('.sd-order__row[data-slug="squats"]');
+    ok(JSON.stringify(await setStates(page)) === '["done","active","open"]' && (await stepperNum(page, "kg")) === kgSquat,
+       `Entwurf: Squats hat Satz 1 fertig und das geänderte Gewicht (${kgSquat}) im aktiven Satz`);
+    ok((await storedLogKeys(page)).length === 0, "Entwurf: wiederherstellen schreibt kein Dokument");
+    // einmal: Toast räumen, Tag verlassen und wieder öffnen -> kein zweiter Toast
+    await page.evaluate(() => { const t = document.getElementById("toast"); t.className = ""; t.textContent = ""; });
+    await page.click('[data-action="back"]');
+    await openDay(page, "2026-09-08");
+    await waitKraft(page);
+    const t2 = await toastState(page);
+    ok(!t2.shown && t2.text === "", "Entwurf: der Hinweis kommt nur einmal, nicht bei jedem Öffnen");
+    ok(errors.length === 0, "Entwurf A: keine Konsolenfehler " + JSON.stringify(errors));
+    await ctx.close();
+  }
+
+  // B: ein gespeichertes Dokument (anderes Gerät) gewinnt gegen den Entwurf (R9)
+  {
+    scenario("37b");
+    const { page, ctx, errors } = await today();
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click(PRIMARY);                    // Squats Satz 1 fertig (Entwurf)
+    await page.click('.sd-order__row[data-slug="deadlift"]');
+    await page.click(PRIMARY);                    // Deadlift Satz 1 fertig (Entwurf)
+    // anderes Gerät hat Squats gespeichert
+    await page.evaluate(() => {
+      const logs = JSON.parse(localStorage.getItem("test.logs") || "{}");
+      logs["2026-09-08_squats"] = { date: "2026-09-08", exercise: "squats", completed: true, soll: "3x8-10",
+        sets: [{ kg: 77.5, reps: 6 }, { kg: 77.5, reps: 6 }, { kg: 77.5, reps: 5 }] };
+      localStorage.setItem("test.logs", JSON.stringify(logs));
+    });
+    await page.reload();
+    await openKraftViaWeek(page);
+    ok((await kraftMeta(page)) === "1 von 8 erledigt", "Entwurf R9: Squats zählt als gespeichert");
+    await page.click('.sd-order__row[data-slug="squats"]');
+    const vals = await setValues(page);
+    ok(vals.length === 3 && vals.every((v) => v.includes("77,5")), `Entwurf R9: Squats zeigt das gespeicherte Dokument, nicht den Entwurf (${vals.join(" | ")})`);
+    const d = await draftOf(page, "2026-09-08");
+    ok(d && Object.keys(d.ex).join() === "deadlift", "Entwurf R9: der Entwurf behält nur noch Deadlift");
+    ok(JSON.stringify((await storedLog(page, "2026-09-08", "squats")).sets) === JSON.stringify([{ kg: 77.5, reps: 6 }, { kg: 77.5, reps: 6 }, { kg: 77.5, reps: 5 }]),
+       "Entwurf R9: das gespeicherte Dokument bleibt unverändert");
+    ok(errors.length === 0, "Entwurf B: keine Konsolenfehler " + JSON.stringify(errors));
+    await ctx.close();
+  }
+
+  // C: ein vergangener Tag aus der Woche rührt den Entwurf von heute nicht an
+  {
+    scenario("37c");
+    const { page, ctx, errors } = await today();
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);                 // heute
+    await page.click(PRIMARY);
+    const before = await draftRaw(page, "2026-09-08");
+    await page.click('[data-action="back"]');
+    await page.click('[data-action="week-prev"]');
+    await openDay(page, "2026-09-01");
+    await waitKraft(page);
+    ok((await draftRaw(page, "2026-09-08")) === before && before !== null, "Entwurf: das Öffnen eines vergangenen Tags löscht den Entwurf von heute nicht");
+    ok((await draftKeys(page)).join() === DRAFT + "2026-09-08", "Entwurf: ein vergangener Tag ohne Eingabe schreibt keinen Entwurf");
+    await page.click(PRIMARY);
+    ok((await draftKeys(page)).join() === `${DRAFT}2026-09-01,${DRAFT}2026-09-08` && (await draftRaw(page, "2026-09-08")) === before,
+       "Entwurf: der vergangene Tag bekommt seinen eigenen Entwurf, der von heute bleibt unverändert");
+    ok(errors.length === 0, "Entwurf C: keine Konsolenfehler " + JSON.stringify(errors));
+    await ctx.close();
+  }
+
+  // D: Entwürfe älter als 7 Tage fallen beim Start weg, jüngere bleiben
+  {
+    scenario("37d");
+    const { page, ctx, errors } = await today();
+    const ex = mkDraft({ squats: { sets: sets3(60, 8), doneSets: 1 } });
+    await seed(page, {
+      [DRAFT + "2026-08-31"]: ex, // 8 Tage alt
+      [DRAFT + "2026-09-01"]: ex, // 7 Tage alt: bleibt
+      [DRAFT + "2026-09-02"]: ex, // 6 Tage alt
+      [DRAFT + "2026-09-20"]: ex, // künftig
+      [DRAFT + "kaputt"]: ex,     // Datum nicht lesbar
+      "hm-tracker.other": "x",    // fremder Schlüssel
+    });
+    await page.goto(BASE + "/index.html");
+    await page.waitForSelector(TODAY);
+    ok((await draftKeys(page)).join() === `${DRAFT}2026-09-01,${DRAFT}2026-09-02,${DRAFT}2026-09-20`,
+       "Entwurf: 8 Tage alt und nicht lesbare Schlüssel sind weg; 7, 6 Tage alte und künftige bleiben");
+    ok((await page.evaluate(() => localStorage.getItem("hm-tracker.other"))) === "x", "Entwurf: fremde Schlüssel bleiben unberührt");
+    ok(errors.length === 0, "Entwurf D: keine Konsolenfehler " + JSON.stringify(errors));
+    await ctx.close();
+  }
+
+  // E: kaputte oder fremde Entwürfe werden ohne Fehler verworfen
+  {
+    scenario("37e");
+    const good = { sets: sets3(60, 8), doneSets: 1 };
+    const cases = [
+      ["kein JSON", "{"],
+      ["falsche Version", JSON.stringify({ v: 2, focus: null, ex: { squats: good } })],
+      ["__proto__ als Übung", '{"v":1,"focus":null,"ex":{"__proto__":{"sets":[{"kg":1,"reps":1}],"doneSets":0}}}'],
+      ["mehr als 8 Sätze", mkDraft({ squats: { sets: Array.from({ length: 9 }, () => ({ kg: 1, reps: 1 })), doneSets: 0 } })],
+      ["Wert über 1000", mkDraft({ squats: { sets: [{ kg: 1001, reps: 5 }, { kg: 1, reps: 5 }, { kg: 1, reps: 5 }], doneSets: 0 } })],
+      ["negativer Wert", mkDraft({ squats: { sets: [{ kg: -5, reps: 5 }], doneSets: 0 } })],
+      ["doneSets zu groß", mkDraft({ squats: { sets: sets3(60, 8), doneSets: 4 } })],
+      ["Text statt Zahl", mkDraft({ squats: { sets: [{ kg: "60", reps: 5 }], doneSets: 0 } })],
+      ["nur unbekannte Übung", mkDraft({ gibtsnicht: good })],
+      ["ex ist ein Array", JSON.stringify({ v: 1, focus: null, ex: [good] })],
+    ];
+    for (const [label, raw] of cases) {
+      const { page, ctx, errors } = await today();
+      await seed(page, { [DRAFT + "2026-09-08"]: raw });
+      await page.goto(BASE + "/index.html");
+      await openKraftViaWeek(page);
+      const t = await toastState(page);
+      ok(JSON.stringify(await setStates(page)) === '["active","open","open"]' && !t.shown && (await draftKeys(page)).length === 0 && errors.length === 0,
+         `Entwurf kaputt (${label}): ignoriert und gelöscht, Standardwerte, kein Hinweis, kein Fehler ${JSON.stringify(errors)}`);
+      await ctx.close();
+    }
+    // unbekannte Übung neben einer gültigen: nur die gültige kommt zurück
+    const { page, ctx, errors } = await today();
+    await seed(page, { [DRAFT + "2026-09-08"]: mkDraft({ gibtsnicht: good, deadlift: good }, "deadlift") });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    ok((await nowSlug(page)) === "deadlift" && JSON.stringify(await setStates(page)) === '["done","active","open"]' && (await toastState(page)).shown,
+       "Entwurf: unbekannte Übungen fallen weg, die gültige Übung kommt zurück");
+    ok((await stepperNum(page, "kg")) === "60" && errors.length === 0, "Entwurf: gespeicherte Werte (60 kg) kommen als Zahlen zurück " + JSON.stringify(errors));
+    await ctx.close();
+  }
+
+  // F: nach 'Training abschließen' und nach dem Speichern aller Übungen ist der Entwurf weg
+  {
+    scenario("37f");
+    const { page, ctx, errors } = await today();
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click(PRIMARY);
+    ok((await draftKeys(page)).length === 1, "Entwurf: mitten im Training vorhanden");
+    await finishExercise(page);                   // Squats fertig gespeichert
+    ok((await draftKeys(page)).length === 0, "Entwurf: eine einzige Übung, die gespeichert wird, nimmt ihren Eintrag mit (kein Rest)");
+    await page.click('.sd-order__row[data-slug="deadlift"]');
+    await page.click(PRIMARY);
+    ok((await draftKeys(page)).length === 1, "Entwurf: neue Eingabe schreibt ihn wieder");
+    await finishExercise(page);
+    for (let i = 0; i < 6; i++) { await page.click(PRIMARY); await finishExercise(page); }
+    await page.waitForSelector('[data-card="all-done"]');
+    ok((await draftKeys(page)).length === 0 && (await storedLogKeys(page)).length === 8, "Entwurf: nach dem Speichern aller 8 Übungen ist der Entwurf gelöscht");
+    // Rest eines anderen Tabs o. ä.: 'Training abschließen' räumt ihn ebenfalls
+    await page.evaluate((k) => localStorage.setItem(k, JSON.stringify({ v: 1, focus: null, ex: { squats: { sets: [{ kg: 1, reps: 1 }], doneSets: 0 } } })), DRAFT + "2026-09-08");
+    await page.click(PRIMARY);
+    ok((await page.locator("#app.is-detail").count()) === 0 && (await draftKeys(page)).length === 0, "Entwurf: 'Training abschließen' löscht den Entwurf des Tages");
+    ok(errors.length === 0, "Entwurf F: keine Konsolenfehler " + JSON.stringify(errors));
+    await ctx.close();
+  }
+
+  // G: Abmelden räumt über das hm-tracker.-Präfix (die echte Funktion braucht Firebase, deshalb Quelltext-Prüfung)
+  {
+    scenario("37g");
+    const { DRAFT_PREFIX } = await import("../kraftflow.js");
+    const src = readFileSync(new URL("../firebase-init.js", import.meta.url), "utf8");
+    ok(DRAFT_PREFIX.startsWith("hm-tracker.") && DRAFT_PREFIX === DRAFT, "Abmelden: Entwurfs-Präfix liegt unter hm-tracker.");
+    ok(/Object\.keys\(localStorage\)\s*\.filter\(\(k\) => k\.startsWith\("hm-tracker\."\)\)\s*\.forEach\(\(k\) => localStorage\.removeItem\(k\)\)/.test(src),
+       "Abmelden: signOutAndWipeDevice räumt alle localStorage-Schlüssel mit hm-tracker.");
+  }
+
+  // H: localStorage wirft für den Entwurf -> Kraft-Tag voll nutzbar, kein Konsolenfehler
+  {
+    scenario("37h");
+    const { page, ctx, errors } = await today();
+    await page.addInitScript((p) => {
+      const boom = (orig) => function (k, ...rest) {
+        if (String(k).startsWith(p)) throw new DOMException("gesperrt", "SecurityError");
+        return orig.call(this, k, ...rest);
+      };
+      Storage.prototype.getItem = boom(Storage.prototype.getItem);
+      Storage.prototype.setItem = boom(Storage.prototype.setItem);
+      Storage.prototype.removeItem = boom(Storage.prototype.removeItem);
+    }, DRAFT);
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click(PRIMARY);
+    await stepKg(page, "1");
+    await enterValue(page, "reps", "9");
+    await page.click('.sd-order__row[data-slug="deadlift"]');
+    await page.click(PRIMARY);
+    ok(JSON.stringify(await setStates(page)) === '["done","active","open"]', "Speicher gesperrt: Sätze lassen sich weiter abhaken");
+    await finishExercise(page);
+    ok((await kraftMeta(page)) === "1 von 8 erledigt" && (await storedLogKeys(page)).join() === "2026-09-08_deadlift", "Speicher gesperrt: Übung wird trotzdem gespeichert");
+    await page.reload();
+    await openKraftViaWeek(page);
+    ok(!(await toastState(page)).shown && (await kraftMeta(page)) === "1 von 8 erledigt", "Speicher gesperrt: nach dem Neuladen kein Hinweis, Tag öffnet normal");
+    ok(errors.length === 0, "Speicher gesperrt: keine Konsolenfehler " + JSON.stringify(errors));
+    await ctx.close();
+  }
+}
+
 await browser.close();
 console.log(`\n${checks - fails}/${checks} Browser-Checks bestanden`);
 console.log("Checks je Szenario: " + [...perScenario].map(([k, v]) => `${k}=${v}`).join(" "));

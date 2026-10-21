@@ -11,7 +11,7 @@
 //     saveError: string|null, editing: { field, text }|null,
 //     chip: { level, text }|null, lastText: string|null, savedSets: [{ kg, reps }],
 //     nextSlug, nextName }   // nextSlug/nextName nur an der Jetzt-Übung gesetzt
-import { esc, checkCircle, ringOpen, ringRunning, pill } from "./ui.js?v=202610211227";
+import { esc, checkCircle, ringOpen, ringRunning, pill } from "./ui.js?v=202610211239";
 
 const I_CHEV_L = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
 

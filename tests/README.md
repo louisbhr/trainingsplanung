@@ -129,6 +129,14 @@ Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nac
 | 36j (neu) | Live-Region `#kraftLive` außerhalb von `#main`, startet leer, „Satz 1 fertig. Als Nächstes Satz 2.“, „Squats gespeichert. Als Nächstes Deadlift.“, „Jetzt: Klimmzüge.“, ein einziger stabiler Knoten | – | – | – → 5 | E5a |
 | 36k (neu) | Strava-Zeile (F7): Dauer, Ø/max HF, Relative Effort; ohne Effort/ohne HF entfallen Teile; nicht verbunden und keine Einheit → Slot wirklich leer; bleibt nach Fokus-Wechsel | – | – | – → 6 | E5a |
 | 36l (neu) | Kraft-Tag allgemein: öffnet oben, kein `style=` (Normal- und Anpassen-Ansicht), Tab-Leiste weg, 320 px ohne H-Scroll mit untereinander stehenden Steppern, leerer Tag „Keine Übungen für heute“ (kein Punkte/Liste, ein „Anpassen“), Zurückholen | – | – | – → 9 | E5a |
+| 37a (neu) | V2-Entwurf: Öffnen schreibt nichts; Eingabe schreibt `hm-tracker.kraftDraft.<Datum>` (Fokus, Sätze, fertige Sätze); nach Neuladen Sätze, Gewicht, Fokus zurück, Toast „Eingaben von vorhin wiederhergestellt“ genau einmal, kein Dokument geschrieben | – | – | – → 9 | E5b |
+| 37b (neu) | Gespeichertes Dokument vom „anderen Gerät“ gewinnt (R9): Übung zählt als gespeichert, zeigt Dokumentwerte, Entwurf behält nur die übrigen Übungen | – | – | – → 5 | E5b |
+| 37c (neu) | Vergangener Tag aus der Woche lässt den Entwurf von heute unverändert, schreibt ohne Eingabe nichts und bekommt bei Eingabe einen eigenen Schlüssel | – | – | – → 4 | E5b |
+| 37d (neu) | Start räumt Entwürfe > 7 Tage (8 Tage weg; 7 und 6 Tage, künftig bleiben; unlesbares Datum weg; fremder Schlüssel unberührt) | – | – | – → 3 | E5b |
+| 37e (neu) | Kaputte/fremde Entwürfe (kein JSON, v2, `__proto__`, > 8 Sätze, Wert > 1000, negativ, Text statt Zahl, doneSets zu groß, nur unbekannte Übung, Array) werden ohne Fehler verworfen und gelöscht; unbekannte Übung neben gültiger fällt allein weg | – | – | – → 12 | E5b |
+| 37f (neu) | Entwurf weg nach Speichern der Übung und aller 8 Übungen; „Training abschließen“ räumt einen Rest-Entwurf | – | – | – → 6 | E5b |
+| 37g (neu) | Abmelden: Entwurfs-Präfix liegt unter `hm-tracker.`, `signOutAndWipeDevice` räumt diesen Präfix (Quelltext-Prüfung, die echte Funktion braucht Firebase) | – | – | – → 2 | E5b |
+| 37h (neu) | `localStorage` wirft für Entwurfsschlüssel: Kraft-Tag voll nutzbar (Sätze, Speichern, Neuladen), kein Konsolenfehler | – | – | – → 4 | E5b |
 | übrige (5–8, 15, 17–19b, 23, 24, 26, 27, 29–33) | unverändert; nur Selektoren auf Heute angepasst (27, 23, 30b); 29 hat keinen Kraft-Tag-Teil mehr (seit E3 nur Ampel und Banner) | – | – | – | – |
 
 **Bewusste Ausnahmen in 2c („Im Detail“, einzeln):** Wochenvolumen (8 Wochen, aktuelle Woche, kein Ist
