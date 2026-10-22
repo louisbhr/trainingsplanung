@@ -363,7 +363,8 @@ laufen durch einen Helfer `pct(x)` (Zahl, `Number.isFinite`, auf 0 bis 100 gekle
 - **E4 Woche:** erledigt, siehe Abschnitt 10 (Kopf mit Rundtasten, Summen-Karte, Tageszeilen-Akkordeon).
 - **E5 Kraft-Tag:** Design erledigt, siehe Abschnitt 11 (Kopf, Dots, Jetzt-Karte, Sätze, Stepper, Reihenfolge, Strava-Zeile, Ladefehler, Anpassen-Modus E5b, Löschliste 11.14).
 - **E6 Lauf-Tag:** Design erledigt, siehe Abschnitt 12 (Kopf, Vergleichs-Karte, Distanz- und Range-Balken, Strava-Zeile, alle Zustände, Zuordnungs-Sheet, Löschliste 12.12).
-- **E7 Verlauf und Plan**, **E8 Login:** offen.
+- **E7 Verlauf und Plan:** Design erledigt, siehe Abschnitt 13 (Verlauf Lauf und Kraft, Diagramme, Chips) und Abschnitt 14 (Plan, Ziel-Karte, Phasen, Zonen, Daten und Konto, Löschliste 14.9).
+- **E8 Login:** offen.
 
 ---
 
@@ -1653,8 +1654,463 @@ Stabile Test-Haken (ersetzen `.card.shifted`, `.pick-row`, `.pick-main`): `[data
 ### 12.12 Durch E6 überflüssig werdende alte Klassen (Löschliste, **nicht** vorab löschen)
 
 Greppen vom Designer am Stand HEAD 2062fbf: Alle folgenden Klassen werden **heute noch** von `app.js` (`renderRunDay`, `planRunCard`, `stravaResultHTML`, `runPickerHTML`) bzw. `tests/app.test.mjs` genutzt, darum steht die Löschung erst nach dem Umbau an:
-- Lauf-Tag-eigen (nach dem Umbau und nach Umstellung von `tests/app.test.mjs` Z. 1439, 1460, 1461, 1466, 1467 löschen): `.strava-note` (+ `svg`, `p`), `.card.shifted`, `.shift-note`, `.pick-row` (+ `.on`, `.pick-main`, `.pick-sub`).
+- **Erledigt in E7 (Grep über `*.js`, `*.html`, `tests/`: nur Abwesenheits-Prüfungen und `data-slot="shift-note"`, keine Klassennutzung):** `.strava-note` (+ `svg`, `p`), `.card.shifted`, `.shift-note`, `.pick-row` (+ `.on`, `.pick-main`, `.pick-sub`), `.bg-coral`, `.fg-coral`, `.metric-value.xs`, `.icon-btn`, `.sd-pagehead .icon-btn svg`.
+- Ursprüngliche Vormerkung (Lauf-Tag-eigen): `.strava-note` (+ `svg`, `p`), `.card.shifted`, `.shift-note`, `.pick-row` (+ `.on`, `.pick-main`, `.pick-sub`).
 - Wahrscheinlich frei, je einzeln greppen: `.card.bg-coral`-Nutzung samt `.bg-coral`, `.fg-coral`, `.metric-value.xs`, `.metric-grid`, `.metric-label`, `.metric-value`, `.metric-value.sm` (`planRunCard` und `stravaResultHTML` waren die letzten Nutzer außer der Konto-Karte; `view-account.js` vorher prüfen).
 - **Nicht löschen** (andere Screens): `.primary-btn` (Heute-Fallback, `app.js` Z. 2079, `view-dashboard.js` Z. 60), `.card.error-card` (`view-account.js`, `ui.js`), `.icon-btn`, `.small-btn`, `.link-btn` (je greppen, Verlauf/Plan nutzen sie evtl. noch), `.danger-btn`.
 - Aus `app.js` entfallen: `data-action="close-picker"`, Ids/Klassen `pick-row`, `shift-note`, `shifted`, `strava-note`, der Standardsatz „Wird nicht hier eingetragen — die Daten kommen automatisch aus Strava.“ (enthält einen Em-Dash), `runPickerFor`-Inline-Karte (ersetzt durch das Sheet).
 - Bereits gelöscht (Grep über `*.js`, `*.html`, `tests/`: keine Treffer): `.sd-bar`, `.sd-bar__fill`, `.sd-bar--coral`, `.sd-bar--lg`, `.sd-intro .sd-bar` und damit die letzte Nutzung von `--pct`.
+
+---
+
+## 13. Screen-Ergänzungen: Verlauf (E7)
+
+Optik: Handoff §5.5. CSS: Abschnitt „Verlauf + Plan (E7)“ am Ende von `style.css`; wiederverwendet werden `sd-seg`, `sd-card*`, `sd-stripe`, `sd-pill`, `sd-btn`, `sd-skel*`, `sd-vh`, `sd-mono`, `sd-unit`, `sd-hint`. **Kein `style=` auf diesem Screen.**
+Neu: `sd-tabhead`, `sd-filter`, `sd-infobtn`, `sd-tiles`/`sd-tile`, `sd-chart*`, `sd-best`, `sd-trend`, `sd-rows`/`sd-hrow*`, `sd-skel--val`, `sd-skel--chart`.
+
+Icon-Konstante (einmal in `view-history.js`; `ICONS.*` hat keine Größenklasse und ist tabu):
+```js
+const I_INFO = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r="1.2" fill="currentColor" stroke="none"/></svg>';
+```
+Zahlen-Helfer `svgNum(x)` (Geometrie in SVG-Attributen und `<title>`-freie Zahlen): `Number.isFinite(x) ? String(Math.round(x * 10) / 10) : "0"`, Punkt als Dezimaltrenner, **nie** `formatKm1()` im Attribut. Zahlen im Text (Tooltip, Liste, `aria-label`) laufen durch `formatKm1()` bzw. die Pace-Formatierer.
+
+### 13.0 Seitenaufbau und Slot
+
+```html
+<header class="sd-pagehead" data-region="pagehead">
+  <div class="sd-tabhead">
+    <div class="sd-tabhead__titles"><h1 class="sd-display" tabindex="-1">Verlauf</h1></div>
+    <div class="sd-seg" role="group" aria-label="Ansicht">
+      <button type="button" class="sd-seg__opt is-active" aria-pressed="true"  data-action="hist-mode" data-mode="lauf">Lauf</button>
+      <button type="button" class="sd-seg__opt"           aria-pressed="false" data-action="hist-mode" data-mode="kraft">Kraft</button>
+    </div>
+  </div>
+  <!-- nur im Modus Kraft, direktes Kind des Kopfes (Abschnitt 13.5): -->
+  <div class="sd-filter" role="group" aria-label="Übung wählen">…</div>
+</header>
+<div class="sd-main sd-main--tight">
+  <div id="hist-slot">…Inhalt je Zustand…</div>
+</div>
+```
+- **Default-Modus ist Lauf** (links). `state.historyMode` startet mit `"lauf"` (heute steht dort `"kraft"`).
+- Der Kopf steht sofort; nur `#hist-slot` lädt nach und ist nie leer (Laden, Karten oder Fehler). `#hist-slot` bekommt Flex-Spalte und Gap 12 von der bestehenden Regel `.sd-main > [id$="-slot"]`.
+- Reihenfolge Segment: **Lauf, Kraft** (vorher Kraft, Lauf). Die Aktion `hist-mode` und `data-mode` bleiben.
+- **Segment-Semantik (Entscheid):** `role="group"` mit zwei Buttons und `aria-pressed`, wie 3.7. Kein `tablist`: es gibt kein Tabpanel und keine Pfeiltasten-Logik, zwei Umschalter mit Tab-Reihenfolge sind für ein Zwei-Wege-Umschalten ehrlicher und tragen ohne zusätzlichen Code.
+- **Fokus nach `render()`:** der Modus-Wechsel baut den Kopf neu. Der Coder setzt den Fokus auf `[data-action="hist-mode"][data-mode="${neuerModus}"]` zurück, nie auf `body`.
+- `.sd-tabhead` ist wie `.sd-weekhead` ein direktes Kind von `.sd-pagehead` (sonst greift das Seitenpolster nicht, Regel steht in `style.css`). Titel und Segment brechen um (Segment unter den Titel), wenn die Zeile zu eng wird; nichts verschwindet.
+
+### 13.1 Modus Lauf: Zustände
+
+| Zustand | `#hist-slot`-Inhalt | `data-card` |
+| --- | --- | --- |
+| Laden | 13.1a | `loading` |
+| Worker fehlt (`!isWorkerConfigured`) | Fehlerkarte `data-source="worker"` aus 12.7, ohne Aktion | `error` |
+| Fehler (`s.error`) | Fehlerkarte `data-source="strava"` aus 12.7 („Nochmal versuchen“ `reload-strava`, „Neu verbinden“ `connect-strava`) | `error` |
+| Nicht verbunden (`s.connected === false`) | 13.1b | `no-strava` |
+| Verbunden, keine Läufe | 13.1c | `empty` |
+| Läufe da | 13.2 bis 13.4 | `run-stats`, `run-chart`, `run-list` |
+
+**13.1a Laden** (Kopf und Segment stehen schon):
+```html
+<div class="sd-tiles" aria-hidden="true">
+  <div class="sd-tile"><span class="sd-skel sd-skel--w60"></span><span class="sd-skel sd-skel--val"></span></div>   <!-- viermal -->
+</div>
+<div class="sd-card" data-card="loading" role="status" aria-busy="true">
+  <span class="sd-skel sd-skel--w40"></span>
+  <span class="sd-skel sd-skel--chart"></span>
+  <span class="sd-vh">Verlauf wird geladen</span>
+</div>
+```
+(Platzhalter-Kacheln sind `div`/`span`, **kein** `dl`: `dd` bringt einen Browser-Einzug mit.) Der Schimmer wird unter `prefers-reduced-motion` ruhig (bestehende Regel).
+
+**13.1b Nicht verbunden** (einzige gefüllte Teal-Fläche des Screens, ersetzt den losen `primary-btn`):
+```html
+<article class="sd-card sd-card--center" data-card="no-strava">
+  <h2 class="sd-card__title">Strava ist nicht verbunden</h2>
+  <p class="sd-card__text">Verbinde Strava, dann erscheinen deine Läufe hier.</p>
+  <div class="sd-actions"><button type="button" class="sd-btn sd-btn--primary" data-action="connect-strava">Mit Strava verbinden</button></div>
+</article>
+```
+**13.1c Keine Läufe** (ersetzt `center-note`):
+```html
+<article class="sd-card sd-card--center" data-card="empty">
+  <h2 class="sd-card__title">Noch keine Läufe</h2>
+  <p class="sd-card__text">Seit ${shortDate(STRAVA_SINCE)} liegt noch kein Lauf in Strava.</p>
+</article>
+```
+
+### 13.2 Kacheln (2 × 2)
+
+```html
+<dl class="sd-tiles" data-card="run-stats">
+  <div class="sd-tile" data-tile="km7"><dt class="sd-tile__label">Letzte 7 Tage</dt><dd class="sd-tile__value sd-mono">18,4<span class="sd-unit">km</span></dd></div>
+  <div class="sd-tile" data-tile="km28"><dt class="sd-tile__label">Letzte 28 Tage</dt><dd class="sd-tile__value sd-mono">62,0<span class="sd-unit">km</span></dd></div>
+  <div class="sd-tile" data-tile="pace">
+    <dt class="sd-tile__label">Ø Pace<button type="button" class="sd-infobtn" data-action="open-info" data-info="verlauf-pace" aria-haspopup="dialog" aria-label="Erklärung: Ø Pace">${I_INFO}</button></dt>
+    <dd class="sd-tile__value sd-mono">6:22<span class="sd-unit">/km</span></dd>
+  </div>
+  <div class="sd-tile" data-tile="count"><dt class="sd-tile__label">Läufe seit Planstart</dt><dd class="sd-tile__value sd-mono">23</dd></div>
+</dl>
+```
+- Reihenfolge fest: 7 Tage, 28 Tage, Ø Pace, Läufe. Werte mit `formatKm1()` (Komma), Ø Pace als `m:ss` ohne „/km“ im Wert (Einheit steht im `sd-unit`).
+- Ø Pace ohne Pace-Daten: Wert `–` (Halbgeviertstrich), keine Einheit. Die alte Klammer „(10 Läufe)“ entfällt aus dem Label; die Grundlage steht im Info-Sheet.
+- **(i) an berechneten Werten:** `open-info` mit `data-info="verlauf-pace"`; Inhalt siehe 13.7. Tippfläche 44 px (unsichtbar per `::after`), `aria-haspopup="dialog"`.
+- Zahl fluid über `cqi`: 19 px bei 320 px, 22 px ab ca. 390 px. Die Einheit bricht unter die Zahl, wenn sie nicht daneben passt.
+- Das Label „Läufe seit Planstart“ zählt `runs.length` seit `STRAVA_SINCE` (siehe offene Punkte im Bericht); die Kachel zeigt immer eine Zahl, auch `0`.
+
+### 13.3 Diagramm „Distanz je Lauf“ (Auflage C5, Entscheid E7)
+
+```html
+<section class="sd-card" data-card="run-chart" aria-labelledby="runChartTitle">
+  <div class="sd-card__top">
+    <h2 class="sd-card__title" id="runChartTitle">Distanz je Lauf</h2>
+    <p class="sd-hint">Letzte 10 Läufe</p>
+  </div>
+  <figure class="sd-chart">
+    <svg class="sd-chart__plot" viewBox="0 0 320 120" preserveAspectRatio="none" role="img" focusable="false"
+         aria-label="Balkendiagramm: Distanz der letzten 10 Läufe, von 5,2 bis 18,4 km. Die einzelnen Werte stehen in der Liste darunter.">
+      <rect class="sd-chart__bar sd-chart__bar--lauf" x="3" y="63.5" width="24" height="61.5" rx="5"><title>19.10.: 8,2 km</title></rect>
+      <rect class="sd-chart__bar sd-chart__bar--long" x="35" y="0" width="24" height="125" rx="5"><title>18.10.: 18,4 km</title></rect>
+      <!-- … ein rect je Lauf, älteste links, neueste rechts -->
+    </svg>
+    <div class="sd-chart__axis" aria-hidden="true"><span>12</span><span>14</span><!-- … ein Span je Lauf --><span>19</span></div>
+  </figure>
+  <p class="sd-chart__legend"><span><span class="sd-chart__swatch sd-chart__swatch--lauf" aria-hidden="true"></span>Lauf</span><span><span class="sd-chart__swatch sd-chart__swatch--long" aria-hidden="true"></span>Long Run</span></p>   <!-- nur wenn mindestens ein Long Run dabei ist -->
+</section>
+```
+**Mechanismus (C5):** ein Inline-SVG, die Balken sind `<rect>` mit Zahlen-Attributen, Farbe über die Klasse am `rect`, Beschriftung ist HTML darunter. `viewBox="0 0 320 120"` mit `preserveAspectRatio="none"`: der Plot dehnt sich auf die Kartenbreite (256 bis 416 px), die Höhe bleibt 120 px (1 Einheit = 1 px). Der Plot ist `role="img"`; das Rect-`<title>` ist nur der Maus-Tooltip.
+
+**Geometrie** (n = Anzahl Läufe, 1 bis 10; `max` = größte Distanz; alle Werte durch `svgNum`):
+- `slot = 320 / n`, `bw = min(24, slot - 6)`
+- `x_i = slot * i + (slot - bw) / 2`
+- `h_i = max(4, value_i / max * 120)`, `y_i = 120 - h_i`
+- `height_i = h_i + 5`, `rx = 5`: das Rect ragt 5 Einheiten unter die Grundlinie, das SVG schneidet ab. Ergebnis: oben rund (Radius 5), unten bündig.
+- Klasse: `sd-chart__bar--lauf` (Standard) oder `sd-chart__bar--long` (`isLongRun`). Ohne Modifier wäre die Farbe Teal (Kraft).
+- `max <= 0` oder `n = 0`: kein Diagramm (Zustand 13.1c bzw. Karte weglassen).
+
+**Beschriftung und Ausdünnen:** `.sd-chart__axis` hat **immer genau n** `<span>` (gleich breit, mittig unter dem Balken, daher passt die Position zu `x_i`). Lauf: Tag des Monats (`19`, 1 bis 2 Zeichen). Bei höchstens 10 Plätzen und 320 px Spalte ist ein Platz 25,6 px breit, das Label 11,4 px: alle Labels stehen. **Regel für alle Diagramme:** `step = ceil(n / 10)`; ein Label steht nur, wenn `(n - 1 - i) % step === 0` (vom neuesten Platz aus gezählt), alle anderen Spans bleiben **leer** (nicht weglassen, sonst verschiebt sich die Ausrichtung). Grund: 3 Zeichen Mono 9,5 px sind ca. 17 px, plus 6 px Luft, ergibt 23 px; bei 256 px Plotbreite passen so höchstens 11 Labels. Labels über 2 bis 3 Zeichen (z. B. „19.10.“) sind nicht erlaubt.
+
+**Text-Alternative:** `aria-label` am SVG nennt Art, Anzahl, Minimum und Maximum (formatiert) und verweist auf die Liste. Die Achse ist `aria-hidden`; alle Werte stehen als Text in 13.4.
+
+### 13.4 Liste „Letzte Läufe“
+
+```html
+<ul class="sd-card sd-card--list sd-rows" role="list" data-card="run-list" aria-label="Letzte Läufe">
+  <li class="sd-hrow" role="listitem" data-kind="lauf" data-run="${esc(id)}">
+    <span class="sd-stripe sd-stripe--lauf" aria-hidden="true"></span>
+    <span class="sd-hrow__main"><span class="sd-hrow__title">${esc(typeOrName)}</span><span class="sd-hrow__sub sd-mono">Mo, 19.10.</span></span>
+    <span class="sd-hrow__val sd-mono"><span>8,2 km</span><span class="sd-hrow__sep" aria-hidden="true">·</span><span><span class="sd-vh">Pace </span>6:22</span></span>
+  </li>
+  <!-- Long Run: data-kind="long", Streifen sd-stripe--long -->
+</ul>
+```
+- Neueste zuerst, höchstens 10 (dieselben Läufe wie das Diagramm). Streifen `sd-stripe--lauf` bzw. `sd-stripe--long`. Titel 14/500: der Plan-Typ („Easy run“), wenn der Lauf einem Plantag zugeordnet ist, sonst der Strava-Name (beides durch `esc()`). Datum Mono 11.5 als `dayNameDE, shortDate`.
+- Fehlt die Pace: `<span>–</span>` statt Pace und Trennpunkt weglassen.
+- Unter 360 px Spaltenbreite stehen Distanz und Pace **untereinander** (rechtsbündig), der Punkt entfällt per CSS. Der Titel darf auf zwei Zeilen umbrechen (`overflow-wrap: anywhere`).
+- Zeilen sind nicht antippbar (Handoff kennt keine Detailansicht), darum kein Button und kein Hover.
+
+### 13.5 Modus Kraft: Chips
+
+```html
+<div class="sd-filter" role="group" aria-label="Übung wählen">
+  <button type="button" class="sd-filter__chip is-active" aria-pressed="true"  data-action="pick-exercise" data-slug="squats"><span>Squats</span></button>
+  <button type="button" class="sd-filter__chip"           aria-pressed="false" data-action="pick-exercise" data-slug="deadlift"><span>Deadlift</span></button>
+</div>
+```
+- **Neue Aktion `pick-exercise`** (`data-slug` = `slug(e.name)`), ersetzt das `change`-Ereignis von `#ex-picker` (Select und `wirePicker()` entfallen). Wirkung: `state.historyExercise = slug`, `renderHistory()`.
+- Reihenfolge wie `exerciseCatalog(plans[0])`. Der Name steht im inneren `<span>` (durch `esc()`), das schneidet sehr lange Namen bei 240 px mit „…“ ab; der volle Text bleibt im DOM.
+- **Scrollen (Entscheid):** die Zeile scrollt nur in sich (`overflow-x: auto`), die Seite scrollt nie seitlich. Das Chip ist 36 px hoch, die Trefferfläche 44 px über `::after`; die Zeile hat oben und unten 4 px Polster, damit Fokusring und Trefferfläche nicht abgeschnitten werden. Das angeschnittene nächste Chip am rechten Rand ist der Hinweis, dass es weitergeht.
+- **Nach `render()`** scrollt der Coder das aktive Chip in den Blick: `chip.scrollIntoView({ inline: "center", block: "nearest" })` (Standardverhalten, nicht `smooth`), und setzt den Fokus auf das aktive Chip zurück (`[data-action="pick-exercise"][data-slug="…"]`).
+- Aktiv: `is-active` (Fläche `--teal-bg`, Text `--teal-fg`, innerer Ring) plus `aria-pressed="true"`. Das Chip ist ein Button, kein `radio`: Auswahl wirkt sofort, Tab erreicht jedes Chip.
+
+### 13.6 Modus Kraft: Zustände und Karten
+
+| Zustand | `#hist-slot`-Inhalt | `data-card` |
+| --- | --- | --- |
+| Laden | wie 13.1a, aber ohne Kacheln: Karte mit `sd-skel--w40`, `sd-skel--val`, `sd-skel--chart`, danach Listen-Karte mit drei `sd-skel--w92` | `loading` |
+| Fehler (`loadLogsForExercise`) | `sd-card--danger`, `role="alert"`, Titel „Verlauf konnte nicht geladen werden“, Text `esc(err.message)`, Aktion `sd-btn--onbanner` „Neu laden“ `data-action="reload"` | `error` (`data-source="firebase"`) |
+| Keine Einträge | 13.6a | `strength-empty` |
+| Einträge | 13.6b und Liste 13.6c | `strength-best`, `strength-list` |
+
+**13.6a Keine Einträge** (ersetzt `center-note`; die Chips bleiben stehen):
+```html
+<article class="sd-card sd-card--center" data-card="strength-empty">
+  <h2 class="sd-card__title">Noch nichts erfasst</h2>
+  <p class="sd-card__text">Für ${esc(name)} gibt es noch keinen Eintrag. Er erscheint hier, sobald du die Übung im Kraft-Tag abschließt.</p>
+</article>
+```
+**13.6b Karte „Bestes Satzgewicht“**
+```html
+<section class="sd-card" data-card="strength-best" aria-labelledby="bestTitle">
+  <div>
+    <h2 class="sd-card__title" id="bestTitle">Bestes Satzgewicht</h2>
+    <p class="sd-hint">Schwerster Satz je Woche</p>
+  </div>
+  <div class="sd-best">
+    <p class="sd-best__val sd-mono"><span class="sd-vh">Zuletzt </span>82,5<span class="sd-unit">kg</span></p>
+    <p class="sd-trend sd-mono is-up"><span>+25 kg</span><span class="sd-trend__since">seit W1</span><button type="button" class="sd-infobtn" data-action="open-info" data-info="verlauf-trend" aria-haspopup="dialog" aria-label="Erklärung: Trend">${I_INFO}</button></p>
+  </div>
+  <figure class="sd-chart">
+    <svg class="sd-chart__plot sd-chart__plot--tall" viewBox="0 0 320 130" preserveAspectRatio="none" role="img" focusable="false" aria-label="Balkendiagramm: bestes Satzgewicht je Woche, W1 bis W8, von 57,5 bis 82,5 kg. Aktuelle Woche: 82,5 kg. Hellere Balken sind Entlastungswochen.">
+      <rect class="sd-chart__bar" x="…" y="…" width="…" height="…" rx="5"><title>W1: 57,5 kg</title></rect>
+      <rect class="sd-chart__bar sd-chart__bar--deload" …><title>W4: 60 kg (Entlastung)</title></rect>
+    </svg>
+    <div class="sd-chart__axis" aria-hidden="true"><span>W1</span><span></span><span></span><span>W4</span><!-- … --><span class="is-current">W8</span></div>
+  </figure>
+  <p class="sd-chart__legend"><span><span class="sd-chart__swatch sd-chart__swatch--deload" aria-hidden="true"></span>Entlastungswoche</span></p>   <!-- nur wenn mindestens ein Deload-Balken da ist -->
+</section>
+```
+- **Große Zahl** (Mono 30/600): bester Wert der **letzten Woche mit Eintrag**. **Trend**: Differenz dieses Wertes zum Wert der **ersten** Woche im Diagramm, Text `+25 kg seit W1` mit der Nummer der ersten Plan-Woche (Entscheid Orchestrator: „seit W‹erste›“, nicht „bis W7“). Typografie: `sd-trend` Mono 12,5/600.
+- **Trend-Varianten:**
+
+| Fall | Klasse | Text |
+| --- | --- | --- |
+| mehr als zu Beginn | `sd-trend is-up` (`--ok-fg`) | `+25 kg` + `seit W1` |
+| gleich | `sd-trend` (neutral, `--text-secondary`) | `unverändert` + `seit W1` |
+| weniger (z. B. nach Entlastung) | `sd-trend` (neutral, **nicht** Danger oder Amber: weniger ist kein Fehler) | `−5 kg` (echtes Minus U+2212) + `seit W1` |
+| nur ein Wert | kein `sd-trend`, kein (i) | – |
+Das Vorzeichen trägt die Information, die Farbe ist Zusatz.
+- **Übung ohne Gewicht** (`!usesWeight`): Titel „Wiederholungen gesamt“, Hint „Höchste Summe je Woche“, Einheit `Wdh` im `sd-unit`, Trend `+8 Wdh seit W1`, Diagramm-`aria-label` mit „Wiederholungen“ statt „Gewicht“. Sonst identisch.
+- **Wochen-Balken:** ein Platz je Plan-Woche von der ersten Woche mit Eintrag bis zur **aktuellen** Woche (n höchstens 35). Eine Woche ohne Eintrag bleibt ein **leerer Platz** (kein Rect, Span bleibt stehen), die Zeit-Achse bleibt ehrlich. Wert je Woche = höchstes `topKg` (bzw. höchste `totalReps`) aller Einträge dieser Woche.
+- **Geometrie:** wie 13.3, aber `viewBox="0 0 320 130"`, `h_i = max(4, value_i / max * 130)`, `y_i = 130 - h_i`, `bw = min(24, slot - 3)`, `rx = min(5, bw / 2)`. Die Höhe 130 px kommt von `sd-chart__plot--tall`.
+- **Farben:** Normalwoche `sd-chart__bar` (Teal), Entlastung `sd-chart__bar--deload` (`--teal-soft`, hell #a8d5c4, dunkel #2a5e4d). Die Entlastung ist nicht nur Farbe: Legende „Entlastungswoche“ (nur wenn vorhanden), `<title>` „(Entlastung)“ und der `aria-label` nennen sie.
+- **Aktuelle Woche:** ihr Achsen-Span trägt `class="is-current"` (Teal, fett) und steht **immer** mit Label da, auch wenn die Woche (noch) keinen Balken hat. Der Platz der aktuellen Woche ist der letzte.
+- **Ausdünnen:** Regel aus 13.3 (`step = ceil(n / 10)`, vom neuesten Platz aus gezählt, leere Spans). Beispiel n = 35: `step = 4`, Labels bei W35, W31, …, W3; die aktuelle Woche ist immer beschriftet. Label „W12“ (3 Zeichen) ist die längste erlaubte Form.
+
+**13.6c Liste „Letzte Einträge“**
+```html
+<ul class="sd-card sd-card--list sd-rows" role="list" data-card="strength-list" aria-label="Letzte Einträge">
+  <li class="sd-hrow" role="listitem" data-date="2026-10-19">
+    <span class="sd-stripe sd-stripe--kraft" aria-hidden="true"></span>
+    <span class="sd-hrow__main"><span class="sd-hrow__title">Mo, 19.10.</span><span class="sd-hrow__sub sd-mono">Woche 8 · Entlastung</span></span>
+    <span class="sd-hrow__val sd-mono"><span>62,5 kg</span><span class="sd-hrow__sep" aria-hidden="true">·</span><span>24 Wdh</span></span>
+  </li>
+</ul>
+```
+Neueste zuerst, höchstens 10. Der Zusatz „· Entlastung“ in der Sub-Zeile nur in Deload-Wochen, `Woche n` aus dem Datum. Ohne Gewicht steht in `sd-hrow__val` nur `<span>24 Wdh</span>` (kein Trennpunkt). Datum als `dayNameDE, shortDate` (Helfer-Ausgabe, kein `esc()`).
+
+### 13.7 Info-Sheet-Inhalt (neue Schlüssel in `INFO_CONTENT`)
+
+Gleiches Gerüst wie 9.7 (`openInfo(title, blocks, trigger)`, Blöcke `{ heading, text }`).
+- `verlauf-pace`, Titel „Ø Pace“: **Berechnung** „Mittel der Pace aus den letzten bis zu 10 Läufen, die eine Pace haben. Jeder Lauf zählt gleich, unabhängig von der Distanz.“ **Bedeutung** „Ein Richtwert für dein Grundtempo. Intervalle und Long Runs ziehen den Schnitt, er sagt darum wenig über einzelne Einheiten.“
+- `verlauf-trend`, Titel „Trend“: **Berechnung** „Differenz zwischen dem Wert der letzten Woche mit Eintrag und dem Wert der ersten Woche im Diagramm. Es zählt je Woche der schwerste Satz (bei Übungen ohne Gewicht die höchste Wiederholungssumme).“ **Bedeutung** „Ein Plus heißt: Du bewegst mehr als zu Beginn. In Entlastungswochen darf der Wert sinken, das ist gewollt.“
+
+### 13.8 `data-action`-Namen, Test-Haken, `esc()`
+
+| Name | Wo | Parameter | Wirkung |
+| --- | --- | --- | --- |
+| `hist-mode` | Segment | `data-mode` (`lauf`/`kraft`) | **bleibt**; setzt `state.historyMode`, `render()` |
+| `pick-exercise` | Chip | `data-slug` | **neu**, ersetzt `#ex-picker` (`change`) |
+| `open-info` | (i)-Knopf | `data-info` (`verlauf-pace`, `verlauf-trend`) | bleibt (öffnet Info-Sheet) |
+| `connect-strava`, `reload-strava`, `reload` | Zustandskarten | – | bleiben |
+
+Stabile Test-Haken (ersetzen `#ex-picker`, `.bars`): `[data-action="hist-mode"][aria-pressed="true"]`, `.sd-filter`, `.sd-filter__chip.is-active`, `[data-card="run-stats"] .sd-tile` (Anzahl 4), `[data-card="run-chart"] .sd-chart__bar` (Anzahl = Läufe), `[data-card="run-list"] .sd-hrow`, `[data-card="strength-best"]`, `.sd-chart__bar--deload`, `.sd-chart__axis .is-current`, `.sd-trend`, `[data-card="strength-list"] .sd-hrow`, `#hist-slot`, `[data-card="loading|empty|no-strava|strength-empty|error"]`.
+
+**`esc()`** zusätzlich zu Abschnitt 6: `run.name`, Plan-Typ im Listentitel, Übungsnamen (Chip, Leer-Text, `<title>`), `err.message`, `s.error`, `data-slug`, `data-run`. **Nicht**: `svgNum()`-Werte in x/y/width/height, `formatKm1()`/Pace-/Datums-Ausgaben, `isoDate` in `data-date`, feste Strings, Icon-Konstante, die Klassen `sd-chart__bar--lauf|long|deload` (aus fester Map).
+
+### 13.9 Barrierefreiheit, Fokus, Responsive
+
+- Überschriften: `h1` „Verlauf“, `h2` je Karte (`sd-card__title`); die Karten tragen `aria-labelledby` bzw. `aria-label`.
+- Diagramme: `role="img"` plus `aria-label` mit Zusammenfassung, alle Werte zusätzlich als Text in der Liste. Beschriftung und Legende sind Text; Entlastung und Long Run stehen in Legende und Tooltip, nicht nur in der Farbe.
+- Kontrast: Achsen-Label 9,5 px in `--text-muted` (4,5:1, Louis 21.10.), nur ergänzend; Balken tragen ihre Information zusätzlich in der Liste. Die hellen Entlastungs-Balken (`--teal-soft`) liegen unter 3:1 zur Karte und gelten bewusst als „ruhige“ Darstellung des Handoffs; die Legende und die Liste tragen die Aussage.
+- Tippflächen: Segment 44 px (34 sichtbar), Chips 44 px (36 sichtbar), (i) 44 px (20 sichtbar). Liste und Kacheln sind nicht interaktiv.
+- Responsive: 320 px: Kacheln 2 × 2 mit 19-px-Werten, Distanz und Pace in Listenzeilen untereinander, Plotbreite 256 px; 390 px: 22-px-Werte, Zeilen einzeilig; 1280 px: Spalte bleibt 480 px zentriert, Plot 416 px. Der Kopf bricht (Segment unter den Titel) statt abzuschneiden; die Chips-Zeile erzeugt nie seitliches Scrollen der Seite (`#main` ist `overflow-x: hidden`, die Zeile scrollt in sich).
+- Bewegung: nur 150-ms-Farbübergang an Chips (unter `prefers-reduced-motion` aus). Keine Diagramm-Animation.
+- Sprache: kein Gedankenstrich; „–“ als Platzhalter und „−“ (Minus) als Vorzeichen sind erlaubt.
+
+---
+
+## 14. Screen-Ergänzungen: Plan und Konto (E7)
+
+Optik: Handoff §5.6, Mockup P1 (abgenommen). CSS: derselbe Abschnitt „Verlauf + Plan (E7)“. Wiederverwendet: `sd-tabhead`, `sd-intro__sub`, `sd-display`, `sd-card*`, `sd-label`, `sd-pill`, `sd-split*`, `sd-kvlist`/`sd-kv`, `sd-rule`, `sd-notice*`, `sd-btn*`, `tone-*`. **Kein `style=`.** Die acht `style=`-Attribute des alten Plan-Tabs verschwinden: Zeitleiste (`flex`, `width`) wird 14.2, die Hilfsklassen `mt-*`, `fg-*`, `fs-11` entfallen.
+Neu: `sd-goal*`, `sd-phasebar*`, `sd-phase*`, `sd-zone*`, `sd-split__status`, `sd-notice--quiet`, `sd-kv dd.is-danger`.
+
+### 14.0 Seitenaufbau
+
+```html
+<header class="sd-pagehead" data-region="pagehead">
+  <div class="sd-tabhead">
+    <div class="sd-tabhead__titles">
+      <p class="sd-intro__sub">Woche 8 von 35 · 23&nbsp;% geschafft</p>
+      <h1 class="sd-display" tabindex="-1">Trainingsplan</h1>
+    </div>
+  </div>
+</header>
+<div class="sd-main sd-main--tight">
+  <section class="sd-card sd-goal" data-card="goal" aria-labelledby="goalTitle">…14.1 und 14.2…</section>
+  <h2 class="sd-label">Phasen</h2>
+  <ul class="sd-card sd-card--list sd-rows" role="list" data-card="phases" aria-labelledby="…">…14.3…</ul>
+  <h2 class="sd-label">Trainingsbereiche</h2>
+  <ul class="sd-card sd-card--list sd-rows" role="list" data-card="zones">…14.4…</ul>
+  <h2 class="sd-label">Daten und Konto</h2>
+  <section class="sd-card sd-card--loose" data-card="account">…14.5…</section>
+</div>
+```
+- Kein Ladezustand (der Plan ist synchron da). Der Konto-Teil erscheint nur mit `currentUser` (wie bisher). Die Überschriften der Listen sind `<h2 class="sd-label">` (nicht `<p>`), die Listen tragen `aria-label` mit demselben Text.
+- Der Zeilentext „Woche n von N · p % geschafft“ bleibt inhaltlich unverändert (`done = w - 1`); Leerzeichen vor „%“ ist ein geschütztes (`&nbsp;`), sonst bricht „23“ und „%“ auseinander. Die Tests (`includes("0% geschafft")`) sind entsprechend auf `" %"` umzustellen. Test-Haken statt `.eyebrow`: `#main > header.sd-pagehead .sd-intro__sub`.
+- `h1` mit `tabindex="-1"` als Fokusziel nach Tab-Wechsel.
+
+### 14.1 Ziel-Karte
+
+```html
+<section class="sd-card sd-goal" data-card="goal" aria-labelledby="goalTitle">
+  <div class="sd-goal__top">
+    <div class="sd-goal__main">
+      <h2 class="sd-goal__label" id="goalTitle">Ziel · Halbmarathon</h2>
+      <p class="sd-goal__time sd-mono">1:29:59</p>
+    </div>
+    <div class="sd-goal__race">
+      <p class="sd-goal__k">Renntag</p>
+      <p class="sd-goal__date sd-mono">02.05.2027</p>
+      <p class="sd-goal__pace sd-mono">4:16 /km</p>
+    </div>
+  </div>
+  <svg class="sd-phasebar" …>…14.2…</svg>
+</section>
+```
+| Fall | Unterschied |
+| --- | --- |
+| Renndatum bestätigt (`raceDateConfirmed`) | wie oben, Label „Renntag“, Datum `germanDate(raceDate)` |
+| Renndatum nicht bestätigt | Label „Rennen ca.“, Datum `monthLabel(raceDate)` (z. B. „Mai 2027“), nach dem Phasenbalken zusätzlich `<p class="sd-hint">Das Renndatum ist noch nicht bestätigt.</p>` |
+| Kein `targetPace` | `sd-goal__pace` entfällt |
+Titel: `Ziel · ${esc(goal.distance)}`; Zielzeit `esc(displayGoal.time)`; Pace `esc(targetPace)` + „ /km“, falls die Quelle die Einheit nicht schon trägt. Die Zielzeit ist fluid (32 bis 40 px über `cqi`); passt die rechte Spalte nicht daneben (320 px, lange Zeit), rutscht sie unter die Zeit und bleibt rechtsbündig.
+
+### 14.2 Phasenbalken (Auflage C5, Entscheid E7)
+
+```html
+<svg class="sd-phasebar" viewBox="0 0 300 10" preserveAspectRatio="none" role="img" focusable="false"
+     aria-label="Phasen über 35 Wochen: Phase 1 Basis, Woche 1 bis 8, läuft. Phase 2 Aufbau, Woche 9 bis 18. …">
+  <rect class="sd-phasebar__seg sd-phasebar__seg--teal"   x="0"     y="0" width="72.8" height="10" rx="5"/>
+  <rect class="sd-phasebar__fill"                         x="0"     y="0" width="63.7" height="10" rx="5"/>
+  <rect class="sd-phasebar__seg sd-phasebar__seg--sky"    x="75.8"  y="0" width="91"   height="10" rx="5"/>
+  <rect class="sd-phasebar__seg sd-phasebar__seg--amber"  x="169.8" y="0" width="…"    height="10" rx="5"/>
+  <rect class="sd-phasebar__seg sd-phasebar__seg--purple" x="…"     y="0" width="…"    height="10" rx="5"/>
+</svg>
+```
+**Mechanismus:** ein SVG, die Segmente sind `<rect>` mit Zahlen in `x`/`width`; Farbe über Klassen. Kein `style`, kein `flex`, keine Prozentbreite im Markup. Der Balken dehnt sich auf die Kartenbreite (256 bis 416 px), Höhe 10 px, Radius 5.
+
+**Geometrie** (k = Anzahl Phasen, `len_i = to - from + 1`, `total = Σ len_i`, alle Werte durch `svgNum`):
+- `usable = 300 - 3 * (k - 1)` (3 Einheiten Lücke)
+- `w_i = usable * len_i / total`, `x_i = Σ_{j<i} (w_j + 3)`
+- erledigte Wochen `d = w - 1` (wie die Kopfzeile „geschafft“); in Phase i `done_i = clamp(d - (from_i - 1), 0, len_i)`
+- Füll-Rect (`sd-phasebar__fill`, Teal) direkt nach dem Segment: `x = x_i`, `width = w_i * done_i / len_i`; **nur zeichnen, wenn `width > 0`**. Erledigte Phasen sind damit ganz gefüllt, die laufende anteilig, spätere gar nicht; der Rand des Füll-Rects ist durch `rx` automatisch rund.
+- Segmentfarbe `sd-phasebar__seg--${tone}` mit `tone` aus der Plan-Phase (`teal`, `sky`, `amber`, `purple`; `coral` ist angelegt). Ohne Modifier grau (`--track`).
+- Vor Planstart: `d = 0`, kein Füllen. Nach dem Plan: alles gefüllt.
+- Text-Alternative: `aria-label` nennt Gesamtwochen, jede Phase mit Name und Wochenbereich und markiert die laufende mit „läuft“. Die gleiche Information steht in 14.3 als Text.
+
+### 14.3 Phasen
+
+```html
+<ul class="sd-card sd-card--list sd-rows" role="list" data-card="phases" aria-label="Phasen">
+  <li class="sd-phase tone-teal is-current" role="listitem" aria-current="true" data-phase="1">
+    <span class="sd-phase__num" aria-hidden="true">1</span>
+    <span class="sd-phase__main">
+      <span class="sd-phase__name"><span class="sd-vh">Phase 1: </span>Basis</span>
+      <span class="sd-phase__sub">21.09.–15.11. · Grundlagenausdauer aufbauen</span>
+    </span>
+    <span class="sd-pill sd-pill--teal">läuft</span>
+  </li>
+  <li class="sd-phase tone-sky" role="listitem" data-phase="2"> … ohne Pill … </li>
+</ul>
+```
+- Kachel 32 px Radius 10 in der Kategoriefarbe: `tone-${tone}` am `li` setzt `--tone`/`--tone-bg` (bestehende Klassen). `tone` nur aus der festen Liste `teal|coral|purple|sky|amber`.
+- Zeile 2: `${esc(phaseRange(plan, p))} · ${esc(p.focus)}`, bricht um. Name `esc(p.name)`.
+- Laufende Phase: `is-current` (Tönung `--teal-tint`), `aria-current="true"`, Pill `sd-pill sd-pill--teal` „läuft“ (getönt, keine zweite gefüllte Teal-Fläche). Außerhalb des Plans (vor Start, nach Ende) gibt es keine laufende Phase.
+- Test-Haken: `.sd-phase` (Anzahl 4), `.sd-phase.is-current` (1), `.sd-phasebar__seg` (4), Farbklasse am `li` (`tone-*`) statt der alten `.phase-card`.
+
+### 14.4 Trainingsbereiche
+
+```html
+<ul class="sd-card sd-card--list sd-rows" role="list" data-card="zones" aria-label="Trainingsbereiche">
+  <li class="sd-zone tone-sky" role="listitem" data-zone="Z1">
+    <span class="sd-zone__badge">Z1</span>
+    <span class="sd-zone__main"><span class="sd-zone__name">Erholung</span><span class="sd-zone__use">Aufwärmen, Auslaufen</span></span>
+    <span class="sd-zone__vals"><span class="sd-zone__hf">120–135 bpm</span><span class="sd-zone__pace">6:50–7:30 /km</span></span>
+  </li>
+</ul>
+```
+Z1 sky, Z2 teal, Z3 amber, Z4 coral, Z5 purple kommen über `tone-${z.tone}` aus den Plandaten. Badge, Name und Texte `esc(tag)`, `esc(label)`, `esc(z.use)`, `esc(z.hf)`, `esc(z.pace)`. HF steht Mono 12,5 über der Pace (Mono 11, gedämpft); die Zeile „Verwendung“ (`sd-zone__use`) bleibt aus der alten Karte erhalten (Abweichung vom Handoff, der sie nicht nennt; sie erklärt die Zone). Die Werte bleiben einzeilig (`nowrap`), der Name bricht um.
+
+### 14.5 Daten und Konto
+
+```html
+<h2 class="sd-label" id="accountTitle">Daten und Konto</h2>
+<section class="sd-card sd-card--loose" data-card="account" aria-labelledby="accountTitle">
+  <div class="sd-split">
+    <div class="sd-split__main">
+      <p class="sd-split__title">Daten exportieren</p>
+      <p class="sd-split__hint">Alle Trainingsdaten als JSON-Datei, ohne Zugangs- und Standortdaten.</p>
+      <p class="sd-split__hint sd-split__status" id="export-status" role="status" hidden></p>
+    </div>
+    <button type="button" class="sd-btn" data-action="export-data">Export</button>
+  </div>
+  <hr class="sd-rule" />
+  <dl class="sd-kvlist">
+    <div class="sd-kv"><dt>Angemeldet als</dt><dd>${esc(email)}</dd></div>
+    <div class="sd-kv" data-slot="strava-status"><dt>Strava</dt><dd>verbunden · Sync heute 07:12</dd></div>
+    <div class="sd-kv" data-slot="plan-source"><dt>Plan</dt><dd>Plandatei · Version 3</dd></div>
+  </dl>
+  <!-- Strava-Aktion nur bei „nicht verbunden“ / Fehler, siehe Tabelle -->
+  <hr class="sd-rule" />
+  <p class="sd-hint">Abmelden räumt dieses Gerät: lokale Kopien und der Offline-Speicher werden gelöscht. Nicht übertragene Einträge werden vorher gesendet.</p>
+  <p class="sd-notice sd-notice--quiet" id="account-status" role="status" hidden></p>
+  <div><button type="button" class="sd-btn sd-btn--danger" data-action="logout">Abmelden</button></div>
+</section>
+```
+Ersetzt `renderExportCard()` und `renderAccountCard()` durch **eine** Funktion in `view-account.js`. Die UID entfällt auf dem Plan-Tab (sie bleibt nur in „Kein Zugriff“, A1).
+
+**Strava-Zeile (`data-slot="strava-status"`)**
+
+| Zustand | `<dd>` | zusätzlich unter der Liste |
+| --- | --- | --- |
+| Prüfung läuft (`connected === null`) | `wird geprüft …` | – |
+| verbunden | `verbunden · Sync heute 07:12` (aus `lastFetchedAt`; anderer Tag: `Sync 20.10. 07:12`; ohne Zeitpunkt nur `verbunden`) | – |
+| nicht verbunden | `nicht verbunden` | `<div><button type="button" class="sd-btn sd-btn--coral" data-action="connect-strava">Strava verbinden</button></div>` |
+| Abruf-Fehler (`s.error`) | `class="is-danger"`: `Abruf fehlgeschlagen` | `<p class="sd-notice sd-notice--danger" role="alert">${esc(s.error)}</p>` und `<div class="sd-actions"><button type="button" class="sd-btn" data-action="reload-strava">Nochmal versuchen</button><button type="button" class="sd-btn sd-btn--coral" data-action="connect-strava">Neu verbinden</button></div>` |
+| Worker fehlt | `nicht eingerichtet` | – (kein Button) |
+Nach der Strava-Aktion folgt wie im Mockup ein `<hr class="sd-rule" />` vor dem Abmelden-Hinweis.
+
+**Plan-Zeile (`data-slot="plan-source"`, Platzhalter für F1 / Login 1b Teil B):** reine Anzeige, **kein Button**. Text `Plandatei · Version ${esc(version)}`; ohne bekannte Version nur `Plandatei`. Kommt Teil B, rutscht „Plan aus Datei übernehmen“ als Sekundärbutton in diese Zeile.
+
+**Export-Zustände** (`#export-status` ersetzt per CSS den Hinweis darüber, solange er sichtbar ist; Id und Textinhalt bleiben Test-Vertrag):
+
+| Zustand | Text | Klasse am `#export-status` | Knopf |
+| --- | --- | --- | --- |
+| Ruhe | – (`hidden`, Hinweis sichtbar) | – | aktiv |
+| läuft | `Lade Strava-Aktivitäten …`, `Lade Kraft-Logs und Zuordnungen …`, `Datei wird erstellt …` | – | `disabled` |
+| fertig | `Export fertig.` | – | aktiv |
+| unvollständig | `Exportiert, aber unvollständig: …` | `is-warn` | aktiv |
+| Fehler | `Export fehlgeschlagen: …` | `is-danger` | aktiv |
+| Teilen abgebrochen | leer, `hidden` | – | aktiv |
+Der Knopf heißt in allen Zuständen „Export“. `setExportStatus(text, tone = "")` setzt zusätzlich `el.className = "sd-split__hint sd-split__status" + (tone ? " is-" + tone : "")`.
+
+**Abmelden-Zustände** (`#account-status`, immer vor dem Knopf):
+
+| Zustand | Text | Variante | Knopf |
+| --- | --- | --- | --- |
+| Ruhe | – (`hidden`) | – | aktiv |
+| läuft | `Wird abgemeldet …` | `sd-notice sd-notice--quiet` | `disabled` |
+| abgebrochen (offene Einträge) | `Abmelden abgebrochen. Es gibt noch nicht übertragene Einträge. Bitte mit Netz erneut versuchen.` | `sd-notice sd-notice--danger` | wieder aktiv |
+| fehlgeschlagen | `Abmelden fehlgeschlagen: …` | `sd-notice sd-notice--danger` | wieder aktiv |
+`setAccountStatus(text, tone = "")` setzt `el.className = "sd-notice " + (tone === "danger" ? "sd-notice--danger" : "sd-notice--quiet")`. Der Test sucht `includes("noch nicht übertragene")`: der neue Text enthält es weiter.
+
+### 14.6 `data-action`-Namen auf Plan und Konto
+
+Alle **bleiben** unverändert: `export-data`, `logout`, `connect-strava`, `reload-strava`, `forbidden-logout` (nur Login-Nebenscreen, E8). Neue Aktionen gibt es nicht. Stabile Test-Haken statt `.account-card`/`.export-card`/`.goal-card`/`.zone-line`/`.timeline`: `[data-card="account"]` (Anzahl 1), `[data-card="account"] [data-action="logout"]`, `[data-card="goal"]`, `.sd-phasebar__seg`, `.sd-phase`, `.sd-zone` (Anzahl 5), `[data-slot="plan-source"]`, `[data-slot="strava-status"]`, `#export-status`, `#account-status`.
+
+### 14.7 `esc()`, Barrierefreiheit, Responsive
+
+- **`esc()`** zusätzlich zu Abschnitt 6: `goal.distance`, `displayGoal.time`, `targetPace`, `phase.name`, `phase.focus`, `phaseRange()`, `z.zone`-Teile, `z.use`, `z.hf`, `z.pace`, `email`, `s.error`, Version, alle Status-Texte. **Nicht**: `svgNum()`-Werte im SVG, `tone`-Klassen (feste Liste), feste Strings, `germanDate()`/`monthLabel()`-Ausgaben.
+- Überschriften: `h1` „Trainingsplan“, `h2` je Abschnitt (Ziel-Label, „Phasen“, „Trainingsbereiche“, „Daten und Konto“).
+- Status nie nur Farbe: laufende Phase = Pill-Text + `aria-current` + Tönung; Export/Abmelden = Text; Strava-Fehler = Text „Abruf fehlgeschlagen“ plus Hinweiskarte.
+- Tippflächen: alle `sd-btn` 44 px; Phasen und Zonen sind nicht interaktiv. Fokus: globales `:focus-visible`.
+- 320 px: Zielzeit 32 px, rechte Spalte rutscht bei Platznot darunter; Export-Knopf rutscht unter den Hinweis (Flex-Wrap); Zeilen rücken auf 16 px Polster; Zonen-Werte bleiben einzeilig, der Name bricht um. 1280 px: Spalte 480 px zentriert.
+- Bewegung: keine neue Animation.
+
+### 14.8 Durch E7 überflüssig werdende alte Klassen (Löschliste, **nicht** vorab löschen)
+
+Greppen vom Designer am Stand HEAD 71dcb51. Erst löschen, wenn `app.js` (`renderHistory`, `renderKraftHistory`, `renderRunHistory`, `barsHTML`, `renderPlan`), `view-account.js` (Konto/Daten-Karten) und `tests/app.test.mjs` (Z. 1198 bis 1240, 1607, 1823, 1881, 2106, 2151, 2561 bis 2568, 2716 bis 2753, 2941) umgebaut sind:
+- Verlauf: `.seg` (+ `button`, `.on`; nicht zu verwechseln mit `.sd-seg`), `.bars`, `.bar-col`, `.bar`, `.bar-label`, `.bar-value`, `.list-row` (+ `span`), `.row` (nach Grep der übrigen Nutzer), `.center-note`, `.metric-grid`, `.metric-label`, `.metric-value`, `.metric-value.sm`, `.mt-*`, `.fg-secondary`, `.fg-muted`, `.fs-11` (jeweils nach Grep, `app.js` Z. 937/938 und `ui.js` nutzen `.center-note`/`.mt-8` noch).
+- Plan: `.phase-card` (+ `.name`, `.hint`, `.is-current`), `.phase-head`, `.phase-weeks`, `.timeline` (+ `.seg`, `.seg i`), `.timeline-marker`, `.timeline-legend`, `.zone-row` (+ `.zone-vals`, `.tone-*`-Zusatz), `.zone-chip`, `.zone-line` (+ `.zname`, `.zvals`), `.goal-card`, `.goal-time`.
+- Konto: `.card.account-card`, `.card.export-card`, `.account-logout`, `.export-btn`, `.small-btn`, `.danger-btn`. **Bleiben bis E8:** `.card.auth-card`, `.account-rows`, `.account-row` (Kein-Zugriff-Karte), `.primary-btn`, `.auth-*`, `.field*`, `.text-input`.
+- **Bleiben auch nach E7:** `.tone-*` (neue Phasen und Zonen), `.badge` (`ui.js` `badge()`), `.card.error-card` (`ui.js` `errorCard()` in `app.js` Z. 919, 2349, 2529, 2576), `.link-btn` (`app.js` Z. 937), `.title-row`, `.eyebrow` (Z. 937/938, alter Tag-Kopf), `.primary-btn` (Login-Karten, E8).

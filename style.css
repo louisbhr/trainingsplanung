@@ -216,7 +216,7 @@ button, input, select, textarea { font-family: inherit; }
   padding: calc(1rem + env(safe-area-inset-top)) 0 1rem;
   flex-shrink: 0;
 }
-.sd-pagehead:has(> :is(.sd-head, .sd-nav, .sd-weekhead)) {
+.sd-pagehead:has(> :is(.sd-head, .sd-nav, .sd-weekhead, .sd-tabhead)) {
   padding: calc(8px + env(safe-area-inset-top)) 0 0;
 }
 .sd-pagehead .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0; }
@@ -263,7 +263,7 @@ button, input, select, textarea { font-family: inherit; }
 /* Alter Kopf (Eyebrow/Titel/Marke) in einem genullten #main: Seitenpolster selbst tragen,
    sonst klebt er am Rand (vorher trug das der #header). */
 #main:has(> :is(.sd-main, .sd-intro, .sd-nav, .sd-head, .sd-dots, .sd-daytitle, .sd-auth))
-  > .sd-pagehead:not(:has(> :is(.sd-head, .sd-nav, .sd-weekhead))) {
+  > .sd-pagehead:not(:has(> :is(.sd-head, .sd-nav, .sd-weekhead, .sd-tabhead))) {
   padding-inline: max(1.25rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-left));
 }
 
@@ -289,7 +289,6 @@ button {
   color: var(--text-primary); font-size: 13px; padding: 6px 12px; cursor: pointer;
 }
 button:active { transform: scale(0.97); }
-.icon-btn { width: 44px; height: 44px; padding: 0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 
 .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .metric-label { font-size: 11px; color: var(--text-muted); margin: 0; }
@@ -348,9 +347,6 @@ button:active { transform: scale(0.97); }
 #tabbar span, .sd-tab span { font-size: 10.5px; }
 
 .center-note { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 10px; }
-.strava-note { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.strava-note svg { width: 16px; height: 16px; color: var(--text-muted); flex-shrink: 0; }
-.strava-note p { font-size: 12px; color: var(--text-muted); margin: 0; }
 
 .primary-btn { background: var(--primary); color: var(--on-primary); border: none; font-weight: 600; width: 100%; min-height: 50px; border-radius: 14px; font-size: 15px; }
 .primary-btn:hover, .primary-btn:active { background: var(--primary-hover); }
@@ -366,7 +362,6 @@ button:disabled { opacity: 0.35; cursor: default; }
 
 .sd-pagehead h1 .of { font-weight: 400; font-size: 14px; color: var(--text-secondary); }
 .sd-pagehead .title-row .row { flex-shrink: 0; }
-.sd-pagehead .icon-btn svg { width: 18px; height: 18px; }
 
 /* Fehler sind Danger-Rot; Koralle bedeutet nur noch Laufen (Handoff §3). */
 .card.error-card { background: var(--danger-bg); }
@@ -458,22 +453,6 @@ select {
 .goal-card { background: linear-gradient(135deg, var(--teal-bg), var(--sky-bg)); }
 .goal-time { font-family: var(--font-mono); font-size: 30px; font-weight: 600; color: var(--teal-fg); margin: 4px 0 0; letter-spacing: -0.03em; }
 
-/* ---- Verschobene Läufe ---- */
-.card.shifted { border-left: 3px solid var(--amber-fg); }
-.shift-note {
-  font-size: 12px; font-weight: 600; color: var(--amber-fg);
-  background: var(--amber-bg); border-radius: 6px;
-  padding: 4px 8px; margin: 8px 0 0; display: inline-block;
-}
-.pick-row {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
-  width: 100%; text-align: left; margin-top: 6px; padding: 8px 12px;
-}
-.pick-row.on { background: var(--teal-bg); }
-.pick-row .pick-main { font-size: 13px; font-weight: 600; }
-.pick-row .pick-sub { font-size: 11px; color: var(--text-muted); }
-.pick-row.on .pick-main, .pick-row.on .pick-sub { color: var(--teal-fg); }
-
 /* =========================================================
    Dashboard v2 (D0) — docs/mockup-dashboard-v2.html, abgenommen 27.09.2026.
    Referenz für Markup: docs/ui-markup-dashboard-v2.md.
@@ -495,9 +474,6 @@ select {
 .fs-11 { font-size: 11px; }
 .fg-secondary { color: var(--text-secondary) !important; }
 .fg-muted { color: var(--text-muted) !important; }
-.fg-coral { color: var(--coral-fg) !important; }
-.bg-coral { background: var(--coral-bg); }
-.metric-value.xs { font-size: 16px; }
 
 /* ---- Anmeldung (Schritt 1b) ----
    Anmelde-, "Kein Zugriff"- und Konto-Karte. Felder mindestens 16px (iOS
@@ -1222,10 +1198,162 @@ button.sd-option.is-selected:active { background: var(--teal-tint); }
 .sd-option[aria-disabled="true"] :is(.sd-radio, .sd-option__name, .sd-option__sub) { opacity: 0.5; }
 .sd-option__why { display: block; margin-top: 3px; font-size: 12.5px; color: var(--text-secondary); }
 
+/* =====================================================================
+   Verlauf + Plan (E7). Handoff §5.5 und §5.6, Mockup P1 (Daten und Konto).
+   Markup: docs/ui-markup-stride.md, Abschnitte 13 und 14. Kein style= (C5):
+   - Diagramme (Distanz je Lauf, Wochen-Balken, Phasenbalken): je ein Inline-SVG,
+     Lage und Größe nur über Zahlen-Attribute (x, y, width, height). Farben kommen
+     über Klassen am <rect>, Achsenbeschriftung ist HTML (kein gestreckter Text).
+   - Reihen mit Platz für N Einträge sind Flex-Reihen mit gleichem Anteil (flex 1 1 0),
+     nie ein Grid mit Spaltenzahl aus Daten.
+   ===================================================================== */
+
+/* ---- Tab-Kopf (Verlauf, Plan): Titel links, Schalter rechts, bricht um statt zu clippen ----
+   `.sd-pagehead h1` (24px, Alt-Kopf) schlägt `.sd-display` in der Spezifität, darum hier
+   ausdrücklich die Display-Werte (wie bei .sd-daytitle). */
+.sd-tabhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px 20px 0; }
+.sd-tabhead__titles { flex: 1 1 140px; min-width: 0; }
+.sd-tabhead .sd-display { margin: 4px 0 0; font-size: 30px; font-size: clamp(26px, 7.7cqi, 30px); letter-spacing: -0.03em; line-height: 1.1; }
+.sd-tabhead .sd-seg { flex: none; align-self: center; }
+@media (hover: hover) { .sd-seg__opt:not(.is-active):hover { color: var(--text-primary); } }
+
+/* ---- Übungs-Chips: eine Zeile, scrollt nur in sich (Seite scrollt nie seitlich) ----
+   Die Zeile liegt als Geschwister von .sd-tabhead im Kopf und läuft bis an den Rand;
+   das Seitenpolster steckt im padding-inline, damit das erste/letzte Chip nicht klebt.
+   padding-block 4px: Platz für den Fokusring (2px + 2px Offset) und die 44px-Trefferfläche
+   (::after), beides würde sonst vom overflow der Zeile abgeschnitten. */
+.sd-filter { display: flex; gap: 8px; margin-top: 12px; padding: 4px 20px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-padding-inline: 20px; scrollbar-width: thin; scrollbar-color: var(--ink-off) transparent; -webkit-overflow-scrolling: touch; }
+.sd-filter__chip { position: relative; flex: none; height: 36px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--card); color: var(--text-secondary); font: 600 13px/1 var(--font-ui); white-space: nowrap; cursor: pointer; transition: background-color 150ms ease-out, color 150ms ease-out; }
+.sd-filter__chip::after { content: ""; position: absolute; inset: -4px 0; }
+.sd-filter__chip > span { display: block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+/* Aktiv trägt nicht nur Farbe: Gewicht 600 bleibt gleich, dazu ein innerer Ring und aria-pressed. */
+.sd-filter__chip.is-active { background: var(--teal-bg); color: var(--teal-fg); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--teal-fg) 35%, transparent); }
+@media (hover: hover) { .sd-filter__chip:not(.is-active):hover { background: color-mix(in srgb, var(--card) 92%, var(--text-primary)); color: var(--text-primary); } }
+
+/* ---- Info-Knopf (i) an berechneten Werten: sichtbar 20px, Trefferfläche 44px ---- */
+.sd-infobtn { position: relative; flex: none; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); display: inline-grid; place-items: center; cursor: pointer; }
+.sd-infobtn::after { content: ""; position: absolute; inset: -12px; }
+@media (hover: hover) { .sd-infobtn:hover { color: var(--text-primary); } }
+
+/* ---- Verlauf Lauf: vier Kacheln, 2 x 2 ----
+   Wert fluid über cqi (Container ist #main): bei 320 px 19px, ab ca. 390 px 22px. Die Einheit
+   bricht notfalls unter die Zahl. Kachelbreite bei 320 px: ca. 142px, Innenbreite 110px. */
+.sd-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.sd-tile { min-width: 0; margin: 0; padding: 14px 16px; border-radius: 18px; background: var(--card); display: flex; flex-direction: column; gap: 6px; }
+.sd-tile__label { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-secondary); }
+.sd-tile__value { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; font-size: 22px; font-size: clamp(19px, 5.6cqi, 22px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; overflow-wrap: anywhere; }
+.sd-tile__value .sd-unit { margin-left: 0; font-size: 13px; letter-spacing: 0; }
+
+/* ---- Diagramme ----
+   .sd-chart__plot ist das SVG: viewBox 0 0 320 <Höhe> mit preserveAspectRatio="none", dehnt
+   sich also auf die Kartenbreite (256 bis 416px) und behält seine Höhe (120 bzw. 130px, 1:1).
+   Rundung: das <rect> hat rx=5 und ragt 5 Einheiten unter die Grundlinie, das svg schneidet
+   ab (overflow hidden ist bei Inline-SVG Standard): oben rund, unten bündig. Die Dehnung
+   verzerrt rx nur um ca. 0,8 bis 1,3, das ist bei 5px nicht zu sehen. */
+.sd-chart { margin: 0; min-width: 0; }
+.sd-chart__plot { display: block; box-sizing: content-box; width: 100%; height: 120px; border-bottom: 1px solid var(--line); }
+.sd-chart__plot--tall { height: 130px; }
+.sd-chart__bar { fill: var(--teal); }
+.sd-chart__bar--lauf { fill: var(--coral-accent); }
+.sd-chart__bar--long { fill: var(--purple); }
+.sd-chart__bar--deload { fill: var(--teal-soft); }
+/* Beschriftung: ein Span je Balken-Platz, gleich breit, mittig unter dem Balken. Spans ohne
+   Text bleiben als leere Platzhalter stehen (Ausdünnregel im Markup-Doc 13.3). justify-content
+   statt text-align: ein breiteres Label ragt so nach beiden Seiten gleich weit über den Platz. */
+.sd-chart__axis { display: flex; margin-top: 6px; }
+.sd-chart__axis > span { flex: 1 1 0; min-width: 0; display: flex; justify-content: center; white-space: nowrap; font: 500 9.5px/1.2 var(--font-mono); color: var(--text-muted); }
+.sd-chart__axis > .is-current { color: var(--teal-fg); font-weight: 700; }
+.sd-chart__legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 12px 0 0; font-size: 12px; line-height: 1.3; color: var(--text-secondary); }
+.sd-chart__legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.sd-chart__swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--teal); }
+.sd-chart__swatch--lauf { background: var(--coral-accent); }
+.sd-chart__swatch--long { background: var(--purple); }
+.sd-chart__swatch--deload { background: var(--teal-soft); }
+
+/* ---- Verlauf Kraft: Bestwert und Trend ---- */
+.sd-best { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.sd-best__val { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
+.sd-best__val .sd-unit { margin-left: 6px; font-size: 14px; letter-spacing: 0; }
+.sd-trend { margin: 0; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 6px; font: 600 12.5px/1.4 var(--font-mono); color: var(--text-secondary); }
+.sd-trend__since { font-weight: 500; }
+.sd-trend.is-up { color: var(--ok-fg); }
+
+/* ---- Listen in Karten (letzte Läufe, letzte Einträge, Phasen, Zonen) ----
+   Die Karte schneidet ab (overflow hidden), damit die Tönung der laufenden Phase dem
+   Kartenradius 22 folgt. Keine Zeile ist antippbar, darum kein Fokusring-Sonderfall. */
+.sd-rows { list-style: none; margin: 0; overflow: hidden; }
+.sd-hrow { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 12px 20px; }
+.sd-hrow + .sd-hrow { border-top: 1px solid var(--line); }
+.sd-hrow__main { flex: 1; min-width: 0; }
+.sd-hrow__title { display: block; font-size: 14px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.sd-hrow__sub { display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.3; color: var(--text-muted); }
+.sd-hrow__val { flex: none; display: inline-flex; align-items: baseline; gap: 0 6px; text-align: right; white-space: nowrap; font: 600 13px/1.3 var(--font-mono); }
+.sd-hrow__val > :nth-child(3) { font-weight: 500; color: var(--text-secondary); }
+
+/* ---- Plan: Ziel-Karte ---- */
+.sd-goal { gap: 16px; }
+.sd-goal__top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 16px; }
+.sd-goal__main { min-width: 0; }
+.sd-goal__label { margin: 0; font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-muted); }
+.sd-goal__time { margin: 6px 0 0; font-size: 40px; font-size: clamp(32px, 11cqi, 40px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; color: var(--teal-fg); }
+.sd-goal__race { min-width: 0; text-align: right; }
+.sd-goal__race > p { margin: 0; }
+.sd-goal__k { font-size: 12px; line-height: 1.3; color: var(--text-muted); }
+.sd-goal__race > .sd-goal__date { margin-top: 2px; font-size: 15px; font-weight: 600; line-height: 1.3; }
+.sd-goal__race > .sd-goal__pace { margin-top: 2px; font-size: 12.5px; line-height: 1.3; color: var(--text-secondary); }
+
+/* Phasenbalken: ein SVG, viewBox 0 0 300 10, preserveAspectRatio="none". Segmentbreiten
+   (proportional zu den Wochen, 3 Einheiten Lücke) und Füllung stehen als Zahlen in
+   x/width. Erledigte Phasen sind ganz gefüllt, die laufende anteilig, spätere gar nicht. */
+.sd-phasebar { display: block; width: 100%; height: 10px; }
+.sd-phasebar__seg { fill: var(--track); }
+.sd-phasebar__seg--teal { fill: var(--teal-bg); }
+.sd-phasebar__seg--sky { fill: var(--sky-soft); }
+.sd-phasebar__seg--amber { fill: var(--amber-soft); }
+.sd-phasebar__seg--purple { fill: var(--purple-soft); }
+.sd-phasebar__seg--coral { fill: var(--coral-bg); }
+.sd-phasebar__fill { fill: var(--teal); }
+
+/* ---- Plan: Phasen und Trainingsbereiche ---- */
+.sd-phase, .sd-zone { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 12px 20px; }
+.sd-phase + .sd-phase, .sd-zone + .sd-zone { border-top: 1px solid var(--line); }
+.sd-phase.is-current { background: var(--teal-tint); }
+.sd-phase__num { flex: none; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--tone-bg); color: var(--tone); font: 600 14px/1 var(--font-mono); }
+.sd-phase__main, .sd-zone__main { flex: 1; min-width: 0; }
+.sd-phase__name { display: block; font-size: 14.5px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.sd-phase__sub, .sd-zone__use { display: block; margin-top: 2px; font-size: 12px; line-height: 1.4; color: var(--text-muted); overflow-wrap: anywhere; }
+.sd-zone__badge { flex: none; min-width: 36px; height: 24px; padding: 0 6px; border-radius: 8px; display: grid; place-items: center; background: var(--tone-bg); color: var(--tone); font: 600 12px/1 var(--font-mono); }
+.sd-zone__name { display: block; font-size: 14px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.sd-zone__vals { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; white-space: nowrap; }
+.sd-zone__hf { font: 500 12.5px/1.3 var(--font-mono); }
+.sd-zone__pace { font: 11px/1.3 var(--font-mono); color: var(--text-muted); }
+
+/* ---- Schmale Spalte (320 px): Zeilen rücken zusammen, Distanz und Pace stehen untereinander ---- */
+@container (max-width: 359px) {
+  .sd-hrow, .sd-phase, .sd-zone { gap: 10px; padding-inline: 16px; }
+  .sd-hrow__val { flex-direction: column; align-items: flex-end; gap: 2px; }
+  .sd-hrow__sep { display: none; }
+}
+
+/* ---- Daten und Konto ---- */
+/* Strava-Zeile bei Abruffehler: der Text benennt den Zustand, Danger-Rot unterstreicht ihn nur. */
+.sd-kv dd.is-danger { color: var(--danger-fg); }
+/* Status des Exports ersetzt den Hinweis darüber, solange er sichtbar ist (rein per CSS). */
+.sd-split__status { font-size: 12.5px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.sd-split__status.is-warn { color: var(--amber); }
+.sd-split__status.is-danger { color: var(--danger-fg); }
+.sd-split__main:has(> .sd-split__status:not([hidden])) > .sd-split__hint:not(.sd-split__status) { display: none; }
+.sd-notice { overflow-wrap: anywhere; }
+.sd-notice--quiet { background: var(--sunk); color: var(--text-secondary); }
+
+/* ---- Ladezustand: Platzhalter für Kachel-Wert, Diagramm ---- */
+.sd-skel--val { width: 50%; height: 22px; border-radius: 8px; }
+.sd-skel--chart { width: 100%; height: 120px; border-radius: 12px; }
+
 /* Bewegung nur dort, wo sie etwas erklärt, und abschaltbar */
 @media (prefers-reduced-motion: reduce) {
   #tabbar button, #tabbar button::after, .sd-tab, .sd-tab::after,
-  .sd-btn, .sd-stepper__btn, .sd-bilanz__toggle .sd-icon,
+  .sd-btn, .sd-stepper__btn, .sd-bilanz__toggle .sd-icon, .sd-filter__chip,
   .sd-backdrop, .sd-sheet { transition: none; }
   .sd-btn:active, .sd-stepper__btn:active, button:active { transform: none; }
 }
