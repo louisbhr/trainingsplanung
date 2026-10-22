@@ -63,11 +63,12 @@ Datei durch `--bg` / `--sunk` / `--card` ersetzt. Die Hell/Dunkel-Werte stehen 1
 | `--ok-fg` / `--ok-bg` / `--ok-band` | #2f7d32 / #e3f2e1 / #cfe8d0 | #7ed88f / #123a1c / #1f5a2c | Ampel grün, „im Plan“, Zielband |
 | `--danger-fg` / `--danger-bg` / `--danger-ink` | #b3261e / #fbe4e1 / #8c1d16 | #ff8a80 / #4a1f1c / #ffb4ab | Fehler, verpasst, Abmelden, Fließtext in Fehlerflächen |
 | `--glass`, `--tab-shadow`, `--sheet-shadow`, `--backdrop` | siehe Mockup | siehe Mockup | Tab-Leiste, Sheet |
-| `--mark-bg` / `--mark-a` / `--mark-b` | #0f6e56 / #fff / #e0673d | #26262b / #5fcfa7 / #ef8f61 | Farben des Zeichens (nur wenn es inline gerendert wird) |
+
+Das Zeichen ist ein `<img>` (`stride-mark.svg` / `stride-mark-dark.svg` über `<picture>`), darum gibt es keine `--mark-*`-Tokens (in E9 gelöscht).
 
 **Neu gegenüber dem Handoff (Designer-Ergänzungen):** `--danger-ink`, `--purple-line`,
 `--purple-soft`, `--sky-soft`, `--amber-soft`, `--teal-soft`, `--primary-hover`, `--seg`,
-`--tab-shadow`, `--sheet-shadow`, `--backdrop`, `--mark-*`. Die Phasenbalken im Plan nehmen
+`--tab-shadow`, `--sheet-shadow`, `--backdrop`. Die Phasenbalken im Plan nehmen
 `--teal-soft` / `--sky-soft` / `--amber-soft` / `--purple-soft`.
 
 **Farbregeln (Handoff):** Teal = Hauptaktion, höchstens **eine** teal gefüllte Fläche pro Screen.
@@ -221,15 +222,8 @@ Zuordnungs-Sheet-Inhalt:
 ```
 
 ### 3.9 Tab-Leiste und Kopfzeilen
-```html
-<nav class="sd-tabbar" aria-label="Hauptnavigation">
-  <button type="button" class="sd-tab is-active" aria-current="page" data-tab="dashboard">${icon}<span>Heute</span></button>
-  <button type="button" class="sd-tab" data-tab="week">${icon}<span>Woche</span></button>
-  <button type="button" class="sd-tab" data-tab="history">${icon}<span>Verlauf</span></button>
-  <button type="button" class="sd-tab" data-tab="plan">${icon}<span>Plan</span></button>
-</nav>
-```
-Die Icon-Pfade stehen in der `TABS`-Liste im Mockup-Skript (und heute in `index.html`). In der App ist die Leiste fixiert an der 480-px-Spalte
+Gebaut ist die Leiste in `index.html` als `<div id="tabbar">` mit vier `<button data-tab="dashboard|woche|verlauf|plan">` (Icon plus `<span>`); der aktive Tab trägt die Klasse `active`. Die im Mockup vorgesehenen Klassen `sd-tabbar` / `sd-tab` gibt es nicht (in E9 aus dem CSS entfernt).
+Die Icon-Pfade stehen in `index.html`. In der App ist die Leiste fixiert an der 480-px-Spalte
 (links/rechts 12 px, unten 26 px + `env(safe-area-inset-bottom)`), auf Detail-Seiten (`#app.is-detail`) ausgeblendet; `#main` bekommt unten 120 px Polster.
 Detail-Kopfzeile:
 ```html
@@ -359,12 +353,15 @@ laufen durch einen Helfer `pct(x)` (Zahl, `Number.isFinite`, auf 0 bis 100 gekle
 
 ## 8. Screen-Ergänzungen (je Etappe vom Designer nachgetragen)
 
-- **E3 Heute:** erledigt, siehe Abschnitt 9 unten (Kopf, Banner, Heute-Karten, Coach, Status, Diese Woche, Info-Sheet-Blöcke).
-- **E4 Woche:** erledigt, siehe Abschnitt 10 (Kopf mit Rundtasten, Summen-Karte, Tageszeilen-Akkordeon).
-- **E5 Kraft-Tag:** Design erledigt, siehe Abschnitt 11 (Kopf, Dots, Jetzt-Karte, Sätze, Stepper, Reihenfolge, Strava-Zeile, Ladefehler, Anpassen-Modus E5b, Löschliste 11.14).
-- **E6 Lauf-Tag:** Design erledigt, siehe Abschnitt 12 (Kopf, Vergleichs-Karte, Distanz- und Range-Balken, Strava-Zeile, alle Zustände, Zuordnungs-Sheet, Löschliste 12.12).
-- **E7 Verlauf und Plan:** Design erledigt, siehe Abschnitt 13 (Verlauf Lauf und Kraft, Diagramme, Chips) und Abschnitt 14 (Plan, Ziel-Karte, Phasen, Zonen, Daten und Konto, Löschliste 14.9).
-- **E8 Login:** offen.
+| Etappe | Status | Wo |
+| --- | --- | --- |
+| E3 Heute | erledigt | Abschnitt 9 (Kopf, Banner, Heute-Karten, Coach, Status, Diese Woche, Info-Sheet-Blöcke) |
+| E4 Woche | erledigt | Abschnitt 10 (Kopf mit Rundtasten, Summen-Karte, Tageszeilen-Akkordeon) |
+| E5 Kraft-Tag | erledigt | Abschnitt 11 (Kopf, Dots, Jetzt-Karte, Sätze, Stepper, Reihenfolge, Strava-Zeile, Ladefehler, Anpassen-Modus E5b) |
+| E6 Lauf-Tag | erledigt | Abschnitt 12 (Kopf, Vergleichs-Karte, Distanz- und Range-Balken, Strava-Zeile, alle Zustände, Zuordnungs-Sheet) |
+| E7 Verlauf und Plan | erledigt | Abschnitte 13 (Verlauf Lauf und Kraft, Diagramme, Chips) und 14 (Plan, Ziel-Karte, Phasen, Zonen, Daten und Konto) |
+| E8 Login und Nebenscreens | erledigt | Abschnitt 15 (Anmelden, Kein Zugriff, offene Einträge, Warten, Gate-Fehler) |
+| E9 Abschluss | erledigt (CSS) | Abschnitt 16 (Löschungen, Safe Area, Konsistenz, bewusste Abweichungen, Rest-Migration) |
 
 ---
 
@@ -1083,7 +1080,7 @@ Immer ein `<article>`; `data-mode` ist Test-Haken: `weight` (kg × Wdh), `reps` 
 | Eyebrow | „Jetzt“. Ist die Übung gespeichert und kein Satz aktiv (alle Sätze fertig): „Erledigt“ (`sd-eyebrow--teal`, gleicher Punkt) |
 | Letztes Mal | `<span class="sd-last sd-mono">Letztes Mal ${n}×${reps}</span>`; mit Gewicht ` · ${kg} kg` (Top-Gewicht, Komma), Zeit `${n}×${sec} s`. **Ohne Historie** entfällt das ganze `<span>`, der Kopf zeigt nur die Eyebrow |
 | Soll-Zeile | `<b>` = Soll (Mono 600). Ohne Hinweis nur `<p class="sd-now__soll"><b>…</b></p>` (kein Trennpunkt) |
-| Chip | `<p class="sd-tip sd-tip--${level}">` mit `level` aus `progressionChip()`: `up` (teal, „Heute 62,5 kg“), `hold` (sky, „60 kg halten“), `down` (amber, „Heute 57,5 kg“), `info` (nur `sd-tip`, neutral, „Deload, 72,5 kg“). `sd-tip--stall` (amber, „Seit 2 Einheiten ohne Steigerung“) ist als Variante vorhanden, falls der Coder die Stagnation getrennt zeigen will. **Kein Chip ohne Vorschlag** (Element weglassen). Text durch `esc()` |
+| Chip | `<p class="sd-tip sd-tip--${level}">` mit `level` aus `progressionChip()`: `up` (teal, „Heute 62,5 kg“), `hold` (sky, „60 kg halten“), `down` (amber, „Heute 57,5 kg“), `info` (nur `sd-tip`, neutral, „Deload, 72,5 kg“). Eine Variante `sd-tip--stall` gibt es nicht (in E9 gelöscht, `progression.js` liefert kein `stall`). **Kein Chip ohne Vorschlag** (Element weglassen). Text durch `esc()` |
 | Primärbutton | 11.5 |
 | „Mit n Sätzen abschließen“ | 11.5; nur solange mindestens ein Satz fertig **und** noch ein Satz offen/aktiv ist |
 | Speicherfehler | `<p class="sd-notice sd-notice--danger" role="alert" data-slot="save-error">Nicht gespeichert: ${esc(message)}. Der Satz bleibt offen, versuch es noch einmal.</p>` zwischen `.sd-sets` und Primärbutton. Verschwindet beim nächsten Versuch. Zusätzlich der Toast wie heute |
@@ -2119,7 +2116,7 @@ Greppen vom Designer am Stand HEAD 71dcb51. Erst löschen, wenn `app.js` (`rende
 
 ## 15. Screen-Ergänzungen: Login und Nebenscreens (E8)
 
-Quelle: Handoff §5.7, Mockup A1 bis A3 (`docs/mockup-stride-luecken.html`). **Nur Markup** (Auflage C10: keine Änderung an `signIn`, `authReady`, `accessState`, `authErrorText`, Abmelden), **kein `style=`** (C5). CSS: Abschnitt „Login (E8)“ in `style.css`. Die Bausteine `sd-auth`, `sd-auth__brand|name|tag|foot` stehen seit E1; neu in E8: `sd-field__error`, `sd-field.is-invalid`, die Seitenkopf-Variante `:empty` und das Verhalten bei wenig Höhe.
+Quelle: Handoff §5.7, Mockup A1 bis A3 (`docs/mockup-stride-luecken.html`). **Nur Markup** (Auflage C10: keine Änderung an `signIn`, `authReady`, `accessState`, `authErrorText`, Abmelden), **kein `style=`** (C5). CSS: Abschnitt „Login (E8)“ in `style.css`. Die Bausteine `sd-auth`, `sd-auth__brand|name|tag|foot` stehen seit E1; neu in E8: `sd-field.is-invalid` (die Feldfehler-Zeile `sd-field__error` aus 15.1.4 wurde nicht gebaut und ist seit E9 aus dem CSS gelöscht), die Seitenkopf-Variante `:empty` und das Verhalten bei wenig Höhe.
 
 ### 15.0 Seitenaufbau und Seitenkopf
 
@@ -2206,7 +2203,7 @@ Text unverändert aus `CACHE_KEPT_NOTICE`: „Abgemeldet. Der Offline-Speicher d
 ```
 Nur rendern, wenn `error` nicht leer ist (nicht mehr als verstecktes `<p hidden>` vorhalten). Das Passwortfeld bekommt dann `aria-describedby="login-error"`. Danger-Fläche mit Text, nicht nur Farbe.
 
-**15.1.4 Feldfehler**
+**15.1.4 Feldfehler** (Stand E9: nicht gebaut; geliefert wird nur der Ring `.is-invalid` plus `aria-invalid` am Feld und der allgemeine Fehlerblock 15.1.3. Das folgende Markup ist die verworfene Variante und bleibt als Referenz, falls Feldfehler je einzeln gezeigt werden sollen; dann `.sd-field__error` wieder anlegen.)
 
 ```html
 <div class="sd-field is-invalid">
@@ -2319,3 +2316,85 @@ Erst löschen, wenn `view-account.js` umgebaut ist und `tests/app.test.mjs` (30a
 
 - **Ziel-Karte (Plan) bei 320 px:** Der Renntag-Block steht linksbündig (Label, Datum, Pace gemeinsam) unter der Zielzeit, wenn er umbricht; nebeneinander und rechtsbündig erst ab 375 px Spaltenbreite (`@container`). Markup aus 14.1 unverändert.
 - **Tab-Kopf (Woche, Verlauf, Plan):** Seitenpolster `max(20px, env(safe-area-inset-left|right))`, Querformat mit Notch schneidet den Titel nicht mehr an.
+
+---
+
+## 16. Abschluss (E9)
+
+Nur CSS und diese Doku; kein JS. `style.css` ging von 1340 auf 1250 Zeilen.
+
+### 16.1 Gelöscht
+
+- **Alte Anmeldung:** `.card.auth-card` (+ `p.hint`), `#app.no-session #main > .auth-card`, `#app.no-session #main` (Bodenpolster 16, vom `:has(> .sd-auth)`-Polster überstimmt), `.auth-brand`, `.auth-brand-name`, `.field`, `.field-label`, `.text-input` (+ `:focus-visible`), `.auth-error` (+ `[hidden]`), `.auth-submit`, `.account-rows`, `.account-row` (+ `dt`, `dd`, `dd.account-uid`), `.primary-btn` (+ `:hover`, `:active`).
+- **Utilities:** `.mt-6`, `.mt-10`, `.jc-between`, `.gap-8`, `.w-full`.
+- **Alte Karten:** `.hint`, `.hint.center`, `.card.notice p`, `.card.notice p.name` (alle Verbraucher stehen in `.card`, dort gilt `.card p.hint`).
+- **Kopf:** `.sd-pagehead h1 .of`, `.sd-pagehead > .sd-brand` (die Marke liegt immer in `.sd-head`), die zweite `#main:has(...)`-Regel (Polster für einen alten Kopf in genulltem `#main`; trat nie mehr ein) und die toten Selektoren `.sd-intro, .sd-nav, .sd-head, .sd-dots, .sd-daytitle` in der ersten (direkte Kinder von `#main` sind nur Seitenkopf und `.sd-main` oder `.sd-auth`).
+- **Marke:** `.sd-mark .m-bg|.m-a|.m-b` samt Tokens `--mark-bg|-a|-b` (hell und dunkel): das Zeichen ist ein `<img>`.
+- **Tokens ohne Verbraucher:** `--border`.
+- **Bausteine ohne Verbraucher:** `.sd-heading`, `.sd-block`, `.sd-main--flush` (+ `> .sd-label:first-child`), `.sd-intro--tight`, `.sd-actions--center`, `.sd-legend`, `.sd-tip--stall` (`progression.js` liefert kein `stall`), `.sd-field__error` (siehe 15.1.4), `.sd-tabbar` und `.sd-tab` samt `.is-active` (die Leiste ist `#tabbar button.active`).
+- **Zusammengelegt:** drei verstreute `prefers-reduced-motion`-Blöcke zu einem; doppelte Deckkraft von `.sd-option[aria-disabled]`; veralteter `impeccable-disable side-tab`-Kommentar (kein farbiger `border-left` im CSS).
+
+### 16.2 Bleibt, mit Verbraucher
+
+| Regel | Verbraucher |
+| --- | --- |
+| `.card`, `.card p.name`, `.card p.hint`, `.card.notice` | `app.js` `renderDay()` Z. 945 bis 962 (Platzhalter, Bis zum Rennen, Kein Plan, Ruhetag), `ui.js` `errorCard()` |
+| `.card.error-card` (+ `.name`, `p.hint`, `button`) | `ui.js` `errorCard()`; `app.js` Z. 916 und 2491 |
+| `.center-note` | `ui.js` `loadingCard()`; `app.js` Z. 2461 und 2505 |
+| `.mt-8` | `ui.js` `errorCard()` |
+| `.sd-pagehead .eyebrow`, `.title-row`, `h1`; `.link-btn` | `app.js` `renderDay()` Z. 934 bis 942; `h1` auch Z. 915, 2490, 2504 |
+| `.badge` | `ui.js` `badge()` via `app.js` `badgeForKind()` (nur `renderDay()`) |
+| `--surface-1` | `app.js` `colorsFor()` Z. 160 |
+| `.tone-teal|coral|purple|sky|amber` (+ `--sky-fg`, `--amber-fg`) | `view-plan.js` Z. 92 und 108 (Phasen-Nummer, Zonen-Badge) |
+| `button`, `button:active`, `button:disabled` | alle Knöpfe ohne eigene Klasse (`errorCard`), `.sd-dots__seg`, `.sd-filter__chip` u. a. |
+| `#header:empty` | `index.html` `<div id="header">` |
+
+### 16.3 Safe Area
+
+Alle Köpfe außerhalb von `.sd-main` tragen ihr Seitenpolster als `max(20px, env(safe-area-inset-left|right))`: `.sd-head`, `.sd-intro`, `.sd-weekhead`, `.sd-tabhead` (seit E8), `.sd-dots`, `.sd-daytitle`, `.sd-filter` (inkl. `scroll-padding-inline`), `.sd-sheet`. `.sd-nav`: `max(8px, …)`. `.sd-main` (12), `.sd-auth` (24), `#main` (1,25 rem) und `#tabbar` (12) hatten sie bereits. Innerhalb von `.sd-main` liegende Blöcke (`.sd-label`, `.sd-planhint`, Karten) erben sie über `.sd-main`.
+
+### 16.4 Konsistenzprüfung gegen Handoff §3 und §4
+
+Geprüft und in Ordnung: genau eine teal gefüllte Fläche je Screen (Heute: Training starten; Woche: Pill „Heute“; Kraft-Tag: Satz-fertig-Knopf, im Anpassen-Modus das eine offene Formular; Lauf, Verlauf: nur im Zustand „Strava fehlt“ ein Primärknopf; Plan: keiner; Gate-Screens: je einer). Koralle nur für Lauf und Strava, nie für Fehler (Fehler, verpasst, Abmelden: Danger). Radien (Pill 20, Feld 12, Knopf 14/16, Karte 22, Sheet 28, Tab-Leiste 32, Satz 16, Kachel 18). Tippflächen mindestens 44 (Dots und Info-Knopf über `::after`). Eingaben mindestens 16 px. Fokusring global für alle `button`, `a`, `input`, `select` und `[tabindex]`; kein sd-Baustein schaltet ihn ab, in Listen mit `overflow: hidden` liegt er innen.
+
+Korrekturen in E9:
+- **Bewegung:** `#toast` (Einblenden mit Verschiebung) fehlte unter `prefers-reduced-motion`; jetzt ein einziger Block am Dateiende, der auch `.sd-roundbtn`, `.sd-pillbtn`, Skeleton-Schimmer und die `:active`-Skalierung von `.sd-weekcard` führt.
+- **Status nie nur Farbe:** `.sd-wd.is-missed` (verpasst) hatte nur Danger-Fläche und Ring; die Zahl ist jetzt zusätzlich durchgestrichen (und weiter „verpasst“ für Screenreader).
+- **Tippfläche:** der Knopf „Neu laden“ in `errorCard()` war ein nackter `<button>` mit ca. 32 px; jetzt 44 px, Schrift 14/600, Fläche `--card` auf Danger.
+- **Pressen großer Flächen:** `.sd-linkrow`, `button.sd-option`, `button.sd-nextrow` skalierten auf `:active` mit dem globalen `button:active` (3 %); jetzt nur Tönung, wie `.sd-day__row` und `.sd-statusrow`.
+- **Fokus:** Überschriften mit `tabindex="-1"` (Fokusziel nach Seitenwechsel) zeigen keinen Ring mehr; sie sind kein Bedienelement.
+
+### 16.5 Bewusste Abweichungen vom Handoff (alle abgenommen oder hier begründet)
+
+- `--text-muted` hell **#767570** statt #8a897f (Louis 21.10.2026, 4,5:1).
+- Stepper: Einheit **unter** dem Wert statt daneben (Umbruch bei 320 px).
+- Offene Sätze zeigen den Wert in `--text-secondary`, nicht `--ink-faint` (Kontrast).
+- Deload-Wochen im Kraft-Verlauf sind heller (`--teal-soft`); die Legende benennt sie mit Text, die Farbe trägt nicht allein.
+- Range-Werte tragen Ampel-Form (Kreis oder Raute) und verstecktes Wort, nicht nur Farbe.
+- `.sd-wd.is-missed` (verpasste Einheit in „Diese Woche“) ist im Handoff nicht vorgesehen.
+- Fortschrittspunkte im Kraft-Tag: bei 320 px und acht Übungen ca. 31 px breit (44 px hoch); die Reihenfolge-Liste darunter ist die vollwertige Alternative. Aktuell, erledigt und offen unterscheiden sich nur über Farbe und `aria-current`/`aria-label`; die Zustandsformen (Ring, Haken) trägt die Liste.
+- `.sd-btn--dashed` (Übung hinzufügen) hat Radius 22 (Karten-Optik), `.sd-pillbtn` 17 und `.sd-filter__chip` 18 (volle Rundung bei 34 und 36 px Höhe), Kleinteile (`.sd-tip`, `.sd-notice` 10; `.sd-zone__badge` 8).
+- Aktive und erledigte Zustände von `.sd-seg__opt` unterscheiden sich über Fläche und Farbe (Standard-Muster eines Segment-Schalters), zusätzlich `aria-pressed`.
+
+### 16.6 Offen für den Coder und Rest-Migration
+
+1. **Genau ein `h1` je Screen.** Der Wartezustand `renderGateWait()` hat keinen: ein visuell verstecktes `<h1 class="sd-vh">Stride</h1>` als erstes Kind von `.sd-auth` ergänzen (der sichtbare Markenname bleibt `<p class="sd-auth__name">`). Der Übergangszustand `loadingCard("Plan wird geladen …")` (`startApp()`) hat ebenfalls keinen; er ist ein Sekundenzustand, darf aber mit `setPageHead('<h1 class="sd-vh">Stride</h1>')` einen bekommen.
+2. **Der Tag ohne Einheit ist noch das alte Layout** (`renderDay()`: Ruhetag, Platzhalter, Bis zum Rennen, Kein Plan; erreichbar über die Zeile „Morgen“ auf Heute). Er nutzt Eyebrow, `h1` 24 px, `badge()` mit Inline-Style und `.card`; die übrigen Screens haben Display-Titel und sd-Karten. Empfohlenes Soll-Markup, danach fallen die Klassen aus 16.2 weg:
+
+```html
+<!-- setPageHead: showBack, sonst entfällt <nav> -->
+<nav class="sd-nav" aria-label="Kopfzeile"><button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back">${chevronLeft}${esc(label)}</button></nav>
+<div class="sd-daytitle">
+  <p class="sd-eyebrow sd-eyebrow--plain">Mo · 07.09. · heute</p>
+  <h1 class="sd-display" tabindex="-1">Ruhetag</h1>   <!-- Woche N | Bis zum Rennen | Kein aktiver Plan -->
+</div>
+<!-- renderMain -->
+<div class="sd-main sd-main--tight">
+  <section class="sd-card sd-card--center" data-card="rest-day">
+    <h2 class="sd-card__title">Details folgen</h2>   <!-- nur Platzhalter; sonst weglassen -->
+    <p class="sd-card__text">Mobility, Foam Rolling, Beine hoch.</p>
+  </section>
+</div>
+```
+   Die Badge entfällt (der Titel nennt den Zustand schon). Texte unverändert: „Mobility, Foam Rolling, Beine hoch.“, „Der Plan endet vor dem Renntag, für diesen Tag gibt es keine Einheit mehr.“, „Für dieses Datum liegt kein Trainingsplan vor.“, Platzhalter: `${info.focus} — die genauen Werte tragen wir nach der Re-Kalibrierung nach.`
+3. **`errorCard()` und `loadingCard()`** analog: `errorCard` als `sd-card sd-card--danger` mit `h1`-losem Titel „Problem“ und `sd-btn sd-btn--onbanner` „Neu laden“ (wie `renderGateError`, 15.5); `loadingCard` als `<p class="sd-hint sd-hint--center" role="status">`. Sind 2 und 3 umgesetzt, **löscht man**: `.card*`, `.card.notice`, `.card.error-card*`, `.center-note`, `.mt-8`, `.link-btn`, `.badge`, `.sd-pagehead .eyebrow|.title-row|h1`, die Basisregel `.sd-pagehead` ohne `:has` (Padding für den alten Kopf), `--surface-1` und das globale `button`-Grundstil (nur `button:active`/`:disabled` bleiben, wenn noch ein nackter Knopf existiert). `.tone-*` bleiben (Plan).

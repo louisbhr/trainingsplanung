@@ -11,4 +11,5 @@
 - [Stride E5 Kraft-Tag decisions](project_stride_e5_kraft_tag.md) — E5 mostly CSS-already-ported; asymmetric dots hit area, .sd-order overflow, sd-card--done, deleted E4 classes
 - [Stride E6 Lauf-Tag decisions](project_stride_e6_lauf_tag.md) — range bars = inline SVG w/ number attrs (no style), h1 specificity trap, mockup deviations
 - [Stride E8 Login decisions](project_stride_e8_login.md) — empty pagehead via :empty, mark on --bg, sd-auth centring, goal-card wrap rule, deletions
+- [Stride E9 Abschluss](project_stride_e9_abschluss.md) — legacy CSS kept (renderDay/errorCard still use it), safe-area formula, single reduced-motion block, rest-day migration open
 - [Oct 3 spacing-pass bug patterns](feedback_spacing_pass_oct03.md) — small icon-button padding inheritance collapses content box, async-slot wrapper divs eat parent flex gap, 3-child space-between makes a "column" float/jump
