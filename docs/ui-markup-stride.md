@@ -2114,3 +2114,208 @@ Greppen vom Designer am Stand HEAD 71dcb51. Erst löschen, wenn `app.js` (`rende
 - Plan: `.phase-card` (+ `.name`, `.hint`, `.is-current`), `.phase-head`, `.phase-weeks`, `.timeline` (+ `.seg`, `.seg i`), `.timeline-marker`, `.timeline-legend`, `.zone-row` (+ `.zone-vals`, `.tone-*`-Zusatz), `.zone-chip`, `.zone-line` (+ `.zname`, `.zvals`), `.goal-card`, `.goal-time`.
 - Konto: `.card.account-card`, `.card.export-card`, `.account-logout`, `.export-btn`, `.small-btn`, `.danger-btn`. **Bleiben bis E8:** `.card.auth-card`, `.account-rows`, `.account-row` (Kein-Zugriff-Karte), `.primary-btn`, `.auth-*`, `.field*`, `.text-input`.
 - **Bleiben auch nach E7:** `.tone-*` (neue Phasen und Zonen), `.badge` (`ui.js` `badge()`), `.card.error-card` (`ui.js` `errorCard()` in `app.js` Z. 919, 2349, 2529, 2576), `.link-btn` (`app.js` Z. 937), `.title-row`, `.eyebrow` (Z. 937/938, alter Tag-Kopf), `.primary-btn` (Login-Karten, E8).
+
+---
+
+## 15. Screen-Ergänzungen: Login und Nebenscreens (E8)
+
+Quelle: Handoff §5.7, Mockup A1 bis A3 (`docs/mockup-stride-luecken.html`). **Nur Markup** (Auflage C10: keine Änderung an `signIn`, `authReady`, `accessState`, `authErrorText`, Abmelden), **kein `style=`** (C5). CSS: Abschnitt „Login (E8)“ in `style.css`. Die Bausteine `sd-auth`, `sd-auth__brand|name|tag|foot` stehen seit E1; neu in E8: `sd-field__error`, `sd-field.is-invalid`, die Seitenkopf-Variante `:empty` und das Verhalten bei wenig Höhe.
+
+### 15.0 Seitenaufbau und Seitenkopf
+
+Jeder Gate-Screen (Anmelden, Kein Zugriff, offene Einträge, Warten, Fehler) hat dieselbe Gestalt:
+
+```html
+<header class="sd-pagehead" data-region="pagehead"></header>   <!-- leer, exakt "" -->
+<div class="sd-auth">                                             <!-- einziges weiteres Kind von #main -->
+  <div class="sd-auth__brand">…Marke, Name, ggf. Tagline…</div>
+  <form|section class="sd-card" …>…</form|section>
+  <p class="sd-auth__foot">…</p>                                  <!-- nur Login -->
+</div>
+```
+
+- **Kein großer Titel „Anmelden“ im Seitenkopf.** Der Coder ruft auf allen Gate-Screens `setPageHead("")` mit **exakt leerem String** (kein Leerraum, kein Zeilenumbruch). `renderMain()` schreibt dann `<header class="sd-pagehead" data-region="pagehead"></header>`; CSS `.sd-pagehead:empty` reduziert ihn auf den Statusbar-Abstand (`env(safe-area-inset-top)`). Der Vertrag „`renderMain` ist der einzige Schreibweg“ bleibt erhalten.
+- Folge für `showGate(title, html)`: der Parameter `title` entfällt (`showGate(html)`), weil kein Titel mehr gerendert wird. `init()` setzt statt `<h1>Trainingsplan</h1>` ebenfalls `setPageHead("")`.
+- `#app.no-session` bleibt (blendet die Tab-Leiste aus). Zentrierung und Scrollen macht nur CSS: `.sd-auth` füllt die Resthöhe von `#main` und zentriert; ist der Inhalt höher (Tastatur, Querformat, 320 px mit Fehler), scrollt `#main`, nichts wird abgeschnitten.
+- **Genau ein `h1` je Screen**: der Kartentitel (beim Login unsichtbar, `sd-vh`). Der Markenname „Stride“ ist ein `<p class="sd-auth__name">`, keine Überschrift.
+- **Marke liegt auf `--bg`, nie in der Karte.** `stride-mark-dark.svg` hat eine #26262b-Kachel (Kartenfarbe); in der Karte wäre das Zeichen im Dunkelmodus unsichtbar. Darum steht der Markenblock immer über der Karte.
+
+Markenblock (Hilfsfunktion `authBrandHTML(tagline = "")` in `view-account.js`):
+
+```html
+<div class="sd-auth__brand">
+  ${markSVG(64)}
+  <p class="sd-auth__name">Stride</p>
+  <p class="sd-auth__tag">Trainingsplan, Strava-Läufe und Krafteinheiten an einem Ort.</p>   <!-- nur mit tagline -->
+</div>
+```
+`markSVG(64)` aus `ui.js` bleibt unverändert (`sd-mark sd-mark--lg`, 64 px, `alt=""`). Die Tagline steht nur auf **Anmelden** und im **Warten**-Zustand (dort als Statuszeile statt Tagline, 15.4); „Kein Zugriff“, offene Einträge und Fehler haben nur Marke und Name.
+
+### 15.1 Anmelden
+
+Soll-Markup (Ruhe). `renderLogin({ email, error, notice, fieldErrors })`; die Fußnote ersetzt den alten Satz „Diese App ist privat. Anmelden geht nur mit dem Konto des Besitzers.“ (entfällt).
+
+```html
+<div class="sd-auth">
+  ${authBrandHTML("Trainingsplan, Strava-Läufe und Krafteinheiten an einem Ort.")}
+  <form class="sd-card" data-form="login" data-card="login" novalidate aria-labelledby="loginTitle">
+    <h1 class="sd-vh" id="loginTitle">Anmelden</h1>
+    <!-- optional: Hinweis (15.1.2) -->
+    <div class="sd-field">
+      <label class="sd-field__label" for="login-email">E-Mail</label>
+      <input class="sd-input" id="login-email" type="email" name="email" autocomplete="username" inputmode="email"
+        enterkeyhint="next" autocapitalize="none" autocorrect="off" spellcheck="false" required value="${esc(email)}" />
+    </div>
+    <div class="sd-field">
+      <label class="sd-field__label" for="login-password">Passwort</label>
+      <input class="sd-input" id="login-password" type="password" name="password" autocomplete="current-password"
+        enterkeyhint="go" required />
+    </div>
+    <!-- optional: allgemeiner Fehler (15.1.3) -->
+    <button type="submit" class="sd-btn sd-btn--primary">Anmelden</button>
+  </form>
+  <p class="sd-auth__foot">Registrieren ist in der App nicht möglich.</p>
+</div>
+```
+Felder sind `div.sd-field` mit `label[for]` statt umhüllendem `label`, damit eine Feldfehler-Zeile **nicht** in den Label-Namen gerät (anders als die Kraft-Formulare, die keine Fehlerzeile je Feld haben). `form.elements.email` / `.password` und `button[type="submit"]` bleiben, die Submit-Logik ändert sich nicht.
+
+**15.1.1 Zustände**
+
+| Zustand | Auslöser (Code bleibt) | Markup-Unterschied zur Ruhe |
+| --- | --- | --- |
+| Ruhe | `showLogin()` | wie oben |
+| Hinweis | `takeLogoutNotice()` liefert Text | Hinweis-Block 15.1.2 als erstes Kind der Karte (nach dem `h1`) |
+| Senden | Submit-Handler setzt `disabled` | Knopf `disabled` (CSS 60 % Deckkraft), Form `aria-busy="true"`; Label optional „Anmelden …“ (Namensregel: bleibt sonst „Anmelden“) |
+| Allgemeiner Fehler | `showLogin(email, authErrorText(code))` | Fehlerblock 15.1.3 zwischen Passwortfeld und Knopf; E-Mail bleibt gefüllt, Passwort leer |
+| Feldfehler | Prüfung „leer“ vor dem Senden (siehe unten) | `.is-invalid` am `.sd-field`, `aria-invalid`, Fehlerzeile 15.1.4; kein allgemeiner Block |
+| Offline | `auth/network-request-failed` | Allgemeiner Fehler mit dem bestehenden Text „Keine Verbindung. Das Anmelden geht nur mit Netz.“ (kein eigener Zustand, gleicher Block) |
+
+Alle Fehlertexte kommen unverändert aus `access.js`; das Design ändert keinen Text. **Feldfehler** sind eine reine Anzeige-Variante der bestehenden Leer-Prüfung (`!email || !password`): Handoff-Beispiel „Bitte das Passwort eingeben.“. Der Coder darf die Prüfung in „E-Mail leer“ und „Passwort leer“ aufteilen („Bitte die E-Mail eingeben.“, „Bitte das Passwort eingeben.“; beide leer: beide Felder markiert). Das ändert nur den Text einer Client-Prüfung, nicht die Anmeldung; der Test „Bitte E-Mail und Passwort eingeben“ (30a) wird dann angepasst. Wird nicht aufgeteilt, bleibt der alte Satz als allgemeiner Fehler, beides ist gültig. Fehler aus Firebase sind **immer** allgemein.
+
+**15.1.2 Hinweis „zweiter Tab“ (Abmelde-Hinweis, A3)**
+
+```html
+<p class="sd-notice sd-notice--amber" role="status" data-notice>${esc(notice)}</p>
+```
+Text unverändert aus `CACHE_KEPT_NOTICE`: „Abgemeldet. Der Offline-Speicher dieses Geräts konnte nicht geleert werden, weil die App noch in einem anderen Tab offen ist. Bitte alle Tabs der App schließen.“ Amber, weil es ein Zustand ist, kein Fehler. Steht über den Feldern, ist einmalig (verschwindet nach dem ersten Fehler-Rerender, wie bisher). Das Wort „zweiter Tab“ kommt in der UI **nicht** vor; die Rede ist von „einem anderen Tab“.
+
+**15.1.3 Allgemeiner Fehler**
+
+```html
+<p class="sd-notice sd-notice--danger" role="alert" id="login-error" data-slot="login-error">${esc(error)}</p>
+```
+Nur rendern, wenn `error` nicht leer ist (nicht mehr als verstecktes `<p hidden>` vorhalten). Das Passwortfeld bekommt dann `aria-describedby="login-error"`. Danger-Fläche mit Text, nicht nur Farbe.
+
+**15.1.4 Feldfehler**
+
+```html
+<div class="sd-field is-invalid">
+  <label class="sd-field__label" for="login-password">Passwort</label>
+  <input class="sd-input" id="login-password" type="password" name="password" autocomplete="current-password"
+    enterkeyhint="go" required aria-invalid="true" aria-describedby="login-password-error" />
+  <p class="sd-field__error" id="login-password-error">Bitte das Passwort eingeben.</p>
+</div>
+```
+Ring (1,5 px Danger) plus Text darunter. Für die E-Mail analog (`login-email-error`). Feldfehler und allgemeiner Fehler stehen nie gleichzeitig.
+
+### 15.2 Kein Zugriff (A1)
+
+```html
+<div class="sd-auth">
+  ${authBrandHTML()}
+  <section class="sd-card" data-card="no-access" aria-labelledby="noAccessTitle">
+    <div>
+      <h1 class="sd-title sd-title--sm" id="noAccessTitle">Kein Zugriff</h1>
+      <p class="sd-text">Dieses Konto ist für die App nicht freigegeben.</p>
+    </div>
+    <dl class="sd-kvlist">
+      <div class="sd-kv"><dt>E-Mail</dt><dd>${esc(email || "unbekannt")}</dd></div>
+      <div class="sd-kv"><dt>UID</dt><dd class="sd-mono">${esc(uid)}</dd></div>
+    </dl>
+    <button type="button" class="sd-btn sd-btn--primary" data-action="forbidden-logout">Abmelden</button>
+  </section>
+</div>
+```
+Die UID steht **nur hier**. Sie bricht an jeder Stelle um und lässt sich mit einem Tipp ganz markieren (`user-select: all`). Einzige Aktion: der teal Primärbutton „Abmelden“ (der einzige gefüllte teal Knopf auf dem Screen). `forbiddenLogout()` bleibt unverändert; ersetzt `accountRows()`.
+
+### 15.3 Noch nicht übertragene Einträge (A2)
+
+```html
+<div class="sd-auth">
+  ${authBrandHTML()}
+  <section class="sd-card" data-card="pending-writes" aria-labelledby="pendingTitle">
+    <div>
+      <h1 class="sd-title sd-title--sm" id="pendingTitle">Noch nicht übertragene Einträge</h1>
+      <p class="sd-text">Es gibt noch nicht übertragene Einträge. Bitte mit Netz erneut öffnen.</p>
+    </div>
+    <button type="button" class="sd-btn sd-btn--primary" data-action="retry-pending">Erneut versuchen</button>
+  </section>
+</div>
+```
+Kein Abmelden-Knopf (anonyme Altsitzung mit offenen Einträgen darf nicht abgemeldet werden). Der Titel enthält weiter „noch nicht übertragene“ (Testtext).
+
+### 15.4 Warten: „Prüfe Anmeldung …“
+
+Ersetzt `loadingCard("Anmeldung wird geprüft …")` in `init()` und `loadingCard("Einen Moment …")` in `handleAnonymousSession()`; beide über `renderGateWait(text)`:
+
+```html
+<div class="sd-auth" data-card="auth-wait">
+  <div class="sd-auth__brand">
+    ${markSVG(64)}
+    <p class="sd-auth__name">Stride</p>
+    <p class="sd-auth__tag" role="status">${esc(text)}</p>
+  </div>
+</div>
+```
+Texte: `Prüfe Anmeldung …` (init) und `Einen Moment …` (anonyme Altsitzung, unverändert). Keine Karte, kein Spinner, keine Animation: die Marke steht, der Text sagt, was passiert. Ein Wechsel zu Anmelden verschiebt die Marke leicht nach oben (Karte kommt dazu); das ist gewollt und ruhig genug. (Ändert den bisherigen Text „Anmeldung wird geprüft …“; in den Tests findet sich der alte Text nicht.)
+
+### 15.5 Fehler beim Prüfen (Gate-Fehler)
+
+Ersetzt `errorCard(err.message)` an den zwei Gate-Stellen (`authReady()` schlägt fehl; Abmelden der Altsitzung schlägt fehl). `errorCard()` in `ui.js` bleibt für die übrigen Stellen bis E9 unverändert.
+
+```html
+<div class="sd-auth">
+  ${authBrandHTML()}
+  <section class="sd-card sd-card--danger" data-card="gate-error" role="alert" aria-labelledby="gateErrorTitle">
+    <div>
+      <h1 class="sd-card__title sd-card__title--danger" id="gateErrorTitle">Problem</h1>
+      <p class="sd-card__text sd-card__text--danger">${esc(message)}</p>
+    </div>
+    <button type="button" class="sd-btn sd-btn--onbanner" data-action="reload">Neu laden</button>
+  </section>
+</div>
+```
+Titel „Problem“ und Knopf „Neu laden“ behalten ihre Namen aus `errorCard()`.
+
+### 15.6 `data-action`, Test-Haken, `esc()`
+
+- **`data-action`** (alle unverändert): `forbidden-logout`, `retry-pending`, `reload`. Der Login ist ein Formular (`data-form="login"`, Submit-Ereignis), keine Aktion.
+- **Test-Haken neu** (statt Layout-Klassen): `[data-card="login"]` (= das Formular), `[data-card="no-access"]`, `[data-card="pending-writes"]`, `[data-card="auth-wait"]`, `[data-card="gate-error"]`, `[data-slot="login-error"]`, `[data-notice]`, `#login-email`, `#login-password`, `.sd-auth__brand .sd-mark--lg` (Breite 64). Alt → neu für Szenarien 30a bis 30e und 32: `.auth-error` → `[data-slot="login-error"]`; `.auth-card` → `[data-card]` im `.sd-auth`; `.auth-brand .sd-mark--lg` → `.sd-auth__brand .sd-mark--lg`; Überschrift „Anmelden“ → `[data-card="login"] h1` (Text „Anmelden“, unsichtbar, `textContent` bleibt prüfbar); `#main > header.sd-pagehead h1` existiert auf diesen Screens **nicht mehr** (Kopf leer).
+- **Zentrierungstest (30a):** nicht mehr „Karte“, sondern der Block aus Marke bis Fußnote. Raum oben = `brand.top - head.bottom`, unten = `main.bottom - foot.bottom`; das Polster ist bewusst asymmetrisch (oben 16, unten 32), erwartet |oben - unten| unter 32 und oben über 40 bei 390 × 844.
+- **`esc()`** zusätzlich zu Abschnitt 6: `email` (Attribut `value="…"` und `dd`), `uid`, `error` (Firebase-Text über `authErrorText`, trotzdem escapen), `notice` (aus `sessionStorage`, also Fremdwert), `message` im Gate-Fehler, `text` in `renderGateWait`. **Nicht**: feste Strings (Tagline, Fußnote, Titel), `markSVG()`-Ausgabe, feste `id`s.
+
+### 15.7 Barrierefreiheit
+
+- Formular benannt über `aria-labelledby="loginTitle"` (unsichtbarer `h1`). Beide Felder haben ein sichtbares `label[for]`; Platzhalter ersetzen nie das Label.
+- `autocomplete="username"` und `current-password` (Schlüsselbund), `type="email"` mit `inputmode="email"`, `autocapitalize="none"`, `autocorrect="off"`, `spellcheck="false"`; `enterkeyhint` „next“/„go“. Felder 16 px (kein iOS-Zoom), 48 px hoch.
+- Fehler: allgemeiner Fehler hat `role="alert"` und hängt per `aria-describedby` am Passwortfeld; Feldfehler hängen per `aria-describedby` an ihrem Feld, dazu `aria-invalid="true"` (nur im Fehlerfall). Die Feldfehlerzeile hat kein eigenes `role` (sie wird beim Fokus auf das Feld vorgelesen). Hinweis „anderer Tab“: `role="status"`.
+- **Fokus nach dem Fehler-Rerender** (`showLogin` ersetzt das Formular, der Fokus ginge verloren): Coder fokussiert nach dem Rendern das erste Feld mit `aria-invalid="true"`, sonst das Passwortfeld. Beim Erstaufruf und beim Hinweis kein automatischer Fokus (Tastatur soll nicht aufspringen).
+- Kontrast: Fließtext `--text-secondary`/`--text-muted` auf `--bg`, Fehler `--danger-fg` auf `--danger-bg` und `--card`, Hinweis `--amber` auf `--amber-bg` (nur bestehende Tokens aus Abschnitt 2, dieselben Paare wie in E3 bis E7; Hinweis hell liegt bei ca. 4,5:1, Orchestrator-Sichtprüfung im Dunkelmodus empfohlen). Status nie nur Farbe (Text im Block, Ring plus Zeile am Feld).
+- Tippflächen: Felder 48, Primärbutton 50. Sichtbarer Fokus global (`:focus-visible`, Felder zusätzlich 2 px Teal). Keine Animation, nichts für `prefers-reduced-motion` nötig.
+
+### 15.8 Responsive
+
+- 320 bis 1280 px: Spalte 480 zentriert, Seite 24 px (mindestens die Safe Area). 320: Kartenbreite 272, Innenbreite 232; die Tagline (max. 280, `text-wrap: balance`) bricht auf drei Zeilen, nichts clippt. Hoch genug (mind. ca. 600) steht alles mittig, darunter scrollt `#main`.
+- **Tastatur:** iOS verkleinert das Layout-Viewport nicht; der Browser schiebt das fokussierte Feld sichtbar (`scroll-padding-block: 24px` hält Luft am Rand). Android Chrome verkleinert `100dvh` erst mit `interactive-widget=resizes-content` im Viewport-Meta von `index.html` (offener Punkt, kein CSS). Bei weniger als 520 px Höhe schrumpfen Abstände und Marke (48 px), der Inhalt bleibt vollständig und scrollbar.
+- Dunkelmodus: Marke (`stride-mark-dark.svg`) auf `--bg`, Karte `--card`, Felder `--sunk` (dunkler als die Karte); Autofill-Farben werden auf `--sunk` zurückgesetzt.
+
+### 15.9 Durch E8 überflüssig werdende alte Klassen (Löschliste, **nicht** vorab löschen)
+
+Erst löschen, wenn `view-account.js` umgebaut ist und `tests/app.test.mjs` (30a bis 30e, 32, Z. 2638 bis 2690) auf die Haken aus 15.6 zeigt:
+- Login-Karten: `.card.auth-card` (+ `p.hint`), `#app.no-session #main > .auth-card`, `.auth-brand`, `.auth-brand-name`, `.field`, `.field-label`, `.text-input` (+ `:focus-visible`), `.auth-error` (+ `[hidden]`), `.auth-submit`, `.account-rows`, `.account-row` (+ `dt`, `dd`, `dd.account-uid`), `.primary-btn` (+ `:hover`, `:active`; einziger Rest-Verbraucher ist der Login, der Test `#hist-slot .primary-btn` erwartet 0).
+- **Bleiben auch nach E8:** `.card`, `.card p.name`, `.card p.hint`, `.hint` (alte Detail-Kopf- und Hinweiskarten in `app.js` Z. 934 bis 960), `.card.notice`, `.card.error-card` (`errorCard()` in `ui.js`), `.center-note` (`loadingCard()`), `.mt-8` (`errorCard()`), `.link-btn`, `.title-row`, `.eyebrow`, `.badge`, `.tone-*`. Unbenutzte Utilities als E9-Kandidaten: `.mt-6`, `.mt-10`, `.jc-between`, `.gap-8`, `.w-full`.
+
+### 15.10 Nachträge aus dem E7-Review
+
+- **Ziel-Karte (Plan) bei 320 px:** Der Renntag-Block steht linksbündig (Label, Datum, Pace gemeinsam) unter der Zielzeit, wenn er umbricht; nebeneinander und rechtsbündig erst ab 375 px Spaltenbreite (`@container`). Markup aus 14.1 unverändert.
+- **Tab-Kopf (Woche, Verlauf, Plan):** Seitenpolster `max(20px, env(safe-area-inset-left|right))`, Querformat mit Notch schneidet den Titel nicht mehr an.
