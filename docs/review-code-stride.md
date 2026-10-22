@@ -6,7 +6,8 @@ Maßstab: docs/requirements-stride.md (F1–F12, V1/V2 freigegeben), docs/plan-s
 docs/review-architecture-stride.md (Auflagen C1–C11 verbindlich), docs/ui-markup-stride.md,
 docs/design-stride/README.md, CLAUDE.md.
 
-**Urteil: freigegeben mit Auflagen.** Kein Critical-Befund. Drei Important-Befunde sind klein
+**Endurteil nach Korrekturrunde 1: FREIGEGEBEN** (siehe letzter Abschnitt). Erstes Urteil:
+**freigegeben mit Auflagen.** Kein Critical-Befund. Drei Important-Befunde sind klein
 und lokal (eine Rundungsregel, ein fehlender Wächter-Test, toter Code). Sie blockieren Schritt
 11/12 nicht, müssen aber vor dem Merge behoben sein, denn „Done“ verlangt null Important. Dazu
 kommen zwei Spec-Abweichungen ohne Fix-Bedarf (Größenziel aus dem Plan verfehlt, `startTime` in
@@ -228,3 +229,32 @@ Behoben (coder, Schritt 10 → 7, Runde 1 von 2):
 - **M8:** `docs/design-stride/README.md` nennt die `.txt`-Endung und wie man lokal ansieht.
 
 Nicht angefasst: M6 (nach dem Merge), `style.css`, C10-Dateien.
+
+## Nachprüfung Korrekturrunde 1 (reviewer)
+
+Geprüft: `git diff 6bf9d0d..c736c97`, `npm test` selbst auf c736c97 (Exit 0, **1125/1125
+Browser-Checks**, 308/308 Node-Tests, vorher 305: je +1 in runcompare, kraftflow und naming),
+Tote-Code-Skript erneut über alle Module.
+
+- **I1 behoben.** `distanceStatus` rundet wie `formatKm1`; 8,95/10 → „zu kurz“, 8,96 → „im Plan“,
+  alte 89/90-%- und 7,14/7,16-Fälle bleiben grün.
+- **I2 behoben.** Der `url(...)`-Test sammelt alle Verweise, ist nicht leer grün (`urls.length > 0`)
+  und lässt nur `data:`/`http(s):`/`#` aus.
+- **I3 behoben.** Das Skript findet keine ungenutzten Importe oder Funktionen mehr. Die neue
+  `ICONS`-Map wird vollständig genutzt (jeder Eintrag hat mindestens einen Aufrufer); das Markup
+  der Icons ist Zeichen für Zeichen das bisherige (`chevL` = vorher `I_CHEV_L`/`I_CHEV_L20`).
+- **M1, M2, M3, M4, M5, M7, M8 behoben**, wie beschrieben. M2: `weightAdded` nur als echtes `true`,
+  `parseDraft` bleibt streng, der Payload (C1) ist unberührt. M4: Fehlerkarte statt Skelett.
+- **Security L1** über `activityDate()` in `strava.js`: nur `YYYY-MM-DD`, sonst fällt die
+  Aktivität weg; `startTime` nur `HH:MM`. Der Export nutzt die Rohseiten
+  (`fetchActivityPages`) und ist nicht betroffen.
+- **S3 (neue Spec-Abweichung, akzeptiert):** Damit ändert sich bestehender Code in `strava.js`
+  (`mapActivity`, `mapSession`, zwei `filter`), nicht nur Ergänzungen, wie C10 sie zulässt. Die
+  Notiz der Korrekturrunde „C10-Dateien nicht angefasst“ stimmt deshalb für `strava.js` nicht
+  ganz. Die Änderung ist eng, sicherheitsbegründet und verhaltensgleich für alle echten
+  Strava-Daten (die liefern immer ISO-Zeitstempel). Louis sollte sie zusammen mit S2 als
+  bewusste Ausnahme von C10 kennen.
+- M6 bleibt für nach dem Merge vorgemerkt.
+
+**Endurteil: FREIGEGEBEN.** 0 Critical, 0 Important offen. Offen bleiben nur M6 (nach dem Merge)
+und die akzeptierten Spec-Abweichungen S1–S3.
