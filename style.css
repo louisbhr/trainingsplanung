@@ -96,10 +96,6 @@
   --tab-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
   --sheet-shadow: 0 -10px 30px rgba(0, 0, 0, 0.2);
   --backdrop: rgba(0, 0, 0, 0.38);
-
-  /* Veraltet: einziger Verbraucher ist colorsFor() in app.js (badge() im Tag ohne
-     Einheit). Fällt mit badge() weg; neue Stellen nehmen --sunk. */
-  --surface-1: var(--sunk);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -213,12 +209,6 @@ h1[tabindex="-1"]:focus { outline: none; }
 .sd-pagehead:has(> :is(.sd-head, .sd-nav, .sd-weekhead, .sd-tabhead)) {
   padding: calc(8px + env(safe-area-inset-top)) 0 0;
 }
-.sd-pagehead .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0; }
-.sd-pagehead .title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
-.sd-pagehead h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; margin: 0; min-width: 0; overflow-wrap: anywhere; }
-/* ui.js badge() im Kopf des Tags ohne Einheit. Die Farben setzt badge() noch als Inline-Style
-   (gewinnt per Spezifität); ohne Inline-Style gilt --sunk/--text-secondary. Ersatz: .sd-pill. */
-.badge { font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 600; background: var(--tone-bg, var(--sunk)); color: var(--tone, var(--text-secondary)); white-space: nowrap; flex-shrink: 0; }
 
 #main {
   container-type: inline-size;
@@ -252,16 +242,6 @@ h1[tabindex="-1"]:focus { outline: none; }
   padding-inline: 0; padding-top: 0; gap: 0;
 }
 
-/* ---- Alte Karten ----
-   Nur noch für den Tag ohne Einheit in app.js (Ruhetag, Platzhalter, Bis zum Rennen,
-   Kein Plan) und für errorCard()/loadingCard() in ui.js. Weiß auf --bg, ohne Rahmen. */
-.card { background: var(--card); border-radius: 22px; padding: 1rem 1.25rem; min-width: 0; overflow-wrap: anywhere; }
-.card p.name { font-size: 15px; font-weight: 600; margin: 0; }
-/* 4px: etwas Luft zwischen Titel und Hint-Zeile. */
-.card p.hint { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
-/* Zentrierte Hinweiskarte (Ruhetag, "Bis zum Rennen", "Kein aktiver Plan"). */
-.card.notice { text-align: center; padding: 1.4rem 1.25rem; }
-.card.notice p.hint { margin: 6px 0 0; }
 
 button {
   border: 0; border-radius: 12px; background: var(--sunk);
@@ -311,23 +291,7 @@ button:active { transform: scale(0.97); }
 #tabbar svg { width: 20px; height: 20px; flex: none; }
 #tabbar span { font-size: 10.5px; }
 
-/* ui.js loadingCard() */
-.center-note { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 10px; }
-
 button:disabled { opacity: 0.35; cursor: default; }
-/* app.js, Tag ohne Einheit: Zurück-Knopf in der Überzeile des alten Kopfes. */
-.link-btn {
-  border: none; background: none; padding: 0; font-size: 13px; min-height: 44px;
-  color: var(--text-secondary); display: inline-flex; align-items: center; gap: 2px;
-}
-.link-btn svg { width: 14px; height: 14px; }
-
-/* ui.js errorCard(). Fehler sind Danger-Rot; Koralle bedeutet nur noch Laufen (Handoff §3).
-   Der Knopf ist ein nackter <button>: Trefferfläche und Schrift wie .sd-btn (44px). */
-.card.error-card { background: var(--danger-bg); }
-.card.error-card .name { color: var(--danger-fg); }
-.card.error-card p.hint { color: var(--danger-ink); }
-.card.error-card button { min-height: 44px; padding: 0 16px; font-size: 14px; font-weight: 600; background: var(--card); color: var(--danger-fg); }
 
 select {
   /* 16px ist Pflicht: darunter zoomt iOS Safari beim Antippen hinein,
@@ -355,10 +319,6 @@ select {
 .tone-purple { --tone: var(--purple-fg); --tone-bg: var(--purple-bg); }
 .tone-sky    { --tone: var(--sky-fg);    --tone-bg: var(--sky-bg); }
 .tone-amber  { --tone: var(--amber-fg);  --tone-bg: var(--amber-bg); }
-
-/* ui.js errorCard(). !important, weil früher ein Inline-Style Komponentenregeln wie
-   `.card p.hint` überstimmt hat; der Knopf braucht den Abstand sicher. */
-.mt-8 { margin-top: 8px !important; }
 
 /* =====================================================================
    Stride-Bausteine (sd-*).
@@ -406,6 +366,8 @@ select {
 .sd-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; letter-spacing: -0.035em; }
 .sd-chip { font: 500 12px var(--font-mono); color: var(--text-secondary); background: var(--card); padding: 5px 10px; border-radius: 20px; white-space: nowrap; }
 .sd-intro { padding: 24px max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left)); }
+/* Heute und Woche: Display-Titel direkt unter der Überzeile, ohne Extra-Abstand. */
+.sd-intro .sd-display, .sd-weekhead .sd-display { margin: 0; }
 .sd-intro__sub { margin: 0; font-size: 14px; color: var(--text-secondary); }
 .sd-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; margin-top: 8px; font: 11.5px var(--font-mono); color: var(--text-secondary); }
 
@@ -1017,10 +979,6 @@ button.sd-set:active { background: color-mix(in srgb, var(--bg) 92%, var(--text-
    - Range-Balken: Inline-SVG, Lage nur über Zahlen-Attribute (x, width, x1, x2)
    ===================================================================== */
 
-/* ---- Kopf: Titel in Display-Größe ----
-   `.sd-pagehead h1` (24px, Alt-Kopf) schlägt `.sd-display` in der Spezifität. Im Tageskopf
-   gilt darum die Display-Größe ausdrücklich (gilt auch für den Anpassen-Titel im Kraft-Tag). */
-.sd-daytitle .sd-display { font-size: 30px; font-size: clamp(26px, 7.7cqi, 30px); letter-spacing: -0.03em; line-height: 1.1; }
 .sd-daytitle .sd-target { overflow-wrap: anywhere; }
 
 /* ---- Distanzbalken: 8px, Kategoriefarbe ---- */
@@ -1084,12 +1042,9 @@ button.sd-option.is-selected:active { background: var(--teal-tint); }
      nie ein Grid mit Spaltenzahl aus Daten.
    ===================================================================== */
 
-/* ---- Tab-Kopf (Verlauf, Plan): Titel links, Schalter rechts, bricht um statt zu clippen ----
-   `.sd-pagehead h1` (24px, Alt-Kopf) schlägt `.sd-display` in der Spezifität, darum hier
-   ausdrücklich die Display-Werte (wie bei .sd-daytitle). */
+/* ---- Tab-Kopf (Verlauf, Plan): Titel links, Schalter rechts, bricht um statt zu clippen ---- */
 .sd-tabhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left)); }
 .sd-tabhead__titles { flex: 1 1 140px; min-width: 0; }
-.sd-tabhead .sd-display { margin: 4px 0 0; font-size: 30px; font-size: clamp(26px, 7.7cqi, 30px); letter-spacing: -0.03em; line-height: 1.1; }
 .sd-tabhead .sd-seg { flex: none; align-self: center; }
 @media (hover: hover) { .sd-seg__opt:not(.is-active):hover { color: var(--text-primary); } }
 
@@ -1101,7 +1056,9 @@ button.sd-option.is-selected:active { background: var(--teal-tint); }
 .sd-filter { display: flex; gap: 8px; margin-top: 12px; padding: 4px max(20px, env(safe-area-inset-right)) 4px max(20px, env(safe-area-inset-left)); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-padding-inline: max(20px, env(safe-area-inset-left)) max(20px, env(safe-area-inset-right)); scrollbar-width: thin; scrollbar-color: var(--ink-off) transparent; -webkit-overflow-scrolling: touch; }
 .sd-filter__chip { position: relative; flex: none; height: 36px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--card); color: var(--text-secondary); font: 600 13px/1 var(--font-ui); white-space: nowrap; cursor: pointer; transition: background-color 150ms ease-out, color 150ms ease-out; }
 .sd-filter__chip::after { content: ""; position: absolute; inset: -4px 0; }
-.sd-filter__chip > span { display: block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+/* line-height 16px statt der 1 des Chips: sonst ist die Zeilenbox 13px hoch und overflow:hidden
+   schneidet die Unterlängen (g, p, q, y) ab. Der Chip bleibt 36px, das span zentriert sich als Flex-Kind. */
+.sd-filter__chip > span { display: block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; line-height: 16px; }
 /* Aktiv trägt nicht nur Farbe: Gewicht 600 bleibt gleich, dazu ein innerer Ring und aria-pressed. */
 .sd-filter__chip.is-active { background: var(--teal-bg); color: var(--teal-fg); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--teal-fg) 35%, transparent); }
 @media (hover: hover) { .sd-filter__chip:not(.is-active):hover { background: color-mix(in srgb, var(--card) 92%, var(--text-primary)); color: var(--text-primary); } }

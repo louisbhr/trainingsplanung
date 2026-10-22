@@ -3313,10 +3313,7 @@ function matrixAudit({ targets, sheetOpen }) {
     if (el instanceof SVGElement || el.id === "main" || el.matches(".sd-filter, .sd-sheet") || !shown(el)) continue;
     const cs = getComputedStyle(el);
     if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
-    // Bekannter CSS-Befund (E9, an den Designer gemeldet): .sd-filter__chip > span hat overflow hidden bei 13 px Zeilenhöhe,
-    // der Inhalt ist 15 px hoch (Unterlängen). Bis zur Korrektur nur die Breite prüfen; danach diese Ausnahme löschen.
-    const heightKnown = el.matches(".sd-filter__chip > span");
-    if ((!heightKnown && el.clientHeight < el.scrollHeight - 1) || el.clientWidth < el.scrollWidth - 1) {
+    if (el.clientHeight < el.scrollHeight - 1 || el.clientWidth < el.scrollWidth - 1) {
       out.clipped.push(`${label(el)} ${el.clientWidth}x${el.clientHeight} < ${el.scrollWidth}x${el.scrollHeight}`);
     }
   }
