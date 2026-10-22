@@ -4,14 +4,18 @@ Statische Web-App (Vanilla JS, kein Build-Step) für den 35-Wochen-Plan
 Richtung 1:29:59 h. Krafteinheiten werden von Hand eingetragen und in
 Firestore gespeichert, Läufe kommen automatisch aus Strava.
 
-- **Dashboard** — was heute dran ist, KI-Coach (täglich zwei Sätze, montags
-  Wochenbilanz), vier Ampeln (Wochensoll, Easy-Disziplin, Belastung,
-  Kraft-Progression) mit Info-Knöpfen und „Im Detail“
-- **Woche** — Tagesliste mit Status, vor/zurück blätterbar; Tag antippen
-  klappt Details auf, „Tag öffnen“ führt in die Tagesansicht
-- **Verlauf** — Gewichtsverlauf je Übung, Distanz/Pace der letzten Läufe
-- **Plan** — Phasen, Zeitraum, HF- und Pace-Zonen; darunter „Daten
-  exportieren“ (alle Trainingsdaten als JSON-Datei) und die Konto-Karte
+- **Heute** — was heute dran ist (Training starten bzw. Lauf mit Soll), KI-Coach (täglich
+  zwei Sätze, montags Wochenbilanz), vier Ampeln (Wochensoll, Easy-Disziplin, Belastung,
+  Kraft-Progression) mit Info-Knöpfen, „Diese Woche“ und „Morgen“
+- **Woche** — Tagesliste mit Status, vor/zurück blätterbar; Tag antippen klappt Details auf,
+  „Tag öffnen“ führt in die Tagesansicht
+- **Kraft-Tag** — Satz für Satz: Jetzt-Karte mit zwei Steppern, Fortschrittspunkte,
+  Reihenfolge, Anpassen-Ansicht; unfertige Eingaben bleiben als Entwurf erhalten
+- **Lauf-Tag** — Vergleich von Soll und Strava-Lauf (Distanz, Pace, Herzfrequenz), Zuordnung
+  per Sheet
+- **Verlauf** — Lauf (Distanz je Lauf, Kennzahlen) und Kraft (Wochenbalken je Übung)
+- **Plan** — Ziel, Phasen, HF- und Pace-Zonen; darunter „Daten exportieren“ (alle
+  Trainingsdaten als JSON-Datei) und die Konto-Karte
 
 Krafttage lassen sich über „Anpassen" für den jeweiligen Tag umbauen:
 Übungen entfernen, zurückholen oder eigene hinzufügen.
@@ -124,7 +128,7 @@ Stempel steht im Diff. `npm test` prüft mit, dass er überall gesetzt und
 ```bash
 npm install && npx playwright install chromium
 npm run serve     # http://127.0.0.1:8099
-npm test          # Plan-Daten + Browser-Tests (ohne echte Konten)
+npm test          # Node-Tests + Browser-Tests (ohne echte Konten); der Server auf 8099 muss laufen
 ```
 
 Details siehe `tests/README.md`.
@@ -133,15 +137,18 @@ Details siehe `tests/README.md`.
 
 | Datei | Zweck |
 | --- | --- |
-| `index.html`, `style.css`, `app.js` | die App |
+| `index.html`, `style.css`, `app.js` | die App (Name und Design: Stride; Schriften Geist und Geist Mono liegen in `fonts/`, Versionen und SHA-256 in `HANDOFF.md`) |
 | `config.js` | Worker-URL, Strava-Client-ID und erlaubte UID |
 | `plans/hm-2027.json` | Die eigentlichen Plandaten (Wochen, Einheiten, Ziel, Renndatum) — reine Daten, keine Generator-Funktionen mehr |
 | `plan.js` | Reine Trainingsplan-**Logik**; nimmt den Plan (aus `plans/`) als Parameter entgegen, enthält selbst keine Plandaten |
 | `plan-store.js` | Lädt `plans/hm-2027.json` per `fetch`, validiert sie und hält eine Kopie in `localStorage` fürs Funkloch |
 | `runmatch.js` | Zuordnung von Strava-Läufen zu Plan-Lauftagen |
-| `metrics.js` | Ampeln und Kennzahlen des Dashboards (ohne Browser testbar), Grenzwerte aus `THRESHOLDS` in `config.js` |
+| `metrics.js` | Ampeln und Kennzahlen von Heute (ohne Browser testbar), Grenzwerte aus `THRESHOLDS` in `config.js` |
 | `coach.js` | Coach im Browser: Eingabe bauen, Cache in Firestore (`coach/`, `coachweek/`), Tageslimits, Regel-Fallback |
-| `ui.js`, `view-dashboard.js`, `view-week.js` | Gemeinsame UI-Helfer und die Ansichten von Dashboard und Wochen-Tab |
+| `ui.js`, `view-dashboard.js`, `view-week.js` | Gemeinsame UI-Helfer (Fehler-/Ladekarte, Sheets, Pillen) und die Ansichten von Heute und Wochen-Tab |
+| `view-kraft.js`, `kraftflow.js` | Kraft-Tag: Markup und die reine Ablauflogik (Sätze, Startwerte, Payload) |
+| `view-run.js`, `runcompare.js` | Lauf-Tag: Markup und der Vergleich Soll gegen Ist |
+| `view-history.js`, `history-data.js`, `view-plan.js` | Verlauf und Plan: Markup und die Datenaufbereitung |
 | `export.js` | Stellt die Export-Datei zusammen (Strava, Logs, Plan, Zuordnungen) |
 | `firebase-init.js` | Firestore mit Offline-Cache und Anmeldung (E-Mail und Passwort) |
 | `access.js`, `view-account.js` | Zugangslogik (Zustand der Sitzung, Fehlertexte, Token-Retry) und das Markup von Anmeldung und Konto-Karte |

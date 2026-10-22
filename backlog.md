@@ -87,3 +87,33 @@ Breite umgeschaltet wird oder es ein eigener Tab ist (die Handy-Spalte bleibt so
 bewusst auf 480 px begrenzt).
 
 **Herkunft:** Product-Strategist, Discovery Stride 2026-10-20.
+
+### Lösch-Funktion für Tageseinträge — quick win · M
+
+**Was:** Ein gespeicherter Kraft-Eintrag (eine Übung an einem Tag) lässt sich wieder löschen,
+etwa über „Zurücksetzen“ im Kraft-Tag. Heute kann ein Eintrag nur überschrieben, nie entfernt werden.
+
+**Warum:** Louis hat das nach seinem Test-Training gebraucht: Die Testdaten blieben in
+Verlauf und Ampeln stehen. Löschen heißt `deleteDoc` auf `logs/{datum}_{übung}`; das ist ein neuer
+Export in `firebase-init.js` (alle Stub-Literale in `app.test.mjs` nachziehen) und eine Regel-Prüfung
+in `firestore.rules`. Ein Ehrlichkeits-Hinweis („Gelöscht ist gelöscht“) und eine Bestätigung gehören dazu.
+
+**Einordnung:** Nicht im Stride-Umfang (C10: `firebase-init.js` bekommt keine neuen Exporte).
+Berührt Firestore-Zugriff, also vor der Umsetzung freigeben lassen.
+
+**Herkunft:** Louis nach seinem Test-Training, Stride E9 (2026-10-22).
+
+### 1b Meilenstein B im Stride-Stil — bigger bet · L
+
+**Was:** Login 1b Meilenstein B (Plan nach Firestore, Knopf „Plan aus Datei übernehmen“ in der
+Konto-Karte) wird nachgezogen, mit Oberfläche im Stride-Stil. Die Konto-Karte hat dafür eine
+Platzhalterzeile („Plandatei“ ohne Knopf).
+
+**Warum:** Entscheid F1 im Stride-Redesign: erst Stride, danach Meilenstein B. Voraussetzung ist
+der Stride-Merge; Entwurf in `docs/plan-login-1b.md`, Abschnitt „Meilenstein B“.
+
+**Einordnung:** Setzt neue Firestore-Dokumente und Regeln voraus (Freigabe nötig). Schritt 2
+(Marathon-Coaching) baut darauf auf.
+
+**Herkunft:** `docs/requirements-stride.md` F1/L19, `docs/plan-stride.md` R8.
+

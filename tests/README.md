@@ -8,7 +8,7 @@ npm install            # http-server + playwright
 npx playwright install chromium
 
 npm run serve          # in einem zweiten Terminal: Server auf :8099
-npm test               # 19 Läufe: Logik-/Worker-Tests ohne Browser, dann Browser-Tests
+npm test               # 20 Läufe: Logik-/Worker-Tests ohne Browser, dann Browser-Tests
 ```
 
 - `plan.test.mjs` — prüft `plans/hm-2027.json` direkt (Struktur, lückenlose
@@ -53,6 +53,10 @@ npm test               # 19 Läufe: Logik-/Worker-Tests ohne Browser, dann Brows
 - `metrics.test.mjs`, `coach.test.mjs` — Ampeln und Kennzahlen; Coach-
   Eingabe, Hash, Cache-Entscheidung, Tageslimit (Anmeldefehler des Workers
   verbrauchen es nicht) und Fallback-Texte.
+- `static-greps.test.mjs` — Quelltext-Wächter (E9): kein sichtbares „Dashboard“ in Markup und UI-Texten,
+  keine Koralle (`var(--coral`) in Fehler-/Danger-Regeln von `style.css`, kein `style=` in den JS-Dateien
+  und in `index.html`, kein Gedankenstrich in den UI-Texten von `view-*.js` und `app.js`, der alte Name
+  („Halbmarathon Tracker“, „HM Tracker“) in keiner Datei im Wurzelverzeichnis.
 - `view-run.test.mjs` — Lauf-Tag-Markup (`view-run.js`) ohne Browser: kein Soll-km,
   nur Pace oder nur HF ohne Zielband, Marker ohne Messwert/geklemmt, `esc()`,
   Rangfolge der Zustände, `pickerOptions` (gesperrte Läufe mit `takenBy`),
@@ -90,7 +94,7 @@ druckt am Ende „Checks je Szenario“ (`scenario("…")` steht in der ersten Z
 kein Szenario verschwindet, keine Absicht fällt weg. Aufgefüllt wird nicht, um eine Zahl zu halten.
 
 Baseline: der Plan nennt 336 Checks; gemessen am Merge-Base `a6e6c4b` waren es **390** (Login und
-Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nach dem Kopf-Umbau (Seitenkopf scrollt mit, +6 in Szenario 12) 447, nach E4 (Woche) 491, nach E5a (Kraft-Tag B „Fokus“) 614, nach E5b (V2-Entwurf) 659, nach E6 (Lauf-Tag B „Vergleich“) 750, nach E7 (Verlauf + Plan) 838, nach E8 (Login und Nebenscreens) **906**.
+Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nach dem Kopf-Umbau (Seitenkopf scrollt mit, +6 in Szenario 12) 447, nach E4 (Woche) 491, nach E5a (Kraft-Tag B „Fokus“) 614, nach E5b (V2-Entwurf) 659, nach E6 (Lauf-Tag B „Vergleich“) 750, nach E7 (Verlauf + Plan) 838, nach E8 (Login und Nebenscreens) 906, nach E9 (Abschluss, Prüfmatrix) **1125** (Browser-Checks; `npm test` führt zusätzlich 19 Node-Läufe aus).
 
 | Szenario | Prüfabsichten | a6e6c4b | E2 | E3 | Etappe |
 | --- | --- | --- | --- | --- | --- |
@@ -182,6 +186,11 @@ Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nac
 | 30h (neu) | Warten „Prüfe Anmeldung …“ (role=status, kein h1, keine Karte), Senden (Knopf disabled, `aria-busy`), Hinweis „anderer Tab“ (amber, role=status, vor den Feldern, einmalig, kein Fokus, `esc()`), Escaping von E-Mail und UID auf Kein Zugriff, E-Mail im value-Attribut | – | – | – → 18 | E8 |
 | 30i (neu) | Gate-Fehler: Danger-Karte „Problem“ mit „Neu laden“ (role=alert, `esc()`, ein h1, leerer Kopf, Marke außerhalb), Abmelden der Altsitzung scheitert → Fehlerkarte statt Login | – | – | – → 8 | E8 |
 | 30j (neu) | 320 × 568 mit Hinweis und Fehler: `#main` scrollt, Marke oben und Knopf/Fußnote unten erreichbar, kein H-Scroll | – | – | – → 5 | E8 |
+| 34 (neu) | Prüfmatrix (C8): Breiten 320, 375, 390, 430, 768, 1280 (Höhe 844) und 1280 × 720, hell und dunkel, ein Kontext. Screens: Heute, Tag ohne Einheit (Ruhetag), Woche (eine Zeile offen), Kraft-Tag (aktiver Satz), Lauf-Tag, Lauf-Tag mit Zuordnungs-Sheet, Verlauf Lauf, Verlauf Kraft, Plan, Login (eigener Tab im selben Kontext). Je Kombination und Screen eine Prüfung: kein H-Scroll, nichts abgeschnitten (Overflow-Elemente ohne #main, Chip-Zeile, Sheet), jedes Bedienelement horizontal im Fenster, nach Scroll ans Ende nichts hinter der Tab-Leiste, Tippflächen ≥ 44 × 44 (Stepper, Primärknöpfe, Tab-Leiste, Rundknöpfe, Listenzeilen, Optionen, Zurück), Eingaben ≥ 16 px, ein h1, kein `style=`. Je Kombination zusätzlich: 7 Tageskreise sichtbar, beide Stepper ganz im Satz, Stepper-Eingabe ≥ 16 px, keine Konsolenfehler. Bekannter Befund: `.sd-filter__chip > span` (Höhe wird nicht geprüft, an den Designer gemeldet) | – | – | – → 196 | E9 |
+| 34b (neu) | Die vier Tage ohne Einheit (Ruhetag, Platzhalterwoche, Bis zum Rennen, Kein Plan): ein h1, Zurück-Zeile „Heute“, Kartentext (Platzhalter mit „Details folgen“), kein Altmarkup (`.badge`, `.card`, `.eyebrow`, `.title-row`, `.link-btn`), kein `style=`, Zurück führt nach Heute, keine Konsolenfehler; Fehlerkarte bei Plan-404: `sd-card--danger` mit `role=alert`, ein h1, „Neu laden“ ≥ 44 px | – | – | – → 21 | E9 |
+| 34c (neu) | Wartezustände mit genau einem h1: „Prüfe Anmeldung …“ (unsichtbarer h1 als erstes Kind von `.sd-auth`) und „Plan wird geladen …“ | – | – | – → 2 | E9 |
+| 30h (Warten) | h1-Zahl im Warte-Zustand 0 → 1 (unsichtbarer Marken-h1); Anzahl der Checks unverändert | 18 | 18 | 18 → 18 | E9 |
+| 17–19b (Fehlerkarte) | `#main .error-card` → `#main [data-card="error"]` (Plan-404 mit/ohne Kopie, Ladefehler); Anzahl unverändert | – | – | – | E9 |
 | übrige (7, 8, 17–19b, 23, 24, 26, 27, 29–32) | unverändert; nur Selektoren auf Heute angepasst (27, 23, 30b); 29 hat keinen Kraft-Tag-Teil mehr (seit E3 nur Ampel und Banner) | – | – | – | – |
 
 **Bewusste Ausnahmen in 2c („Im Detail“, einzeln):** Wochenvolumen (8 Wochen, aktuelle Woche, kein Ist

@@ -3,39 +3,39 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610221048";
-import { loadPlans } from "./plan-store.js?v=202610221048";
+} from "./plan.js?v=202610221430";
+import { loadPlans } from "./plan-store.js?v=202610221430";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610221048";
+} from "./firebase-init.js?v=202610221430";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport, lastFetchedAt,
-} from "./strava.js?v=202610221048";
-import { previousEntry, progressionChip } from "./progression.js?v=202610221048";
+} from "./strava.js?v=202610221430";
+import { previousEntry, progressionChip } from "./progression.js?v=202610221430";
 import {
   exerciseMode, startSets, lastTimeText, applyWeightForward, initialFocus, nextOpenExercise,
   stepValue, buildLogPayload, MAX_VALUE,
   draftKey, serializeDraft, parseDraft, staleDraftKeys, dropSavedFromDraft,
-} from "./kraftflow.js?v=202610221048";
-import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610221048";
-import { distanceStatus, hrStatus } from "./runcompare.js?v=202610221048";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet, createSheet } from "./ui.js?v=202610221048";
-import * as dash from "./view-dashboard.js?v=202610221048";
-import * as dashWeek from "./view-week.js?v=202610221048";
-import * as kraftView from "./view-kraft.js?v=202610221048";
-import * as runView from "./view-run.js?v=202610221048";
-import * as historyView from "./view-history.js?v=202610221048";
-import * as planView from "./view-plan.js?v=202610221048";
-import * as metrics from "./metrics.js?v=202610221048";
-import * as coach from "./coach.js?v=202610221048";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610221048";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610221048";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderGateWait, renderGateError, renderAccountSection } from "./view-account.js?v=202610221048";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610221048";
+} from "./kraftflow.js?v=202610221430";
+import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610221430";
+import { distanceStatus, hrStatus } from "./runcompare.js?v=202610221430";
+import { esc, ICONS, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet, createSheet } from "./ui.js?v=202610221430";
+import * as dash from "./view-dashboard.js?v=202610221430";
+import * as dashWeek from "./view-week.js?v=202610221430";
+import * as kraftView from "./view-kraft.js?v=202610221430";
+import * as runView from "./view-run.js?v=202610221430";
+import * as historyView from "./view-history.js?v=202610221430";
+import * as planView from "./view-plan.js?v=202610221430";
+import * as metrics from "./metrics.js?v=202610221430";
+import * as coach from "./coach.js?v=202610221430";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610221430";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610221430";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderGateWait, renderGateError, renderAccountSection } from "./view-account.js?v=202610221430";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610221430";
 
 const INFO_CONTENT = { ...dash.infoContent(THRESHOLDS), ...historyView.infoContent() };
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -81,6 +81,13 @@ let pageHeadHTML = "";
 function renderMain(html) {
   main.innerHTML = `<header class="sd-pagehead" data-region="pagehead">${pageHeadHTML}</header>${html}`;
 }
+
+// Kopf für Übergangs- und Fehlerzustände ohne eigenes Kopfmodul: ein Display-Titel.
+function plainHead(title) {
+  return `<div class="sd-daytitle"><h1 class="sd-display" tabindex="-1">${esc(title)}</h1></div>`;
+}
+
+const I_CHEV_L = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
 
 function setPageHead(html) {
   pageHeadHTML = html;
@@ -151,25 +158,6 @@ function dayInfo(iso) {
   return sessionOn(activePlanFor(iso, plans), iso);
 }
 
-function colorsFor(info) {
-  if (info.kind === "kraft") return ["var(--teal-fg)", "var(--teal-bg)"];
-  if (info.kind === "lauf")
-    return LONG_RUN_TYPES.includes(info.shortType)
-      ? ["var(--purple-fg)", "var(--purple-bg)"]
-      : ["var(--coral-fg)", "var(--coral-bg)"];
-  return ["var(--text-secondary)", "var(--surface-1)"];
-}
-
-function badgeForKind(info) {
-  const [color, bg] = colorsFor(info);
-  if (info.kind === "kraft") return badge(info.optional ? `${info.label} (optional)` : info.label, color, bg);
-  if (info.kind === "lauf") return badge(info.type, color, bg);
-  if (info.kind === "placeholder") return badge("Offen", color, bg);
-  if (info.kind === "bisZumRennen") return badge("Bis zum Rennen", color, bg);
-  if (info.kind === "keinPlan") return badge("Kein Plan", color, bg);
-  return badge("Ruhe", color, bg);
-}
-
 // ---------- Heute (F1–F8, Stride E3) ----------
 // Die Seite besteht aus fünf Slots (#banner-slot, #today-slot, #coach-slot,
 // #status-slot, #week-slot), die einzeln nachladen. Ein leerer Slot bleibt
@@ -177,7 +165,7 @@ function badgeForKind(info) {
 // view-dashboard.js, siehe docs/ui-markup-stride.md Abschnitt 9.
 const COACH_NO_PLAN_TEXT =
   "Dein Plan ist beendet. Ein neues Ziel legst du im Plan-Tab an, sobald es feststeht. " +
-  "Bis dahin zeigt dir das Dashboard weiter deine Strava-Läufe und die Belastung.";
+  "Bis dahin zeigt dir Heute weiter deine Strava-Läufe und die Belastung.";
 
 // Letzter geladener dayplans-Stand und Fortschritt für den heutigen Krafttag —
 // bleiben über Neuzeichnen erhalten, damit die Karte nicht jedes Mal auf
@@ -912,7 +900,7 @@ function render() {
     if (state.tab === "plan") return renderPlan();
   } catch (err) {
     console.error(err);
-    setPageHead(`<h1>Fehler</h1>`);
+    setPageHead(plainHead("Fehler"));
     renderMain(errorCard("Etwas ist schiefgelaufen: " + err.message));
   }
 }
@@ -930,36 +918,32 @@ async function renderDay(iso, { showBack, backLabel }) {
   // Der Lauf-Tag ebenso (view-run.js)
   if (info.kind === "lauf") return renderRunDay(info, iso, label);
 
-  setPageHead(`
-    <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} ${esc(label)}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
-    <div class="title-row"><h1>${
-      info.kind === "kraft" ? "Krafttraining"
-      : info.kind === "lauf" ? "Lauf"
-      : info.kind === "placeholder" ? `Woche ${w}`
-      : info.kind === "bisZumRennen" ? "Bis zum Rennen"
-      : info.kind === "keinPlan" ? "Kein aktiver Plan"
-      : "Ruhetag"
-    }</h1>${badgeForKind(info)}</div>`);
+  const title = info.kind === "placeholder" ? `Woche ${w}`
+    : info.kind === "bisZumRennen" ? "Bis zum Rennen"
+    : info.kind === "keinPlan" ? "Kein aktiver Plan"
+    : "Ruhetag";
+  const nav = showBack
+    ? `<nav class="sd-nav" aria-label="Kopfzeile"><button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back">${I_CHEV_L}${esc(label)}</button></nav>`
+    : "";
+  setPageHead(`${nav}
+<div class="sd-daytitle">
+  <p class="sd-eyebrow sd-eyebrow--plain">${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
+  <h1 class="sd-display" tabindex="-1">${esc(title)}</h1>
+</div>`);
 
-  if (info.kind === "placeholder") {
-    renderMain(`<div class="card"><p class="name">Details folgen</p>
-      <p class="hint">${esc(info.focus || "")} — die genauen Werte tragen wir nach der Re-Kalibrierung nach.</p></div>`);
-    return;
-  }
-  if (info.kind === "bisZumRennen") {
-    renderMain(`<div class="card notice">
-      <p class="name">Bis zum Rennen</p>
-      <p class="hint">Der Plan endet vor dem Renntag, für diesen Tag gibt es keine Einheit mehr.</p></div>`);
-    return;
-  }
-  if (info.kind === "keinPlan") {
-    renderMain(`<div class="card notice">
-      <p class="name">Kein aktiver Plan</p>
-      <p class="hint">Für dieses Datum liegt kein Trainingsplan vor.</p></div>`);
-    return;
-  }
-  renderMain(`<div class="card notice">
-    <p class="name">Ruhetag</p><p class="hint">Mobility, Foam Rolling, Beine hoch.</p></div>`);
+  const [heading, text] = info.kind === "placeholder"
+    ? ["Details folgen", `${info.focus ? info.focus + ". " : ""}Die genauen Werte tragen wir nach der Re-Kalibrierung nach.`]
+    : info.kind === "bisZumRennen"
+      ? [null, "Der Plan endet vor dem Renntag, für diesen Tag gibt es keine Einheit mehr."]
+      : info.kind === "keinPlan"
+        ? [null, "Für dieses Datum liegt kein Trainingsplan vor."]
+        : [null, "Mobility, Foam Rolling, Beine hoch."];
+  renderMain(`<div class="sd-main sd-main--tight">
+  <section class="sd-card sd-card--center" data-card="${info.kind === "placeholder" ? "placeholder-day" : "rest-day"}">${
+    heading ? `\n    <h2 class="sd-card__title">${heading}</h2>` : ""}
+    <p class="sd-card__text">${esc(text)}</p>
+  </section>
+</div>`);
 }
 
 // ---------- Krafttag ----------
@@ -2458,6 +2442,7 @@ async function init() {
 async function startApp() {
   // Tab-Leiste zeigt sofort einen Zustand, auch während der Plan noch lädt.
   document.querySelector('[data-tab="dashboard"]').classList.add("active");
+  setPageHead('<h1 class="sd-vh">Stride</h1>');
   renderMain(loadingCard("Plan wird geladen …"));
 
   // A1: Der Plan wird asynchron geladen. Scheitert das ganz (kein Abruf,
@@ -2487,7 +2472,7 @@ async function startApp() {
     STRAVA_SINCE = addDays(plans[0].start, -35);
   } catch (err) {
     console.error(err);
-    setPageHead(`<h1>Trainingsplan</h1>`);
+    setPageHead(plainHead("Trainingsplan"));
     renderMain(errorCard(err.message));
     // M3: Ein Strava-Redirect (?code=…) wird hier bewusst nicht mehr
     // verarbeitet, wenn schon das Plan-Laden scheitert — der Code bleibt
@@ -2501,7 +2486,7 @@ async function startApp() {
   let stravaIsError = false;
   const hasRedirect = /[?&](code|error)=/.test(location.search);
   if (hasRedirect) {
-    setPageHead(`<h1>Strava</h1>`);
+    setPageHead(plainHead("Strava"));
     renderMain(loadingCard("Strava-Verbindung wird abgeschlossen …"));
     const res = await handleAuthRedirect();
     if (res.status === "connected") stravaMsg = "Mit Strava verbunden.";

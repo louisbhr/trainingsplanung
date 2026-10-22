@@ -2,7 +2,7 @@
 // "Daten und Konto" im Plan-Tab. Reine String-Funktionen (wie view-dashboard.js); alles
 // aus Nutzer- oder Firebase-Daten läuft durch esc(). Die Klassen stehen in style.css
 // (Abschnitte "Anmeldung" und "Verlauf + Plan (E7)").
-import { esc, markSVG } from "./ui.js?v=202610221048";
+import { esc, markSVG } from "./ui.js?v=202610221430";
 
 const TAGLINE = "Trainingsplan, Strava-Läufe und Krafteinheiten an einem Ort.";
 
@@ -21,6 +21,7 @@ export function authBrandHTML(tagline = "") {
 /** Warte-Zustand ohne Karte (Markup 15.4): Marke plus Statuszeile. */
 export function renderGateWait(text) {
   return `<div class="sd-auth" data-card="auth-wait">
+  <h1 class="sd-vh">Stride</h1>
   <div class="sd-auth__brand">
     ${markSVG(64)}
     <p class="sd-auth__name">Stride</p>

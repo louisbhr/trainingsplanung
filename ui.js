@@ -2,7 +2,7 @@
 // Datumsformatierung, Toast, Fehler-/Lade-Karten und die Sheet-Fabrik
 // (createSheet, Auflage C6). Bewusst ohne Firebase-Abhängigkeiten,
 // nur plan.js für die reinen Datums-Helfer.
-import { fromISO } from "./plan.js?v=202610221048";
+import { fromISO } from "./plan.js?v=202610221430";
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -21,10 +21,6 @@ export const ICONS = {
   missed: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.3 9.3l5.4 5.4M14.7 9.3l-5.4 5.4"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 };
-
-export function badge(text, color, bg) {
-  return `<span class="badge" style="background:${bg};color:${color}">${esc(text)}</span>`;
-}
 
 // ---- Stride-Bausteine (docs/ui-markup-stride.md, Abschnitte 3.1, 3.3, 3.4) ----
 const CHECK_PATH = "M5 12.5l4.5 4.5L19 7.5";
@@ -97,12 +93,19 @@ export function toast(msg, isError = false) {
   toast._t = setTimeout(() => (box.className = ""), isError ? 6000 : 3000);
 }
 
+// Fehlerkarte (Markup 16.6): Danger-Karte mit "Neu laden". Der Titel ist h2, den h1
+// setzt der Aufrufer über setPageHead.
 export function errorCard(msg) {
-  return `<div class="card error-card"><p class="name">Problem</p><p class="hint">${esc(msg)}</p>
-    <button data-action="reload" class="mt-8">Neu laden</button></div>`;
+  return `<div class="sd-main sd-main--tight"><section class="sd-card sd-card--danger" role="alert" data-card="error">
+    <div>
+      <h2 class="sd-card__title sd-card__title--danger">Problem</h2>
+      <p class="sd-card__text sd-card__text--danger">${esc(msg)}</p>
+    </div>
+    <button type="button" class="sd-btn sd-btn--onbanner" data-action="reload">Neu laden</button>
+  </section></div>`;
 }
 export function loadingCard(msg = "Lädt …") {
-  return `<p class="center-note">${esc(msg)}</p>`;
+  return `<div class="sd-main sd-main--tight"><p class="sd-hint sd-hint--center" role="status">${esc(msg)}</p></div>`;
 }
 
 // ---------- Sheets (Auflage C6) ----------

@@ -27,8 +27,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { ALLOWED_UID } from "./config.js?v=202610221048";
-import { accessState, raceTimeout } from "./access.js?v=202610221048";
+import { ALLOWED_UID } from "./config.js?v=202610221430";
+import { accessState, raceTimeout } from "./access.js?v=202610221430";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDMNJBSXNrgTT7qDwhhkO1RPKjwp_EFMak",

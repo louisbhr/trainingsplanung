@@ -2020,7 +2020,7 @@ for (const [recal, wantText, notText, label] of [
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#main .error-card");
+  await page.waitForSelector('#main [data-card="error"]');
   const txt = await page.textContent("#main");
   ok(txt.includes("Plan konnte nicht geladen werden"), "Plan-404 ohne Kopie: dauerhafte Fehlerkarte erscheint");
   ok(!txt.includes("Strava") && !txt.includes("Firebase"), "Plan-404 ohne Kopie: nicht als Strava-/Firebase-Fehler erkennbar");
@@ -2044,7 +2044,7 @@ for (const [recal, wantText, notText, label] of [
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#main .error-card");
+  await page.waitForSelector('#main [data-card="error"]');
   ok((await page.textContent("#main")).includes("Plan konnte nicht geladen werden"), "Kaputte Plan-JSON: wie 404 behandelt");
   await ctx.close();
 }
@@ -2071,7 +2071,7 @@ for (const [recal, wantText, notText, label] of [
     localStorage.setItem("hm-tracker.plan.hm-2027", JSON.stringify({ id: "hm-2027", schemaVersion: 1 }));
   });
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#main .error-card");
+  await page.waitForSelector('#main [data-card="error"]');
   ok((await page.textContent("#main")).includes("Plan konnte nicht geladen werden"), "Plan-404 + ungültige Kopie: Fehlerkarte statt Hängenbleiben (K1)");
   await ctx.close();
 }
@@ -2258,7 +2258,7 @@ for (const [recal, wantText, notText, label] of [
     localStorage.setItem("hm-tracker.plan.hm-2027", JSON.stringify(foreign));
   }, [REAL_PLAN_JSON]);
   await page.goto(BASE + "/index.html");
-  await page.waitForSelector("#main .error-card");
+  await page.waitForSelector('#main [data-card="error"]');
   ok((await page.textContent("#main")).includes("Plan konnte nicht geladen werden"), "Kopie mit fremder schemaVersion wird ignoriert -> Fehlerkarte statt falscher Daten");
   await ctx.close();
 }
@@ -2856,7 +2856,7 @@ const seedNotice = ([text]) => {
   await wait.page.waitForSelector('[data-card="auth-wait"]');
   ok((await wait.page.textContent('[data-card="auth-wait"] .sd-auth__tag')) === "Prüfe Anmeldung …", "Warten: 'Prüfe Anmeldung …' unter Marke und Name");
   ok((await wait.page.getAttribute('[data-card="auth-wait"] .sd-auth__tag', "role")) === "status", "Warten: Statuszeile hat role=status");
-  await gateShape(wait.page, "Warten", { h1: 0 });
+  await gateShape(wait.page, "Warten", { h1: 1 });
   await markOutsideCard(wait.page, "Warten", "light");
   ok((await wait.page.locator(".sd-card").count()) === 0 && (await wait.page.locator("#tabbar").isVisible()) === false, "Warten: keine Karte, keine Tableiste");
   await noHScroll(wait.page, "Warten");
@@ -3278,6 +3278,261 @@ const stripPlan = (s) => s.replace(/"plan":[\s\S]*?"strava":/, "");
   ok(await page.locator("#toast.error").count() === 0 && !(await page.textContent("#export-status")).includes("fehlgeschlagen"),
     "Export: Abbruch des Teilens zeigt keinen Fehler");
   ok(await page.isEnabled('[data-action="export-data"]'), "Export: Knopf nach Abbruch wieder aktiv");
+  await ctx.close();
+}
+
+// ---- 34. Prüfmatrix (Auflage C8, Stride E9): Breiten x Farbschema x Screens ----
+// Ein Kontext, eine App-Seite je Schema-Durchlauf (setViewportSize + emulateMedia), die Screens werden
+// per Klick durchlaufen. Das Login hat einen eigenen Tab im selben Kontext (der Anmeldezustand kommt
+// aus window.__AUTH__ der Seite). Geprüft wird nur Geometrie und Struktur, keine Texte.
+const MATRIX_SIZES = [[320, 844], [375, 844], [390, 844], [430, 844], [768, 844], [1280, 844], [1280, 720]];
+// Hauptbedienelemente mit Mindestfläche 44x44 (Dots, Info-Knopf und Sheet-Schließen erreichen sie über ::after und fehlen hier bewusst).
+const MATRIX_TARGETS = ".sd-stepper__btn, .sd-btn--primary, #tabbar [data-tab], .sd-roundbtn, .sd-day__row, .sd-linkrow, " +
+  ".sd-nextrow, .sd-order__row, .sd-statusrow, .sd-option, .sd-btn--back";
+
+// Läuft im Browser. Liefert je Prüfung die Verstöße (leeres Array = in Ordnung).
+function matrixAudit({ targets, sheetOpen }) {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const cls = (el) => (el && typeof el.className === "string" && el.className.trim() ? "." + el.className.trim().split(/\s+/)[0] : "");
+  const label = (el) => `${el.parentElement ? el.parentElement.tagName.toLowerCase() + cls(el.parentElement) + ">" : ""}${el.tagName.toLowerCase()}${cls(el)}`;
+  const shown = (el) => {
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && cs.display !== "none" && !el.closest(".sd-vh");
+  };
+  const out = { hscroll: [], clipped: [], outside: [], behindBar: [], small: [], inputs: [] };
+  const de = document.documentElement, main = document.getElementById("main");
+  if (de.scrollWidth > de.clientWidth) out.hscroll.push(`document ${de.scrollWidth}>${de.clientWidth}`);
+  if (main.scrollWidth > main.clientWidth + 1) out.hscroll.push(`#main ${main.scrollWidth}>${main.clientWidth}`);
+  for (const el of document.querySelectorAll("#main *")) {
+    if (el instanceof SVGElement || !shown(el) || el.closest(".sd-filter")) continue;
+    if (el.getBoundingClientRect().right > vw + 1) out.hscroll.push(label(el));
+  }
+  // Abgeschnitten: Elemente mit eigenem Overflow, deren Inhalt größer ist als sie selbst.
+  // Bewusst scrollbar: #main, die Chip-Zeile und der Sheet-Körper.
+  for (const el of document.querySelectorAll("#app *")) {
+    if (el instanceof SVGElement || el.id === "main" || el.matches(".sd-filter, .sd-sheet") || !shown(el)) continue;
+    const cs = getComputedStyle(el);
+    if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
+    // Bekannter CSS-Befund (E9, an den Designer gemeldet): .sd-filter__chip > span hat overflow hidden bei 13 px Zeilenhöhe,
+    // der Inhalt ist 15 px hoch (Unterlängen). Bis zur Korrektur nur die Breite prüfen; danach diese Ausnahme löschen.
+    const heightKnown = el.matches(".sd-filter__chip > span");
+    if ((!heightKnown && el.clientHeight < el.scrollHeight - 1) || el.clientWidth < el.scrollWidth - 1) {
+      out.clipped.push(`${label(el)} ${el.clientWidth}x${el.clientHeight} < ${el.scrollWidth}x${el.scrollHeight}`);
+    }
+  }
+  const interactive = [...document.querySelectorAll(
+    '#app button, #app a[href], #app input, #app select, #app textarea, #app [tabindex]:not([tabindex="-1"])')]
+    .filter((el) => shown(el) && !el.closest(".sd-filter"));
+  for (const el of interactive) {
+    const r = el.getBoundingClientRect();
+    if (r.left < -0.5 || r.right > vw + 0.5) out.outside.push(`${label(el)} ${Math.round(r.left)}..${Math.round(r.right)}`);
+  }
+  // Nichts Wichtiges hinter der schwebenden Tab-Leiste, wenn bis ans Ende gescrollt ist.
+  if (!sheetOpen) {
+    main.scrollTop = main.scrollHeight;
+    const bar = document.getElementById("tabbar");
+    const barTop = bar && shown(bar) ? bar.getBoundingClientRect().top : vh;
+    let lowest = 0, lowestEl = null;
+    for (const el of document.querySelectorAll("#main *")) {
+      if (!shown(el) || el.closest(".sd-sheet, .sd-backdrop, .sd-pagehead")) continue;
+      const b = el.getBoundingClientRect().bottom;
+      if (b > lowest) { lowest = b; lowestEl = el; }
+    }
+    if (lowest > barTop + 1) out.behindBar.push(`${lowestEl ? label(lowestEl) : "?"} unten ${Math.round(lowest)} > Leiste ${Math.round(barTop)}`);
+    main.scrollTop = 0;
+  }
+  let seen = 0; // Wächter gegen einen Selektor, der ins Leere läuft
+  for (const el of document.querySelectorAll(targets)) {
+    if (!shown(el)) continue;
+    seen++;
+    const r = el.getBoundingClientRect();
+    if (r.width < 43.9 || r.height < 43.9) out.small.push(`${label(el)} ${r.width.toFixed(1)}x${r.height.toFixed(1)}`);
+  }
+  for (const el of document.querySelectorAll("#app input:not([type=hidden]), #app select, #app textarea")) {
+    if (shown(el) && parseFloat(getComputedStyle(el).fontSize) < 16) out.inputs.push(`${label(el)} ${getComputedStyle(el).fontSize}`);
+  }
+  return {
+    ...out,
+    nothingMeasured: interactive.length === 0 || seen === 0 ? ["keine Bedienelemente bzw. Tippflächen gefunden"] : [],
+    styled: [...document.body.querySelectorAll("[style]")].map(label),
+    h1: document.querySelectorAll("h1").length,
+  };
+}
+
+// Eine Zeile je Kombination und Screen; die Meldung nennt nur die Verstöße.
+async function matrixCheck(page, where, { sheetOpen = false } = {}) {
+  const r = await page.evaluate(matrixAudit, { targets: MATRIX_TARGETS, sheetOpen });
+  const bad = Object.entries(r).filter(([k, v]) => (k === "h1" ? v !== 1 : v.length)).map(([k, v]) => `${k}: ${JSON.stringify(v).slice(0, 220)}`);
+  ok(bad.length === 0, `Matrix ${where}: kein Überlauf, nichts abgeschnitten oder verdeckt, Tippflächen und Eingaben, ein h1, kein style= ${bad.join(" | ")}`);
+}
+
+// Springt ohne sichtbaren Weg in die Tagesansicht (Tag ohne Einheit ist nur über "Morgen" erreichbar, und dort nur bei Einheit).
+const openDayByDate = (page, iso) => page.evaluate((d) => {
+  const b = document.createElement("button");
+  b.dataset.action = "open-day"; b.dataset.date = d;
+  document.getElementById("main").appendChild(b);
+  b.click(); b.remove();
+}, iso);
+
+{
+  scenario("34");
+  const logs = {
+    "2026-09-01_squats": { date: "2026-09-01", exercise: "squats", topKg: 70, totalReps: 27, completed: true, sets: [{ kg: 70, reps: 9 }] },
+    "2026-09-08_squats": { date: "2026-09-08", exercise: "squats", topKg: 80, totalReps: 27, completed: true, sets: [{ kg: 80, reps: 9 }] },
+  };
+  const { page, ctx, errors } = await newPage({ connected: true });
+  await page.addInitScript((l) => localStorage.setItem("test.logs", JSON.stringify(l)), logs);
+  const login = await ctx.newPage();
+  const loginErrors = [];
+  login.on("console", (m) => { if (m.type() === "error") loginErrors.push(m.text()); });
+  login.on("pageerror", (e) => loginErrors.push("pageerror: " + e.message));
+  await login.addInitScript(() => { window.__AUTH__ = "signedOut"; });
+  await page.goto(BASE + "/index.html");
+  await login.goto(BASE + "/index.html");
+  await login.waitForSelector('form[data-form="login"]');
+
+  for (const scheme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await login.emulateMedia({ colorScheme: scheme });
+    for (const [w, h] of MATRIX_SIZES) {
+      const at = (screen) => `${w}x${h} ${scheme} ${screen}`;
+      const errorsBefore = errors.length + loginErrors.length;
+      await page.setViewportSize({ width: w, height: h });
+      await login.setViewportSize({ width: w, height: h });
+
+      // Heute
+      await goTab(page, "dashboard");
+      await page.waitForSelector(`${TODAY} [data-action="open-day"]`);
+      await waitStatusLoaded(page);
+      await matrixCheck(page, at("Heute"));
+      const circles = await page.locator('[data-card="week"] .sd-wd').evaluateAll((els) => els.map((e) => {
+        const r = e.getBoundingClientRect(), p = e.parentElement.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= window.innerWidth && r.left >= p.left - 0.5 && r.right <= p.right + 0.5;
+      }));
+      ok(circles.length === 7 && circles.every(Boolean), `Matrix ${at("Heute")}: alle 7 Tageskreise vollständig sichtbar (${circles.filter(Boolean).length}/${circles.length})`);
+
+      // Tag ohne Einheit (Ruhetag Fr 11.09.), Zurück zu Heute
+      await openDayByDate(page, "2026-09-11");
+      await page.waitForSelector('[data-card="rest-day"]');
+      await matrixCheck(page, at("Tag ohne Einheit"));
+      await page.click('[data-action="back"]');
+      await page.waitForSelector(TODAY);
+
+      // Woche mit einer offenen Zeile
+      await goTab(page, "woche");
+      await waitWeekRows(page);
+      const row = page.locator('.sd-day[data-date="2026-09-08"]');
+      if ((await row.locator('[data-action="toggle-day-detail"]').getAttribute("aria-expanded")) !== "true") {
+        await row.locator('[data-action="toggle-day-detail"]').click();
+      }
+      await matrixCheck(page, at("Woche"));
+
+      // Kraft-Tag: aktiver Satz mit zwei Steppern, danach direkte Eingabe prüfen
+      await row.locator('[data-action="open-day"]').click();
+      await waitKraft(page);
+      await matrixCheck(page, at("Kraft-Tag"));
+      const steppers = await page.locator(".sd-set--active .sd-stepper").evaluateAll((els) => els.map((e) => {
+        const r = e.getBoundingClientRect(), c = e.closest(".sd-set").getBoundingClientRect();
+        return e.scrollWidth <= e.clientWidth + 1 && r.left >= c.left - 0.5 && r.right <= c.right + 0.5 && r.right <= window.innerWidth;
+      }));
+      ok(steppers.length === 2 && steppers.every(Boolean), `Matrix ${at("Kraft-Tag")}: beide Stepper liegen ganz in Satz und Fenster (${steppers.join("/")})`);
+      await page.click('.sd-set--active [data-action="edit-value"][data-field="kg"]');
+      const inputSize = await page.locator(".sd-stepper__input").evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
+      ok(inputSize >= 16, `Matrix ${at("Kraft-Tag")}: Eingabefeld im Stepper mindestens 16 px (${inputSize})`);
+      await page.press(".sd-stepper__input", "Enter");
+      await page.click('[data-action="back"]');
+      await waitWeekRows(page);
+
+      // Lauf-Tag mit offenem Zuordnungs-Sheet
+      await goTab(page, "dashboard");
+      await openRunToday(page);
+      await matrixCheck(page, at("Lauf-Tag"));
+      await page.click(`${RUNROW}[data-action="pick-run"]`);
+      await page.waitForSelector(`${ASSIGN}.open`);
+      await matrixCheck(page, at("Lauf-Tag mit Sheet"), { sheetOpen: true });
+      await page.keyboard.press("Escape");
+      await page.waitForSelector(`${ASSIGN}:not(.open)`);
+      await page.click('[data-action="back"]');
+      await page.waitForSelector(TODAY);
+
+      // Verlauf Lauf und Kraft, Plan
+      await goTab(page, "verlauf");
+      await page.waitForSelector('#hist-slot [data-card="run-list"]');
+      await matrixCheck(page, at("Verlauf Lauf"));
+      await page.click('[data-action="hist-mode"][data-mode="kraft"]');
+      await clickChip(page, "squats");
+      await page.waitForSelector('#hist-slot [data-card="strength-best"]');
+      await matrixCheck(page, at("Verlauf Kraft"));
+      await page.click('[data-action="hist-mode"][data-mode="lauf"]');
+      await goTab(page, "plan");
+      await page.waitForSelector(ACCOUNT);
+      await matrixCheck(page, at("Plan"));
+
+      // Login (eigener Tab)
+      await login.waitForSelector(LOGIN);
+      await matrixCheck(login, at("Login"));
+      ok(errors.length + loginErrors.length === errorsBefore, `Matrix ${at("alle Screens")}: keine Konsolenfehler ${JSON.stringify([...errors, ...loginErrors])}`);
+    }
+  }
+  await ctx.close();
+}
+
+// 34b. Die vier Tage ohne Einheit (Markup 16.6): Kopf mit Zurück-Zeile, ein h1, Karte, kein Altmarkup
+{
+  scenario("34b");
+  const gapPlan = JSON.parse(REAL_PLAN_JSON);
+  gapPlan.goal.raceDate = "2027-05-09";
+  gapPlan.goal.raceDateConfirmed = false;
+  const states = [
+    { name: "Ruhetag", plan: REAL_PLAN_JSON, now: "2026-09-11T09:00:00Z", date: "2026-09-11", h1: "Ruhetag", text: "Mobility, Foam Rolling, Beine hoch.", heading: false },
+    { name: "Platzhalterwoche", plan: placeholderPlanJSON([]), now: "2026-09-16T09:00:00Z", date: "2026-09-17", h1: "Woche 3", text: "Die genauen Werte tragen wir nach der Re-Kalibrierung nach.", heading: true },
+    { name: "Bis zum Rennen", plan: JSON.stringify(gapPlan), now: "2027-05-05T09:00:00Z", date: "2027-05-05", h1: "Bis zum Rennen", text: "Der Plan endet vor dem Renntag, für diesen Tag gibt es keine Einheit mehr.", heading: false },
+    { name: "Kein Plan", plan: REAL_PLAN_JSON, now: "2026-09-07T09:00:00Z", date: "2028-01-01", h1: "Kein aktiver Plan", text: "Für dieses Datum liegt kein Trainingsplan vor.", heading: false },
+  ];
+  for (const s of states) {
+    const { page, ctx, errors } = await newPage({ now: s.now });
+    await routePlan(ctx, s.plan);
+    await page.goto(BASE + "/index.html");
+    await page.waitForSelector(TODAY);
+    await openDayByDate(page, s.date);
+    await page.waitForSelector('#main [data-card="rest-day"], #main [data-card="placeholder-day"]');
+    const head = "#main > header.sd-pagehead";
+    ok((await page.locator("h1").count()) === 1 && (await page.textContent(`${head} h1`)).trim() === s.h1, `${s.name}: genau ein h1 "${s.h1}"`);
+    ok((await page.locator(`${head} nav.sd-nav [data-action="back"]`).count()) === 1 && (await page.textContent(`${head} [data-action="back"]`)).includes("Heute"), `${s.name}: Zurück-Zeile mit 'Heute'`);
+    const card = await page.textContent("#main .sd-card--center");
+    ok(card.includes(s.text) && (card.includes("Details folgen") === s.heading), `${s.name}: Text der Karte${s.heading ? " mit 'Details folgen'" : ""}`);
+    ok((await page.locator(".badge, .card, .eyebrow, .title-row, .link-btn").count()) === 0 && (await hasStyleAttr(page)) === 0, `${s.name}: kein Altmarkup, kein style=`);
+    await page.click('[data-action="back"]');
+    await page.waitForSelector(TODAY);
+    ok(errors.length === 0, `${s.name}: keine Konsolenfehler ${JSON.stringify(errors)}`);
+    await ctx.close();
+  }
+  // Fehler- und Ladekarte: sd-Bausteine, h1 aus dem Seitenkopf, "Neu laden" mit 44 px
+  const { page, ctx } = await newPage();
+  await ctx.route(/plans\/hm-2027\.json/, (r) => r.fulfill({ status: 404, body: "not found" }));
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector('#main [data-card="error"]');
+  const eb = await page.locator('#main [data-card="error"] [data-action="reload"]').boundingBox();
+  ok((await page.locator("h1").count()) === 1 && (await page.locator('#main [data-card="error"].sd-card--danger[role="alert"]').count()) === 1 &&
+     eb && eb.height >= 43.9 && (await hasStyleAttr(page)) === 0 && (await page.locator(".card, .error-card, .mt-8").count()) === 0,
+     `Fehlerkarte: sd-card--danger mit role=alert, ein h1, 'Neu laden' ${eb && Math.round(eb.height)} px hoch, kein Altmarkup`);
+  await ctx.close();
+}
+
+// 34c. Wartezustände haben genau einen h1 (Markup 16.6)
+{
+  scenario("34c");
+  const wait = await authPage("ok", { flags: { __AUTH_HANG__: true } });
+  await wait.page.waitForSelector('[data-card="auth-wait"]');
+  ok((await wait.page.locator("h1").count()) === 1 && (await wait.page.locator('.sd-auth > h1.sd-vh').count()) === 1 &&
+     (await wait.page.locator(".sd-auth > :first-child").evaluate((e) => e.tagName === "H1")), "Warten: ein unsichtbarer h1 als erstes Kind von .sd-auth");
+  await wait.ctx.close();
+  const { page, ctx } = await newPage();
+  await ctx.route(/plans\/hm-2027\.json/, async (r) => { await new Promise((res) => setTimeout(res, 1500)); r.fulfill({ contentType: "application/json", body: REAL_PLAN_JSON }); });
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector('#main [role="status"]');
+  ok((await page.locator("h1").count()) === 1 && (await page.locator("h1.sd-vh").count()) === 1 && (await hasStyleAttr(page)) === 0,
+     "Plan wird geladen: ein unsichtbarer h1, kein style=");
   await ctx.close();
 }
 

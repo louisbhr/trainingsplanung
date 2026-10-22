@@ -1,6 +1,6 @@
-import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610221048";
-import { fetchWithAuthRetry } from "./access.js?v=202610221048";
-import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610221048";
+import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610221430";
+import { fetchWithAuthRetry } from "./access.js?v=202610221430";
+import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610221430";
 
 // Die Client-ID ist unkritisch öffentlich (sie steht ohnehin in der
 // Authorize-URL). Das Client-Secret liegt NICHT hier, sondern nur als
