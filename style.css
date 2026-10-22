@@ -1,64 +1,153 @@
-/* impeccable-disable side-tab: nachgeholte Läufe (Tagesansicht), von Louis am 28.09.2026 bestätigt; Phasen-Karten seit 03.10.2026 ohne Streifen */
+/* =====================================================================
+   Stride: Schriften, Tokens, Bausteine (Stand nach E9).
+   Quelle: docs/design-stride/README.md §3 bis §4, Markup: docs/ui-markup-stride.md.
+   Bausteine tragen das Präfix sd-. Übrig aus der Zeit davor sind nur die Klassen,
+   die app.js (Tag ohne Einheit) und ui.js (errorCard, loadingCard, badge) noch
+   schreiben; sie stehen im Abschnitt "Alte Karten" und fallen mit ihrer Migration weg
+   (Liste: Markup-Doc, Abschnitt "Abschluss (E9)").
+   Reihenfolge: Tokens, Grundgerüst, sd-Bausteine, Login, Heute, Woche, Kraft-Tag,
+   Lauf-Tag, Verlauf und Plan, Bewegung.
+   ===================================================================== */
+
+/* ---- Schriften (selbst gehostet, Auflage C3): die URLs sind exakt die
+   versionierten Dateien. Ein <link rel="preload"> in index.html muss
+   dieselbe URL tragen (ohne ?v=) und crossorigin setzen, sonst lädt der
+   Browser die Datei doppelt. ---- */
+@font-face {
+  font-family: "Geist";
+  src: url("fonts/Geist-Variable-1.8.1.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("fonts/GeistMono-Variable-1.8.1.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --teal: #0f6e56;
-  --teal-bg: #e1f5ee;
-  --coral: #993c1d;
-  --coral-bg: #faece7;
-  --purple: #534ab7;
-  --purple-bg: #eeedfe;
-  --surface-0: #f4f3ef;
-  --surface-1: #f0efe9;
-  --surface-2: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
+  color-scheme: light dark;
+  --font-ui: "Geist", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  /* Flächen */
+  --bg: #f4f3ef;
+  --card: #ffffff;
+  --sunk: #efeee9;
+  --line: #efeee9;
+  --seg: #e6e5df;
+  /* Text. Muted hell #767570 (Louis 21.10.2026, 4,5:1) statt Handoff #8a897f. */
   --text-primary: #1c1c1a;
   --text-secondary: #5f5e5a;
-  --text-muted: #8a897f;
-  --radius: 10px;
-  /* Textfarben auf getönten Flächen — im Dark Mode heller als die
-     Flächenfarben, sonst ist z. B. Teal auf Dunkel-Teal kaum lesbar. */
+  --text-muted: #767570;
+  /* Nur für Icons, Chevrons, Trennpunkte; nie für Text. */
+  --ink-faint: #b5b4ac;
+  --ring-dashed: #c9c8c0;
+  --ink-off: #dcdbd5;
+  --track: rgba(0, 0, 0, 0.08);
+
+  /* Hauptaktion und Kraft */
+  --primary: #0f6e56;
+  --primary-hover: #0b5a46;
+  --on-primary: #ffffff;
+  --teal: #0f6e56;
   --teal-fg: var(--teal);
+  --teal-bg: #e1f5ee;
+  --teal-tint: #f3faf7;
+  --teal-soft: #a8d5c4; /* Deload-Balken */
+
+  /* Lauf. Koralle bedeutet nur Laufen, nie Fehler. */
+  --coral-accent: #c4532c;
+  --coral: #993c1d;
   --coral-fg: var(--coral);
+  --coral-bg: #faece7;
+
+  /* Long Run, Coach */
+  --purple: #534ab7;
   --purple-fg: var(--purple);
-  /* Glasleiste: durchscheinende Fläche plus Lichtkante oben */
-  --glass: rgba(255, 255, 255, 0.78);
-  --glass-edge: rgba(255, 255, 255, 0.85);
-  --glass-tint: rgba(255, 255, 255, 0.55);
-  /* ---- Dashboard v2 (D0): echte Ampel-Statusfarben ----
-     Teal/Koralle/Lila sind Kategoriefarben (Kraft/Lauf/Long Run) und bleiben
-     das; für grün/rot-Status (Ampeln, Info-Deltas) gibt es eigene Tokens. */
+  --purple-bg: #eeedfe;
+  --purple-ink: #3d3590;
+  --purple-soft: #dcd9fb;
+  --purple-line: rgba(83, 74, 183, 0.18);
+
+  /* Recovery, Z1, Hinweis, teilweise */
+  --sky: #1e6b8f;
+  --sky-fg: var(--sky);
+  --sky-bg: #e0f0f8;
+  --sky-soft: #d3e7f1;
+  --amber: #96631a;
+  --amber-fg: var(--amber);
+  --amber-bg: #fbf0dc;
+  --amber-soft: #f3e3c4;
+
+  /* Status: Ampel grün, Fehler */
   --ok-fg: #2f7d32;
   --ok-bg: #e3f2e1;
+  --ok-band: #cfe8d0;
   --danger-fg: #b3261e;
   --danger-bg: #fbe4e1;
-  /* Soll-Füllfarbe für Soll/Ist-Balkenpaare: gedämpfter Neutralton, bewusst
-     heller/matter als --teal-fg (Ist), damit beide gefüllten Balken sich
-     ohne Farbwahrnehmung unterscheiden (D2). */
-  --soll-fill: #7f7e76;
+  --danger-ink: #8c1d16;
+
+  /* Schwebende Elemente */
+  --glass: rgba(255, 255, 255, 0.86);
+  --tab-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+  --sheet-shadow: 0 -10px 30px rgba(0, 0, 0, 0.2);
+  --backdrop: rgba(0, 0, 0, 0.38);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface-0: #17171a;
-    --surface-1: #202024;
-    --surface-2: #26262b;
+    --bg: #17171a;
+    --card: #26262b;
+    --sunk: #202024;
+    --line: #33333a;
+    --seg: #2c2c31;
     --border: rgba(255, 255, 255, 0.12);
     --text-primary: #f2f1ec;
     --text-secondary: #b3b2ab;
-    /* 4.65:1 gegen --surface-2 (Nachtrag 27.09.2026, vorher #85847c) */
     --text-muted: #918f87;
+    --ink-faint: #6e6d66;
+    --ring-dashed: #55545a;
+    --ink-off: #3a3a40;
+    --track: rgba(255, 255, 255, 0.1);
+
+    --primary: #5fcfa7;
+    --primary-hover: #4cbf96;
+    --on-primary: #0c2a21;
+    --teal: #5fcfa7;
     --teal-bg: #0c3a2f;
+    --teal-tint: #142a24;
+    --teal-soft: #2a5e4d;
+
+    --coral-accent: #ef8f61;
+    --coral: #ef8f61;
     --coral-bg: #3d2013;
+
+    --purple: #a49df5;
     --purple-bg: #262156;
-    --teal-fg: #5fcfa7;
-    --coral-fg: #ef8f61;
-    --purple-fg: #a49df5;
-    --glass: rgba(30, 30, 34, 0.72);
-    --glass-edge: rgba(255, 255, 255, 0.14);
-    --glass-tint: rgba(255, 255, 255, 0.06);
+    --purple-ink: #d0ccff;
+    --purple-soft: #3b3480;
+    --purple-line: rgba(164, 157, 245, 0.22);
+
+    --sky: #5fb6dd;
+    --sky-bg: #0b2f42;
+    --sky-soft: #1a4a62;
+    --amber: #ddaa55;
+    --amber-bg: #3a2a0e;
+    --amber-soft: #5a4520;
+
     --ok-fg: #7ed88f;
     --ok-bg: #123a1c;
+    --ok-band: #1f5a2c;
     --danger-fg: #ff8a80;
     --danger-bg: #4a1f1c;
-    --soll-fill: #8b8b86;
+    --danger-ink: #ffb4ab;
+
+    --glass: rgba(38, 38, 43, 0.86);
+    --tab-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+    --sheet-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -68,10 +157,24 @@ body {
   margin: 0;
   overflow: hidden;
   overscroll-behavior-x: none;
-  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: var(--surface-0);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  background: var(--bg);
   color: var(--text-primary);
 }
+/* Formularelemente erben die Schrift nicht von selbst. */
+button, input, select, textarea { font-family: inherit; }
+/* Sichtbarer Tastaturfokus überall; einzelne Bausteine übersteuern bei Bedarf. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--teal-fg);
+  outline-offset: 2px;
+}
+/* Überschriften mit tabindex="-1" sind nur Fokusziel für Screenreader (Seitenwechsel), kein
+   Bedienelement: kein Ring um den Titel. */
+h1[tabindex="-1"]:focus { outline: none; }
+
 /* Feste Höhe statt mitwachsender Seite: gescrollt wird nur #main, damit
    die Tableiste am unteren Rand klebt — auf dem Handy sonst nervig.
    dvh berücksichtigt die ein- und ausfahrende Browserleiste in iOS/Android. */
@@ -81,39 +184,41 @@ body {
   margin: 0 auto;
   height: 100vh;
   height: 100dvh;
-  background: var(--surface-2);
+  background: var(--bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* Eigener Stacking-Kontext (M3-Feinschliff, Spacing-Durchgang): #tabbar
-     (backdrop-filter) und das Info-Sheet/Backdrop sind Geschwister hier
-     drin, beide mit explizitem z-index — isolate schließt aus, dass eine
-     Glas-Fläche trotz niedrigerem z-index über das Sheet gerät. */
+  /* Eigener Stacking-Kontext: #tabbar (backdrop-filter) und die Sheets sind
+     Geschwister hier drin, beide mit explizitem z-index — isolate schließt
+     aus, dass eine Glas-Fläche trotz niedrigerem z-index über dem Sheet liegt.
+     Falle (Review C5): container-type NIE auf #app setzen, sonst wird #app
+     zum Containing Block für position: fixed. */
   isolation: isolate;
 }
-#header {
-  padding: calc(1rem + env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
-           0.75rem max(1.25rem, env(safe-area-inset-left));
-  border-bottom: 0.5px solid var(--border);
+/* Der Seitenkopf lebt seit E3 als erstes Kind von #main (.sd-pagehead) und scrollt
+   mit. #header bleibt im HTML, ist aber immer leer. */
+#header:empty { display: none; }
+.sd-pagehead {
+  /* Nur .sd-pagehead und #main sind Container für cqi-Größen (Display, große Distanz). */
+  container-type: inline-size;
+  /* Alter Kopf: Seitenpolster kommt von #main (1.25rem), Kopf selbst nur oben/unten.
+     Oben trägt der Kopf den Statusbar-Abstand, weil #main oben kein Polster mehr hat. */
+  padding: calc(1rem + env(safe-area-inset-top)) 0 1rem;
   flex-shrink: 0;
 }
-#header .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0; }
-#header .title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
-#header h1 { font-size: 19px; font-weight: 600; margin: 0; min-width: 0; }
-/* Fällt auf --surface-1/--text-secondary zurück, wenn keine .tone-* Klasse
-   gesetzt ist ("Ohne Plan"-Badge, F7). Wo bisher inline style="background:
-   …;color:…" genutzt wurde (badge()-Helfer in app.js), gewinnt das Inline-
-   Style weiterhin per Spezifität — diese Regel ist rein additiv und macht
-   .badge zusätzlich für die neue Dashboard-Kopfzeile (Tone-Klassen statt
-   Inline-Style) einsatzfähig. */
-.badge { font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 600; background: var(--tone-bg, var(--surface-1)); color: var(--tone, var(--text-secondary)); white-space: nowrap; flex-shrink: 0; }
+.sd-pagehead:has(> :is(.sd-head, .sd-nav, .sd-weekhead, .sd-tabhead)) {
+  padding: calc(8px + env(safe-area-inset-top)) 0 0;
+}
 
 #main {
+  container-type: inline-size;
   flex: 1 1 auto; min-height: 0;
-  padding: 1rem max(1.25rem, env(safe-area-inset-right))
-           calc(78px + env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
-  /* 10px -> 12px (Spacing-Durchgang): nächste Stufe auf dem 4/8/12/16-Raster,
-     etwas großzügiger zwischen den Karten/Blöcken auf jedem Tab. */
+  /* Unten 120px: die schwebende Tab-Leiste (64px + 26px Abstand) liegt über
+     dem Inhalt, der letzte Block muss darüber hinaus scrollen können. */
+  /* Oben 0: das erste Kind ist immer .sd-pagehead und bringt Statusbar-Abstand mit. */
+  padding: 0 max(1.25rem, env(safe-area-inset-right))
+           calc(120px + env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+  /* 12px: nächste Stufe auf dem 4/8/12/16-Raster zwischen Karten/Blöcken. */
   display: flex; flex-direction: column; gap: 12px;
   overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -124,79 +229,39 @@ body {
    plus overflow:auto. Ohne dies dürfen seine direkten Kinder (Karten,
    Wochenzeilen, Ampel-Grid) auf ihre min-height zusammengestaucht werden
    statt dass #main scrollt — reproduziert bei kleiner Fensterhöhe (z. B.
-   1280x720). Betrifft alle Tabs, nicht nur das neue Dashboard. */
+   1280x720). Betrifft alle Tabs. */
 #main > * { flex-shrink: 0; }
-
-.card { background: var(--surface-1); border-radius: 12px; padding: 0.85rem 1rem; min-width: 0; overflow-wrap: anywhere; }
-.card p.name { font-size: 15px; font-weight: 600; margin: 0; }
-/* 3px -> 4px (Spacing-Durchgang): etwas Luft zwischen Titel und Hint-Zeile,
-   betrifft jede .card im Projekt (Kraft-Tag, Verlauf, Plan …). */
-.card p.hint { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
-/* Generische Fallback-Regel: .hint kommt auch außerhalb von .card vor
-   (z. B. der Woche-Tab-Fußhinweis), war dort bisher ungestylt. */
-.hint { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
-.hint.center { text-align: center; margin-top: 4px; }
-/* Zentrierte Hinweiskarte (Ruhetag, "Bis zum Rennen", "Kein aktiver Plan",
-   "Plan beendet" …) — ersetzt die bisherigen Inline-Styles
-   style="text-align:center;padding:1.5rem 1rem;" auf .card (Review-Minor
-   M5, docs/review-code-m1.md). Nutzt weiterhin p.name/p.hint für
-   Titel+Detail, oder einen reinen <p> Fließtext ohne Titel. */
-.card.notice { text-align: center; padding: 1.4rem 1rem; }
-.card.notice p { font-size: 13px; color: var(--text-secondary); margin: 0; line-height: 1.5; }
-.card.notice p.name { font-size: 15px; font-weight: 600; color: var(--text-primary); margin: 0; }
-.card.notice p.hint { font-size: 12px; color: var(--text-muted); margin: 6px 0 0; line-height: 1.5; }
-
-.row { display: flex; gap: 8px; align-items: center; min-width: 0; }
-input[type="number"] {
-  /* flex-basis 0 + min-width 0: sonst erzwingen Zahlenfelder ihre
-     Standardbreite (~170px) und schieben die Karte über den Rand. */
-  flex: 1 1 0; min-width: 0; width: 100%;
-  text-align: center; font-size: 16px; font-weight: 600;
-  border: 0.5px solid var(--border); border-radius: 8px; height: 38px;
-  background: var(--surface-2); color: var(--text-primary);
+/* Detail-Seiten (Kraft-Tag, Lauf-Tag): keine Tab-Leiste, also auch kein
+   120px-Polster. Die Klasse setzt der Coder auf #app. */
+#app.is-detail #tabbar { display: none; }
+#app.is-detail #main { padding-bottom: calc(32px + env(safe-area-inset-bottom)); }
+/* Die Stride-Screens bringen ihr Seitenpolster selbst mit (sd-main 12px, Kopf und
+   Überschriften 20px) und setzen eigene Abstände: #main gibt dann nichts dazu.
+   Direkte Kinder von #main sind nur Seitenkopf und Inhaltswurzel (.sd-main oder .sd-auth). */
+#main:has(> :is(.sd-main, .sd-auth)) {
+  padding-inline: 0; padding-top: 0; gap: 0;
 }
+
+
 button {
-  border: 0.5px solid var(--border); border-radius: 8px; background: var(--surface-2);
+  border: 0; border-radius: 12px; background: var(--sunk);
   color: var(--text-primary); font-size: 13px; padding: 6px 12px; cursor: pointer;
 }
 button:active { transform: scale(0.97); }
-.icon-btn { width: 38px; height: 38px; padding: 0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 
-/* 6px -> 8px (Spacing-Durchgang): Satz-Zeilen im Kraft-Tag rückten zu dicht
-   aneinander, jetzt auf dem 4/8/12/16-Raster. */
-.set-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; min-width: 0; }
-.set-row .set-label { width: 46px; font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
-
-.day-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.day-pill { text-align: center; padding: 10px 2px; border-radius: 12px; border: none; }
-.day-pill .d { font-size: 11px; font-weight: 600; margin: 0 0 4px; }
-.day-pill .t { font-size: 10.5px; font-weight: 600; margin: 0; }
-
-.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.metric-label { font-size: 11px; color: var(--text-muted); margin: 0; }
-/* 2px -> 4px (Spacing-Durchgang): Label/Wert klebten aneinander, z. B. im
-   Dashboard-Ist-Werte-Grid (Distanz/Pace/Dauer/HF) und im Kraft-/Lauftag. */
-.metric-value { font-size: 20px; font-weight: 700; margin: 4px 0 0; }
-/* Kleinere Variante für dichtere Raster (z. B. Ist-Werte-Grid im Dashboard,
-   4 Spalten statt 2) — M2-11, ersetzt die bisherigen inline style="font-
-   size:18px" (Review-Minor M5, docs/review-code-m2.md). */
-.metric-value.sm { font-size: 18px; }
-
-.bars { display: flex; align-items: flex-end; gap: 6px; height: 100px; }
-.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--teal); }
-.bar-label { font-size: 10px; color: var(--text-muted); }
-
-/* Glasleiste: der Inhalt scrollt darunter durch, deshalb liegt sie über
-   #main statt daneben. Echte Lichtbrechung (SVG-Verzerrungsfilter im
-   backdrop-filter) unterstützt WebKit nicht — auf dem iPhone bliebe sie
-   wirkungslos. Was dort trägt, ist Unschärfe plus Sättigung, eine
-   Lichtkante und eine Kapsel hinter dem aktiven Tab. */
+/* ---- Schwebende Glas-Tab-Leiste ----
+   Liegt als Kapsel über #main (der Inhalt scrollt darunter durch) und ist
+   absolut in #app positioniert: #app ist die 480px-Spalte, die Leiste folgt
+   ihr dadurch ohne eigene Breitenrechnung. Echte Lichtbrechung unterstützt
+   WebKit nicht; was trägt, ist Unschärfe plus Sättigung und der Schatten. */
 #tabbar {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 10;
-  display: flex;
-  background: var(--surface-2);
-  border-top: 0.5px solid var(--border);
+  position: absolute; z-index: 10;
+  left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right));
+  bottom: calc(26px + env(safe-area-inset-bottom));
+  display: flex; height: 64px; padding: 6px;
+  border-radius: 32px;
+  background: var(--card);
+  box-shadow: var(--tab-shadow);
 }
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   #tabbar {
@@ -204,588 +269,939 @@ button:active { transform: scale(0.97); }
     -webkit-backdrop-filter: blur(22px) saturate(180%);
     backdrop-filter: blur(22px) saturate(180%);
   }
-  /* Haarfeine Lichtkante — der Teil von Apples Material, der am
-     stärksten den Glas-Eindruck macht */
-  #tabbar::before {
-    content: ""; position: absolute; inset: 0 0 auto 0; height: 1px;
-    background: linear-gradient(90deg, transparent, var(--glass-edge) 25%, var(--glass-edge) 75%, transparent);
-    pointer-events: none;
-  }
-}
-#tabbar button {
-  flex: 1; border: none; border-radius: 0; padding: 10px 0; background: transparent;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
 }
 #tabbar button {
   position: relative;
-  transition: color 0.18s ease;
+  flex: 1; min-width: 0; min-height: 44px; padding: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 0; border-radius: 26px; background: transparent;
+  color: var(--text-secondary);
+  font-size: 10.5px; font-weight: 600; line-height: 1.2;
+  transition: color 150ms ease-out;
 }
-/* Kapsel hinter dem aktiven Tab */
+/* Fläche hinter dem aktiven Tab; als ::after, damit der Tab-Knopf selbst
+   keinen eigenen Hintergrund braucht und die Fläche sanft einblendet. */
 #tabbar button::after {
-  content: ""; position: absolute; inset: 4px 8px; border-radius: 12px;
-  background: transparent; transition: background 0.22s ease, transform 0.22s ease;
-  transform: scale(0.92); z-index: -1;
+  content: ""; position: absolute; inset: 0; border-radius: 26px;
+  background: transparent; transform: scale(0.94); z-index: -1;
+  transition: background-color 150ms ease-out, transform 150ms ease-out;
 }
 #tabbar button.active { color: var(--teal-fg); }
-#tabbar button.active::after { background: var(--glass-tint); transform: scale(1); }
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  #tabbar button.active::after { background: var(--surface-1); }
-}
-#tabbar svg { width: 20px; height: 20px; }
-#tabbar span { font-size: 11px; }
+#tabbar button.active::after { background: var(--teal-bg); transform: scale(1); }
+#tabbar svg { width: 20px; height: 20px; flex: none; }
+#tabbar span { font-size: 10.5px; }
 
-.center-note { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 10px; }
-.strava-note { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.strava-note svg { width: 16px; height: 16px; color: var(--text-muted); flex-shrink: 0; }
-.strava-note p { font-size: 12px; color: var(--text-muted); margin: 0; }
-
-.primary-btn { background: var(--teal); color: white; border: none; font-weight: 600; width: 100%; height: 42px; }
-
-/* ---- Ergänzungen der überarbeiteten Version ---- */
 button:disabled { opacity: 0.35; cursor: default; }
-.small-btn { font-size: 12px; padding: 5px 10px; white-space: nowrap; flex-shrink: 0; }
-.link-btn {
-  border: none; background: none; padding: 0; font-size: 13px;
-  color: var(--text-secondary); display: inline-flex; align-items: center; gap: 2px;
-}
-.link-btn svg { width: 14px; height: 14px; }
-
-#header h1 .of { font-weight: 400; font-size: 14px; color: var(--text-secondary); }
-#header .title-row .row { flex-shrink: 0; }
-#header .icon-btn { width: 30px; height: 30px; }
-#header .icon-btn svg { width: 16px; height: 16px; }
-
-.card.summary-card { background: var(--teal-bg); }
-.card.summary-card .name, .card.summary-card .hint { color: var(--teal-fg); }
-.card.current { outline: 1.5px solid var(--teal-fg); }
-.card.error-card { background: var(--coral-bg); }
-.card.error-card .name { color: var(--coral-fg); }
-
-.done-dot { display: inline-flex; vertical-align: -2px; color: var(--teal-fg); }
-.done-dot svg { width: 14px; height: 14px; }
-
-.times { color: var(--text-muted); font-size: 12px; }
-.hint.tiny { font-size: 11px; margin-top: 4px; }
-.status { min-height: 0; }
-.status:empty { display: none; }
-.status.ok { color: var(--teal-fg); }
-.status.warn { color: var(--coral-fg); }
-.ex-body { margin-top: 12px; }
-
-.seg { display: flex; gap: 4px; }
-.seg button { font-size: 12px; padding: 5px 10px; color: var(--text-secondary); background: transparent; }
-.seg button.on { background: var(--teal-bg); color: var(--teal-fg); border-color: transparent; }
 
 select {
   /* 16px ist Pflicht: darunter zoomt iOS Safari beim Antippen hinein,
      und die Seite lässt sich danach seitlich schieben. */
-  width: 100%; height: 38px; padding: 0 10px; font-size: 16px;
-  border: 0.5px solid var(--border); border-radius: 8px;
-  background: var(--surface-2); color: var(--text-primary);
+  width: 100%; height: 44px; padding: 0 12px; font-size: 16px;
+  border: 0; border-radius: 12px;
+  background: var(--sunk); color: var(--text-primary);
 }
-
-.list-row { justify-content: space-between; font-size: 13px; padding: 5px 0; }
-.list-row + .list-row { border-top: 0.5px solid var(--border); }
-.list-row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.zone-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 5px 0; }
-.zone-row + .zone-row { border-top: 0.5px solid var(--border); }
-.zone-vals { color: var(--text-secondary); text-align: right; white-space: nowrap; }
-
-.bars { height: 130px; }
-.bar-col { justify-content: flex-end; min-width: 0; }
-.bar-value { font-size: 9.5px; color: var(--text-secondary); white-space: nowrap; }
-.bar-label { white-space: nowrap; font-size: 9.5px; }
-
-.day-pill { line-height: 1.25; min-height: 58px; }
-.day-pill.today { outline: 1.5px solid var(--text-primary); outline-offset: -1.5px; }
 
 #toast {
-  position: absolute; left: 50%; bottom: 72px; transform: translate(-50%, 16px);
+  position: absolute; left: 50%; bottom: calc(104px + env(safe-area-inset-bottom)); transform: translate(-50%, 16px);
   max-width: 440px; width: calc(100% - 2.5rem);
-  background: var(--text-primary); color: var(--surface-2);
-  font-size: 13px; padding: 10px 14px; border-radius: 10px;
-  opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 20;
+  background: var(--text-primary); color: var(--card);
+  font-size: 13px; padding: 10px 14px; border-radius: 14px;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 60;
 }
+/* Auf Detail-Seiten fehlt die Leiste, der Toast rückt nach unten. */
+#app.is-detail #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
-#toast.error { background: var(--coral); color: #fff; }
+#toast.error { background: var(--danger-fg); color: var(--card); }
 
-@supports (padding: max(0px)) {
-  #tabbar {
-    padding-bottom: max(0px, env(safe-area-inset-bottom));
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
-}
-
-/* ---- Farbtöne für Phasen und Zonen ---- */
-:root {
-  --sky: #1e6b8f;
-  --sky-bg: #e0f0f8;
-  --sky-fg: var(--sky);
-  --amber: #96631a;
-  --amber-bg: #fbf0dc;
-  --amber-fg: var(--amber);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --sky-bg: #0b2f42;
-    --amber-bg: #3a2a0e;
-    --sky-fg: #5fb6dd;
-    --amber-fg: #ddaa55;
-  }
-}
+/* ---- Farbtöne für Phasen und Zonen (Tokens oben) ---- */
 .tone-teal   { --tone: var(--teal-fg);   --tone-bg: var(--teal-bg); }
 .tone-coral  { --tone: var(--coral-fg);  --tone-bg: var(--coral-bg); }
 .tone-purple { --tone: var(--purple-fg); --tone-bg: var(--purple-bg); }
 .tone-sky    { --tone: var(--sky-fg);    --tone-bg: var(--sky-bg); }
 .tone-amber  { --tone: var(--amber-fg);  --tone-bg: var(--amber-bg); }
 
-/* ---- Speichern-Knopf: sichtbare Hauptaktion statt weißer Fläche ---- */
-.save-btn {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  background: var(--teal); color: #fff; border: none; font-weight: 600;
-  height: 38px; padding: 0 14px; flex-shrink: 0;
+/* =====================================================================
+   Stride-Bausteine (sd-*).
+   Markup: docs/ui-markup-stride.md. Vorlage: docs/mockup-stride-luecken.html.
+   Sheets und Backdrop liegen absolut in #app (die 480px-Spalte), nicht
+   fixed: so folgen sie der Spalte ohne Breitenrechnung, und es braucht keinen
+   Container-Query-Vorfahren mit der position:fixed-Falle (Review C5).
+   ===================================================================== */
+
+/* ---- Typografie-Rollen ---- */
+.sd-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sd-unit { font-family: var(--font-ui); font-weight: 500; color: var(--text-muted); letter-spacing: 0; margin-left: 4px; }
+/* Display: fluid über cqi der Inhaltsspalte; die feste Zeile davor ist der
+   Rückfall für Browser ohne Container-Query-Einheiten. */
+.sd-display { margin: 4px 0 0; font-size: 30px; font-size: clamp(26px, 7.7cqi, 30px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; text-wrap: balance; overflow-wrap: anywhere; }
+.sd-title { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; overflow-wrap: anywhere; }
+.sd-title--sm { font-size: 20px; }
+.sd-text { margin: 4px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); }
+.sd-hint { margin: 0; font-size: 12px; line-height: 1.4; color: var(--text-muted); }
+.sd-label { margin: 16px 8px -2px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.sd-label-row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; margin: 16px 8px -2px; }
+.sd-label-row .sd-label { margin: 0; }
+.sd-eyebrow { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
+.sd-eyebrow--teal { color: var(--teal-fg); }
+.sd-eyebrow--coral { color: var(--coral-fg); }
+.sd-eyebrow--purple { color: var(--purple-fg); }
+.sd-eyebrow__dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.sd-eyebrow--muted .sd-eyebrow__dot { background: var(--ring-dashed); }
+.sd-eyebrow--plain { display: block; }
+.sd-vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Icons tragen ihre Größe über die Klasse (rohe svg in Flex-Zeilen schrumpfen). */
+.sd-icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sd-icon--20 { width: 20px; height: 20px; }
+
+/* ---- Marke (flaches Zeichen als Bild-Element, hell/dunkel über picture-Element, siehe ui.js markSVG) ---- */
+.sd-mark { width: 28px; height: 28px; flex: none; }
+.sd-mark--lg { width: 64px; height: 64px; }
+
+/* ---- Kopf und Seitentitel ----
+   Köpfe liegen im Seitenkopf außerhalb von .sd-main und tragen ihr Seitenpolster selbst:
+   20px, bei Notch oder Querformat mindestens die Safe Area (gleiche Formel in .sd-weekhead,
+   .sd-tabhead, .sd-dots, .sd-daytitle, .sd-filter, .sd-sheet). */
+.sd-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0 max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left)); }
+.sd-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; letter-spacing: -0.035em; }
+.sd-chip { font: 500 12px var(--font-mono); color: var(--text-secondary); background: var(--card); padding: 5px 10px; border-radius: 20px; white-space: nowrap; }
+.sd-intro { padding: 24px max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left)); }
+/* Heute und Woche: Display-Titel direkt unter der Überzeile, ohne Extra-Abstand. */
+.sd-intro .sd-display, .sd-weekhead .sd-display { margin: 0; }
+.sd-intro__sub { margin: 0; font-size: 14px; color: var(--text-secondary); }
+.sd-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; margin-top: 8px; font: 11.5px var(--font-mono); color: var(--text-secondary); }
+
+/* ---- Spalte und Karten ---- */
+.sd-main { display: flex; flex-direction: column; gap: 12px; padding: 20px max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left)); }
+.sd-main--tight { padding-top: 16px; }
+.sd-card { background: var(--card); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.sd-card--pad-sm { padding: 16px 20px; gap: 10px; }
+.sd-card--list { padding: 4px 0; gap: 0; }
+.sd-card--loose { gap: 16px; }
+.sd-card--center { align-items: center; text-align: center; padding: 24px 20px; gap: 6px; }
+.sd-card--center .sd-card__title { margin-top: 6px; }
+.sd-card--center .sd-actions { justify-content: center; margin-top: 8px; }
+.sd-card--coach { background: var(--purple-bg); padding: 18px 20px; gap: 8px; }
+.sd-card--danger { background: var(--danger-bg); padding: 18px 20px; gap: 10px; }
+.sd-card__top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.sd-card__title { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.3; }
+.sd-card__title + .sd-hint { margin-top: 4px; }
+.sd-card__title--danger { color: var(--danger-fg); }
+.sd-card__text { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); }
+.sd-card__text--danger { color: var(--danger-ink); }
+.sd-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---- Buttons (Höhe 44, Primär 50, groß 54) ---- */
+.sd-btn {
+  appearance: none; border: 0; cursor: pointer; font: 600 14px/1.2 var(--font-ui);
+  min-height: 44px; padding: 0 16px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-align: center;
+  background: var(--sunk); color: var(--text-primary); text-decoration: none;
+  transition: background-color 150ms ease-out, transform 150ms ease-out;
 }
-.save-btn svg { width: 16px; height: 16px; }
-.save-btn.wide { width: 100%; margin-top: 8px; height: 40px; }
-.save-btn.is-saved { background: var(--teal-bg); color: var(--teal-fg); }
-.save-btn:disabled { opacity: 1; }
-.icon-btn.save-btn { width: 44px; padding: 0; }
-
-.card.done { background: var(--teal-bg); }
-.card.done p.hint { color: var(--teal-fg); opacity: 0.85; }
-
-/* ---- Übungen anpassen ---- */
-.danger-btn { color: var(--coral-fg); border-color: color-mix(in srgb, var(--coral-fg) 40%, transparent); }
-.card.removed { opacity: 0.55; }
-.add-form { display: flex; flex-direction: column; gap: 8px; }
-.add-form input[type="text"] {
-  height: 38px; padding: 0 10px; font-size: 16px; width: 100%;
-  border: 0.5px solid var(--border); border-radius: 8px;
-  background: var(--surface-2); color: var(--text-primary);
-}
-.custom-tag {
-  font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px;
-  background: var(--purple-bg); color: var(--purple-fg); vertical-align: 2px;
-}
-
-/* ---- Plan-Tab ---- */
-.phase-card {
-  background: var(--tone-bg);
-  border-radius: 12px; padding: 0.85rem 1rem;
-}
-.phase-card .name { color: var(--tone); }
-.phase-card .hint { color: var(--tone); opacity: 0.8; }
-.phase-card.is-current { box-shadow: 0 0 0 1.5px var(--tone); }
-.phase-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.phase-weeks { font-size: 11px; font-weight: 700; color: var(--tone); opacity: 0.75; white-space: nowrap; }
-
-.timeline { display: flex; gap: 3px; height: 12px; margin-top: 12px; }
-.timeline .seg {
-  position: relative; border-radius: 6px; overflow: hidden;
-  background: color-mix(in srgb, var(--tone) 22%, transparent);
-}
-.timeline .seg i { position: absolute; inset: 0 auto 0 0; background: var(--tone); display: block; }
-.timeline-marker { display: flex; margin-top: 5px; font-size: 10px; color: var(--text-muted); justify-content: space-between; }
-.timeline-legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; font-size: 10.5px; }
-.timeline-legend span { display: inline-flex; align-items: center; gap: 4px; color: var(--text-secondary); }
-.timeline-legend i { width: 8px; height: 8px; border-radius: 2px; background: var(--tone); display: block; }
-
-.zone-row.tone-teal, .zone-row.tone-coral, .zone-row.tone-purple,
-.zone-row.tone-sky, .zone-row.tone-amber { border-top: none; }
-.zone-chip {
-  display: inline-block; min-width: 26px; text-align: center;
-  font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 6px;
-  background: var(--tone-bg); color: var(--tone); margin-right: 8px;
-}
-.zone-line { display: flex; align-items: center; gap: 0; padding: 6px 0; font-size: 13px; }
-.zone-line + .zone-line { border-top: 0.5px solid var(--border); }
-.zone-line .zname { flex: 1; min-width: 0; }
-.zone-line .zvals { color: var(--text-secondary); text-align: right; font-size: 12px; white-space: nowrap; }
-
-.goal-card { background: linear-gradient(135deg, var(--teal-bg), var(--sky-bg)); }
-.goal-time { font-size: 30px; font-weight: 800; color: var(--teal-fg); margin: 4px 0 0; letter-spacing: -0.5px; }
-
-/* ---- Verschobene Läufe ---- */
-.card.shifted { border-left: 3px solid var(--amber-fg); }
-.shift-note {
-  font-size: 12px; font-weight: 600; color: var(--amber-fg);
-  background: var(--amber-bg); border-radius: 6px;
-  padding: 4px 8px; margin: 8px 0 0; display: inline-block;
-}
-.pick-row {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
-  width: 100%; text-align: left; margin-top: 6px; padding: 8px 10px;
-}
-.pick-row.on { background: var(--teal-bg); border-color: transparent; }
-.pick-row .pick-main { font-size: 13px; font-weight: 600; }
-.pick-row .pick-sub { font-size: 11px; color: var(--text-muted); }
-.pick-row.on .pick-main, .pick-row.on .pick-sub { color: var(--teal-fg); }
-
-/* ---- Progressionsvorschlag aus den letzten Zahlen ---- */
-.tip {
-  font-size: 11.5px; font-weight: 600; margin: 6px 0 0;
-  padding: 4px 8px; border-radius: 6px; display: inline-block;
-}
-.tip-up { background: var(--teal-bg); color: var(--teal-fg); }
-.tip-hold { background: var(--sky-bg); color: var(--sky-fg); }
-.tip-down { background: var(--coral-bg); color: var(--coral-fg); }
-.tip-info { background: var(--surface-2); color: var(--text-secondary); }
-.card.session-card { background: var(--sky-bg); }
-.card.session-card .name, .card.session-card .hint { color: var(--sky-fg); }
-.card.session-card .metric-label, .card.session-card .metric-value { color: var(--sky-fg); }
-
-/* ---- Schnell eine Übung ergänzen ---- */
-.add-inline {
-  width: 100%; border-style: dashed; color: var(--text-secondary);
-  padding: 10px; font-weight: 600;
-}
-.edit-actions { margin-top: 8px; gap: 8px; }
-.edit-actions button { flex: 1; }
-
-/* =========================================================
-   Dashboard v2 (D0) — docs/mockup-dashboard-v2.html, abgenommen 27.09.2026.
-   Referenz für Markup: docs/ui-markup-dashboard-v2.md.
-   ========================================================= */
-
-.section-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 6px 0 0; text-transform: uppercase; letter-spacing: 0.04em; }
-.countdown { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
-
-/* BUG-FIX (Spacing-Durchgang): #main setzt sein gap NUR zwischen seinen
-   direkten Kindern. app.js rendert Dashboard-Inhalte aber in vier
-   Lade-Slots (#today-slot/#coach-slot/#ampel-slot/#detail-slot), damit
-   Strava/Coach/Ampeln unabhängig nachladen können (M2-4) — die Mockup-
-   Version hatte diese Wrapper nicht und bekam das #main-gap direkt auf
-   jedes Element. In #detail-slot sitzen vier eigene Blöcke (Label,
-   Wochenvolumen-Karte, Aerobe-Effizienz-Karte, Metrik-Grid) OHNE eigenen
-   Abstand zueinander — sie klebten direkt aneinander. Jeder Slot bekommt
-   dasselbe Spalten-Flex-Layout wie #main, damit sein Inhalt denselben
-   Rhythmus hat (bei den Slots mit nur einem Kind ändert sich optisch
-   nichts). */
-#today-slot, #coach-slot, #ampel-slot, #detail-slot { display: flex; flex-direction: column; gap: 12px; }
-
-/* Kleine Utilities für Stellen, an denen sich eine eigene Komponentenklasse
-   nicht lohnt. Sie ersetzen die früheren statischen style="…"-Attribute im
-   Render-Code (Review-Minor M5, docs/review-code-m2.md); datenabhängige Werte
-   (Balkenhöhen, Fortschrittsbreiten, Kategoriefarben) bleiben inline.
-   !important, weil ein Inline-Style Komponentenregeln wie `.card p.hint`
-   (margin: 4px 0 0) ebenfalls überstimmt hat — das Aussehen bleibt gleich. */
-.mt-2 { margin-top: 2px !important; }
-.mt-4 { margin-top: 4px !important; }
-.mt-6 { margin-top: 6px !important; }
-.mt-8 { margin-top: 8px !important; }
-.mt-10 { margin-top: 10px !important; }
-.mb-8 { margin-bottom: 8px !important; }
-.jc-between { justify-content: space-between; }
-.ai-start { align-items: flex-start; }
-.gap-8 { gap: 8px; }
-.gap-10 { gap: 10px; }
-.min-w-0 { min-width: 0; }
-.flex-1 { flex: 1; }
-.w-full { width: 100%; }
-.w-70 { width: 70%; }
-.fs-11 { font-size: 11px; }
-.fg-secondary { color: var(--text-secondary) !important; }
-.fg-muted { color: var(--text-muted) !important; }
-.fg-coral { color: var(--coral-fg) !important; }
-.fg-ok { color: var(--ok-fg); }
-.fg-amber { color: var(--amber-fg); }
-.bg-coral { background: var(--coral-bg); }
-.metric-value.xs { font-size: 16px; }
-
-/* ---- Coach-Karte ---- */
-.coach-card { background: var(--purple-bg); border-radius: 12px; padding: 0.85rem 1rem; }
-.coach-card .head { display: flex; gap: 9px; align-items: flex-start; }
-.coach-card .icon { width: 18px; height: 18px; color: var(--purple-fg); flex-shrink: 0; margin-top: 1px; }
-.coach-card .label { font-size: 11px; font-weight: 700; color: var(--purple-fg); margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.03em; }
-.coach-card .body { flex: 1; min-width: 0; }
-.coach-card p.text { font-size: 13px; color: var(--purple-fg); margin: 0; line-height: 1.5; }
-.coach-card p.note { font-size: 11px; color: var(--purple-fg); opacity: 0.75; margin: 4px 0 0; }
-/* BUG-FIX: Überschrift "Wochenbilanz · Woche N" klebte direkt unter der
-   Trennlinie (10px/8px -> 12px/10px). */
-.coach-card .divider { border-top: 0.5px solid rgba(83, 74, 183, 0.25); margin: 12px 0 10px; }
-.bilanz-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; background: transparent; border: none; padding: 4px 0; color: var(--purple-fg); font-size: 12.5px; font-weight: 700; cursor: pointer; min-height: 44px; }
-.bilanz-toggle svg { width: 16px; height: 16px; transition: transform 0.18s ease; flex-shrink: 0; }
-.bilanz-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
-.bilanz-body { font-size: 13px; color: var(--purple-fg); line-height: 1.55; margin: 6px 0 0; }
-.bilanz-heading { font-size: 12px; font-weight: 700; color: var(--purple-fg); margin: 0 0 6px; }
-@media (prefers-reduced-motion: reduce) {
-  .bilanz-toggle svg { transition: none; }
+.sd-btn:active { transform: scale(0.98); }
+.sd-btn--primary { background: var(--primary); color: var(--on-primary); min-height: 50px; border-radius: 14px; font-size: 15px; width: 100%; }
+.sd-btn--primary:active { background: var(--primary-hover); }
+.sd-btn--lg { min-height: 54px; border-radius: 16px; font-size: 16px; }
+.sd-btn--md { min-height: 48px; border-radius: 14px; font-size: 14.5px; }
+.sd-btn--grow { flex: 1 1 140px; width: auto; }
+.sd-btn--block { width: 100%; }
+.sd-btn--text { background: transparent; color: var(--teal-fg); padding: 0 12px; }
+.sd-btn--danger { background: var(--danger-bg); color: var(--danger-fg); }
+.sd-btn--onbanner { background: var(--card); color: var(--danger-fg); }
+.sd-btn--coral { background: var(--coral-bg); color: var(--coral-fg); }
+.sd-btn--dashed { width: 100%; min-height: 52px; border: 1.5px dashed var(--ring-dashed); background: transparent; color: var(--text-secondary); border-radius: 22px; }
+.sd-btn--back { font-size: 15px; font-weight: 500; gap: 2px; padding-left: 8px; }
+.sd-btn:disabled { opacity: 0.4; cursor: default; }
+/* Hover nur auf Geräten, die ihn wirklich haben: auf Touch bleibt er sonst kleben. */
+@media (hover: hover) {
+  .sd-btn:hover { background: var(--seg); }
+  .sd-btn--primary:hover { background: var(--primary-hover); }
+  .sd-btn--text:hover { background: var(--teal-bg); }
+  .sd-btn--danger:hover { background: var(--danger-bg); filter: brightness(0.96); }
+  .sd-btn--onbanner:hover { background: var(--card); filter: brightness(0.97); }
+  .sd-btn--coral:hover { background: var(--coral-bg); filter: brightness(0.97); }
+  .sd-btn--dashed:hover { background: var(--card); }
 }
 
-/* ---- Ampeln 2×2 (F5) ----
-   Status wird über Farbe UND Form gezeigt (colorblind-sicher, von Louis
-   bestätigt): Kreis = grün, Raute = gelb, Quadrat = rot, Ring = grau. */
-/* align-items:stretch ist der Grid-Default, hier zusätzlich explizit: alle
-   vier Kacheln einer Zeile sollen gleich hoch sein, egal ob der Titel einer
-   von ihnen ("Kraft-Progression") umbricht. */
-.ampel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; }
-.ampel-tile { background: var(--surface-1); border-radius: 12px; padding: 0.65rem 0.8rem; min-width: 0; }
-/* align-items:center -> flex-start + etwas mehr gap (BUG-FIX): bei center
-   kollidierte ein umbrechender Titel (lange Labels wie "Kraft-Progression")
-   mit dem danebenstehenden Info-Knopf, weil beide auf die Mitte der jetzt
-   zweizeiligen Titelbox bezogen wurden. flex-start hält Punkt+Knopf an der
-   ersten Zeile, der Titel darf frei nach unten umbrechen. */
-.ampel-tile .row1 { display: flex; align-items: flex-start; gap: 8px; }
-.ampel-tile p.title { font-size: 12px; font-weight: 600; margin: 0; flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.ampel-tile p.detail { font-size: 12px; color: var(--text-secondary); margin: 4px 0 0; line-height: 1.4; }
-.ampel-dot { flex-shrink: 0; display: inline-block; width: 10px; height: 10px; }
-.ampel-dot.st-gruen { border-radius: 50%; background: var(--ok-fg); }
-.ampel-dot.st-gelb { background: var(--amber-fg); transform: rotate(45deg); border-radius: 2px; }
-.ampel-dot.st-rot { background: var(--danger-fg); border-radius: 2.5px; }
-.ampel-dot.st-grau { border-radius: 50%; background: transparent; border: 2px solid var(--text-muted); width: 8px; height: 8px; }
-.ampel-dot.st-loading { border-radius: 50%; background: transparent; border: 2px solid var(--text-muted); width: 8px; height: 8px; opacity: 0.4; }
+/* ---- Pills ---- */
+.sd-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; line-height: 1.2; padding: 4px 10px; border-radius: 20px; white-space: nowrap; flex: none; background: var(--sunk); color: var(--text-secondary); }
+.sd-pill svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.sd-pill--primary { background: var(--primary); color: var(--on-primary); }
+.sd-pill--ok { background: var(--ok-bg); color: var(--ok-fg); }
+.sd-pill--amber { background: var(--amber-bg); color: var(--amber); }
+.sd-pill--danger { background: var(--danger-bg); color: var(--danger-fg); }
+.sd-pill--teal { background: var(--teal-bg); color: var(--teal-fg); }
+.sd-pill--purple { background: var(--purple-bg); color: var(--purple-fg); }
+.sd-pill--optional { background: transparent; border: 1px dashed var(--text-muted); padding: 3px 9px; color: var(--text-secondary); }
 
-/* Info-Knopf (D1): 20px sichtbar, aber ≥44px Trefffläche über ein
-   unsichtbares ::after, damit Ampel-Kachel/Karte nicht optisch aufgebläht
-   wird. Immer mit aria-label auf dem Button selbst. */
-/* BUG-FIX: unsichtbares Icon. .info-btn ist ein <button> und erbt dessen
-   globale Regel padding:6px 12px (Zeile ~151). Bei box-sizing:border-box
-   und einer deklarierten Breite von 21px ergibt 21 - 2*12 eine NEGATIVE
-   Inhaltsbreite — der Browser klemmt sie auf 0, und das 17px-SVG (Flex-Kind
-   mit default flex-shrink:1) wird in diesem 0px-Inhaltsbereich auf
-   unsichtbar zusammengeschrumpft. Sichtbar blieb nur der Fokus-Rahmen auf
-   der (dank fixer Paddings tatsächlich gerenderten, größeren) Button-Box.
-   .icon-btn/.info-sheet-close treffen dasselbe Erbe, sind mit 38px/44px
-   aber groß genug, dass es dort nie auffiel. Fix: padding zurücksetzen. */
-.info-btn { position: relative; flex-shrink: 0; width: 21px; height: 21px; padding: 0; border: none; background: transparent; color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
-.info-btn::after { content: ""; position: absolute; inset: -12px; }
-.info-btn svg { width: 17px; height: 17px; }
-.info-btn:hover, .info-btn:focus-visible { color: var(--text-primary); }
+/* ---- Haken-Kreis, offener Ring, laufender Ring ---- */
+.sd-check { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none; background: var(--teal); color: var(--on-primary); }
+.sd-check svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.sd-check--22 { width: 22px; height: 22px; }
+.sd-check--22 svg { width: 12px; height: 12px; }
+.sd-check--20 { width: 20px; height: 20px; }
+.sd-check--20 svg { width: 11px; height: 11px; }
+.sd-check--lauf { background: var(--coral-accent); }
+.sd-check--long { background: var(--purple); }
+.sd-ring { width: 24px; height: 24px; border-radius: 50%; border: 1.5px dashed var(--ring-dashed); flex: none; }
+.sd-ring--22 { width: 22px; height: 22px; }
+.sd-ring--20 { width: 20px; height: 20px; }
+.sd-ring--run { border: 2px solid var(--teal); display: inline-flex; align-items: center; justify-content: center; }
+.sd-ring--run::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--teal); }
 
-/* ---- Info-Sheet (D1) — ein gemeinsames Bottom-Sheet für alle vier Ampeln
-   plus "Aerobe Effizienz", Inhalt wird per JS ausgetauscht. Liegt wie
-   #toast direkt in #app (position:relative), siehe Markup-Referenz. ---- */
-/* BUG-FIX: Sheet/Backdrop lagen unter der Glas-Tableiste. z-index allein
-   (vorher 24/25 vs. #tabbar 10) müsste eigentlich reichen, aber
-   backdrop-filter-Flächen sind dafür bekannt, Geschwister mit höherem
-   z-index zu überlagern, wenn sie nicht selbst eine eigene Compositing-
-   Ebene bekommen (dasselbe Muster wie die SVG-Sizing-Falle: erst im echten
-   Browser sichtbar, nicht aus der reinen CSS-Kaskade ableitbar). .info-sheet
-   hat über transform bereits eine eigene Ebene, .info-backdrop bisher nicht
-   — ergänzt. z-index zusätzlich mit deutlichem Abstand zur Glasleiste. */
-.info-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.4); z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.18s ease; transform: translateZ(0); }
-.info-backdrop.open { opacity: 1; pointer-events: auto; }
-.info-sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface-2); border-radius: 18px 18px 0 0; padding: 0.4rem 1.25rem 1.25rem; max-height: 72%; overflow-y: auto; box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.28); z-index: 51; transform: translateY(100%); transition: transform 0.2s ease; }
-.info-sheet.open { transform: translateY(0); }
-.info-sheet[hidden] { display: none; }
-.info-sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 8px auto 12px; }
-.info-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
-.info-sheet-head h2 { font-size: 15px; font-weight: 600; margin: 0; }
-.info-sheet-close { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: var(--text-secondary); cursor: pointer; margin: -12px -12px -12px 0; flex-shrink: 0; }
-.info-sheet-close svg { width: 18px; height: 18px; }
-.info-sheet-body p { font-size: 13px; line-height: 1.55; color: var(--text-secondary); margin: 0 0 10px; }
-.info-sheet-body p:last-child { margin-bottom: 0; }
-@media (prefers-reduced-motion: reduce) {
-  .info-backdrop, .info-sheet { transition: none; }
+/* ---- Ampel-Formen (10px): Form trägt den Status, nicht nur die Farbe ---- */
+.sd-ampel { width: 10px; height: 10px; flex: none; display: block; }
+.sd-ampel--ok { border-radius: 50%; background: var(--ok-fg); }
+.sd-ampel--warn { width: 9px; height: 9px; border-radius: 2px; transform: rotate(45deg); background: var(--amber); }
+.sd-ampel--crit { border-radius: 2.5px; background: var(--danger-fg); }
+.sd-ampel--none { border-radius: 50%; border: 2px solid var(--text-muted); }
+.sd-ampel--load { border-radius: 50%; border: 2px solid var(--ink-off); }
+
+/* ---- Streifen, Zeilen, Schlüssel-Wert ---- */
+.sd-stripe { width: 3px; align-self: stretch; min-height: 30px; border-radius: 2px; flex: none; background: var(--ink-off); }
+.sd-stripe--kraft { background: var(--teal); }
+.sd-stripe--lauf { background: var(--coral-accent); }
+.sd-stripe--long { background: var(--purple); }
+.sd-nextrow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 0 0; border: 0; border-top: 1px solid var(--line); background: transparent; color: inherit; font: inherit; text-align: left; }
+button.sd-nextrow { cursor: pointer; min-height: 64px; }
+.sd-nextrow__main { flex: 1; min-width: 0; }
+.sd-nextrow__label { display: block; font-size: 12px; color: var(--text-muted); }
+.sd-nextrow__value { display: block; margin-top: 2px; font-size: 14.5px; font-weight: 600; }
+.sd-nextrow .sd-icon { color: var(--ink-faint); }
+.sd-kv { margin: 0; }
+.sd-kv dt { font-size: 12px; color: var(--text-muted); }
+.sd-kv dd { margin: 3px 0 0; font-size: 14.5px; overflow-wrap: anywhere; }
+.sd-kv dd.sd-mono { font-size: 13px; }
+.sd-kvlist { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+.sd-split { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; }
+.sd-split__main { flex: 1 1 180px; min-width: 0; }
+.sd-split__title { margin: 0; font-size: 14.5px; font-weight: 600; }
+.sd-split__hint { margin: 3px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--text-muted); }
+.sd-rule { border: 0; border-top: 1px solid var(--line); margin: 0; width: 100%; }
+
+/* ---- Ergebnis in der Heute-Karte ---- */
+.sd-result { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding-top: 14px; border-top: 1px solid var(--line); }
+.sd-result__km { margin: 0; font-size: 32px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
+.sd-result__km .sd-unit { font-size: 14px; margin-left: 4px; }
+.sd-result__name { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--text-muted); }
+
+/* ---- Coach ---- */
+.sd-coach__text { margin: 0; font-size: 15px; line-height: 1.5; color: var(--purple-ink); text-wrap: pretty; }
+.sd-bilanz { border-top: 1px solid var(--purple-line); margin-top: 6px; padding-top: 4px; }
+.sd-bilanz__heading { margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--purple-fg); }
+.sd-bilanz__body { margin: 6px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--purple-ink); text-wrap: pretty; }
+.sd-bilanz__toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--purple-fg); font: 600 13.5px var(--font-ui); text-align: left; cursor: pointer; }
+.sd-bilanz__toggle .sd-icon { transition: transform 150ms ease-out; }
+.sd-bilanz__toggle[aria-expanded="true"] .sd-icon { transform: rotate(180deg); }
+
+/* ---- Detail-Seiten: Kopfzeile, Fortschrittspunkte ---- */
+.sd-nav { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left)); }
+.sd-nav__meta { min-width: 0; padding: 0 12px; font: 12.5px var(--font-mono); color: var(--text-secondary); text-align: right; overflow-wrap: anywhere; }
+.sd-dots { display: flex; gap: 4px; padding: 4px max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left)); }
+.sd-dots__seg { position: relative; flex: 1; min-width: 0; height: 6px; padding: 0; border: 0; border-radius: 3px; background: var(--ink-off); cursor: pointer; }
+/* 44px hohe Trefferfläche über ::after (Ausnahme bei 320px: Breite ca. 31px, siehe Markup-Doc 7).
+   Asymmetrisch (10 oben, 28 unten): ein symmetrischer Streifen würde 15px in den Zurück-Knopf
+   der Kopfzeile darüber ragen, dessen Fläche die ersten Segmente überlappt. Unten liegt nur
+   der leere Kartenrand. */
+.sd-dots__seg::after { content: ""; position: absolute; inset: -10px -2px -28px; }
+.sd-dots__seg.is-done { background: var(--teal); }
+.sd-dots__seg.is-current { background: var(--text-primary); }
+.sd-daytitle { padding: 8px max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left)); }
+.sd-daytitle .sd-display { margin-top: 6px; }
+.sd-daytitle .sd-target { margin: 8px 0 0; font-size: 13px; color: var(--text-secondary); }
+
+/* ---- Kraft: Jetzt-Karte ---- */
+.sd-last { min-width: 0; font: 12px var(--font-mono); color: var(--text-muted); overflow-wrap: anywhere; }
+.sd-now__name { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; overflow-wrap: anywhere; }
+.sd-now__soll { margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--text-secondary); }
+.sd-now__soll b { font: 600 13.5px var(--font-mono); color: var(--text-primary); }
+.sd-tip { align-self: flex-start; margin: 0; font-size: 12.5px; font-weight: 600; line-height: 1.35; padding: 6px 10px; border-radius: 10px; background: var(--sunk); color: var(--text-secondary); }
+.sd-tip--up { background: var(--teal-bg); color: var(--teal-fg); }
+.sd-tip--hold { background: var(--sky-bg); color: var(--sky); }
+.sd-tip--down { background: var(--amber-bg); color: var(--amber); }
+.sd-sets { display: flex; flex-direction: column; gap: 6px; }
+.sd-set { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 14px; background: var(--bg); color: inherit; font: inherit; text-align: left; }
+button.sd-set { cursor: pointer; }
+.sd-set__label { width: 54px; flex: none; font-size: 12.5px; color: var(--text-muted); }
+.sd-set__value { flex: 1; min-width: 0; font-size: 14px; color: var(--text-secondary); }
+.sd-set.is-done .sd-set__value { color: var(--text-muted); }
+.sd-set--active { display: block; padding: 12px 12px 14px; border-radius: 16px; background: var(--teal-tint); box-shadow: inset 0 0 0 1.5px var(--teal); }
+.sd-set__head { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 20px; margin-bottom: 10px; }
+.sd-set__head .sd-btn--text { min-height: 44px; margin: -12px -8px -12px 0; padding: 0 8px; font-size: 13.5px; }
+.sd-set__title { font-size: 12.5px; font-weight: 600; color: var(--teal-fg); }
+
+/* ---- Stepper: umbrechende Zeile, Einheit unter dem Wert ---- */
+.sd-steppers { display: flex; flex-wrap: wrap; gap: 10px 8px; }
+/* Feste Basis statt Inhaltsbreite: Wert-Button und Eingabefeld (V1) tauschen den Slot,
+   ohne dass die Stepper umbrechen oder springen. Basis Reps = 3x44 (-, Wert, +) = 132px,
+   Gewicht = 144px (Wert 56px fuer "82,5"), Zeilen-Gap 4px: 144 + 4 + 132 = 280px.
+   Ist die Karten-Innenbreite (Viewport - 88px) kleiner, brechen die Stepper um, statt dass
+   der Wert unter 44px gequetscht wird. */
+.sd-steppers { column-gap: 4px; }
+.sd-stepper { flex: 1 1 132px; display: flex; align-items: center; gap: 0; min-width: 0; }
+.sd-stepper--weight { flex: 1.15 1 144px; }
+.sd-stepper--solo { flex-basis: 100%; }
+.sd-stepper__btn { flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: var(--card); color: var(--text-primary); font: 400 20px/1 var(--font-ui); display: inline-grid; place-items: center; cursor: pointer; transition: transform 150ms ease-out; }
+.sd-stepper__btn:active { transform: scale(0.94); }
+.sd-stepper__val { flex: 1 1 0; min-width: 44px; min-height: 44px; padding: 0 2px; border: 0; background: transparent; color: inherit; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: text; }
+.sd-stepper__num { font-size: 24px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; white-space: nowrap; border-bottom: 1.5px dashed var(--ring-dashed); padding-bottom: 2px; }
+.sd-stepper__unit { margin-top: 3px; font-size: 11px; font-weight: 500; line-height: 1; color: var(--text-muted); }
+/* Gleicher Slot wie .sd-stepper__val: gleiche Basis, gleiche 44px Hoehe, gleicher Einheiten-Abstand. */
+.sd-stepper__field { flex: 1 1 0; min-width: 44px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.sd-stepper__input { width: 100%; min-width: 0; height: 28px; padding: 0; border: 0; border-radius: 12px; background: var(--card); color: var(--text-primary); text-align: center; font: 600 24px var(--font-mono); letter-spacing: -0.03em; outline: 2px solid var(--teal); outline-offset: 0; }
+
+/* ---- Kraft: Reihenfolge ---- */
+.sd-order__row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 16px; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sd-order__row + .sd-order__row { border-top: 1px solid var(--line); }
+.sd-order__row.is-current { background: var(--teal-tint); }
+.sd-order__pos { width: 16px; flex: none; text-align: right; font-size: 11.5px; color: var(--text-muted); }
+.sd-order__main { flex: 1; min-width: 0; padding: 4px 0; }
+.sd-order__name { display: block; font-size: 14.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sd-order__row.is-current .sd-order__name { font-weight: 600; }
+.sd-order__row.is-done .sd-order__name { color: var(--text-muted); }
+.sd-order__sub { display: block; margin-top: 2px; font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- Kraft: Anpassen-Modus ---- */
+.sd-edit__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 16px; }
+.sd-edit__row + .sd-edit__row { border-top: 1px solid var(--line); }
+.sd-edit__lead { display: flex; align-items: center; gap: 10px; flex: 1 1 150px; min-width: 0; }
+.sd-edit__main { min-width: 0; }
+.sd-edit__name { margin: 0; font-size: 14.5px; font-weight: 600; line-height: 1.3; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; overflow-wrap: anywhere; }
+.sd-edit__sub { margin: 2px 0 0; font-size: 11.5px; color: var(--text-muted); }
+.sd-edit__actions { display: flex; gap: 8px; flex: 0 0 auto; }
+.sd-edit__actions .sd-btn { padding: 0 14px; }
+.sd-edit__row.is-removed .sd-edit__name { font-weight: 500; color: var(--text-muted); text-decoration: line-through; }
+.sd-edit__form { display: flex; flex-direction: column; gap: 12px; flex: 1 1 100%; padding: 4px 0; }
+/* Schmale Spalte (320px): Aktionen auf eigene Zeile, gleich breit. */
+@container (max-width: 340px) {
+  .sd-edit__actions { flex: 1 1 100%; }
+  .sd-edit__actions .sd-btn { flex: 1; }
 }
 
-/* ---- "Heute dran"-Karte (F4) — Modifier auf .card, Farbe nach Typ.
-   Ruhe/Kein-Plan brauchen keine eigene Textfarbe: .card p.name/p.hint
-   greifen dort direkt (kein "plain-name"/"plain-hint"-Duplikat). ---- */
-.today-card.k-kraft { background: var(--teal-bg); }
-.today-card.k-lauf { background: var(--coral-bg); }
-.today-card.k-long { background: var(--purple-bg); }
-.today-card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-.today-card .eyebrow2 { font-size: 11px; margin: 0; opacity: 0.9; }
-.today-card .name2 { font-size: 15px; font-weight: 600; margin: 2px 0 0; }
-.today-card .sub { font-size: 12px; margin: 3px 0 0; opacity: 0.85; line-height: 1.45; }
-.today-card .sub.loading-hint { opacity: 0.7; margin-top: 4px; }
-.today-card .strava-fallback { margin-top: 8px; color: var(--coral-fg); }
-.today-card.k-kraft, .today-card.k-kraft .eyebrow2, .today-card.k-kraft .name2, .today-card.k-kraft .sub { color: var(--teal-fg); }
-.today-card.k-lauf, .today-card.k-lauf .eyebrow2, .today-card.k-lauf .name2, .today-card.k-lauf .sub { color: var(--coral-fg); }
-.today-card.k-long, .today-card.k-long .eyebrow2, .today-card.k-long .name2, .today-card.k-long .sub { color: var(--purple-fg); }
-.start-btn { font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 8px; border: none; background: var(--teal-fg); color: #fff; cursor: pointer; flex-shrink: 0; min-height: 44px; }
-.start-btn:active { transform: scale(0.96); }
-.ex-list { display: none; margin-top: 10px; border-top: 0.5px solid rgba(15, 110, 86, 0.25); padding-top: 8px; }
-.ex-list.open { display: block; }
-.ex-list .ex-list-head { display: flex; justify-content: flex-end; margin-bottom: 4px; }
-/* BUG-FIX: justify-content:space-between auf 3 Kindern (Name/Soll/Chevron)
-   verteilt den Rest-Platz in zwei GLEICHEN Lücken — die Soll-Spalte
-   schwebte dadurch mittig und sprang mit jeder Namenslänge. Jetzt: Name
-   nimmt den Rest (flex:1, trunkiert mit Ellipsis statt zu überlaufen),
-   Soll bekommt eine feste Mindestbreite und ist rechtsbündig direkt vor
-   dem Chevron — eine stabile Spalte unabhängig von der Namenslänge. */
-.ex-row { display: flex; width: 100%; align-items: center; gap: 8px; padding: 7px 2px; border-radius: 8px; cursor: pointer; color: var(--teal-fg); min-height: 44px; background: transparent; border: none; font: inherit; text-align: left; }
-.ex-row:hover, .ex-row:focus-visible { background: rgba(15, 110, 86, 0.08); }
-.ex-row .exn { font-size: 13px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ex-row .exs { font-size: 12px; opacity: 0.8; white-space: nowrap; flex-shrink: 0; min-width: 58px; text-align: right; }
-.ex-row svg { width: 15px; height: 15px; opacity: 0.6; flex-shrink: 0; }
-.ex-hint { font-size: 11px; color: var(--teal-fg); opacity: 0.8; margin: 6px 0 0; }
-.ex-progress { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: rgba(15, 110, 86, 0.14); color: var(--teal-fg); white-space: nowrap; }
+/* ---- Formulare ---- */
+.sd-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sd-field__label { font-size: 12.5px; font-weight: 500; color: var(--text-secondary); }
+.sd-input { width: 100%; min-width: 0; height: 48px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--sunk); color: var(--text-primary); font: 16px var(--font-ui); }
+.sd-input::placeholder { color: var(--text-muted); }
+.sd-input:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.sd-notice { margin: 0; font-size: 13px; line-height: 1.45; padding: 10px 12px; border-radius: 10px; }
+.sd-notice--danger { background: var(--danger-bg); color: var(--danger-fg); }
+.sd-notice--amber { background: var(--amber-bg); color: var(--amber); }
 
-/* ---- Wochenvolumen Soll/Ist-Balkenpaare (F8, D2) ----
-   Eigener "si-"-Namensraum, bewusst NICHT .bars/.bar-col/.bar-label: diese
-   Klassen gehören bereits dem Verlauf-Tab-Balkendiagramm (andere Höhe,
-   andere Bedeutung) und würden hier falsche Werte erben. Beide Balken sind
-   voll gefüllt (Soll = --soll-fill gedämpft, Ist = --teal-fg kräftig),
-   ≥3:1 Kontrast gegen --surface-1 in Hell und Dunkel. Ein Ist von 0
-   zeichnet keinen Balken (kein falscher Rest-Stummel). */
-.si-bars { display: flex; align-items: flex-end; gap: 6px; height: 110px; }
-.si-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
-.si-bar-pair { display: flex; align-items: flex-end; gap: 3px; height: 92px; width: 100%; }
-.si-bar-soll { flex: 1; background: var(--soll-fill); border-radius: 3px 3px 0 0; min-height: 4px; }
-.si-bar-ist { flex: 1; background: var(--teal-fg); border-radius: 3px 3px 0 0; min-height: 3px; }
-.si-bar-label { font-size: 10px; color: var(--text-muted); }
-.si-bar-label.current { color: var(--teal-fg); font-weight: 700; }
-/* 2px -> 8px oben (Spacing-Durchgang): die Legende klebte direkt unter dem
-   Kartentitel "Wochenvolumen · Soll vs. Ist". */
-.si-bar-legend { display: flex; gap: 14px; margin: 8px 0 12px; }
-.si-bar-legend .lg-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
-.si-bar-legend .lg-swatch { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-.si-bar-legend .lg-swatch.lg-soll { background: var(--soll-fill); }
-.si-bar-legend .lg-swatch.lg-ist { background: var(--teal-fg); }
+/* ---- Lauf: Vergleich ---- */
+.sd-compare { gap: 20px; padding: 22px 20px; }
+.sd-compare__top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 12px; }
+.sd-compare__top > :first-child { flex: 1 1 auto; min-width: 0; }
+.sd-bigkm { margin: 0; font-size: 44px; font-size: clamp(40px, 12.4cqi, 48px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
+.sd-bigkm .sd-unit { font-size: 18px; margin-left: 6px; }
+.sd-compare__sub { margin: 8px 0 0; font-size: 13.5px; color: var(--text-secondary); }
+.sd-range { display: flex; flex-direction: column; gap: 8px; }
+.sd-range__head { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
+.sd-range__label { font-size: 13px; color: var(--text-secondary); }
+.sd-range__value { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.sd-range__value.is-ok { color: var(--ok-fg); }
+.sd-range__value.is-warn { color: var(--amber); }
+.sd-range__track { position: relative; height: 22px; }
+.sd-range__track::before { content: ""; position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px; background: var(--sunk); }
+/* Band und Marker sind Inline-SVG (E6, Auflage C5): Lage und Breite stehen als Zahlen-
+   Attribute (x, width, x1, x2) im Markup, nie in style. Details im Abschnitt "Lauf-Tag (E6)". */
+.sd-range__band { position: absolute; left: 0; top: 8px; display: block; width: 100%; height: 6px; border-radius: 3px; overflow: hidden; }
+.sd-range__band rect { fill: var(--ok-band); }
+.sd-range__mark { position: absolute; left: 0; top: 2px; display: block; width: 100%; height: 18px; overflow: visible; pointer-events: none; }
+.sd-range__mark line { vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.sd-range__halo { stroke: var(--card); stroke-width: 8; }
+.sd-range__tick { stroke: var(--text-primary); stroke-width: 4; }
+/* Mitte (Zielangabe) sitzt wirklich mittig, egal wie breit Min und Max sind. */
+.sd-range__axis { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0 8px; font: 10.5px var(--font-mono); color: var(--text-muted); }
+.sd-range__axis > :nth-child(2) { text-align: center; overflow-wrap: anywhere; }
+.sd-range__axis > :last-child { text-align: right; }
+.sd-range__note { margin: 0; font-size: 12px; line-height: 1.4; color: var(--text-muted); }
+.sd-linkrow { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 16px 20px; border: 0; border-radius: 22px; background: var(--card); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sd-linkrow__main { flex: 1; min-width: 0; }
+.sd-linkrow__label { display: block; font-size: 12px; color: var(--text-muted); }
+.sd-linkrow__name { display: block; margin-top: 3px; font-size: 14.5px; font-weight: 600; overflow-wrap: anywhere; }
+.sd-linkrow__note { display: block; margin-top: 3px; font-size: 12.5px; font-weight: 500; color: var(--amber); }
+.sd-linkrow .sd-icon { color: var(--ink-faint); }
+.sd-planhint { margin: 4px 20px 0; }
+.sd-planhint__label { margin: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.sd-planhint__text { margin: 2px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); }
 
-/* ---- Aerobe Effizienz (F8) — Karte mit Delta-Zeile + Linienchart ---- */
-.aerobe-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.aerobe-head .aerobe-title { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
-.aerobe-head .aerobe-title .name { font-size: 15px; font-weight: 600; }
-.aerobe-delta { font-size: 12px; font-weight: 600; margin: 0; white-space: nowrap; }
-.aerobe-delta.good { color: var(--ok-fg); }
-.aerobe-delta.bad { color: var(--danger-fg); }
-.aerobe-chart { width: 100%; display: block; margin-top: 6px; }
+/* ---- Woche: Tageszeilen ---- */
+.sd-day.is-today { background: var(--teal-tint); }
+.sd-day + .sd-day { border-top: 1px solid var(--line); }
+.sd-day__row { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 14px 20px; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+button.sd-day__row { cursor: pointer; }
+.sd-day__when { width: 30px; flex: none; }
+.sd-day__dow { display: block; font-size: 12px; font-weight: 600; }
+.sd-day__date { display: block; margin-top: 2px; font-size: 11px; color: var(--text-muted); }
+.sd-day__main { flex: 1; min-width: 0; }
+.sd-day__title { display: block; font-size: 14.5px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.sd-day__sub { display: block; margin-top: 3px; font-size: 12px; line-height: 1.35; color: var(--text-muted); }
+.sd-day.is-today .sd-day__dow { color: var(--teal-fg); }
+.sd-day.is-rest .sd-day__title { font-weight: 400; color: var(--text-muted); }
+.sd-day__detail { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 0 20px 16px 84px; }
+.sd-day__detail p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-secondary); }
+.sd-day__detail p.is-warn { color: var(--amber); }
+.sd-day__detail .sd-btn { margin-top: 6px; }
 
-/* ---- Adhärenz / "Als Nächstes" (F8) — eigene Kachel-Optik innerhalb des
-   bestehenden .metric-grid; Label/Wert bewusst per Nachfahren-Selektor
-   überschrieben statt die globalen .metric-label/.metric-value zu ändern
-   (die stehen bereits in Verlauf/Kraft-Tagesansicht in anderer Größe). ---- */
-.metric-tile { background: var(--surface-1); border-radius: 12px; padding: 0.75rem 0.85rem; min-width: 0; }
-.metric-tile .metric-label { font-size: 12px; font-weight: 600; color: var(--text-primary); margin: 0; }
-.metric-tile .metric-value { font-size: 22px; font-weight: 700; margin: 4px 0 2px; }
-.metric-bar-track { height: 5px; border-radius: 3px; background: var(--border); }
-.metric-bar-fill { height: 5px; border-radius: 3px; background: var(--teal-fg); }
-.metric-sub { font-size: 11px; color: var(--text-muted); margin: 4px 0 0; line-height: 1.5; }
+/* ---- Sheet-Basis (Info-Sheet und Zuordnungs-Sheet) ----
+   hidden plus .open für die Animation (250ms ease-out). Der Inhalt scrollt
+   (max-height 78%), Griff und Titelzeile bleiben als Block darüber stehen. */
+.sd-backdrop { position: absolute; inset: 0; background: var(--backdrop); z-index: 50; opacity: 0; pointer-events: none; transition: opacity 180ms ease-out; transform: translateZ(0); }
+.sd-backdrop.open { opacity: 1; pointer-events: auto; }
+.sd-backdrop[hidden], .sd-sheet[hidden] { display: none; }
+.sd-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 51; max-height: 78%; overflow-y: auto; background: var(--card); border-radius: 28px 28px 0 0; padding: 10px max(20px, env(safe-area-inset-right)) calc(36px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); box-shadow: var(--sheet-shadow); transform: translateY(100%); transition: transform 250ms ease-out; }
+.sd-sheet.open { transform: translateY(0); }
+.sd-sheet__grip { width: 36px; height: 5px; border-radius: 3px; background: var(--ink-off); margin: 0 auto 14px; }
+.sd-sheet__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.sd-sheet__title { margin: 0; min-width: 0; font-size: 19px; font-weight: 600; letter-spacing: -0.02em; overflow-wrap: anywhere; outline: none; }
+.sd-sheet__close { position: relative; flex: none; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: var(--sunk); color: var(--text-secondary); display: grid; place-items: center; cursor: pointer; }
+/* 44px Trefferfläche um den 36px-Kreis. */
+.sd-sheet__close::after { content: ""; position: absolute; inset: -4px; }
+.sd-sheet__lead { margin: 0 0 12px; font-size: 13.5px; color: var(--text-secondary); }
+.sd-sheet__blocks { display: flex; flex-direction: column; gap: 16px; }
+.sd-sheet__blockhead { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.sd-sheet__blocktext { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--text-secondary); }
+.sd-sheet__list { display: flex; flex-direction: column; gap: 8px; }
+.sd-sheet__tools { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0 12px; margin: 4px 0 6px; }
+.sd-option { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 14px 16px; border: 0; border-radius: 16px; background: var(--bg); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sd-option.is-selected { background: var(--teal-tint); box-shadow: 0 0 0 2px var(--teal); }
+.sd-option[aria-disabled="true"] { cursor: not-allowed; }
+.sd-option__main { flex: 1; min-width: 0; }
+.sd-option__name { display: block; font-size: 14.5px; font-weight: 600; overflow-wrap: anywhere; }
+.sd-option__sub { display: block; margin-top: 3px; font-size: 12.5px; color: var(--text-muted); }
+.sd-radio { width: 20px; height: 20px; flex: none; border-radius: 50%; border: 1.5px solid var(--ring-dashed); }
+.sd-option.is-selected .sd-radio { border: 2px solid var(--teal); background: var(--teal); box-shadow: inset 0 0 0 3px var(--teal-tint); }
 
-/* ---- Wochen-Tab (F9) — Kopf-Zusammenfassung ---- */
-.week-summary { background: var(--surface-1); border-radius: 12px; padding: 0.85rem 1rem; }
-.week-summary .line { display: flex; justify-content: space-between; font-size: 13px; }
-.week-summary .line .lbl { font-weight: 600; }
-.week-summary .line .val { color: var(--text-secondary); }
-/* BUG-FIX: zu wenig Luft zwischen Fortschrittsbalken und der "Kraft"-Zeile
-   darunter (6px/8px -> 8px/12px, auf dem 4/8/12/16-Raster). */
-.week-summary .track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text-muted) 25%, transparent); margin: 8px 0 12px; }
-.week-summary .fill { height: 6px; border-radius: 3px; background: var(--coral-fg); }
+/* ---- Segment-Schalter (Verlauf: Lauf | Kraft) ---- */
+.sd-seg { display: inline-flex; align-self: flex-start; padding: 3px; border-radius: 12px; background: var(--seg); }
+.sd-seg__opt { position: relative; height: 34px; padding: 0 14px; border: 0; border-radius: 9px; background: transparent; color: var(--text-secondary); font: 600 13px var(--font-ui); cursor: pointer; }
+/* Sichtbar 34px, Trefferfläche 44px. */
+.sd-seg__opt::after { content: ""; position: absolute; inset: -5px 0; }
+.sd-seg__opt.is-active { background: var(--card); color: var(--text-primary); }
 
-/* ---- Wochen-Tab — Tagesliste (D3: Abstände auf dem bestehenden Raster,
-   gleiche Außenmaße für aktive Tage und Ruhetage, damit die Liste einen
-   sauberen Rhythmus behält). ---- */
-.day-row { display: block; width: 100%; border: none; font: inherit; text-align: left; color: inherit; border-radius: 12px; padding: 0.85rem 1rem; cursor: pointer; min-height: 44px; background: transparent; }
-.day-row.rest { cursor: default; }
-.day-row.solid { background: var(--surface-1); cursor: default; }
-.day-row.today { box-shadow: inset 0 0 0 1.5px var(--teal-fg); }
-.day-row .head { display: flex; align-items: center; gap: 10px; }
-.day-row .dcol { width: 36px; flex-shrink: 0; }
-.day-row .dcol .d { font-size: 12px; font-weight: 700; margin: 0; }
-.day-row .dcol .dt { font-size: 10px; color: var(--text-muted); margin: 1px 0 0; }
-.day-row .mid { flex: 1; min-width: 0; }
-.day-row .mid .n { font-size: 14px; font-weight: 600; margin: 0; line-height: 1.3; }
-.day-row .mid .s { font-size: 11px; color: var(--text-muted); margin: 4px 0 0; line-height: 1.3; }
-.day-row.rest .mid .n { color: var(--text-muted); font-weight: 400; }
-/* Bug: rohe ICONS-SVGs haben keine width/height, im Flex-Layout neben
-   .mid (flex:1) schrumpft ein ungerahmtes svg auf ~0 zusammen und
-   verschwindet. Fester Box-Rahmen + width/height:100% auf dem inneren
-   svg beheben das (siehe D5, dieselbe Ursache wie das Plan-Tab-Icon). */
-.status-icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex-shrink: 0; }
-.status-icon svg { width: 100%; height: 100%; display: block; }
-.today-pill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--teal-bg); color: var(--teal-fg); white-space: nowrap; }
-.partial-pill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--amber-bg); color: var(--amber-fg); white-space: nowrap; }
-.optional-pill { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 20px; border: 1px dashed var(--text-muted); color: var(--text-muted); white-space: nowrap; }
-.missed-pill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--danger-bg); color: var(--danger-fg); white-space: nowrap; }
-.day-detail { display: none; margin: 8px 0 0 46px; padding-top: 8px; border-top: 0.5px solid var(--border); }
-.day-detail.open { display: block; }
-/* 3px -> 6px (Spacing-Durchgang): Zeilenabstand in der aufgeklappten
-   Tagesdetail-Liste war enger als anderswo in der App. */
-.day-detail p { font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
-.day-detail .muted { color: var(--text-muted); }
-.day-detail .warn-text { color: var(--amber-fg); }
-.day-detail .danger-text { color: var(--danger-fg); }
+/* =====================================================================
+   Login (E8). Handoff §5.7, Mockup A1 bis A3. Markup: docs/ui-markup-stride.md, Abschnitt 15.
+   Gilt für Anmelden, "Kein Zugriff", "Noch nicht übertragene Einträge", Warte- und Fehlerzustand
+   der Anmeldeprüfung. Kein style= (C5), keine Auth-Logik (C10).
+   Aufbau: leerer Seitenkopf, darunter EIN .sd-auth als einziges Kind von #main:
+   Marke (64) + Name + optional Tagline, dann Karte, dann optional Fußnote.
+   ===================================================================== */
 
-.week-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.week-nav .titles { text-align: center; min-width: 0; }
-.week-nav .titles p.t1 { font-size: 17px; font-weight: 600; margin: 0; overflow-wrap: anywhere; }
-.week-nav .titles p.t2 { font-size: 12px; color: var(--text-muted); margin: 2px 0 0; }
-.week-nav button.icon-btn { border-radius: 10px; }
-.week-nav button svg { width: 18px; height: 18px; }
-/* "Heute"-Sprungknopf unter der Wochen-Navigation — ersetzt das bisherige
-   Inline-style="display:block;margin:8px auto 0" (M2-11, Review-Minor M5). */
-.week-today-btn { display: block; margin: 8px auto 0; }
-
-/* ---- Skeleton / Ladezustand (Dashboard rendert sofort, wartet nicht auf
-   Strava/Coach — Platzhalter statt leerer Fläche). ---- */
-.skel { position: relative; overflow: hidden; background: var(--border); border-radius: 6px; }
-.skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent); animation: skel-shimmer 1.5s infinite; }
-@keyframes skel-shimmer { to { transform: translateX(100%); } }
-@media (prefers-reduced-motion: reduce) {
-  .skel::after { animation: none; opacity: 0.5; }
-}
-.skel-line { height: 10px; margin: 6px 0; }
-/* height:90px war bisher ein Inline-Style (Review-Minor M5); der einzelne
-   .skel-bar darin trägt flex:1 und füllt die Höhe ohnehin komplett aus,
-   ein zusätzliches Inline-height:60% auf ihm blieb deshalb wirkungslos
-   (M2-11, keine optische Änderung ggü. vorher). */
-.skel-tile-body { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; height: 90px; }
-.skel-bar { flex: 1; background: var(--border); border-radius: 3px 3px 0 0; }
-
-/* Wochenzeile: Kopf ist ein eigener Knopf (Details auf/zu), die Zeile selbst
-   ein Container, damit "Tag öffnen" kein Button im Button ist. */
-.day-row .day-toggle {
-  display: block; width: 100%; padding: 0; border: none; background: transparent;
-  font: inherit; color: inherit; text-align: left; cursor: pointer; min-height: 44px;
-}
-.day-row .day-toggle:focus-visible { outline: 2.5px solid var(--teal-fg); outline-offset: 4px; border-radius: 8px; }
-/* Sichtbares Hover-Feedback auf Desktop/Trackpad — die Zeile selbst ist
-   seit dem Umbau auf Kopf-Knopf + "Tag öffnen" kein eigener Button mehr
-   (siehe .day-row.solid { cursor: default } oben), nur .day-toggle ist es
-   wirklich (M2-11, "jedes interaktive Element sieht interaktiv aus"). */
-.day-row .day-toggle:hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); border-radius: 10px; }
-.day-row .day-toggle .d, .day-row .day-toggle .dt,
-.day-row .day-toggle .n, .day-row .day-toggle .s { display: block; }
-/* ≥44px Trefferfläche (vorher ~25px über die geerbte .small-btn-Größe) und
-   Platz für das Chevron-Icon (M2-11). */
-.day-row .day-open { margin-top: 8px; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
-.day-row .day-open svg { width: 14px; height: 14px; flex-shrink: 0; }
-
-/* ---- Anmeldung (Schritt 1b) ----
-   Anmelde-, "Kein Zugriff"- und Konto-Karte. Nur Tokens und das 4/8/12/16-
-   Raster; Felder mindestens 16px (iOS zoomt sonst), Knöpfe mindestens 44px. */
-/* Ohne Sitzung gibt es keine Tableiste, #main braucht dann kein Polster dafür. */
+/* Der Seitenkopf trägt auf diesen Screens keinen Titel (die Marke ersetzt ihn). Er bleibt als
+   leeres <header> im DOM (renderMain schreibt ihn immer) und liefert nur noch den
+   Statusbar-Abstand. Voraussetzung: setPageHead("") ohne Leerraum, sonst greift :empty nicht. */
+.sd-pagehead:empty { padding: env(safe-area-inset-top) 0 0; }
+/* Ohne Sitzung gibt es keine Tab-Leiste. */
 #app.no-session #tabbar { display: none; }
-#app.no-session #main { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 
-.card.auth-card, .card.account-card, .card.export-card { display: flex; flex-direction: column; gap: 12px; }
-.card.auth-card p.hint, .card.account-card p.hint, .card.export-card p.hint { margin: 0; }
-
-/* Anmelde-, "Kein Zugriff"- und Hinweiskarte stehen vertikal mittig im freien
-   Platz statt oben mit leerer Fläche darunter. margin-block:auto statt
-   justify-content:center: bei sehr niedrigem Fenster (Tastatur, Querformat)
-   beginnt die Karte oben und #main scrollt, nichts wird abgeschnitten. */
-#app.no-session #main > .auth-card { margin-block: auto; padding: 16px; gap: 16px; }
-.auth-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.auth-logo { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; }
-.auth-brand-name { font-size: 17px; font-weight: 600; min-width: 0; }
-
-.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.field-label { font-size: 12px; color: var(--text-secondary); }
-.text-input {
-  width: 100%; min-width: 0; height: 44px; padding: 0 12px; font-size: 16px;
-  border: 0.5px solid var(--border); border-radius: 8px;
-  background: var(--surface-2); color: var(--text-primary);
+/* Vertikal mittig im freien Platz, ohne Höhenannahme: .sd-auth wächst auf die Resthöhe von #main
+   (flex 1 0 auto) und zentriert den Inhalt darin. Ist der Inhalt höher als die Resthöhe (Tastatur,
+   Querformat, 320 px mit Fehlermeldung), wächst .sd-auth mit (shrink 0) und #main scrollt; nichts
+   wird abgeschnitten, die Marke ist dann oben erreichbar. Oben 16, unten 32: der optische
+   Schwerpunkt liegt leicht über der Mitte. Seite 24 px, bei Notch/Querformat mindestens die Safe Area. */
+.sd-auth {
+  flex: 1 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 32px;
+  padding: 16px max(24px, env(safe-area-inset-right)) 32px max(24px, env(safe-area-inset-left));
 }
-.text-input:focus-visible { outline: 2px solid var(--teal-fg); outline-offset: 1px; }
+.sd-auth > * { min-width: 0; }
+/* Fokussiertes Feld nicht an den Rand des scrollenden #main schieben (Tastatur). */
+#app.no-session #main { scroll-padding-block: 24px; }
+/* Das Bodenpolster (32) trägt .sd-auth selbst; sonst käme das 16er von #main obendrauf und die
+   Mitte rutschte um 16 px mehr nach oben, als der optische Schwerpunkt will. */
+#app.no-session #main:has(> .sd-auth) { padding-bottom: env(safe-area-inset-bottom); }
+/* Marke sitzt auf --bg, nie in der Karte: stride-mark-dark.svg hat eine #26262b-Kachel, das ist
+   die Kartenfarbe, in der Karte wäre das Zeichen unsichtbar. */
+.sd-auth__brand { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.sd-auth__name { margin: 0; font-size: 32px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.1; }
+.sd-auth__tag { margin: 0; max-width: 280px; font-size: 15px; line-height: 1.5; color: var(--text-secondary); text-wrap: balance; }
+.sd-auth__foot { margin: 0; text-align: center; font-size: 12px; line-height: 1.4; color: var(--text-muted); }
 
-.auth-error {
-  margin: 0; padding: 8px 12px; border-radius: 8px;
-  font-size: 13px; line-height: 1.4; color: var(--danger-fg); background: var(--danger-bg);
+/* Wenig Höhe (Querformat, Android mit Tastatur): Abstände und Marke kleiner, Inhalt bleibt vollständig. */
+@media (max-height: 520px) {
+  .sd-auth { gap: 20px; padding-top: 8px; padding-bottom: 20px; }
+  .sd-auth__brand { gap: 8px; }
+  .sd-auth .sd-mark--lg { width: 48px; height: 48px; }
 }
-.auth-error[hidden] { display: none; }
-.auth-submit { height: 44px; font-size: 16px; }
 
-/* E-Mail und UID untereinander statt nebeneinander: beide sind lang und
-   brechen sonst bei schmalen Fenstern aus der Karte. */
-.account-rows { margin: 0; display: flex; flex-direction: column; gap: 8px; }
-.account-row { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.account-row dt { font-size: 11px; color: var(--text-muted); }
-.account-row dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
-.account-row dd.account-uid { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; user-select: all; }
-.account-logout, .export-btn { min-height: 44px; align-self: flex-start; padding: 6px 16px; }
+/* Felder in der Anmeldekarte. appearance none: iOS zeichnet sonst einen Innenschatten. Autofill
+   (iCloud-Schlüsselbund, Chrome) färbt Felder sonst gelb oder blau; die Innenfläche in --sunk
+   hält Hell und Dunkel ruhig. */
+.sd-auth .sd-input { -webkit-appearance: none; appearance: none; }
+.sd-auth .sd-input:-webkit-autofill,
+.sd-auth .sd-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  box-shadow: 0 0 0 100px var(--sunk) inset;
+  caret-color: var(--text-primary);
+}
+/* Fehler am Feld: Ring am Feld plus der allgemeine Fehlerblock (.sd-notice--danger) unter dem
+   Passwortfeld, aria-invalid am Feld (Status nie nur Farbe). Eine eigene Fehlerzeile je Feld
+   (früher .sd-field__error) wurde nicht gebaut. */
+.sd-field.is-invalid .sd-input { box-shadow: inset 0 0 0 1.5px var(--danger-fg); }
+.sd-field.is-invalid .sd-input:-webkit-autofill { box-shadow: 0 0 0 100px var(--sunk) inset, inset 0 0 0 1.5px var(--danger-fg); }
+
+/* Kein Zugriff: UID lässt sich mit einem Tipp markieren und bricht an jeder Stelle um. */
+.sd-auth .sd-kv dd.sd-mono { user-select: all; overflow-wrap: anywhere; }
+
+/* =====================================================================
+   Heute (E3), nur was über die sd-Bausteine oben hinausgeht.
+   Markup: docs/ui-markup-stride.md, "Screen-Ergänzungen, Heute (E3)".
+   Dynamische Werte (Phasen- und Volumenbalken) laufen über <progress value max>
+   statt über style (Auflage C5): das Element klemmt selbst auf 0 bis max.
+   Platzhalterbreiten sind feste Klassen (sd-skel--w60 usw.), nie style.
+   ===================================================================== */
+:root { --skel-shine: rgba(255, 255, 255, 0.55); }
+@media (prefers-color-scheme: dark) { :root { --skel-shine: rgba(255, 255, 255, 0.07); } }
+
+/* ---- Lade-Slots ----
+   Die vier Slots laden unabhängig nach. Ein leerer Slot soll keinen Zwischenraum
+   (gap 12) erzeugen, deshalb :empty ausblenden. Im Slot also kein Leerraum im Markup. */
+.sd-main > [id$="-slot"] { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sd-main > [id$="-slot"]:empty { display: none; }
+
+/* ---- Fortschrittsbalken als <progress> ---- */
+.sd-prog { --prog-fill: var(--teal); display: block; width: 100%; height: 6px; padding: 0; border: 0; border-radius: 3px; overflow: hidden; background: var(--track); color: var(--prog-fill); -webkit-appearance: none; appearance: none; }
+.sd-prog::-webkit-progress-bar { background: var(--track); border-radius: 3px; }
+.sd-prog::-webkit-progress-value { background: var(--prog-fill); border-radius: 3px; }
+.sd-prog::-moz-progress-bar { background: var(--prog-fill); border-radius: 3px; }
+.sd-prog--coral { --prog-fill: var(--coral-accent); }
+.sd-intro .sd-prog { margin-top: 18px; }
+
+/* ---- Kopf: Chip mit Screenreader-Text ---- */
+.sd-head .sd-chip { flex: none; position: relative; }
+
+/* ---- Lade-Platzhalter: graue Balken, Höhe 10, Radius 5, je Slot einzeln ---- */
+.sd-skel { position: relative; display: block; height: 10px; max-width: 100%; border-radius: 5px; overflow: hidden; background: var(--track); }
+.sd-skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, var(--skel-shine), transparent); animation: sd-shimmer 1.5s ease-in-out infinite; }
+@keyframes sd-shimmer { to { transform: translateX(100%); } }
+.sd-skel--purple { background: var(--purple-line); }
+.sd-skel--w92 { width: 92%; }
+.sd-skel--w60 { width: 60%; }
+.sd-skel--w40 { width: 40%; }
+.sd-skel--chip { width: 72px; }
+.sd-skelstack { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 4px 0; }
+.sd-skelstack > .sd-skel { flex: none; }
+.sd-skelstack--rule { align-self: stretch; padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* ---- Heute-Karte ---- */
+.sd-pills { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.sd-preview { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.sd-preview__row { position: relative; display: flex; align-items: center; gap: 12px; min-width: 0; padding: 11px 0; border-top: 1px solid var(--line); }
+.sd-preview__name { flex: 1; min-width: 0; font-size: 14.5px; line-height: 1.35; overflow-wrap: anywhere; }
+.sd-preview__soll { flex: 0 1 auto; max-width: 45%; text-align: right; font-size: 13px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.sd-preview__row.is-done .sd-preview__name { color: var(--text-muted); }
+.sd-preview__more { margin: 0; padding: 11px 0 0; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-muted); }
+.sd-result .sd-pills { justify-content: flex-start; }
+/* Zeile "Morgen" (Ruhetag): antippbar mit Chevron, sonst nur Anzeige. */
+button.sd-nextrow:active { opacity: 0.7; transform: none; }
+@media (hover: hover) { button.sd-nextrow:hover .sd-nextrow__value { color: var(--teal-fg); } }
+
+/* ---- Banner: Strava nicht verbunden (Fehlerbanner ist sd-card--danger) ---- */
+.sd-card--banner { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px 14px; padding: 18px 20px; }
+.sd-banner__main { flex: 1 1 180px; min-width: 0; }
+.sd-banner__main .sd-card__text { margin-top: 4px; }
+.sd-card--banner .sd-btn { flex: none; }
+
+/* ---- Status: vier Zeilen, ganze Zeile öffnet das Info-Sheet ---- */
+.sd-statusrow { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 14px 20px; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sd-statusrow + .sd-statusrow::before { content: ""; position: absolute; top: 0; left: 20px; right: 20px; height: 1px; background: var(--line); }
+.sd-statusrow__shape { width: 16px; flex: none; display: flex; justify-content: center; }
+.sd-statusrow__main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px; }
+.sd-statusrow__title { font-size: 14.5px; font-weight: 500; line-height: 1.3; }
+.sd-statusrow__detail { font-size: 13px; line-height: 1.35; color: var(--text-secondary); overflow-wrap: anywhere; }
+.sd-statusrow .sd-icon { color: var(--ink-faint); }
+.sd-statusrow:active { background: color-mix(in srgb, var(--card) 94%, var(--text-primary)); transform: none; }
+@media (hover: hover) { .sd-statusrow:hover { background: color-mix(in srgb, var(--card) 96%, var(--text-primary)); } }
+
+/* ---- Diese Woche: sieben Spalten, ganze Karte öffnet den Tab Woche ---- */
+.sd-weekcard { position: relative; width: 100%; padding: 18px 16px; gap: 16px; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sd-weekcard:active { transform: scale(0.99); }
+@media (hover: hover) { .sd-weekcard:hover { background: color-mix(in srgb, var(--card) 96%, var(--text-primary)); } }
+.sd-weekstrip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.sd-wd { --wd-size: 36px; --wd-bg: var(--sunk); --wd-fg: var(--text-secondary); --wd-solid: var(--ink-off); position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.sd-wd--kraft { --wd-bg: var(--teal-bg); --wd-fg: var(--teal-fg); --wd-solid: var(--teal); }
+.sd-wd--lauf { --wd-bg: var(--coral-bg); --wd-fg: var(--coral-fg); --wd-solid: var(--coral-accent); }
+.sd-wd--long { --wd-bg: var(--purple-bg); --wd-fg: var(--purple-fg); --wd-solid: var(--purple); }
+.sd-wd__dow { font-size: 11px; line-height: 1.2; color: var(--text-muted); }
+.sd-wd__dot { width: var(--wd-size); height: var(--wd-size); border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--wd-bg); color: var(--wd-fg); font: 600 11px/1 var(--font-mono); }
+.sd-wd__dot svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.sd-wd.is-done .sd-wd__dot { background: var(--wd-solid); color: var(--on-primary); }
+/* Vergangene, nicht erledigte Einheit (Handoff kennt sie nicht, siehe Markup-Doc). Status nie nur
+   Farbe: Ring plus durchgestrichene Zahl, dazu das Wort "verpasst" für Screenreader. */
+.sd-wd.is-missed .sd-wd__dot { background: var(--danger-bg); color: var(--danger-fg); box-shadow: inset 0 0 0 1.5px var(--danger-fg); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.sd-wd.is-today .sd-wd__dow { font-weight: 600; color: var(--teal-fg); }
+.sd-wd.is-today .sd-wd__dot { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--teal); }
+/* Schmale Spalte: bei 320 px bleiben pro Spalte nur ca. 34 px, der Heute-Ring (4 px außen) braucht Luft. */
+@container (max-width: 359px) {
+  .sd-wd { --wd-size: 32px; }
+  .sd-wd__dot svg { width: 13px; height: 13px; }
+}
+@container (max-width: 319px) {
+  .sd-wd { --wd-size: 28px; }
+  .sd-wd__dot { font-size: 10px; }
+}
+.sd-weekload { display: block; }
+.sd-weekvol { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; }
+.sd-weekvol__label { font-weight: 500; }
+.sd-weekvol__value { color: var(--text-secondary); }
+.sd-weekvol + .sd-prog { margin-top: 8px; }
+
+/* =====================================================================
+   Woche (E4), nur was über die sd-Bausteine hinausgeht. Die Tageszeile
+   (.sd-day, .sd-day__*) steht im Abschnitt "Woche: Tageszeilen" oben und wird
+   hier nur ergänzt. Markup: docs/ui-markup-stride.md, Abschnitt 10.
+   Dynamische Werte: <progress class="sd-prog"> wie auf Heute, nie style (C5).
+   ===================================================================== */
+
+/* ---- Kopf: Titel links, zwei Rundtasten rechts, "Zu heute" in eigener Zeile ----
+   Die Tasten sitzen oben rechts und bleiben beim Blättern an ihrem Platz, auch wenn
+   die Zeile mit "Zu heute" dazukommt. Wird es zu eng (unter ca. 310 px), rutschen
+   die Tasten unter den Titel, nichts wird abgeschnitten. */
+.sd-weekhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left)); }
+.sd-weekhead__titles { flex: 1 1 160px; min-width: 0; }
+.sd-weekhead__today { flex: 1 0 100%; display: flex; }
+.sd-weeknav { display: flex; gap: 8px; flex: none; }
+.sd-roundbtn { appearance: none; border: 0; flex: none; width: 44px; height: 44px; padding: 0; border-radius: 50%; background: var(--card); color: var(--text-primary); display: inline-grid; place-items: center; cursor: pointer; transition: background-color 150ms ease-out, transform 150ms ease-out, opacity 150ms ease-out; }
+.sd-roundbtn:active { transform: scale(0.94); }
+.sd-roundbtn:disabled, .sd-roundbtn[aria-disabled="true"] { opacity: 0.35; cursor: default; }
+.sd-roundbtn:disabled:active, .sd-roundbtn[aria-disabled="true"]:active { transform: none; }
+@media (hover: hover) { .sd-roundbtn:not(:disabled):not([aria-disabled="true"]):hover { background: color-mix(in srgb, var(--card) 90%, var(--text-primary)); } }
+/* "Zu heute": sichtbar 34 px hoch, Trefferfläche 44 px über ::after (wie .sd-seg__opt). */
+.sd-pillbtn { appearance: none; position: relative; border: 0; flex: none; height: 34px; padding: 0 14px; border-radius: 17px; background: var(--teal-bg); color: var(--teal-fg); font: 600 13px/1 var(--font-ui); display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; cursor: pointer; transition: filter 150ms ease-out, transform 150ms ease-out; }
+.sd-pillbtn::after { content: ""; position: absolute; inset: -5px -4px; }
+.sd-pillbtn:active { transform: scale(0.97); }
+@media (hover: hover) { .sd-pillbtn:hover { filter: brightness(0.96); } }
+
+/* ---- Summen-Karte: zwei Spalten, darunter je ein 5-px-Balken ----
+   Wert fluid über cqi (Container ist #main), Einheit bricht notfalls unter die Zahl.
+   Unter 360 px Spaltenbreite stehen die beiden Summen untereinander. */
+.sd-sums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; padding: 18px 20px; }
+.sd-sum { min-width: 0; display: flex; flex-direction: column; }
+.sd-sum__label { margin: 0; font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-secondary); }
+.sd-sum__value { margin: 6px 0 10px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; font-size: 22px; font-size: clamp(19px, 5.6cqi, 22px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; overflow-wrap: anywhere; }
+.sd-sum__value .sd-unit { margin-left: 0; font-size: 13px; letter-spacing: 0; }
+.sd-sum .sd-prog { height: 5px; margin-top: auto; }
+@container (max-width: 359px) {
+  .sd-sums { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+}
+
+/* ---- Tagesliste in einer Karte ----
+   overflow:hidden, damit die Heute-Tönung dem Kartenradius (22) folgt. Der Fokusring
+   liegt deshalb innen (negativer Offset), sonst würde er abgeschnitten. */
+.sd-days { overflow: hidden; }
+.sd-day__row { position: relative; }
+.sd-day__row:focus-visible { outline-offset: -3px; }
+.sd-day__status { position: relative; display: flex; align-items: center; gap: 6px; flex: none; }
+/* Globales button:active (scale) würde die ganze Zeile verkleinern: hier nur eine Tönung. */
+button.sd-day__row:active { transform: none; background: color-mix(in srgb, var(--text-primary) 7%, transparent); }
+@media (hover: hover) { button.sd-day__row:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); } }
+/* Akkordeon: Details sind per hidden zu; display:flex der Basisregel würde hidden sonst übersteuern. */
+.sd-day__detail[hidden] { display: none; }
+.sd-day__detail p { overflow-wrap: anywhere; }
+.sd-day__detail p.is-danger { color: var(--danger-fg); }
+/* Schmale Spalte: Zeilenpolster und Einzug rücken zusammen (Einzug = Polster + Datum 30 + Streifen 3 + 2 Abstände). */
+@container (max-width: 359px) {
+  .sd-day__row { gap: 12px; padding-inline: 16px; }
+  .sd-day__detail { padding-inline: 73px 16px; }
+}
+.sd-hint--center { text-align: center; padding: 4px 8px 0; }
+
+/* =====================================================================
+   Kraft-Tag (E5), Variante B "Fokus". Die Bausteine (sd-nav, sd-dots, sd-now__*,
+   sd-set*, sd-stepper*, sd-order__*, sd-edit__*, sd-tip) stehen im E0/E1-Teil oben
+   und sind dort abgenommen (Mockup K1 bis K8). Hier steht nur, was für die App
+   dazukommt: Zustände (Hover, Aktiv, Fokus), Lade- und Fertig-Zustand, Randfälle.
+   Markup: docs/ui-markup-stride.md, Abschnitt 11. Kein style= (C5).
+   ===================================================================== */
+
+/* ---- Jetzt-Karte: Primärbutton mit langem Namen ("Weiter: Nordic hamstring curl")
+   bricht um statt abzuschneiden; vertikales Polster, damit drei Zeilen nicht kleben. ---- */
+.sd-now .sd-btn--lg { padding-block: 10px; overflow-wrap: anywhere; }
+.sd-btn--primary:disabled { opacity: 0.6; }
+
+/* ---- Fortschrittspunkte: Tastenzustände ---- */
+@media (hover: hover) {
+  .sd-dots__seg:not(.is-current):hover { background: var(--ring-dashed); }
+  .sd-dots__seg.is-done:hover { background: var(--primary-hover); }
+}
+
+/* ---- Satz-Zeilen und Stepper: Zustände ---- */
+.sd-stepper__btn:disabled:active { transform: none; }
+.sd-stepper__val:active .sd-stepper__num { border-bottom-color: var(--teal); }
+button.sd-set:active { background: color-mix(in srgb, var(--bg) 92%, var(--text-primary)); transform: none; }
+@media (hover: hover) {
+  .sd-stepper__btn:not(:disabled):hover { background: color-mix(in srgb, var(--card) 88%, var(--text-primary)); }
+  .sd-stepper__val:hover .sd-stepper__num { border-bottom-color: var(--teal); }
+  button.sd-set:hover { background: color-mix(in srgb, var(--bg) 94%, var(--text-primary)); }
+}
+/* "Fertig" / "+ Gewicht" im Satzkopf sitzen am Kartenrand, der Fokusring darf nicht abgeschnitten werden. */
+.sd-set__head .sd-btn--text:focus-visible { outline-offset: -2px; }
+
+/* ---- Reihenfolge-Liste: Ecken der Tönung folgen dem Kartenradius ----
+   Ohne overflow:hidden ragt die Heute-Tönung der ersten und letzten Zeile über die runde Ecke.
+   Der Fokusring liegt deshalb innen. */
+.sd-order { overflow: hidden; }
+.sd-order__row:focus-visible { outline-offset: -3px; }
+.sd-order__row.is-current .sd-order__name { color: var(--text-primary); }
+.sd-order__row:active { background: color-mix(in srgb, var(--text-primary) 7%, transparent); transform: none; }
+.sd-order__row.is-current:active { background: var(--teal-bg); }
+@media (hover: hover) {
+  .sd-order__row:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
+  .sd-order__row.is-current:hover { background: var(--teal-bg); }
+}
+
+/* ---- Alles erfasst: ruhige Hinweiskarte über der Jetzt-Karte ----
+   Getönt (teal-bg), nicht gefüllt: die einzige gefüllte Fläche bleibt der Primärbutton. */
+.sd-card--done { flex-direction: row; align-items: flex-start; gap: 12px; padding: 16px 20px; background: var(--teal-bg); }
+.sd-card--done .sd-check { margin-top: 1px; }
+.sd-card--done .sd-card__title { color: var(--teal-fg); }
+.sd-card--done .sd-card__text { margin-top: 2px; color: var(--teal-fg); }
+
+/* ---- Ladezustand der Jetzt-Karte (Sätze werden aus Firestore geholt) ---- */
+.sd-skel--name { width: 70%; height: 22px; border-radius: 8px; }
+.sd-skel--set { width: 100%; height: 44px; border-radius: 14px; }
+.sd-skel--btn { width: 100%; height: 54px; border-radius: 16px; }
+.sd-skelstack--fill { gap: 10px; padding: 0; }
+
+/* ---- Fehler beim Speichern einer Übung: Meldung in der Karte, Satz bleibt offen ---- */
+.sd-now .sd-notice { overflow-wrap: anywhere; }
+
+/* ---- Anpassen-Modus ---- */
+.sd-edit__form .sd-actions { align-items: center; }
+
+/* =====================================================================
+   Lauf-Tag (E6), Variante B "Vergleich". Bausteine (sd-compare, sd-bigkm, sd-range*,
+   sd-linkrow*, sd-planhint*, sd-option*, sd-radio, sd-sheet__*) stehen im E0/E1-Teil
+   oben (Mockup L1 bis L5). Hier: Titel-Korrektur, Balken, Zustände, Sheet-Feinschliff.
+   Markup: docs/ui-markup-stride.md, Abschnitt 12. Kein style= (C5):
+   - Distanzbalken: <progress class="sd-prog sd-prog--lg" value max>
+   - Range-Balken: Inline-SVG, Lage nur über Zahlen-Attribute (x, width, x1, x2)
+   ===================================================================== */
+
+.sd-daytitle .sd-target { overflow-wrap: anywhere; }
+
+/* ---- Distanzbalken: 8px, Kategoriefarbe ---- */
+.sd-prog--lg { height: 8px; border-radius: 4px; }
+.sd-prog--lg::-webkit-progress-bar, .sd-prog--lg::-webkit-progress-value { border-radius: 4px; }
+.sd-prog--lg::-moz-progress-bar { border-radius: 4px; }
+.sd-prog--purple { --prog-fill: var(--purple); }
+
+/* ---- Vergleichs-Karte ---- */
+/* Lange Zahl ("123,4") darf nie über den Kartenrand laufen: umbrechen statt abschneiden. */
+.sd-bigkm { max-width: 100%; overflow-wrap: anywhere; }
+.sd-bigkm .sd-unit { letter-spacing: 0; }
+
+/* Wert mit Ampel-Form: Farbe trägt den Status nicht allein (Form + Screenreader-Wort). */
+.sd-range__value { display: inline-flex; align-items: center; gap: 6px; }
+/* Zeilen ohne Balken (freies Ziel) rücken enger zusammen als Zeilen mit Balken. */
+.sd-compare > .sd-range--plain + .sd-range--plain { margin-top: -8px; }
+.sd-compare > .sd-range + .sd-range__note { margin-top: -8px; }
+.sd-range__note { text-wrap: pretty; }
+
+/* ---- Strava-Zeile: Zustände ---- */
+.sd-linkrow:active { background: color-mix(in srgb, var(--card) 94%, var(--text-primary)); transform: none; }
+@media (hover: hover) {
+  .sd-linkrow:hover { background: color-mix(in srgb, var(--card) 96%, var(--text-primary)); }
+}
+@container (max-width: 340px) {
+  .sd-linkrow { gap: 10px; padding-inline: 16px; }
+}
+
+/* ---- Hinweis aus dem Plan ---- */
+.sd-planhint__text { text-wrap: pretty; overflow-wrap: anywhere; }
+
+/* ---- Zustandskarten (Zukunft, verpasst, Strava fehlt, ignoriert) ---- */
+.sd-card--center .sd-card__text { max-width: 34ch; text-wrap: balance; }
+
+/* ---- Ladezustand der Vergleichs-Karte ---- */
+.sd-skel--km { width: 45%; height: 44px; border-radius: 10px; }
+.sd-skel--bar { width: 100%; height: 8px; border-radius: 4px; }
+
+/* ---- Zuordnungs-Sheet ---- */
+/* Text-Buttons unter der Liste: der Text fluchtet mit den Listenkanten statt 12px eingerückt. */
+.sd-sheet__tools { margin-inline: -12px; }
+.sd-sheet__tools .sd-btn--text { padding-inline: 12px; }
+button.sd-option:active { background: color-mix(in srgb, var(--bg) 92%, var(--text-primary)); transform: none; }
+button.sd-option.is-selected:active { background: var(--teal-tint); }
+@media (hover: hover) {
+  button.sd-option:not(.is-selected):hover { background: color-mix(in srgb, var(--bg) 94%, var(--text-primary)); }
+}
+/* Läufe, die zu einem anderen Tag gehören: Inhalt auf 50 %, der Grund ("gehört schon zu …")
+   bleibt in voller Lesbarkeit, weil er die einzige Erklärung ist. */
+.sd-option[aria-disabled="true"] :is(.sd-radio, .sd-option__name, .sd-option__sub) { opacity: 0.5; }
+.sd-option__why { display: block; margin-top: 3px; font-size: 12.5px; color: var(--text-secondary); }
+
+/* =====================================================================
+   Verlauf + Plan (E7). Handoff §5.5 und §5.6, Mockup P1 (Daten und Konto).
+   Markup: docs/ui-markup-stride.md, Abschnitte 13 und 14. Kein style= (C5):
+   - Diagramme (Distanz je Lauf, Wochen-Balken, Phasenbalken): je ein Inline-SVG,
+     Lage und Größe nur über Zahlen-Attribute (x, y, width, height). Farben kommen
+     über Klassen am <rect>, Achsenbeschriftung ist HTML (kein gestreckter Text).
+   - Reihen mit Platz für N Einträge sind Flex-Reihen mit gleichem Anteil (flex 1 1 0),
+     nie ein Grid mit Spaltenzahl aus Daten.
+   ===================================================================== */
+
+/* ---- Tab-Kopf (Verlauf, Plan): Titel links, Schalter rechts, bricht um statt zu clippen ---- */
+.sd-tabhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left)); }
+.sd-tabhead__titles { flex: 1 1 140px; min-width: 0; }
+.sd-tabhead .sd-seg { flex: none; align-self: center; }
+@media (hover: hover) { .sd-seg__opt:not(.is-active):hover { color: var(--text-primary); } }
+
+/* ---- Übungs-Chips: eine Zeile, scrollt nur in sich (Seite scrollt nie seitlich) ----
+   Die Zeile liegt als Geschwister von .sd-tabhead im Kopf und läuft bis an den Rand;
+   das Seitenpolster steckt im padding-inline, damit das erste/letzte Chip nicht klebt.
+   padding-block 4px: Platz für den Fokusring (2px + 2px Offset) und die 44px-Trefferfläche
+   (::after), beides würde sonst vom overflow der Zeile abgeschnitten. */
+.sd-filter { display: flex; gap: 8px; margin-top: 12px; padding: 4px max(20px, env(safe-area-inset-right)) 4px max(20px, env(safe-area-inset-left)); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-padding-inline: max(20px, env(safe-area-inset-left)) max(20px, env(safe-area-inset-right)); scrollbar-width: thin; scrollbar-color: var(--ink-off) transparent; -webkit-overflow-scrolling: touch; }
+.sd-filter__chip { position: relative; flex: none; height: 36px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--card); color: var(--text-secondary); font: 600 13px/1 var(--font-ui); white-space: nowrap; cursor: pointer; transition: background-color 150ms ease-out, color 150ms ease-out; }
+.sd-filter__chip::after { content: ""; position: absolute; inset: -4px 0; }
+/* line-height 16px statt der 1 des Chips: sonst ist die Zeilenbox 13px hoch und overflow:hidden
+   schneidet die Unterlängen (g, p, q, y) ab. Der Chip bleibt 36px, das span zentriert sich als Flex-Kind. */
+.sd-filter__chip > span { display: block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; line-height: 16px; }
+/* Aktiv trägt nicht nur Farbe: Gewicht 600 bleibt gleich, dazu ein innerer Ring und aria-pressed. */
+.sd-filter__chip.is-active { background: var(--teal-bg); color: var(--teal-fg); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--teal-fg) 35%, transparent); }
+@media (hover: hover) { .sd-filter__chip:not(.is-active):hover { background: color-mix(in srgb, var(--card) 92%, var(--text-primary)); color: var(--text-primary); } }
+
+/* ---- Info-Knopf (i) an berechneten Werten: sichtbar 20px, Trefferfläche 44px ---- */
+.sd-infobtn { position: relative; flex: none; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); display: inline-grid; place-items: center; cursor: pointer; }
+.sd-infobtn::after { content: ""; position: absolute; inset: -12px; }
+@media (hover: hover) { .sd-infobtn:hover { color: var(--text-primary); } }
+
+/* ---- Verlauf Lauf: vier Kacheln, 2 x 2 ----
+   Wert fluid über cqi (Container ist #main): bei 320 px 19px, ab ca. 390 px 22px. Die Einheit
+   bricht notfalls unter die Zahl. Kachelbreite bei 320 px: ca. 142px, Innenbreite 110px. */
+.sd-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.sd-tile { min-width: 0; margin: 0; padding: 14px 16px; border-radius: 18px; background: var(--card); display: flex; flex-direction: column; gap: 6px; }
+.sd-tile__label { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-secondary); }
+.sd-tile__value { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; font-size: 22px; font-size: clamp(19px, 5.6cqi, 22px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; overflow-wrap: anywhere; }
+.sd-tile__value .sd-unit { margin-left: 0; font-size: 13px; letter-spacing: 0; }
+
+/* ---- Diagramme ----
+   .sd-chart__plot ist das SVG: viewBox 0 0 320 <Höhe> mit preserveAspectRatio="none", dehnt
+   sich also auf die Kartenbreite (256 bis 416px) und behält seine Höhe (120 bzw. 130px, 1:1).
+   Rundung: das <rect> hat rx=5 und ragt 5 Einheiten unter die Grundlinie, das svg schneidet
+   ab (overflow hidden ist bei Inline-SVG Standard): oben rund, unten bündig. Die Dehnung
+   verzerrt rx nur um ca. 0,8 bis 1,3, das ist bei 5px nicht zu sehen. */
+.sd-chart { margin: 0; min-width: 0; }
+.sd-chart__plot { display: block; box-sizing: content-box; width: 100%; height: 120px; border-bottom: 1px solid var(--line); }
+.sd-chart__plot--tall { height: 130px; }
+.sd-chart__bar { fill: var(--teal); }
+.sd-chart__bar--lauf { fill: var(--coral-accent); }
+.sd-chart__bar--long { fill: var(--purple); }
+.sd-chart__bar--deload { fill: var(--teal-soft); }
+/* Beschriftung: ein Span je Balken-Platz, gleich breit, mittig unter dem Balken. Spans ohne
+   Text bleiben als leere Platzhalter stehen (Ausdünnregel im Markup-Doc 13.3). justify-content
+   statt text-align: ein breiteres Label ragt so nach beiden Seiten gleich weit über den Platz. */
+.sd-chart__axis { display: flex; margin-top: 6px; }
+.sd-chart__axis > span { flex: 1 1 0; min-width: 0; display: flex; justify-content: center; white-space: nowrap; font: 500 9.5px/1.2 var(--font-mono); color: var(--text-muted); }
+.sd-chart__axis > .is-current { color: var(--teal-fg); font-weight: 700; }
+.sd-chart__legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 12px 0 0; font-size: 12px; line-height: 1.3; color: var(--text-secondary); }
+.sd-chart__legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.sd-chart__swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--teal); }
+.sd-chart__swatch--lauf { background: var(--coral-accent); }
+.sd-chart__swatch--long { background: var(--purple); }
+.sd-chart__swatch--deload { background: var(--teal-soft); }
+
+/* ---- Verlauf Kraft: Bestwert und Trend ---- */
+.sd-best { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.sd-best__val { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
+.sd-best__val .sd-unit { margin-left: 6px; font-size: 14px; letter-spacing: 0; }
+.sd-trend { margin: 0; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 6px; font: 600 12.5px/1.4 var(--font-mono); color: var(--text-secondary); }
+.sd-trend__since { font-weight: 500; }
+.sd-trend.is-up { color: var(--ok-fg); }
+
+/* ---- Listen in Karten (letzte Läufe, letzte Einträge, Phasen, Zonen) ----
+   Die Karte schneidet ab (overflow hidden), damit die Tönung der laufenden Phase dem
+   Kartenradius 22 folgt. Keine Zeile ist antippbar, darum kein Fokusring-Sonderfall. */
+.sd-rows { list-style: none; margin: 0; overflow: hidden; }
+.sd-hrow { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 12px 20px; }
+.sd-hrow + .sd-hrow { border-top: 1px solid var(--line); }
+.sd-hrow__main { flex: 1; min-width: 0; }
+.sd-hrow__title { display: block; font-size: 14px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.sd-hrow__sub { display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.3; color: var(--text-muted); }
+.sd-hrow__val { flex: none; display: inline-flex; align-items: baseline; gap: 0 6px; text-align: right; white-space: nowrap; font: 600 13px/1.3 var(--font-mono); }
+.sd-hrow__val > :nth-child(3) { font-weight: 500; color: var(--text-secondary); }
+
+/* ---- Plan: Ziel-Karte ---- */
+.sd-goal { gap: 16px; }
+.sd-goal__top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 16px; }
+.sd-goal__main { min-width: 0; }
+.sd-goal__label { margin: 0; font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-muted); }
+.sd-goal__time { margin: 6px 0 0; font-size: 40px; font-size: clamp(32px, 11cqi, 40px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; color: var(--teal-fg); }
+/* Links bündig ist der sichere Standard: Bricht der Renntag unter die Zielzeit (320 bis 374 px),
+   stehen Label, Datum und Pace linksbündig unter dem "Ziel"-Label statt rechtsbündig im
+   schmalen Block zu schweben. Erst ab 375 px Spaltenbreite (Zielzeit ca. 41 px, Rest reicht
+   sicher für beide Spalten) sitzt der Block rechts und schließt rechtsbündig ab. Container
+   ist #main, wie bei den anderen Spaltenregeln; die Schwelle hängt nicht von Textbreiten ab,
+   die Schrift und Zielzeit ändern können. */
+.sd-goal__race { min-width: 0; text-align: left; }
+@container (min-width: 375px) {
+  .sd-goal__race { text-align: right; }
+}
+.sd-goal__race > p { margin: 0; }
+.sd-goal__k { font-size: 12px; line-height: 1.3; color: var(--text-muted); }
+.sd-goal__race > .sd-goal__date { margin-top: 2px; font-size: 15px; font-weight: 600; line-height: 1.3; }
+.sd-goal__race > .sd-goal__pace { margin-top: 2px; font-size: 12.5px; line-height: 1.3; color: var(--text-secondary); }
+
+/* Phasenbalken: ein SVG, viewBox 0 0 300 10, preserveAspectRatio="none". Segmentbreiten
+   (proportional zu den Wochen, 3 Einheiten Lücke) und Füllung stehen als Zahlen in
+   x/width. Erledigte Phasen sind ganz gefüllt, die laufende anteilig, spätere gar nicht. */
+.sd-phasebar { display: block; width: 100%; height: 10px; }
+.sd-phasebar__seg { fill: var(--track); }
+.sd-phasebar__seg--teal { fill: var(--teal-bg); }
+.sd-phasebar__seg--sky { fill: var(--sky-soft); }
+.sd-phasebar__seg--amber { fill: var(--amber-soft); }
+.sd-phasebar__seg--purple { fill: var(--purple-soft); }
+.sd-phasebar__seg--coral { fill: var(--coral-bg); }
+.sd-phasebar__fill { fill: var(--teal); }
+
+/* ---- Plan: Phasen und Trainingsbereiche ---- */
+.sd-phase, .sd-zone { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 12px 20px; }
+.sd-phase + .sd-phase, .sd-zone + .sd-zone { border-top: 1px solid var(--line); }
+.sd-phase.is-current { background: var(--teal-tint); }
+.sd-phase__num { flex: none; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--tone-bg); color: var(--tone); font: 600 14px/1 var(--font-mono); }
+.sd-phase__main, .sd-zone__main { flex: 1; min-width: 0; }
+.sd-phase__name { display: block; font-size: 14.5px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.sd-phase__sub, .sd-zone__use { display: block; margin-top: 2px; font-size: 12px; line-height: 1.4; color: var(--text-muted); overflow-wrap: anywhere; }
+.sd-zone__badge { flex: none; min-width: 36px; height: 24px; padding: 0 6px; border-radius: 8px; display: grid; place-items: center; background: var(--tone-bg); color: var(--tone); font: 600 12px/1 var(--font-mono); }
+.sd-zone__name { display: block; font-size: 14px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.sd-zone__vals { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; white-space: nowrap; }
+.sd-zone__hf { font: 500 12.5px/1.3 var(--font-mono); }
+.sd-zone__pace { font: 11px/1.3 var(--font-mono); color: var(--text-muted); }
+
+/* ---- Schmale Spalte (320 px): Zeilen rücken zusammen, Distanz und Pace stehen untereinander ---- */
+@container (max-width: 359px) {
+  .sd-hrow, .sd-phase, .sd-zone { gap: 10px; padding-inline: 16px; }
+  .sd-hrow__val { flex-direction: column; align-items: flex-end; gap: 2px; }
+  .sd-hrow__sep { display: none; }
+}
+
+/* ---- Daten und Konto ---- */
+/* Strava-Zeile bei Abruffehler: der Text benennt den Zustand, Danger-Rot unterstreicht ihn nur. */
+.sd-kv dd.is-danger { color: var(--danger-fg); }
+/* Status des Exports ersetzt den Hinweis darüber, solange er sichtbar ist (rein per CSS). */
+.sd-split__status { font-size: 12.5px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.sd-split__status.is-warn { color: var(--amber); }
+.sd-split__status.is-danger { color: var(--danger-fg); }
+.sd-split__main:has(> .sd-split__status:not([hidden])) > .sd-split__hint:not(.sd-split__status) { display: none; }
+.sd-notice { overflow-wrap: anywhere; }
+.sd-notice--quiet { background: var(--sunk); color: var(--text-secondary); }
+
+/* ---- Ladezustand: Platzhalter für Kachel-Wert, Diagramm ---- */
+.sd-skel--val { width: 50%; height: 22px; border-radius: 8px; }
+.sd-skel--chart { width: 100%; height: 120px; border-radius: 12px; }
+
+/* =====================================================================
+   Bewegung: nur dort, wo sie etwas erklärt, und abschaltbar. EIN Block für alles; wer
+   eine neue transition oder animation anlegt, trägt sie hier ein.
+   Abgedeckt: Tab-Leiste, Knöpfe, Stepper, Rundtasten, "Zu heute", Chevron im Bilanz-Knopf,
+   Filter-Chips, Sheet und Backdrop, Toast, Skeleton-Schimmer, :active-Skalierung.
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  #tabbar button, #tabbar button::after, .sd-btn, .sd-stepper__btn, .sd-roundbtn, .sd-pillbtn,
+  .sd-bilanz__toggle .sd-icon, .sd-filter__chip, .sd-backdrop, .sd-sheet, #toast { transition: none; }
+  .sd-skel::after { animation: none; opacity: 0; }
+  button:active, .sd-btn:active, .sd-stepper__btn:active, .sd-roundbtn:active, .sd-pillbtn:active,
+  .sd-weekcard:active { transform: none; }
+}

@@ -1,2 +1,3 @@
 - [Season goals HM 2027 → Marathon 2028](project_season_goals.md) — HM is a milestone of a marathon project; Step 1 dashboard / Step 2 multi-goal; in-app goal entry wanted
+- [Stride redesign](project_stride_redesign.md) — rename+logo+mobile redesign from design handoff (2026-10-20); handoff binding, recurring gaps listed
 - [Mockup before final](feedback_mockup_before_final.md) — UI requirements stay draft until Louis approves an HTML mockup

@@ -1,4 +1,4 @@
-import { parseSoll, suggestProgression, previousEntry } from "../progression.js";
+import { parseSoll, suggestProgression, previousEntry, progressionChip } from "../progression.js";
 
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { console.log("FAIL:", msg); fails++; } else console.log("ok  :", msg); };
@@ -77,6 +77,44 @@ const entry = (kg, reps, date = "2026-09-01") => ({ date, sets: reps.map((r) => 
   ok(previousEntry([], "2026-09-15") === null, "Leere Historie");
   const mitLeerem = [{ date: "2026-09-08", sets: [] }, entry(70, [9], "2026-09-01")];
   ok(previousEntry(mitLeerem, "2026-09-15").date === "2026-09-01", "Überspringt Einträge ohne Sätze");
+}
+
+// --- Chip (Kurzform für den Kraft-Tag) ---
+{
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  ok(progressionChip("3x8-10", null) === null, "Chip: ohne Historie null");
+  ok(progressionChip("Körpergewicht", entry(0, [10])) === null, "Chip: ohne lesbares Soll null");
+  ok(progressionChip("3x8-10", { sets: [] }) === null, "Chip: ohne Sätze null");
+
+  ok(same(progressionChip("3x8-10", entry(80, [10, 10, 10])), { level: "up", text: "Heute 85 kg", nextKg: 85 }),
+     "Chip up: Langhantel +5 kg");
+  const klein = progressionChip("3x8-10", entry(12, [10, 10, 10]));
+  ok(klein.level === "up" && klein.nextKg === 13 && klein.text === "Heute 13 kg", "Chip up: kleine Gewichte +1 kg");
+  const komma = progressionChip("3x8-10", entry(30, [10, 10, 10]));
+  ok(komma.nextKg === 32.5 && komma.text === "Heute 32,5 kg", `Chip up: deutsche Kommazahl (${komma.text})`);
+
+  ok(same(progressionChip("3x8-10", entry(80, [8, 8, 8])), { level: "hold", text: "80 kg halten", nextKg: 80 }),
+     "Chip hold: Gewicht halten");
+  const down = progressionChip("3x8-10", entry(80, [6, 6, 5]));
+  ok(down.level === "down" && down.nextKg === 75 && down.text === "Heute 75 kg", "Chip down: Gewicht senken");
+
+  const deload = progressionChip("2x8 (Deload)", entry(60, [8, 8]));
+  ok(deload.level === "info" && deload.text === "Deload, 60 kg" && deload.nextKg === null, "Chip: Deload-Woche ist info");
+  ok(progressionChip("2x8 (Deload)", entry(62.5, [8, 8])).text === "Deload, 62,5 kg", "Chip: Deload mit Komma");
+
+  const bw = progressionChip("3x6-8", entry(null, [8, 8, 8]));
+  ok(bw.level === "up" && bw.nextKg === null && bw.text === "Mehr Wdh oder schwerere Variante", "Chip: Körpergewicht voll ausgeschöpft");
+  const bwInfo = progressionChip("3x6-8", entry(0, [6, 6, 7]));
+  ok(bwInfo.level === "info" && bwInfo.text === "Wdh steigern" && bwInfo.nextKg === null, "Chip: Körpergewicht kg 0 wie null");
+
+  const zeitUp = progressionChip("3x30-45s", entry(null, [45, 45, 45]));
+  ok(zeitUp.level === "up" && zeitUp.text === "Länger halten" && zeitUp.nextKg === null, "Chip: Zeit voll ausgeschöpft");
+  ok(progressionChip("3x30-45s", entry(null, [35, 40, 40])).text === "Zeit halten", "Chip: Zeit noch nicht ausgeschöpft");
+
+  // Dieselbe Entscheidung wie suggestProgression
+  for (const [soll, kg, reps] of [["3x8-10", 80, [10, 10, 10]], ["3x8-10", 80, [8, 9, 8]], ["3x8-10", 80, [7, 7, 7]], ["3x6-8", null, [8, 8, 8]]]) {
+    ok(progressionChip(soll, entry(kg, reps)).level === suggestProgression(soll, entry(kg, reps)).level, `Chip: Stufe wie suggestProgression (${soll}, ${reps})`);
+  }
 }
 
 console.log(fails ? `\n${fails} FEHLER` : "\nAlle Progressions-Tests bestanden");

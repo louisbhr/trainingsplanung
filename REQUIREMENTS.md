@@ -1,6 +1,6 @@
-# Halbmarathon-Tracker — Anforderungen und Ausbaustufen
+# Stride — Anforderungen und Ausbaustufen
 
-Stand: 20.10.2026 · Trainingswoche 8 von 35 · Renntag So 02.05.2027
+Stand: 22.10.2026 (Branch `stride-redesign`, Merge-Base `a6e6c4b`) · Trainingswoche 8 von 35 · Renntag So 02.05.2027
 
 Dieses Dokument hält fest, was die App heute kann, worauf sie aufbaut und
 was noch kommen soll. Es ist die gemeinsame Grundlage für spätere
@@ -37,14 +37,23 @@ nur den Anmeldebildschirm, ein fremdes Konto sieht „Kein Zugriff“. Im
 Plan-Tab gibt es eine Konto-Karte; „Abmelden“ sendet erst offene Einträge
 und räumt dann Offline-Speicher und lokale Kopien des Geräts.
 
-### Tabs
+### Screens (Stride)
 
-| Tab | Inhalt |
+Die App heißt Stride (vorher Halbmarathon-Tracker) und hat ein neues Design: Geist und Geist
+Mono (selbst gehostet, v1.8.1, Prüfsummen in `HANDOFF.md`), Teal als Primärfarbe, Koralle nur
+für Läufe und Strava, Fehler immer in Danger-Rot, schwebende Tab-Leiste, Seitenkopf scrollt mit,
+helles und dunkles Schema, bedienbar von 320 px Breite bis Desktop (Spalte 480 px).
+
+| Screen | Inhalt |
 | --- | --- |
-| **Dashboard** | Heutige Einheit (Kraft mit Eingabefeldern, Lauf mit Soll und Strava-Ergebnis, sonst Ruhetag), Wettkampf-Countdown in der Kopfzeile, KI-Coach (täglich zwei Sätze, montags Wochenbilanz), vier Ampeln (Wochensoll, Easy-Disziplin, Belastung, Kraft-Progression) mit Erklärung je Ampel, „Im Detail“ mit Wochenvolumen Soll gegen Ist, aerober Effizienz und Adhärenz |
-| **Woche** | Tagesliste mit Status über alle 35 Wochen, vor/zurück blättern, Tag antippen klappt Details auf, „Tag öffnen“ führt in die Tagesansicht; optionale Kraft zählt nicht zum Wochensoll |
-| **Verlauf** | Kraft: bestes Satzgewicht je Übung über die Zeit. Lauf: Distanz je Lauf, Pace als Label, 7- und 28-Tage-Summe |
-| **Plan** | Zielkarte mit Zeitleiste über 35 Wochen, vier Phasen, HF- und Pace-Zonen; darunter die Karten „Daten“ (Export) und „Konto“ |
+| **Heute** (Tab) | Kopfzeile mit Datum, Woche, Phase, Countdown; Heute-Karte (Training starten bzw. Lauf mit Soll, sonst Ruhetag), „Morgen“, KI-Coach (täglich zwei Sätze, montags Wochenbilanz), vier Ampeln mit Erklärung je Ampel, „Diese Woche“ mit sieben Tageskreisen. „Im Detail“ ist entfallen (siehe `backlog.md`, Desktop-Analyse) |
+| **Woche** (Tab) | Tagesliste mit Status-Pillen über alle 35 Wochen, vor/zurück, eine Zeile offen, „Tag öffnen“; optionale Kraft zählt nicht zum Wochensoll |
+| **Kraft-Tag** (`view-kraft.js`, `kraftflow.js`) | Satz für Satz: Jetzt-Karte mit zwei Steppern (Gewicht, Wdh; Tippen auf den Wert für direkte Eingabe), Fortschrittspunkte, Reihenfolge-Liste, Strava-Zeile der Einheit, Anpassen-Ansicht (entfernen, zurückholen, hinzufügen, ersetzen), Entwurf in `localStorage` (7 Tage) |
+| **Lauf-Tag** (`view-run.js`, `runcompare.js`) | Vergleich Soll gegen Ist (Distanz mit Urteil „im Plan“/„zu kurz“, Pace- und HF-Band), Strava-Zeile, Zuordnungs-Sheet (Auswahl, „Kein Lauf an diesem Tag“, „Automatik zurück“, „Neu laden“) |
+| **Verlauf** (Tab; `view-history.js`, `history-data.js`) | Lauf: vier Kennzahlen, Distanzbalken, Liste. Kraft: Übungs-Chips, Wochenbalken (Entlastungswochen markiert), Liste |
+| **Plan** (Tab; `view-plan.js`) | Ziel-Karte, Phasenbalken, vier Phasen, HF- und Pace-Zonen, Karten „Daten“ (Export) und „Konto“ |
+| **Tag ohne Einheit** | Ruhetag, Platzhalterwoche, „Bis zum Rennen“, „Kein aktiver Plan“; erreichbar über „Morgen“ auf Heute |
+| **Login und Nebenscreens** (`view-account.js`) | Anmeldung, „Kein Zugriff“, Warten, Gate-Fehler |
 
 ### Funktionen
 
@@ -88,7 +97,10 @@ werden aus dem Planstart berechnet, es gibt keine Datumstabellen.
 | Datei | Aufgabe |
 | --- | --- |
 | `index.html`, `style.css`, `app.js` | Oberfläche und Ablaufsteuerung |
-| `ui.js`, `view-dashboard.js`, `view-week.js`, `view-account.js` | Gemeinsame UI-Helfer und Markup der Ansichten |
+| `ui.js`, `view-dashboard.js`, `view-week.js`, `view-account.js` | Gemeinsame UI-Helfer und Markup von Heute, Woche, Anmeldung |
+| `view-kraft.js`, `kraftflow.js` | Kraft-Tag: Markup; reine Ablauflogik (Sätze, Startwerte, Payload) |
+| `view-run.js`, `runcompare.js` | Lauf-Tag: Markup; Vergleich Soll gegen Ist |
+| `view-history.js`, `history-data.js`, `view-plan.js` | Verlauf und Plan: Markup; Datenaufbereitung |
 | `plan.js`, `plan-store.js`, `plans/hm-2027.json` | Plan-Logik, Laden und Validieren, die Plandaten |
 | `runmatch.js` | Zuordnung Strava-Läufe → Plan-Lauftage |
 | `progression.js` | Gewichtsvorschlag aus den letzten Wiederholungen |
@@ -130,19 +142,30 @@ Rückkehr des Originals.
 
 ### Qualitätssicherung
 
-`npm test` führt 13 Läufe aus: Plandaten und Plan-Logik, Golden-Test,
-Lauf-Zuordnung, Progression, Versionsstempel, Stub-Wächter, Export,
-Ampeln, Coach, Worker (inkl. Token-Prüfung), Zugangslogik und
-Konfigurationskonsistenz — alle ohne Browser — dazu die Browser-Checks in
-Chromium gegen gestubbtes Firebase und Strava. Abgedeckt unter anderem:
-Zeitzonen um Mitternacht, Speichern und Wiederherstellen, verschobene
-Läufe, Übungen anpassen, Login-Zustände, Coach-Fallbacks, Export und dass
-nichts seitlich scrollt oder ungefragt zoomt. Die aktuellen Zahlen
-druckt `npm test` selbst; Details in `tests/README.md`.
+`npm test` führt 20 Läufe aus: Plandaten und Plan-Logik, Golden-Test, Lauf-Zuordnung,
+Progression, Versionsstempel, Stub-Wächter, Export, Ampeln, Coach, Worker (inkl.
+Token-Prüfung), Zugangslogik, Konfigurationskonsistenz, `kraftflow`, `runcompare`,
+`history-data`, `view-run`, `view-history`, Namens-Wächter und Quelltext-Greps (`static-greps`)
+— alle ohne Browser — dazu 1125 Browser-Checks in Chromium gegen gestubbtes Firebase und
+Strava. Abgedeckt unter anderem: Zeitzonen um Mitternacht, Satz-Ablauf und Entwurf,
+verschobene Läufe, Übungen anpassen, Login-Zustände, Coach-Fallbacks, Export und die
+**Prüfmatrix** (Szenario 34): sieben Fenstergrößen von 320 bis 1280 px, hell und dunkel,
+alle Screens, ohne Überlauf, abgeschnittene oder verdeckte Elemente, mit Tippflächen
+≥ 44 px, Eingaben ≥ 16 px, einem h1 je Screen und ohne `style=`. Das Ledger der
+Prüfabsichten steht in `tests/README.md`.
+
+**Fallen:** Der Testserver auf Port 8099 muss laufen und aus dem getesteten Verzeichnis
+stammen. `.pipeline-state.md` (Pipeline-Stand der Agenten) steht in `.gitignore` und gehört
+nicht ins Repo.
 
 ## 4. Bekannte Grenzen
 
 - **Wochen 17–35** haben noch keine Tagesdetails.
+- **Einträge lassen sich nur überschreiben, nicht löschen** (Lösch-Funktion im `backlog.md`).
+- **Pausen-Timer, Desktop-Analyse („Im Detail“-Kennzahlen) und Login 1b Meilenstein B**
+  stehen im `backlog.md`.
+- **Offener CSS-Befund:** Chip-Text im Kraft-Verlauf (`.sd-filter__chip > span`) schneidet
+  Unterlängen um etwa 2 px ab (Zeilenhöhe 13 px, Inhalt 15 px).
 - **Kein Service Worker** — ohne Netz startet die App nicht, nur bereits
   geladene Daten und Eingaben überleben.
 - **Browser-Cache** — gelöst über einen Versionsstempel
@@ -151,7 +174,7 @@ druckt `npm test` selbst; Details in `tests/README.md`.
 - **Token-Lebensdauer** — ein ausgestelltes Firebase-ID-Token gilt bis zu
   einer Stunde; ein Konto-Wechsel greift beim Worker erst danach. Für einen
   Ein-Nutzer-Fall bewusst akzeptiert.
-- **`app.js` ist groß** (rund 2300 Zeilen); ein Auslagern der Datenaufbereitung
+- **`app.js` ist groß** (rund 2500 Zeilen); ein Auslagern der Datenaufbereitung
   nach `dashboard-data.js` ist vorgemerkt.
 - **Client-Geheimnisse** — das Strava-Client-Secret der ersten Fassung
   liegt weiterhin in der Git-Historie (Commit `5160b7d`) und wurde

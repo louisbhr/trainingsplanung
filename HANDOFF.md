@@ -1,14 +1,14 @@
-# Handoff: Halbmarathon-Tracker
+# Handoff: Stride
 
 Für eine neue Session, die hier weitermacht. **Was die App kann und was
 noch kommen soll, steht in [`REQUIREMENTS.md`](REQUIREMENTS.md)** — dieses
 Dokument ist das Operative: loslegen, ausliefern, und die Fallen, die
 schon einmal Zeit gekostet haben.
 
-Stand: 20.10.2026 · `main` auf `e27c04f` plus Aufräumrunde (Branch
-`aufraeumen`) · Trainingswoche 8 von 35 · Renntag So 02.05.2027 · Login,
-KI-Coach, Dashboard v2, Export und Plan Phase 2 (35 Wochen) sind live bzw.
-gemergt
+Stand: 22.10.2026 · Branch `stride-redesign` (Etappen E0 bis E9, noch nicht
+gemergt; `main` steht auf dem Stand vor Stride, Merge-Base `a6e6c4b`) ·
+Renntag So 02.05.2027 · Das Stride-Redesign (neuer Name, neues Design, alle
+sechs Screens neu) ist umgesetzt; offen sind Pipeline-Schritte 8 bis 12 und der Merge
 
 ## Loslegen
 
@@ -24,7 +24,7 @@ npm test           # muss komplett grün sein, bevor irgendetwas gepusht wird
 Node 22. Kein Build-Schritt: die Dateien im Repo-Wurzelverzeichnis sind
 exakt das, was der Browser lädt.
 
-`npm test` läuft 13-mal (die Aufrufe in `package.json`, Skript `test`):
+`npm test` läuft 20-mal (die Aufrufe in `package.json`, Skript `test`):
 Prüfungen der Plandaten gegen `plans/hm-2027.json`
 plus der reinen Logik aus `plan.js` (`plan.test.mjs`), ein Tag-für-Tag-
 Vergleich der neuen gegen die eingefrorene alte Plan-Logik
@@ -35,8 +35,8 @@ Versionsstempel und der Export (`export.test.mjs`), dazu `metrics.test.mjs` (Amp
 Vertragstest gegen die echten App-Eingaben, dazu die Token-Prüfung),
 `access.test.mjs` (Zugangslogik) und `config-consistency.test.mjs` (UID und
 Projekt-ID an allen Stellen gleich), alle ohne Browser, und
-zuletzt die Browser-Checks in Chromium.
-Für die Browser-Tests muss `npm run serve` laufen; Firebase und Strava sind
+`kraftflow`, `runcompare`, `history-data`, `view-run`, `view-history` (reine Logik und Markup der neuen Module), `naming-guard` und `static-greps` (Quelltext-Wächter), und zuletzt die Browser-Checks in Chromium (1125 Checks, darunter Szenario 34, die Prüfmatrix über sieben Fenstergrößen, hell und dunkel).
+**Der Testserver auf Port 8099 muss laufen** (`npm run serve`, aus diesem Verzeichnis); Firebase und Strava sind
 darin gestubbt, es braucht also keine echten Konten.
 
 ## Ausliefern
@@ -65,6 +65,25 @@ ersten Fassung im Code und liegt deshalb weiterhin in der Historie
 (Commit `5160b7d`); es wurde rotiert. Eine ältere, hochgeladene
 `HANDOFF.md` aus der Anfangszeit enthält dieses alte Secret im Klartext —
 nicht wiederverwenden.
+
+## Schriften (Stride)
+
+Geist und Geist Mono liegen selbst gehostet in `fonts/` (kein Drittanbieter-Aufruf
+zur Laufzeit, SIL Open Font License 1.1 in `fonts/OFL.txt`). Dateien unverändert, nicht
+reduziert. Quelle: GitHub-Release `vercel/geist-font` **v1.8.1** (aktueller stabiler
+Release), Archiv
+`https://github.com/vercel/geist-font/releases/download/v1.8.1/geist-font-v1.8.1.zip`,
+daraus `Geist/webfonts/Geist[wght].woff2`, `GeistMono/webfonts/GeistMono[wght].woff2`
+und `OFL.txt`.
+
+| Datei | Größe | SHA-256 |
+| --- | --- | --- |
+| `fonts/Geist-Variable-1.8.1.woff2` | 69 492 Byte | `9ce2d97863cab59a0c7522534112d6c42a4e25c0e6b2ab37766761b0f82cfbd6` |
+| `fonts/GeistMono-Variable-1.8.1.woff2` | 71 236 Byte | `119f3e159fc15dd77311e929d3a657a193b57a3e625234666bc43c6e2b1127f7` |
+| `fonts/OFL.txt` | 4 383 Byte | `c683bfbcc7e087f5d37a54ef628f10387c451a83ddc459b151403a164ac46c90` |
+
+Das Design-Handoff liegt als Referenz in `docs/design-stride/`; die Prototyp-Dateien
+tragen absichtlich die Endung `.txt`, damit sie nie als Seite auf GitHub Pages laufen.
 
 ## Fallen, die schon Zeit gekostet haben
 
@@ -125,6 +144,14 @@ nicht wiederverwenden.
     leeren, solange die App in einem anderen Tab offen ist; die App sagt das
     nach dem Neuladen auf dem Anmeldebildschirm. Das Abmelden in einem
     anderen Tab bemerkt ein offener Tab erst beim Neuladen.
+13. **Neue Module der Stride-Etappen.** `kraftflow.js` (Kraft-Ablauf), `runcompare.js`
+    (Lauf-Vergleich), `history-data.js` (Verlauf-Daten) sind rein und ohne Browser
+    getestet; `view-kraft.js`, `view-run.js`, `view-history.js`, `view-plan.js` liefern
+    nur Markup und importieren nie Firebase, Strava oder `app.js`. Zustand und
+    Verdrahtung bleiben in `app.js`. Der Seitenkopf steht in `#main` und wird nur über
+    `renderMain()`/`setPageHead()` geschrieben.
+14. **`.pipeline-state.md` ist in `.gitignore`.** Der Pipeline-Stand lebt nur lokal
+    und im Agenten-Arbeitsverzeichnis, nie im Repo.
 
 ## Wie hier gearbeitet wird
 
@@ -135,20 +162,22 @@ nicht wiederverwenden.
 - Neue Tests gegenprüfen: einmal absichtlich kaputt machen und sehen,
   dass sie rot werden. Ein Test, der nicht fehlschlagen kann, ist keiner.
 - Vor dem Commit alle Testläufe grün.
-- Keine statischen `style="…"` im Render-Code: Abstände und Farben über die
-  Utility-Klassen in `style.css` (`mt-8`, `fg-muted`, …). Inline bleibt nur,
-  was von Daten abhängt (Balkenhöhen, Fortschrittsbreiten, Kategoriefarben).
+- Nirgends `style="…"` im gerenderten Markup (Auflage C5): Balken und Verläufe sind
+  SVG-Attribute oder `<progress>`, Farben kommen über Klassen. `tests/static-greps.test.mjs`
+  und die Prüfmatrix (Szenario 34) wachen darüber.
 - Handy zuerst: Tests laufen gegen 390×844, und es darf nichts seitlich
   aus dem Bild ragen.
 
 ## Nächster Schritt
 
+0. **Stride abschließen:** Pipeline 8 bis 11 auf dem Gesamtstand, Louis-Test (Schritt 12), Merge.
+   Danach Home-Bildschirm-App löschen und neu hinzufügen (neuer Name und Icon).
 1. **Wochen 17–35 ausformulieren**, jeweils nach den Re-Kalibrierungen
    (nächste: So 22.11.2026), direkt in `plans/hm-2027.json`.
 2. **Schritt 2: Marathon-Coaching** (Mehrziel, Blöcke, Plan-Erzeugung durch
    Claude) — Entwurf in `docs/requirements-marathon-coaching.md`, noch nicht
    freigegeben.
-3. **Bekannte Schuld:** `app.js` hat rund 2300 Zeilen; das Auslagern der
+3. **Bekannte Schuld:** `app.js` hat rund 2500 Zeilen; das Auslagern der
    Datenaufbereitung (`dashboard-data.js`) ist vorgemerkt. Offene
    Minor-Punkte aus den Reviews stehen in `docs/review-code-m2.md`
    (M1, M3, M4, M7, M9–M11) und `docs/review-code-login-1b.md` (N3, S1).

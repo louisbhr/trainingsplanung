@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<!-- Stride, Mockup-Nachtrag E0 (Lücken-Zustände). Eigenständig, ohne externe Skripte oder Schriften.
+     Jeder Zustand steht EINMAL im Quelltext (<div class="spec">). Ein kleines Skript am Ende erzeugt daraus
+     die Frames (hell und dunkel, 390 und 320 px laut data-w), setzt die Statusleiste davor und füllt die
+     wiederkehrenden Bausteine Marke (data-fill="mark") und Tab-Leiste (data-fill="tabs"). Deren fertiges
+     Markup steht in docs/ui-markup-stride.md. Klassenschema und Tokens ebenfalls dort. -->
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stride, Mockup-Nachtrag: Lücken-Zustände</title>
+<style>
+/* =====================================================================
+   1. Tokens (Handoff §3). Je Frame gesetzt, damit hell und dunkel
+   nebeneinander stehen können. In der App liegen sie auf :root und
+   wechseln über prefers-color-scheme.
+   ===================================================================== */
+.theme-light {
+  --bg:#f4f3ef; --card:#ffffff; --sunk:#efeee9; --line:#efeee9; --seg:#e6e5df;
+  --text-primary:#1c1c1a; --text-secondary:#5f5e5a; --text-muted:#767570;
+  --ink-faint:#b5b4ac; --ring-dashed:#c9c8c0; --ink-off:#dcdbd5; --track:rgba(0,0,0,.08);
+  --primary:#0f6e56; --primary-hover:#0b5a46; --on-primary:#ffffff;
+  --teal:#0f6e56; --teal-fg:#0f6e56; --teal-bg:#e1f5ee; --teal-tint:#f3faf7; --teal-soft:#a8d5c4;
+  --coral-accent:#c4532c; --coral:#993c1d; --coral-fg:#993c1d; --coral-bg:#faece7;
+  --purple:#534ab7; --purple-fg:#534ab7; --purple-bg:#eeedfe; --purple-ink:#3d3590; --purple-soft:#dcd9fb; --purple-line:rgba(83,74,183,.18);
+  --sky:#1e6b8f; --sky-bg:#e0f0f8; --sky-soft:#d3e7f1;
+  --amber:#96631a; --amber-bg:#fbf0dc; --amber-soft:#f3e3c4;
+  --ok-fg:#2f7d32; --ok-bg:#e3f2e1; --ok-band:#cfe8d0;
+  --danger-fg:#b3261e; --danger-bg:#fbe4e1; --danger-ink:#8c1d16;
+  --glass:rgba(255,255,255,.86); --tab-shadow:0 8px 24px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.08);
+  --sheet-shadow:0 -10px 30px rgba(0,0,0,.2); --backdrop:rgba(0,0,0,.38);
+  --mark-bg:#0f6e56; --mark-a:#ffffff; --mark-b:#e0673d;
+}
+.theme-dark {
+  --bg:#17171a; --card:#26262b; --sunk:#202024; --line:#33333a; --seg:#2c2c31;
+  --text-primary:#f2f1ec; --text-secondary:#b3b2ab; --text-muted:#918f87;
+  --ink-faint:#6e6d66; --ring-dashed:#55545a; --ink-off:#3a3a40; --track:rgba(255,255,255,.10);
+  --primary:#5fcfa7; --primary-hover:#4cbf96; --on-primary:#0c2a21;
+  --teal:#5fcfa7; --teal-fg:#5fcfa7; --teal-bg:#0c3a2f; --teal-tint:#142a24; --teal-soft:#2a5e4d;
+  --coral-accent:#ef8f61; --coral:#ef8f61; --coral-fg:#ef8f61; --coral-bg:#3d2013;
+  --purple:#a49df5; --purple-fg:#a49df5; --purple-bg:#262156; --purple-ink:#d0ccff; --purple-soft:#3b3480; --purple-line:rgba(164,157,245,.22);
+  --sky:#5fb6dd; --sky-bg:#0b2f42; --sky-soft:#1a4a62;
+  --amber:#ddaa55; --amber-bg:#3a2a0e; --amber-soft:#5a4520;
+  --ok-fg:#7ed88f; --ok-bg:#123a1c; --ok-band:#1f5a2c;
+  --danger-fg:#ff8a80; --danger-bg:#4a1f1c; --danger-ink:#ffb4ab;
+  --glass:rgba(38,38,43,.86); --tab-shadow:0 8px 24px rgba(0,0,0,.4),0 0 0 .5px rgba(255,255,255,.08);
+  --sheet-shadow:0 -10px 30px rgba(0,0,0,.5); --backdrop:rgba(0,0,0,.38);
+  --mark-bg:#26262b; --mark-a:#5fcfa7; --mark-b:#ef8f61;
+}
+
+/* =====================================================================
+   2. Seiten-Rahmen des Mockups (nur hier, nicht Teil der App; Präfix mk-)
+   ===================================================================== */
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#e8e7e2;color:#1c1c1a;font:15px/1.5 Geist,-apple-system,"Segoe UI",system-ui,sans-serif}
+.mk-page{max-width:1560px;margin:0 auto;padding:32px 24px 96px}
+.mk-top h1{margin:0;font-size:30px;font-weight:600;letter-spacing:-.03em;line-height:1.15}
+.mk-top p{margin:8px 0 0;max-width:72ch;color:#4a4943}
+.mk-bar{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;margin-top:20px}
+.mk-nav{display:flex;flex-wrap:wrap;gap:6px}
+.mk-nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border-radius:10px;background:#f4f3ef;color:#1c1c1a;font-size:13px;font-weight:600;text-decoration:none}
+.mk-nav a:hover{background:#fff}
+.mk-nav a:focus-visible,.mk-switch button:focus-visible{outline:2px solid #0f6e56;outline-offset:2px}
+.mk-switch{display:inline-flex;padding:3px;border-radius:12px;background:#dcdbd5}
+.mk-switch button{min-height:44px;padding:0 14px;border:0;border-radius:9px;background:transparent;font:600 13px Geist,-apple-system,system-ui,sans-serif;color:#1c1c1a;cursor:pointer}
+.mk-switch button[aria-pressed="true"]{background:#fff}
+.mk-decisions{margin:28px 0 0;padding:20px 24px;border-radius:18px;background:#f4f3ef;max-width:980px}
+.mk-decisions h2{margin:0 0 8px;font-size:17px;font-weight:600;letter-spacing:-.01em}
+.mk-decisions ol{margin:0;padding-left:20px;font-size:14px;line-height:1.55;color:#3a3a36}
+.mk-decisions li+li{margin-top:4px}
+.mk-group{margin:88px 0 0;padding-top:20px;border-top:2px solid #1c1c1a;font-size:24px;font-weight:600;letter-spacing:-.02em}
+.state{margin-top:48px;scroll-margin-top:16px}
+.state__head{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}
+.state__id{font:600 12px ui-monospace,Menlo,monospace;background:#1c1c1a;color:#fff;padding:3px 8px;border-radius:6px}
+.state__head h3{margin:0;font-size:18px;font-weight:600;letter-spacing:-.01em}
+.state__cap{margin:6px 0 0;max-width:80ch;font-size:14px;color:#4a4943}
+.specs{display:flex;flex-wrap:wrap;gap:36px 28px;align-items:flex-start;margin-top:20px}
+.fig{margin:0}
+.fig figcaption{margin-top:10px;text-align:center;font:12px ui-monospace,Menlo,monospace;color:#5f5e5a}
+body[data-show="light"] .fig-dark,body[data-show="dark"] .fig-light{display:none}
+.frame{position:relative;background:var(--bg);color:var(--text-primary);border-radius:36px;overflow:hidden;
+  box-shadow:0 20px 50px rgba(0,0,0,.14),0 0 0 1px rgba(0,0,0,.08);
+  font-family:Geist,-apple-system,"Segoe UI",system-ui,sans-serif;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.frame.w390{width:390px}.frame.w320{width:320px}
+.frame.h800{height:800px}
+.mk-sb{height:54px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 32px 8px;font-size:15px;font-weight:600}
+.mk-batt{width:26px;height:12px;border:1.5px solid currentColor;border-radius:4px;padding:1.5px}
+.mk-batt::after{content:"";display:block;width:70%;height:100%;background:currentColor;border-radius:1.5px}
+
+/* =====================================================================
+   3. Stride-Bausteine (so wandern sie in style.css; Präfix sd-)
+   ===================================================================== */
+.sd-screen{position:relative;container-type:inline-size;padding-bottom:26px}
+.frame.h800 .sd-screen{height:100%;overflow:hidden;padding-bottom:0}
+.sd-mono{font-family:"Geist Mono",ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.sd-unit{font-family:Geist,-apple-system,"Segoe UI",system-ui,sans-serif;font-weight:500;color:var(--text-muted);letter-spacing:0;margin-left:4px}
+.sd-vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.sd-icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sd-icon--20{width:20px;height:20px}
+:where(.frame) :focus-visible{outline:2px solid var(--teal-fg);outline-offset:2px}
+.sd-block{display:block}
+
+/* Marke */
+.sd-mark{width:28px;height:28px;flex:none}
+.sd-mark--lg{width:64px;height:64px}
+.sd-mark .m-bg{fill:var(--mark-bg)}.sd-mark .m-a{fill:var(--mark-a)}.sd-mark .m-b{fill:var(--mark-b)}
+
+/* Kopf und Seitentitel */
+.sd-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:0 20px}
+.sd-brand{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:600;letter-spacing:-.035em}
+.sd-chip{font:500 12px "Geist Mono",ui-monospace,Menlo,monospace;color:var(--text-secondary);background:var(--card);padding:5px 10px;border-radius:20px;white-space:nowrap}
+.sd-intro{padding:24px 20px 0}
+.sd-intro--tight{padding-top:8px}
+.sd-intro__sub{margin:0;font-size:14px;color:var(--text-secondary)}
+.sd-display{margin:4px 0 0;font-size:clamp(26px,7.7cqi,30px);font-weight:600;letter-spacing:-.03em;line-height:1.1;text-wrap:balance;overflow-wrap:anywhere}
+.sd-intro .sd-bar{margin-top:18px}
+.sd-meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:2px 12px;margin-top:8px;font:11.5px "Geist Mono",ui-monospace,Menlo,monospace;color:var(--text-secondary)}
+.sd-bar{height:6px;border-radius:3px;background:var(--track);overflow:hidden}
+.sd-bar__fill{display:block;height:100%;width:calc(var(--pct,0)*1%);border-radius:3px;background:var(--teal)}
+.sd-bar--coral .sd-bar__fill{background:var(--coral-accent)}
+.sd-bar--lg{height:8px;border-radius:4px}
+.sd-bar--lg .sd-bar__fill{border-radius:4px}
+
+/* Spalte und Karten */
+.sd-main{display:flex;flex-direction:column;gap:12px;padding:20px 12px 0}
+.sd-main--tight{padding-top:16px}
+.sd-main--flush{padding-top:4px}
+.sd-card{background:var(--card);border-radius:22px;padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.sd-card--pad-sm{padding:16px 20px;gap:10px}
+.sd-card--list{padding:4px 0;gap:0}
+.sd-card--loose{gap:16px}
+.sd-card--center{align-items:center;text-align:center;padding:24px 20px;gap:6px}
+.sd-card--center .sd-card__title{margin-top:6px}
+.sd-card--center .sd-actions{justify-content:center;margin-top:8px}
+.sd-card--coach{background:var(--purple-bg);padding:18px 20px;gap:8px}
+.sd-card--danger{background:var(--danger-bg);padding:18px 20px;gap:10px}
+.sd-card__top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 12px}
+.sd-card__title{margin:0;font-size:15px;font-weight:600;line-height:1.3}
+.sd-card__title+.sd-hint{margin-top:4px}
+.sd-card__title--danger{color:var(--danger-fg)}
+.sd-card__text{margin:0;font-size:13.5px;line-height:1.5;color:var(--text-secondary)}
+.sd-card__text--danger{color:var(--danger-ink)}
+.sd-title{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.2;overflow-wrap:anywhere}
+.sd-title--sm{font-size:20px}
+.sd-text{margin:4px 0 0;font-size:13.5px;line-height:1.5;color:var(--text-secondary)}
+.sd-hint{margin:0;font-size:12px;line-height:1.4;color:var(--text-muted)}
+.sd-label{margin:16px 8px -2px;font-size:13px;font-weight:600;color:var(--text-secondary)}
+.sd-main--flush>.sd-label:first-child{margin-top:0}
+.sd-label-row{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:2px 12px;margin:16px 8px -2px}
+.sd-label-row .sd-label{margin:0}
+.sd-actions{display:flex;flex-wrap:wrap;gap:8px}
+.sd-actions--center{align-items:center;gap:14px}
+.sd-legend{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-secondary)}
+.sd-eyebrow{display:flex;align-items:center;gap:8px;margin:0;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary)}
+.sd-eyebrow--teal{color:var(--teal-fg)}.sd-eyebrow--coral{color:var(--coral-fg)}.sd-eyebrow--purple{color:var(--purple-fg)}
+.sd-eyebrow__dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+.sd-eyebrow--muted .sd-eyebrow__dot{background:var(--ring-dashed)}
+.sd-eyebrow--plain{display:block}
+
+/* Buttons */
+.sd-btn{appearance:none;border:0;cursor:pointer;font:600 14px/1.2 Geist,-apple-system,"Segoe UI",system-ui,sans-serif;min-height:44px;padding:0 16px;border-radius:12px;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;text-align:center;background:var(--sunk);color:var(--text-primary);text-decoration:none;
+  transition:background-color 150ms ease-out,transform 150ms ease-out}
+.sd-btn:hover{background:var(--seg)}
+.sd-btn:active{transform:scale(.98)}
+.sd-btn--primary{background:var(--primary);color:var(--on-primary);min-height:50px;border-radius:14px;font-size:15px;width:100%}
+.sd-btn--primary:hover,.sd-btn--primary:active{background:var(--primary-hover)}
+.sd-btn--lg{min-height:54px;border-radius:16px;font-size:16px}
+.sd-btn--md{min-height:48px;border-radius:14px;font-size:14.5px}
+.sd-btn--grow{flex:1 1 140px;width:auto}
+.sd-btn--text{background:transparent;color:var(--teal-fg);padding:0 12px}
+.sd-btn--text:hover{background:var(--teal-bg)}
+.sd-btn--danger{background:var(--danger-bg);color:var(--danger-fg)}
+.sd-btn--danger:hover{background:var(--danger-bg);filter:brightness(.96)}
+.sd-btn--onbanner{background:var(--card);color:var(--danger-fg)}
+.sd-btn--onbanner:hover{background:var(--card);filter:brightness(.97)}
+.sd-btn--coral{background:var(--coral-bg);color:var(--coral-fg)}
+.sd-btn--block{width:100%}
+.sd-btn--dashed{width:100%;min-height:52px;border:1.5px dashed var(--ring-dashed);background:transparent;color:var(--text-secondary);border-radius:22px}
+.sd-btn--dashed:hover{background:var(--card)}
+.sd-btn--back{font-size:15px;font-weight:500;gap:2px;padding-left:8px}
+
+/* Pills */
+.sd-pill{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;line-height:1.2;padding:4px 10px;border-radius:20px;white-space:nowrap;flex:none;background:var(--sunk);color:var(--text-secondary)}
+.sd-pill svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+.sd-pill--primary{background:var(--primary);color:var(--on-primary)}
+.sd-pill--ok{background:var(--ok-bg);color:var(--ok-fg)}
+.sd-pill--amber{background:var(--amber-bg);color:var(--amber)}
+.sd-pill--danger{background:var(--danger-bg);color:var(--danger-fg)}
+.sd-pill--teal{background:var(--teal-bg);color:var(--teal-fg)}
+.sd-pill--purple{background:var(--purple-bg);color:var(--purple-fg)}
+.sd-pill--optional{background:transparent;border:1px dashed var(--text-muted);padding:3px 9px;color:var(--text-secondary)}
+
+/* Haken-Kreis, offener Ring, laufender Ring */
+.sd-check{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none;background:var(--teal);color:var(--on-primary)}
+.sd-check svg{width:13px;height:13px;flex:none;fill:none;stroke:currentColor;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+.sd-check--22{width:22px;height:22px}.sd-check--22 svg{width:12px;height:12px}
+.sd-check--20{width:20px;height:20px}.sd-check--20 svg{width:11px;height:11px}
+.sd-check--lauf{background:var(--coral-accent)}.sd-check--long{background:var(--purple)}
+.sd-ring{width:24px;height:24px;border-radius:50%;border:1.5px dashed var(--ring-dashed);flex:none}
+.sd-ring--22{width:22px;height:22px}.sd-ring--20{width:20px;height:20px}
+.sd-ring--run{border:2px solid var(--teal);display:inline-flex;align-items:center;justify-content:center}
+.sd-ring--run::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--teal)}
+
+/* Ampel-Formen */
+.sd-ampel{width:10px;height:10px;flex:none;display:block}
+.sd-ampel--ok{border-radius:50%;background:var(--ok-fg)}
+.sd-ampel--warn{width:9px;height:9px;border-radius:2px;transform:rotate(45deg);background:var(--amber)}
+.sd-ampel--crit{border-radius:2.5px;background:var(--danger-fg)}
+.sd-ampel--none{border-radius:50%;border:2px solid var(--text-muted)}
+.sd-ampel--load{border-radius:50%;border:2px solid var(--ink-off)}
+
+/* Streifen, Zeilen, Schlüssel-Wert */
+.sd-stripe{width:3px;align-self:stretch;min-height:30px;border-radius:2px;flex:none;background:var(--ink-off)}
+.sd-stripe--kraft{background:var(--teal)}.sd-stripe--lauf{background:var(--coral-accent)}.sd-stripe--long{background:var(--purple)}
+.sd-nextrow{display:flex;align-items:center;gap:12px;width:100%;padding:14px 0 0;border:0;border-top:1px solid var(--line);background:transparent;color:inherit;font:inherit;text-align:left}
+button.sd-nextrow{cursor:pointer;min-height:64px}
+.sd-nextrow__main{flex:1;min-width:0}
+.sd-nextrow__label{display:block;font-size:12px;color:var(--text-muted)}
+.sd-nextrow__value{display:block;margin-top:2px;font-size:14.5px;font-weight:600}
+.sd-nextrow .sd-icon{color:var(--ink-faint)}
+.sd-kv{margin:0}
+.sd-kv dt{font-size:12px;color:var(--text-muted)}
+.sd-kv dd{margin:3px 0 0;font-size:14.5px;overflow-wrap:anywhere}
+.sd-kv dd.sd-mono{font-size:13px}
+.sd-kvlist{display:flex;flex-direction:column;gap:12px;margin:0}
+.sd-split{display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px}
+.sd-split__main{flex:1 1 180px;min-width:0}
+.sd-split__title{margin:0;font-size:14.5px;font-weight:600}
+.sd-split__hint{margin:3px 0 0;font-size:12.5px;line-height:1.4;color:var(--text-muted)}
+.sd-rule{border:0;border-top:1px solid var(--line);margin:0;width:100%}
+
+/* Ergebnis in der Heute-Karte */
+.sd-result{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px;padding-top:14px;border-top:1px solid var(--line)}
+.sd-result__km{margin:0;font-size:32px;font-weight:600;letter-spacing:-.03em;line-height:1}
+.sd-result__km .sd-unit{font-size:14px;margin-left:4px}
+.sd-result__name{flex-basis:100%;margin:0;font-size:12px;color:var(--text-muted)}
+
+/* Coach */
+.sd-coach__text{margin:0;font-size:15px;line-height:1.5;color:var(--purple-ink);text-wrap:pretty}
+.sd-bilanz{border-top:1px solid var(--purple-line);margin-top:6px;padding-top:4px}
+.sd-bilanz__heading{margin:10px 0 0;font-size:13px;font-weight:600;color:var(--purple-fg)}
+.sd-bilanz__body{margin:6px 0 0;font-size:14.5px;line-height:1.5;color:var(--purple-ink);text-wrap:pretty}
+.sd-bilanz__toggle{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;padding:0;border:0;background:transparent;color:var(--purple-fg);font:600 13.5px Geist,-apple-system,system-ui,sans-serif;text-align:left;cursor:pointer}
+.sd-bilanz__toggle .sd-icon{transition:transform 150ms ease-out}
+.sd-bilanz__toggle[aria-expanded="true"] .sd-icon{transform:rotate(180deg)}
+
+/* Detail-Seiten: Kopfzeile, Fortschrittspunkte */
+.sd-nav{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:0 8px}
+.sd-nav__meta{padding:0 12px;font:12.5px "Geist Mono",ui-monospace,Menlo,monospace;color:var(--text-secondary);text-align:right}
+.sd-dots{display:flex;gap:4px;padding:4px 20px 0}
+.sd-dots__seg{position:relative;flex:1;min-width:0;height:6px;padding:0;border:0;border-radius:3px;background:var(--ink-off);cursor:pointer}
+.sd-dots__seg::after{content:"";position:absolute;inset:-19px -2px}
+.sd-dots__seg.is-done{background:var(--teal)}
+.sd-dots__seg.is-current{background:var(--text-primary)}
+.sd-daytitle{padding:8px 20px 0}
+.sd-daytitle .sd-display{margin-top:6px}
+.sd-daytitle .sd-target{margin:8px 0 0;font-size:13px;color:var(--text-secondary)}
+
+/* Kraft: Jetzt-Karte */
+.sd-last{font:12px "Geist Mono",ui-monospace,Menlo,monospace;color:var(--text-muted)}
+.sd-now__name{margin:0;font-size:26px;font-weight:600;letter-spacing:-.03em;line-height:1.15;overflow-wrap:anywhere}
+.sd-now__soll{margin:6px 0 0;font-size:13.5px;line-height:1.45;color:var(--text-secondary)}
+.sd-now__soll b{font:600 13.5px "Geist Mono",ui-monospace,Menlo,monospace;color:var(--text-primary)}
+.sd-tip{align-self:flex-start;margin:0;font-size:12.5px;font-weight:600;line-height:1.35;padding:6px 10px;border-radius:10px;background:var(--sunk);color:var(--text-secondary)}
+.sd-tip--up{background:var(--teal-bg);color:var(--teal-fg)}
+.sd-tip--hold{background:var(--sky-bg);color:var(--sky)}
+.sd-tip--stall{background:var(--amber-bg);color:var(--amber)}
+.sd-sets{display:flex;flex-direction:column;gap:6px}
+.sd-set{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:10px 12px;border:0;border-radius:14px;background:var(--bg);color:inherit;font:inherit;text-align:left}
+button.sd-set{cursor:pointer}
+.sd-set__label{width:54px;flex:none;font-size:12.5px;color:var(--text-muted)}
+.sd-set__value{flex:1;min-width:0;font-size:14px;color:var(--text-secondary)}
+.sd-set.is-done .sd-set__value{color:var(--text-muted)}
+.sd-set--active{display:block;padding:12px 12px 14px;border-radius:16px;background:var(--teal-tint);box-shadow:inset 0 0 0 1.5px var(--teal)}
+.sd-set__head{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:20px;margin-bottom:10px}
+.sd-set__head .sd-btn--text{min-height:44px;margin:-12px -8px -12px 0;padding:0 8px;font-size:13.5px}
+.sd-set__title{font-size:12.5px;font-weight:600;color:var(--teal-fg)}
+
+/* Stepper */
+.sd-steppers{display:flex;flex-wrap:wrap;gap:10px 8px}
+.sd-stepper{flex:1 1 auto;display:flex;align-items:center;gap:2px;min-width:0}
+.sd-stepper--weight{flex-grow:1.4}
+.sd-stepper--solo{flex-basis:100%}
+.sd-stepper__btn{flex:none;width:44px;height:44px;border:0;border-radius:50%;background:var(--card);color:var(--text-primary);font:400 20px/1 Geist,-apple-system,system-ui,sans-serif;display:inline-grid;place-items:center;cursor:pointer;transition:transform 150ms ease-out}
+.sd-stepper__btn:active{transform:scale(.94)}
+.sd-stepper__val{flex:1 1 auto;min-width:36px;min-height:44px;padding:0 2px;border:0;background:transparent;color:inherit;font:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:text}
+.sd-stepper__num{font-size:24px;font-weight:600;letter-spacing:-.03em;line-height:1;white-space:nowrap;border-bottom:1.5px dashed var(--ring-dashed);padding-bottom:2px}
+.sd-stepper__unit{margin-top:3px;font-size:11px;font-weight:500;line-height:1;color:var(--text-muted)}
+.sd-stepper__field{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center}
+.sd-stepper__field .sd-stepper__unit{margin-top:4px}
+.sd-stepper__input{width:100%;min-width:0;height:44px;border:0;border-radius:12px;background:var(--card);color:var(--text-primary);text-align:center;
+  font:600 24px "Geist Mono",ui-monospace,Menlo,monospace;letter-spacing:-.03em;outline:2px solid var(--teal);outline-offset:0}
+
+/* Kraft: Reihenfolge */
+.sd-order__row{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:8px 16px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.sd-order__row+.sd-order__row{border-top:1px solid var(--line)}
+.sd-order__row.is-current{background:var(--teal-tint)}
+.sd-order__pos{width:16px;flex:none;text-align:right;font-size:11.5px;color:var(--text-muted)}
+.sd-order__main{flex:1;min-width:0;padding:4px 0}
+.sd-order__name{display:block;font-size:14.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sd-order__row.is-current .sd-order__name{font-weight:600}
+.sd-order__row.is-done .sd-order__name{color:var(--text-muted)}
+.sd-order__sub{display:block;margin-top:2px;font-size:11.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Kraft: Anpassen-Modus */
+.sd-edit__row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:12px 16px}
+.sd-edit__row+.sd-edit__row{border-top:1px solid var(--line)}
+.sd-edit__lead{display:flex;align-items:center;gap:10px;flex:1 1 150px;min-width:0}
+.sd-edit__main{min-width:0}
+.sd-edit__name{margin:0;font-size:14.5px;font-weight:600;line-height:1.3;display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;overflow-wrap:anywhere}
+.sd-edit__sub{margin:2px 0 0;font-size:11.5px;color:var(--text-muted)}
+.sd-edit__actions{display:flex;gap:8px;flex:0 0 auto}
+.sd-edit__actions .sd-btn{padding:0 14px}
+.sd-edit__row.is-removed .sd-edit__name{font-weight:500;color:var(--text-muted);text-decoration:line-through}
+.sd-edit__form{display:flex;flex-direction:column;gap:12px;flex:1 1 100%;padding:4px 0}
+@container (max-width:340px){.sd-edit__actions{flex:1 1 100%}.sd-edit__actions .sd-btn{flex:1}}
+
+/* Formulare */
+.sd-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.sd-field__label{font-size:12.5px;font-weight:500;color:var(--text-secondary)}
+.sd-input{width:100%;min-width:0;height:48px;padding:0 14px;border:0;border-radius:12px;background:var(--sunk);color:var(--text-primary);font:16px Geist,-apple-system,system-ui,sans-serif}
+.sd-input::placeholder{color:var(--text-muted)}
+.sd-input:focus-visible{outline:2px solid var(--teal);outline-offset:1px}
+.sd-notice{margin:0;font-size:13px;line-height:1.45;padding:10px 12px;border-radius:10px}
+.sd-notice--danger{background:var(--danger-bg);color:var(--danger-fg)}
+.sd-notice--amber{background:var(--amber-bg);color:var(--amber)}
+
+/* Lauf: Vergleich */
+.sd-compare{gap:20px;padding:22px 20px}
+.sd-compare__top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px 12px}
+.sd-bigkm{margin:0;font-size:clamp(40px,12.4cqi,48px);font-weight:600;letter-spacing:-.04em;line-height:1}
+.sd-bigkm .sd-unit{font-size:18px;margin-left:6px}
+.sd-compare__sub{margin:8px 0 0;font-size:13.5px;color:var(--text-secondary)}
+.sd-range{display:flex;flex-direction:column;gap:8px}
+.sd-range__head{display:flex;justify-content:space-between;align-items:baseline;gap:4px 12px;flex-wrap:wrap}
+.sd-range__label{font-size:13px;color:var(--text-secondary)}
+.sd-range__value{font-size:15px;font-weight:600;color:var(--text-primary)}
+.sd-range__value.is-ok{color:var(--ok-fg)}.sd-range__value.is-warn{color:var(--amber)}
+.sd-range__track{position:relative;height:22px}
+.sd-range__track::before{content:"";position:absolute;left:0;right:0;top:8px;height:6px;border-radius:3px;background:var(--sunk)}
+.sd-range__band{position:absolute;top:8px;height:6px;border-radius:3px;background:var(--ok-band);left:calc(var(--from)*1%);width:calc((var(--to) - var(--from))*1%)}
+.sd-range__mark{position:absolute;top:2px;left:calc(var(--at)*1%);width:4px;height:18px;margin-left:-2px;border-radius:2px;background:var(--text-primary);box-shadow:0 0 0 2px var(--card)}
+.sd-range__axis{display:flex;justify-content:space-between;gap:2px 8px;flex-wrap:wrap;font:10.5px "Geist Mono",ui-monospace,Menlo,monospace;color:var(--text-muted)}
+.sd-range__note{margin:0;font-size:12px;line-height:1.4;color:var(--text-muted)}
+.sd-linkrow{display:flex;align-items:center;gap:14px;width:100%;min-height:64px;padding:16px 20px;border:0;border-radius:22px;background:var(--card);color:inherit;font:inherit;text-align:left;cursor:pointer}
+.sd-linkrow__main{flex:1;min-width:0}
+.sd-linkrow__label{display:block;font-size:12px;color:var(--text-muted)}
+.sd-linkrow__name{display:block;margin-top:3px;font-size:14.5px;font-weight:600;overflow-wrap:anywhere}
+.sd-linkrow__note{display:block;margin-top:3px;font-size:12.5px;font-weight:500;color:var(--amber)}
+.sd-linkrow .sd-icon{color:var(--ink-faint)}
+.sd-planhint{margin:4px 20px 0}
+.sd-planhint__label{margin:0;font-size:12px;font-weight:600;color:var(--text-muted)}
+.sd-planhint__text{margin:2px 0 0;font-size:13.5px;line-height:1.5;color:var(--text-secondary)}
+
+/* Woche: Tageszeilen */
+.sd-day.is-today{background:var(--teal-tint)}
+.sd-day+.sd-day{border-top:1px solid var(--line)}
+.sd-day__row{display:flex;align-items:center;gap:14px;width:100%;min-height:64px;padding:14px 20px;border:0;background:transparent;color:inherit;font:inherit;text-align:left}
+button.sd-day__row{cursor:pointer}
+.sd-day__when{width:30px;flex:none}
+.sd-day__dow{display:block;font-size:12px;font-weight:600}
+.sd-day__date{display:block;margin-top:2px;font-size:11px;color:var(--text-muted)}
+.sd-day__main{flex:1;min-width:0}
+.sd-day__title{display:block;font-size:14.5px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.sd-day__sub{display:block;margin-top:3px;font-size:12px;line-height:1.35;color:var(--text-muted)}
+.sd-day.is-today .sd-day__dow{color:var(--teal-fg)}
+.sd-day.is-rest .sd-day__title{font-weight:400;color:var(--text-muted)}
+.sd-day__detail{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:0 20px 16px 84px}
+.sd-day__detail p{margin:0;font-size:13px;line-height:1.45;color:var(--text-secondary)}
+.sd-day__detail p.is-warn{color:var(--amber)}
+.sd-day__detail .sd-btn{margin-top:6px}
+
+/* Sheet (in der App position:fixed an der Spalte; hier im Frame absolut) */
+.sd-backdrop{position:absolute;inset:0;background:var(--backdrop);z-index:10}
+.sd-sheet{position:absolute;left:0;right:0;bottom:0;z-index:11;max-height:78%;overflow-y:auto;background:var(--card);border-radius:28px 28px 0 0;padding:10px 20px 36px;box-shadow:var(--sheet-shadow)}
+.sd-sheet__grip{width:36px;height:5px;border-radius:3px;background:var(--ink-off);margin:0 auto 14px}
+.sd-sheet__head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.sd-sheet__title{margin:0;font-size:19px;font-weight:600;letter-spacing:-.02em;outline:none}
+.sd-sheet__close{position:relative;flex:none;width:36px;height:36px;border:0;border-radius:50%;background:var(--sunk);color:var(--text-secondary);display:grid;place-items:center;cursor:pointer}
+.sd-sheet__close::after{content:"";position:absolute;inset:-4px}
+.sd-sheet__lead{margin:0 0 12px;font-size:13.5px;color:var(--text-secondary)}
+.sd-sheet__list{display:flex;flex-direction:column;gap:8px}
+.sd-sheet__tools{display:flex;justify-content:space-between;flex-wrap:wrap;gap:0 12px;margin:4px 0 6px}
+.sd-option{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:14px 16px;border:0;border-radius:16px;background:var(--bg);color:inherit;font:inherit;text-align:left;cursor:pointer}
+.sd-option.is-selected{background:var(--teal-tint);box-shadow:0 0 0 2px var(--teal)}
+.sd-option[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+.sd-option__main{flex:1;min-width:0}
+.sd-option__name{display:block;font-size:14.5px;font-weight:600;overflow-wrap:anywhere}
+.sd-option__sub{display:block;margin-top:3px;font-size:12.5px;color:var(--text-muted)}
+.sd-radio{width:20px;height:20px;flex:none;border-radius:50%;border:1.5px solid var(--ring-dashed)}
+.sd-option.is-selected .sd-radio{border:2px solid var(--teal);background:var(--teal);box-shadow:inset 0 0 0 3px var(--teal-tint)}
+
+/* Segment */
+.sd-seg{display:inline-flex;align-self:flex-start;padding:3px;border-radius:12px;background:var(--seg)}
+.sd-seg__opt{position:relative;height:34px;padding:0 14px;border:0;border-radius:9px;background:transparent;color:var(--text-secondary);font:600 13px Geist,-apple-system,system-ui,sans-serif;cursor:pointer}
+.sd-seg__opt::after{content:"";position:absolute;inset:-5px 0}
+.sd-seg__opt.is-active{background:var(--card);color:var(--text-primary)}
+
+/* Tab-Leiste (in der App position:fixed an der 480-px-Spalte, hier im Fluss) */
+.sd-tabbar{display:flex;height:64px;margin:24px 12px 0;padding:6px;border-radius:32px;background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);box-shadow:var(--tab-shadow)}
+.sd-tab{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:0;border-radius:26px;background:transparent;color:var(--text-secondary);font:600 10.5px Geist,-apple-system,system-ui,sans-serif;cursor:pointer}
+.sd-tab svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sd-tab.is-active{background:var(--teal-bg);color:var(--teal-fg)}
+
+/* Anmeldung und Nebenscreens */
+.sd-auth{min-height:646px;display:flex;flex-direction:column;justify-content:center;gap:32px;padding:16px 24px 32px}
+.sd-auth__brand{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.sd-auth__name{margin:0;font-size:32px;font-weight:600;letter-spacing:-.035em;line-height:1.1}
+.sd-auth__tag{margin:0;max-width:280px;font-size:15px;line-height:1.5;color:var(--text-secondary)}
+.sd-auth__foot{margin:0;text-align:center;font-size:12px;color:var(--text-muted)}
+
+/* Bewegung nur dort, wo sie etwas erklärt, und abschaltbar */
+@media (prefers-reduced-motion:reduce){.sd-btn,.sd-stepper__btn,.sd-bilanz__toggle .sd-icon{transition:none}.sd-btn:active,.sd-stepper__btn:active{transform:none}}
+</style>
+</head>
+<body data-show="both">
+<div class="mk-page">
+
+<header class="mk-top">
+  <h1>Stride: Mockup-Nachtrag für die Lücken-Zustände</h1>
+  <p>Etappe E0 (F10). Alles, was der Prototyp schon zeigt, gilt als abgenommen und steht hier nicht noch einmal. Dieser Nachtrag zeigt die Zustände, die dort fehlen, im selben Stil, hell und dunkel, bei 390 px und (wo es eng wird) bei 320 px. Die Frames sind echtes HTML und CSS mit den Klassen aus <code>docs/ui-markup-stride.md</code>. Schrift: Geist mit Systemschrift als Ersatz (die Schriftdateien kommen in Etappe E1), darum können Zeichenbreiten im echten Stand leicht abweichen. Die Frames entstehen per Skript aus den Vorlagen im Quelltext.</p>
+  <div class="mk-bar">
+    <nav class="mk-nav" aria-label="Zustände">
+      <a href="#g-heute">Heute</a><a href="#g-kraft">Kraft-Tag</a><a href="#g-lauf">Lauf-Tag</a><a href="#g-woche">Woche</a><a href="#g-plan">Plan</a><a href="#g-auth">Login-Nebenscreens</a><a href="#g-bausteine">Bausteine</a>
+    </nav>
+    <div class="mk-switch" role="group" aria-label="Darstellung">
+      <button type="button" data-set="both" aria-pressed="true">Hell und dunkel</button>
+      <button type="button" data-set="light" aria-pressed="false">Hell</button>
+      <button type="button" data-set="dark" aria-pressed="false">Dunkel</button>
+    </div>
+  </div>
+  <section class="mk-decisions" aria-labelledby="mk-dec">
+    <h2 id="mk-dec">Entscheidungen, die ich getroffen habe (zur Abnahme)</h2>
+    <ol>
+      <li><strong>Stepper:</strong> Die Einheit (kg, Wdh, s) steht klein unter dem Zahlenwert statt dahinter. So passen „102,5“ und „15“ nebeneinander in 390 px, und der Umbruch auf zwei Zeilen untereinander passiert von selbst, sobald es zu eng wird (bei 320 px immer).</li>
+      <li><strong>Direkte Eingabe (V1):</strong> Der Wert hat eine gestrichelte Unterlinie als Hinweis „antippbar“. Beim Tippen wird er zum Feld (24 px, Zahlentastatur), rechts im Satzkopf erscheint „Fertig“, weil die iOS-Dezimaltastatur keine Eingabetaste hat.</li>
+      <li><strong>„+ Gewicht“ (E3):</strong> Text-Button rechts im Satzkopf des aktiven Satzes, nur im Nur-Wdh-Modus. Er blendet den Gewichts-Stepper (Start 0 kg) für diese Einheit ein.</li>
+      <li><strong>„Mit n Sätzen abschließen“ (F6):</strong> Text-Button direkt unter dem Primärbutton, erst ab einem fertigen Satz. Fertige Sätze sind antippbar (wieder aktiv).</li>
+      <li><strong>Anpassen:</strong> eigene Ansicht statt Karten-Umbau. Rechts oben „Fertig“, darunter eine Liste mit „Ersetzen“ und „Entfernen“ je Übung, entfernte Übungen gedimmt mit „Zurückholen“, ganz unten gestricheltes „+ Übung hinzufügen“.</li>
+      <li><strong>Offene Sätze:</strong> Wert in <code>--text-secondary</code> statt <code>--ink-faint</code>. Der Prototyp-Wert hat nur ca. 1,8:1 Kontrast, und genau die kommenden Werte will man im Studio lesen.</li>
+      <li><strong>Fehlerkarten</strong> im Lauf-Tag und das Ladefehler-Banner im Kraft-Tag folgen dem Heute-Fehlerbanner (Danger-Fläche, weißer Button). Nie Koralle.</li>
+      <li><strong>Platzhalterwoche</strong> auf Heute hat bewusst keinen Button: Coach und Status darunter sind der Inhalt, es ist keine Sackgasse.</li>
+      <li><strong>„Kein Zugriff“</strong> hat als einzige Aktion den Primärbutton „Abmelden“ (teal). Im Plan-Tab bleibt Abmelden ein Danger-Button.</li>
+    </ol>
+  </section>
+  <noscript><p><strong>Hinweis:</strong> Ohne JavaScript erscheinen die Frames nicht, weil sie aus den Vorlagen im Quelltext erzeugt werden.</p></noscript>
+</header>
+
+<!-- ========================================================= HEUTE -->
+<h2 class="mk-group" id="g-heute">Heute</h2>
+
+<section class="state" id="h1">
+  <header class="state__head"><span class="state__id">H1</span><h3>Heute-Karte Lauf, noch kein Lauf</h3></header>
+  <p class="state__cap">Gleicher Aufbau wie die Kraft-Karte: Überzeile in Koralle (Laufen, nie Fehler), Titel, Zielzeile mit Pace und HF, ein Primärbutton in das Lauf-Tag.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <header class="sd-head"><div class="sd-brand"><svg class="sd-mark" viewBox="0 0 64 64" data-fill="mark"></svg><span>Stride</span></div><span class="sd-chip">W8 / 35</span></header>
+      <div class="sd-intro">
+        <p class="sd-intro__sub">Woche 8 · Entlastung</p>
+        <h3 class="sd-display">Mittwoch, 21. Oktober</h3>
+        <div class="sd-bar" role="progressbar" aria-label="Planfortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="23" style="--pct:22.9"><span class="sd-bar__fill"></span></div>
+        <div class="sd-meta"><span>Phase 1 · Basis</span><span>193 Tage bis 02.05.</span></div>
+      </div>
+      <main class="sd-main">
+        <article class="sd-card" data-card="today" data-kind="lauf">
+          <p class="sd-eyebrow sd-eyebrow--coral"><span class="sd-eyebrow__dot"></span>Heute · Lauf</p>
+          <div><h4 class="sd-title">Easy run · 8 km</h4><p class="sd-text">Ziel <span class="sd-mono">6:15–6:40</span> /km · HF <span class="sd-mono">148–160</span> bpm</p></div>
+          <button type="button" class="sd-btn sd-btn--primary" data-action="open-day" data-date="2026-10-21">Lauf ansehen</button>
+        </article>
+      </main>
+      <nav class="sd-tabbar" aria-label="Hauptnavigation" data-fill="tabs" data-active="dashboard"></nav>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="h2">
+  <header class="state__head"><span class="state__id">H2</span><h3>Heute-Karte Lauf, Lauf zugeordnet</h3></header>
+  <p class="state__cap">Ist ein Strava-Lauf zugeordnet, zeigt die Karte die gelaufene Distanz in Mono, die Pill „im Plan“ (Grün, ab 90 % der Soll-km) oder „zu kurz“ (Amber) und den Strava-Namen. Der Button heißt weiter „Lauf ansehen“.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320" data-label="im Plan">
+      <header class="sd-head"><div class="sd-brand"><svg class="sd-mark" viewBox="0 0 64 64" data-fill="mark"></svg><span>Stride</span></div><span class="sd-chip">W8 / 35</span></header>
+      <div class="sd-intro">
+        <p class="sd-intro__sub">Woche 8 · Entlastung</p>
+        <h3 class="sd-display">Mittwoch, 21. Oktober</h3>
+        <div class="sd-bar" role="progressbar" aria-label="Planfortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="23" style="--pct:22.9"><span class="sd-bar__fill"></span></div>
+        <div class="sd-meta"><span>Phase 1 · Basis</span><span>193 Tage bis 02.05.</span></div>
+      </div>
+      <main class="sd-main">
+        <article class="sd-card" data-card="today" data-kind="lauf">
+          <p class="sd-eyebrow sd-eyebrow--coral"><span class="sd-eyebrow__dot"></span>Heute · Lauf</p>
+          <div><h4 class="sd-title">Easy run · 8 km</h4><p class="sd-text">Ziel <span class="sd-mono">6:15–6:40</span> /km · HF <span class="sd-mono">148–160</span> bpm</p></div>
+          <div class="sd-result">
+            <p class="sd-result__km sd-mono">8,2<span class="sd-unit">km</span></p>
+            <span class="sd-pill sd-pill--ok">im Plan</span>
+            <p class="sd-result__name">Morgenlauf · 07:05</p>
+          </div>
+          <button type="button" class="sd-btn sd-btn--primary" data-action="open-day" data-date="2026-10-21">Lauf ansehen</button>
+        </article>
+      </main>
+      <nav class="sd-tabbar" aria-label="Hauptnavigation" data-fill="tabs" data-active="dashboard"></nav>
+    </div>
+    <div class="spec" data-w="390" data-label="zu kurz">
+      <header class="sd-head"><div class="sd-brand"><svg class="sd-mark" viewBox="0 0 64 64" data-fill="mark"></svg><span>Stride</span></div><span class="sd-chip">W8 / 35</span></header>
+      <div class="sd-intro">
+        <p class="sd-intro__sub">Woche 8 · Entlastung</p>
+        <h3 class="sd-display">Mittwoch, 21. Oktober</h3>
+        <div class="sd-bar" role="progressbar" aria-label="Planfortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="23" style="--pct:22.9"><span class="sd-bar__fill"></span></div>
+        <div class="sd-meta"><span>Phase 1 · Basis</span><span>193 Tage bis 02.05.</span></div>
+      </div>
+      <main class="sd-main">
+        <article class="sd-card" data-card="today" data-kind="lauf">
+          <p class="sd-eyebrow sd-eyebrow--coral"><span class="sd-eyebrow__dot"></span>Heute · Lauf</p>
+          <div><h4 class="sd-title">Easy run · 8 km</h4><p class="sd-text">Ziel <span class="sd-mono">6:15–6:40</span> /km · HF <span class="sd-mono">148–160</span> bpm</p></div>
+          <div class="sd-result">
+            <p class="sd-result__km sd-mono">6,9<span class="sd-unit">km</span></p>
+            <span class="sd-pill sd-pill--amber">zu kurz</span>
+            <p class="sd-result__name">Mittagslauf · 12:40</p>
+          </div>
+          <button type="button" class="sd-btn sd-btn--primary" data-action="open-day" data-date="2026-10-21">Lauf ansehen</button>
+        </article>
+      </main>
+      <nav class="sd-tabbar" aria-label="Hauptnavigation" data-fill="tabs" data-active="dashboard"></nav>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="h3">
+  <header class="state__head"><span class="state__id">H3</span><h3>Heute-Karte Long Run</h3></header>
+  <p class="state__cap">Long Run ist Lila (Überzeile und Streifen in der Woche). Ein Lauf-Button, sonst identisch zu H1.</p>
+  <div class="specs">
+    <div class="spec" data-w="390">
+      <header class="sd-head"><div class="sd-brand"><svg class="sd-mark" viewBox="0 0 64 64" data-fill="mark"></svg><span>Stride</span></div><span class="sd-chip">W8 / 35</span></header>
+      <div class="sd-intro">
+        <p class="sd-intro__sub">Woche 8 · Entlastung</p>
+        <h3 class="sd-display">Samstag, 24. Oktober</h3>
+        <div class="sd-bar" role="progressbar" aria-label="Planfortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="23" style="--pct:22.9"><span class="sd-bar__fill"></span></div>
+        <div class="sd-meta"><span>Phase 1 · Basis</span><span>190 Tage bis 02.05.</span></div>
+      </div>
+      <main class="sd-main">
+        <article class="sd-card" data-card="today" data-kind="long">
+          <p class="sd-eyebrow sd-eyebrow--purple"><span class="sd-eyebrow__dot"></span>Heute · Long run</p>
+          <div><h4 class="sd-title">Long run · 11 km</h4><p class="sd-text">Ziel <span class="sd-mono">6:15–6:40</span> /km · HF <span class="sd-mono">148–160</span> bpm</p></div>
+          <button type="button" class="sd-btn sd-btn--primary" data-action="open-day" data-date="2026-10-24">Lauf ansehen</button>
+        </article>
+      </main>
+      <nav class="sd-tabbar" aria-label="Hauptnavigation" data-fill="tabs" data-active="dashboard"></nav>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="h4">
+  <header class="state__head"><span class="state__id">H4</span><h3>Heute-Karte Platzhalterwoche</h3></header>
+  <p class="state__cap">Woche ohne Tagesdetails (bis zur Re-Kalibrierung). Muted-Überzeile „Offen“, Datum der Re-Kalibrierung und geplante Kilometer aus dem Plan. Kein Button: darunter folgen Coach und Status.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <header class="sd-head"><div class="sd-brand"><svg class="sd-mark" viewBox="0 0 64 64" data-fill="mark"></svg><span>Stride</span></div><span class="sd-chip">W9 / 35</span></header>
+      <div class="sd-intro">
+        <p class="sd-intro__sub">Woche 9 · Aufbau</p>
+        <h3 class="sd-display">Montag, 26. Oktober</h3>
+        <div class="sd-bar" role="progressbar" aria-label="Planfortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="26" style="--pct:25.7"><span class="sd-bar__fill"></span></div>
+        <div class="sd-meta"><span>Phase 1 · Basis</span><span>188 Tage bis 02.05.</span></div>
+      </div>
+      <main class="sd-main">
+        <article class="sd-card" data-card="today" data-kind="placeholder">
+          <p class="sd-eyebrow sd-eyebrow--muted"><span class="sd-eyebrow__dot"></span>Heute · Offen</p>
+          <div><h4 class="sd-title">Details nach der Re-Kalibrierung</h4><p class="sd-text">Die Einheiten dieser Woche stehen ab dem 28.10. fest. Geplant sind 40 km.</p></div>
+        </article>
+      </main>
+      <nav class="sd-tabbar" aria-label="Hauptnavigation" data-fill="tabs" data-active="dashboard"></nav>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="h5">
+  <header class="state__head"><span class="state__id">H5</span><h3>Heute-Karte „Bis zum Rennen“</h3></header>
+  <p class="state__cap">Lücke zwischen Planende und Renntag. Aufgebaut wie die Ruhetag-Karte. Ohne Planwoche entfallen Wochen-Chip und Phasenbalken; die Zeile „Renntag“ ist nicht antippbar und hat darum keinen Chevron.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <header class="sd-head"><div class="sd-brand"><svg class="sd-mark" viewBox="0 0 64 64" data-fill="mark"></svg><span>Stride</span></div></header>
+      <div class="sd-intro">
+        <p class="sd-intro__sub">Zwischen zwei Planwochen</p>
+        <h3 class="sd-display">Dienstag, 6. April</h3>
+        <div class="sd-meta"><span>Halbmarathon</span><span>26 Tage bis 02.05.</span></div>
+      </div>
+      <main class="sd-main">
+        <article class="sd-card" data-card="today" data-kind="race">
+          <p class="sd-eyebrow sd-eyebrow--muted"><span class="sd-eyebrow__dot"></span>Heute · Frei</p>
+          <div><h4 class="sd-title">Bis zum Rennen</h4><p class="sd-text">Der Plan endet vor dem Renntag. Für diesen Tag gibt es keine Einheit mehr.</p></div>
+          <div class="sd-nextrow"><span class="sd-stripe sd-stripe--long"></span><div class="sd-nextrow__main"><span class="sd-nextrow__label">Renntag</span><span class="sd-nextrow__value">Sonntag, 02.05.2027</span></div><span class="sd-mono sd-hint">noch 26 Tage</span></div>
+        </article>
+      </main>
+      <nav class="sd-tabbar" aria-label="Hauptnavigation" data-fill="tabs" data-active="dashboard"></nav>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="h6">
+  <header class="state__head"><span class="state__id">H6</span><h3>Coach-Karte mit Montags-Wochenbilanz (F3)</h3></header>
+  <p class="state__cap">Montags steht die Bilanz der Vorwoche offen unter einer Trennlinie, mit ausgeschriebener Überschrift „Wochenbilanz · Woche 7“. Dienstag bis Sonntag zeigt die Karte nur den kurzen Auslöser „Wochenbilanz W7“ (zugeklappt, dann aufgeklappt). Der Auslöser ist ein 44-px-Button mit Chevron nach unten bzw. oben.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320" data-label="Montag, offen">
+      <div class="sd-intro sd-intro--tight"><p class="sd-intro__sub">Woche 8 · Entlastung</p><h3 class="sd-display">Montag, 19. Oktober</h3></div>
+      <main class="sd-main">
+        <article class="sd-card sd-card--coach" data-card="coach">
+          <p class="sd-eyebrow sd-eyebrow--purple"><svg class="sd-icon" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-4 4V5z"/><path d="M8 9h8M8 12.5h5"/></svg>Coach</p>
+          <p class="sd-coach__text">Entlastungswoche: Gewichte heute bei etwa 80 % halten. Letzte Woche waren 41,3 km der Höhepunkt der Aufbauphase.</p>
+          <div class="sd-bilanz">
+            <h4 class="sd-bilanz__heading">Wochenbilanz · Woche 7</h4>
+            <p class="sd-bilanz__body">41,3 von 41 km gelaufen, beide Krafteinheiten erfasst. Klimmzüge stagnieren seit zwei Einheiten, sonst läuft alles im Plan. In der Entlastungswoche die Gewichte um etwa 20 % senken.</p>
+          </div>
+        </article>
+      </main>
+    </div>
+    <div class="spec" data-w="390 320" data-label="Di bis So, zugeklappt">
+      <div class="sd-intro sd-intro--tight"><p class="sd-intro__sub">Woche 8 · Entlastung</p><h3 class="sd-display">Dienstag, 20. Oktober</h3></div>
+      <main class="sd-main">
+        <article class="sd-card sd-card--coach" data-card="coach">
+          <p class="sd-eyebrow sd-eyebrow--purple"><svg class="sd-icon" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-4 4V5z"/><path d="M8 9h8M8 12.5h5"/></svg>Coach</p>
+          <p class="sd-coach__text">Entlastungswoche: heute bei etwa 80 % des Gewichts aus Woche 7 bleiben. Gestern 8,2 km sauber in der Zone.</p>
+          <div class="sd-bilanz">
+            <button type="button" class="sd-bilanz__toggle" data-action="toggle-bilanz" aria-expanded="false">Wochenbilanz W7<svg class="sd-icon" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          </div>
+        </article>
+      </main>
+    </div>
+    <div class="spec" data-w="390" data-label="Di bis So, aufgeklappt">
+      <div class="sd-intro sd-intro--tight"><p class="sd-intro__sub">Woche 8 · Entlastung</p><h3 class="sd-display">Dienstag, 20. Oktober</h3></div>
+      <main class="sd-main">
+        <article class="sd-card sd-card--coach" data-card="coach">
+          <p class="sd-eyebrow sd-eyebrow--purple"><svg class="sd-icon" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-4 4V5z"/><path d="M8 9h8M8 12.5h5"/></svg>Coach</p>
+          <p class="sd-coach__text">Entlastungswoche: heute bei etwa 80 % des Gewichts aus Woche 7 bleiben. Gestern 8,2 km sauber in der Zone.</p>
+          <div class="sd-bilanz">
+            <button type="button" class="sd-bilanz__toggle" data-action="toggle-bilanz" aria-expanded="true">Wochenbilanz W7<svg class="sd-icon" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+            <p class="sd-bilanz__body">41,3 von 41 km gelaufen, beide Krafteinheiten erfasst. Klimmzüge stagnieren seit zwei Einheiten, sonst läuft alles im Plan. In der Entlastungswoche die Gewichte um etwa 20 % senken.</p>
+          </div>
+        </article>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================= KRAFT-TAG -->
+<h2 class="mk-group" id="g-kraft">Kraft-Tag (Variante B „Fokus“)</h2>
+
+<section class="state" id="k1">
+  <header class="state__head"><span class="state__id">K1</span><h3>Gesamtansicht mit Strava-Zeile (F7), „Mit n Sätzen abschließen“ (F6) und „Anpassen“</h3></header>
+  <p class="state__cap">Basis für die folgenden Zustände. Neu gegenüber dem Prototyp: Text-Button „Mit 1 Satz abschließen“ unter dem Primärbutton, fertige Sätze sind antippbar (kein Chevron, denn sie öffnen keinen Screen), unter der Reihenfolge die unauffällige Zeile „Einheit laut Strava“ (nur wenn Daten da sind, nicht antippbar) und der Text-Button „Anpassen“.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <nav class="sd-nav" aria-label="Kopfzeile">
+        <button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Heute</button>
+        <span class="sd-nav__meta">5 von 8 erledigt</span>
+      </nav>
+      <div class="sd-dots" role="group" aria-label="Übungen">
+        <button type="button" class="sd-dots__seg is-done" data-action="focus-exercise" data-slug="squats" aria-label="Squats, erledigt"></button>
+        <button type="button" class="sd-dots__seg is-done" data-action="focus-exercise" data-slug="deadlift" aria-label="Deadlift, erledigt"></button>
+        <button type="button" class="sd-dots__seg is-done" data-action="focus-exercise" data-slug="nordic-hamstring-curl" aria-label="Nordic hamstring curl, erledigt"></button>
+        <button type="button" class="sd-dots__seg is-done" data-action="focus-exercise" data-slug="klimmzuege" aria-label="Klimmzüge, erledigt"></button>
+        <button type="button" class="sd-dots__seg is-done" data-action="focus-exercise" data-slug="brustpresse" aria-label="Brustpresse, erledigt"></button>
+        <button type="button" class="sd-dots__seg is-current" data-action="focus-exercise" data-slug="soleus-raises" aria-label="Soleus raises, aktuelle Übung" aria-current="true"></button>
+        <button type="button" class="sd-dots__seg" data-action="focus-exercise" data-slug="pallof-press" aria-label="Pallof press, offen"></button>
+        <button type="button" class="sd-dots__seg" data-action="focus-exercise" data-slug="planks-wechselnd" aria-label="Planks, offen"></button>
+      </div>
+      <main class="sd-main sd-main--tight">
+        <article class="sd-card" data-card="now">
+          <div class="sd-card__top"><p class="sd-eyebrow sd-eyebrow--teal"><span class="sd-eyebrow__dot"></span>Jetzt</p><span class="sd-last sd-mono">Letztes Mal 3×15 · 20 kg</span></div>
+          <div><h2 class="sd-now__name">Soleus raises</h2><p class="sd-now__soll"><b>3×15/Seite</b> · steigern, wenn 15 Wdh sauber gelingen</p></div>
+          <p class="sd-tip sd-tip--up">+2,5 kg: zuletzt alle 15 Wdh sauber</p>
+          <div class="sd-sets">
+            <button type="button" class="sd-set is-done" data-action="reopen-set" data-set="0" aria-label="Satz 1 wieder öffnen"><span class="sd-set__label">Satz 1</span><span class="sd-set__value sd-mono">20 kg × 15</span><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button>
+            <div class="sd-set sd-set--active" role="group" aria-label="Satz 2">
+              <div class="sd-set__head"><span class="sd-set__title">Satz 2</span></div>
+              <div class="sd-steppers">
+                <div class="sd-stepper sd-stepper--weight" role="group" aria-label="Gewicht in kg">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="-1" aria-label="Gewicht verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="kg" aria-label="Gewicht eintippen, aktuell 20 kg"><span class="sd-stepper__num sd-mono" aria-live="polite">20</span><span class="sd-stepper__unit">kg</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="1" aria-label="Gewicht erhöhen">+</button>
+                </div>
+                <div class="sd-stepper" role="group" aria-label="Wiederholungen">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="-1" aria-label="Wiederholungen verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="reps" aria-label="Wiederholungen eintippen, aktuell 15"><span class="sd-stepper__num sd-mono" aria-live="polite">15</span><span class="sd-stepper__unit">Wdh</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="1" aria-label="Wiederholungen erhöhen">+</button>
+                </div>
+              </div>
+            </div>
+            <div class="sd-set is-open"><span class="sd-set__label">Satz 3</span><span class="sd-set__value sd-mono">20 kg × 15</span></div>
+          </div>
+          <button type="button" class="sd-btn sd-btn--primary sd-btn--lg" data-action="finish-set">Satz 2 fertig</button>
+          <button type="button" class="sd-btn sd-btn--text sd-btn--block" data-action="finish-early">Mit 1 Satz abschließen</button>
+        </article>
+
+        <div class="sd-label-row"><p class="sd-label">Reihenfolge</p><p class="sd-hint">Antippen, um sie als Nächstes zu machen</p></div>
+        <div class="sd-card sd-card--list" data-card="order">
+          <button type="button" class="sd-order__row is-done" data-action="focus-exercise" data-slug="squats"><span class="sd-order__pos sd-mono">1</span><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="sd-order__main"><span class="sd-order__name">Squats</span><span class="sd-order__sub sd-mono">2× 6 · 60 kg</span></span></button>
+          <button type="button" class="sd-order__row is-done" data-action="focus-exercise" data-slug="deadlift"><span class="sd-order__pos sd-mono">2</span><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="sd-order__main"><span class="sd-order__name">Deadlift</span><span class="sd-order__sub sd-mono">2× 5 · 72,5 kg</span></span></button>
+          <button type="button" class="sd-order__row is-done" data-action="focus-exercise" data-slug="nordic-hamstring-curl"><span class="sd-order__pos sd-mono">3</span><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="sd-order__main"><span class="sd-order__name">Nordic hamstring curl</span><span class="sd-order__sub sd-mono">2× 5 Wdh</span></span></button>
+          <button type="button" class="sd-order__row is-done" data-action="focus-exercise" data-slug="klimmzuege"><span class="sd-order__pos sd-mono">4</span><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="sd-order__main"><span class="sd-order__name">Klimmzüge</span><span class="sd-order__sub sd-mono">2× 6 Wdh</span></span></button>
+          <button type="button" class="sd-order__row is-done" data-action="focus-exercise" data-slug="brustpresse"><span class="sd-order__pos sd-mono">5</span><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="sd-order__main"><span class="sd-order__name">Brustpresse</span><span class="sd-order__sub sd-mono">2× 6 · 40 kg</span></span></button>
+          <button type="button" class="sd-order__row is-current" data-action="focus-exercise" data-slug="soleus-raises" aria-current="true"><span class="sd-order__pos sd-mono">6</span><span class="sd-ring sd-ring--22 sd-ring--run"></span><span class="sd-order__main"><span class="sd-order__name">Soleus raises</span><span class="sd-order__sub sd-mono">läuft · Satz 2 von 3</span></span></button>
+          <button type="button" class="sd-order__row" data-action="focus-exercise" data-slug="pallof-press"><span class="sd-order__pos sd-mono">7</span><span class="sd-ring sd-ring--22"></span><span class="sd-order__main"><span class="sd-order__name">Pallof press</span><span class="sd-order__sub sd-mono">3×10/Seite</span></span></button>
+          <button type="button" class="sd-order__row" data-action="focus-exercise" data-slug="planks-wechselnd"><span class="sd-order__pos sd-mono">8</span><span class="sd-ring sd-ring--22"></span><span class="sd-order__main"><span class="sd-order__name">Planks (wechselnd)</span><span class="sd-order__sub sd-mono">3×30–45 s</span></span></button>
+        </div>
+
+        <div class="sd-card sd-card--pad-sm" data-card="strava-session">
+          <dl class="sd-kv"><dt>Einheit laut Strava</dt><dd class="sd-mono">58 min · Ø 121 bpm</dd></dl>
+        </div>
+        <button type="button" class="sd-btn sd-btn--text sd-btn--block" data-action="toggle-edit">Anpassen</button>
+      </main>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="k2">
+  <header class="state__head"><span class="state__id">K2</span><h3>Anpassen-Modus: Entfernen, Ersetzen, Zurückholen, eigene Übung</h3></header>
+  <p class="state__cap">Eigene Ansicht statt Umbau der Jetzt-Karte: oben „Fertig“, Dots und Jetzt-Karte entfallen. Jede Übung hat „Ersetzen“ und „Entfernen“ (44 px hoch); bei schmaler Spalte rutschen die beiden Buttons unter den Namen und teilen sich die Breite. Entfernte Übungen stehen durchgestrichen und gedimmt in der Liste, mit „Zurückholen“. Eigene Übungen tragen die Pill „eigene“. „+ Übung hinzufügen“ ist der gestrichelte Block am Ende.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <nav class="sd-nav" aria-label="Kopfzeile">
+        <button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Heute</button>
+        <button type="button" class="sd-btn sd-btn--text" data-action="toggle-edit">Fertig</button>
+      </nav>
+      <div class="sd-daytitle">
+        <p class="sd-eyebrow sd-eyebrow--teal sd-eyebrow--plain">Anpassen · Di, 20.10.</p>
+        <h3 class="sd-display">Full Body A</h3>
+        <p class="sd-target">Änderungen gelten nur für heute.</p>
+      </div>
+      <main class="sd-main">
+        <div class="sd-card sd-card--list" data-card="edit-list">
+          <div class="sd-edit__row">
+            <div class="sd-edit__lead"><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><div class="sd-edit__main"><p class="sd-edit__name">Squats</p><p class="sd-edit__sub sd-mono">2× 6 · 60 kg</p></div></div>
+            <div class="sd-edit__actions"><button type="button" class="sd-btn" data-action="replace-exercise" data-slug="squats">Ersetzen</button><button type="button" class="sd-btn sd-btn--danger" data-action="remove-exercise" data-slug="squats">Entfernen</button></div>
+          </div>
+          <div class="sd-edit__row">
+            <div class="sd-edit__lead"><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><div class="sd-edit__main"><p class="sd-edit__name">Deadlift</p><p class="sd-edit__sub sd-mono">2× 5 · 72,5 kg</p></div></div>
+            <div class="sd-edit__actions"><button type="button" class="sd-btn" data-action="replace-exercise" data-slug="deadlift">Ersetzen</button><button type="button" class="sd-btn sd-btn--danger" data-action="remove-exercise" data-slug="deadlift">Entfernen</button></div>
+          </div>
+          <div class="sd-edit__row is-removed">
+            <div class="sd-edit__lead"><span class="sd-ring sd-ring--22"></span><div class="sd-edit__main"><p class="sd-edit__name">Klimmzüge</p><p class="sd-edit__sub">Für heute entfernt</p></div></div>
+            <div class="sd-edit__actions"><button type="button" class="sd-btn" data-action="restore-exercise" data-slug="klimmzuege">Zurückholen</button></div>
+          </div>
+          <div class="sd-edit__row">
+            <div class="sd-edit__lead"><span class="sd-ring sd-ring--22"></span><div class="sd-edit__main"><p class="sd-edit__name">Brustpresse</p><p class="sd-edit__sub sd-mono">2×6</p></div></div>
+            <div class="sd-edit__actions"><button type="button" class="sd-btn" data-action="replace-exercise" data-slug="brustpresse">Ersetzen</button><button type="button" class="sd-btn sd-btn--danger" data-action="remove-exercise" data-slug="brustpresse">Entfernen</button></div>
+          </div>
+          <div class="sd-edit__row">
+            <div class="sd-edit__lead"><span class="sd-ring sd-ring--22"></span><div class="sd-edit__main"><p class="sd-edit__name">Beinpresse <span class="sd-pill sd-pill--purple">eigene</span></p><p class="sd-edit__sub sd-mono">3×10</p></div></div>
+            <div class="sd-edit__actions"><button type="button" class="sd-btn" data-action="replace-exercise" data-slug="beinpresse">Ersetzen</button><button type="button" class="sd-btn sd-btn--danger" data-action="remove-exercise" data-slug="beinpresse">Entfernen</button></div>
+          </div>
+        </div>
+        <button type="button" class="sd-btn sd-btn--dashed" data-action="quick-add">+ Übung hinzufügen</button>
+      </main>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="k3">
+  <header class="state__head"><span class="state__id">K3</span><h3>Anpassen: Ersetzen und eigene Übung hinzufügen</h3></header>
+  <p class="state__cap">Links öffnet „Ersetzen“ ein Formular direkt in der Zeile (Name, Soll, vorbelegt mit dem alten Soll). Rechts das Formular „Übung hinzufügen“. In beiden ist „Übernehmen“ bzw. „Hinzufügen“ die einzige teal gefüllte Fläche, „Abbrechen“ ein Text-Button. Eingabefelder 48 px hoch, 16 px Schrift.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320" data-label="Ersetzen">
+      <nav class="sd-nav" aria-label="Kopfzeile">
+        <button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Heute</button>
+        <button type="button" class="sd-btn sd-btn--text" data-action="toggle-edit">Fertig</button>
+      </nav>
+      <div class="sd-daytitle">
+        <p class="sd-eyebrow sd-eyebrow--teal sd-eyebrow--plain">Anpassen · Di, 20.10.</p>
+        <h3 class="sd-display">Full Body A</h3>
+      </div>
+      <main class="sd-main">
+        <div class="sd-card sd-card--list" data-card="edit-list">
+          <div class="sd-edit__row">
+            <div class="sd-edit__lead"><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><div class="sd-edit__main"><p class="sd-edit__name">Squats</p><p class="sd-edit__sub sd-mono">2× 6 · 60 kg</p></div></div>
+            <div class="sd-edit__actions"><button type="button" class="sd-btn" data-action="replace-exercise" data-slug="squats">Ersetzen</button><button type="button" class="sd-btn sd-btn--danger" data-action="remove-exercise" data-slug="squats">Entfernen</button></div>
+          </div>
+          <div class="sd-edit__row" data-replace="nordic-hamstring-curl">
+            <div class="sd-edit__lead"><span class="sd-ring sd-ring--22"></span><div class="sd-edit__main"><p class="sd-edit__name">Nordic hamstring curl</p><p class="sd-edit__sub sd-mono">2×5</p></div></div>
+            <form class="sd-edit__form" data-form="replace">
+              <p class="sd-hint">Ersetzt Nordic hamstring curl an dieser Stelle.</p>
+              <label class="sd-field"><span class="sd-field__label">Neue Übung</span><input class="sd-input" type="text" name="name" value="Hamstring curl liegend" autocomplete="off" /></label>
+              <label class="sd-field"><span class="sd-field__label">Soll</span><input class="sd-input" type="text" name="soll" value="2×5" autocomplete="off" /></label>
+              <div class="sd-actions"><button type="submit" class="sd-btn sd-btn--primary sd-btn--grow" data-action="confirm-replace" data-slug="nordic-hamstring-curl">Übernehmen</button><button type="button" class="sd-btn sd-btn--text" data-action="cancel-replace">Abbrechen</button></div>
+            </form>
+          </div>
+        </div>
+      </main>
+    </div>
+    <div class="spec" data-w="390 320" data-label="Eigene Übung hinzufügen">
+      <nav class="sd-nav" aria-label="Kopfzeile">
+        <button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Heute</button>
+        <button type="button" class="sd-btn sd-btn--text" data-action="toggle-edit">Fertig</button>
+      </nav>
+      <div class="sd-daytitle">
+        <p class="sd-eyebrow sd-eyebrow--teal sd-eyebrow--plain">Anpassen · Di, 20.10.</p>
+        <h3 class="sd-display">Full Body A</h3>
+      </div>
+      <main class="sd-main">
+        <div class="sd-card sd-card--list" data-card="edit-list">
+          <div class="sd-edit__row">
+            <div class="sd-edit__lead"><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><div class="sd-edit__main"><p class="sd-edit__name">Squats</p><p class="sd-edit__sub sd-mono">2× 6 · 60 kg</p></div></div>
+            <div class="sd-edit__actions"><button type="button" class="sd-btn" data-action="replace-exercise" data-slug="squats">Ersetzen</button><button type="button" class="sd-btn sd-btn--danger" data-action="remove-exercise" data-slug="squats">Entfernen</button></div>
+          </div>
+        </div>
+        <form class="sd-card" data-form="add-exercise">
+          <div><h4 class="sd-card__title">Übung hinzufügen</h4><p class="sd-hint">Gilt nur für diesen Tag (20.10.).</p></div>
+          <label class="sd-field"><span class="sd-field__label">Name</span><input class="sd-input" type="text" name="name" placeholder="z. B. Beinpresse" autocomplete="off" /></label>
+          <label class="sd-field"><span class="sd-field__label">Soll</span><input class="sd-input" type="text" name="soll" placeholder="z. B. 3x8-10" autocomplete="off" /></label>
+          <div class="sd-actions"><button type="submit" class="sd-btn sd-btn--primary sd-btn--grow" data-action="add-exercise">Hinzufügen</button><button type="button" class="sd-btn sd-btn--text" data-action="cancel-add">Abbrechen</button></div>
+        </form>
+      </main>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="k4">
+  <header class="state__head"><span class="state__id">K4</span><h3>„Mit n Sätzen abschließen“ (F6)</h3></header>
+  <p class="state__cap">Sobald mindestens ein Satz fertig ist, erscheint unter dem Primärbutton der Text-Button mit der Zahl der fertigen Sätze („Mit 2 Sätzen abschließen“, bei einem Satz „Mit 1 Satz abschließen“). Gespeichert werden nur die fertigen Sätze. Fertige Sätze sind antippbar und werden dadurch wieder aktiv.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <nav class="sd-nav" aria-label="Kopfzeile">
+        <button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Woche</button>
+        <span class="sd-nav__meta">1 von 8 erledigt</span>
+      </nav>
+      <main class="sd-main sd-main--tight">
+        <article class="sd-card" data-card="now">
+          <div class="sd-card__top"><p class="sd-eyebrow sd-eyebrow--teal"><span class="sd-eyebrow__dot"></span>Jetzt</p><span class="sd-last sd-mono">Letztes Mal 4×4 · 90 kg</span></div>
+          <div><h2 class="sd-now__name">Deadlift</h2><p class="sd-now__soll"><b>4×5</b> · schwere Serie, volle Pause</p></div>
+          <p class="sd-tip sd-tip--hold">Deload halten: 72,5 statt 90 kg</p>
+          <div class="sd-sets">
+            <button type="button" class="sd-set is-done" data-action="reopen-set" data-set="0" aria-label="Satz 1 wieder öffnen"><span class="sd-set__label">Satz 1</span><span class="sd-set__value sd-mono">72,5 kg × 5</span><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button>
+            <button type="button" class="sd-set is-done" data-action="reopen-set" data-set="1" aria-label="Satz 2 wieder öffnen"><span class="sd-set__label">Satz 2</span><span class="sd-set__value sd-mono">72,5 kg × 5</span><span class="sd-check sd-check--22"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button>
+            <div class="sd-set sd-set--active" role="group" aria-label="Satz 3">
+              <div class="sd-set__head"><span class="sd-set__title">Satz 3</span></div>
+              <div class="sd-steppers">
+                <div class="sd-stepper sd-stepper--weight" role="group" aria-label="Gewicht in kg">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="-1" aria-label="Gewicht verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="kg" aria-label="Gewicht eintippen, aktuell 72,5 kg"><span class="sd-stepper__num sd-mono" aria-live="polite">72,5</span><span class="sd-stepper__unit">kg</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="1" aria-label="Gewicht erhöhen">+</button>
+                </div>
+                <div class="sd-stepper" role="group" aria-label="Wiederholungen">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="-1" aria-label="Wiederholungen verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="reps" aria-label="Wiederholungen eintippen, aktuell 5"><span class="sd-stepper__num sd-mono" aria-live="polite">5</span><span class="sd-stepper__unit">Wdh</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="1" aria-label="Wiederholungen erhöhen">+</button>
+                </div>
+              </div>
+            </div>
+            <div class="sd-set is-open"><span class="sd-set__label">Satz 4</span><span class="sd-set__value sd-mono">72,5 kg × 5</span></div>
+          </div>
+          <button type="button" class="sd-btn sd-btn--primary sd-btn--lg" data-action="finish-set">Satz 3 fertig</button>
+          <button type="button" class="sd-btn sd-btn--text sd-btn--block" data-action="finish-early">Mit 2 Sätzen abschließen</button>
+        </article>
+      </main>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="k5">
+  <header class="state__head"><span class="state__id">K5</span><h3>Stepper mit direkter Eingabe (V1)</h3></header>
+  <p class="state__cap">Links in Ruhe: die gestrichelte Unterlinie zeigt, dass der Wert antippbar ist. Rechts nach dem Tipp: der Wert ist ein Feld (24 px, also kein iOS-Zoom, <code>inputmode="decimal"</code>, Inhalt markiert), die ±-Tasten bleiben, im Satzkopf erscheint „Fertig“. „Fertig“, ein Tipp auf ± oder irgendwo anders übernimmt den Wert.</p>
+  <div class="specs">
+    <div class="spec" data-w="390" data-label="Ruhe">
+      <main class="sd-main sd-main--tight">
+        <article class="sd-card" data-card="now">
+          <div class="sd-sets">
+            <div class="sd-set sd-set--active" role="group" aria-label="Satz 1">
+              <div class="sd-set__head"><span class="sd-set__title">Satz 1</span></div>
+              <div class="sd-steppers">
+                <div class="sd-stepper sd-stepper--weight" role="group" aria-label="Gewicht in kg">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="-1" aria-label="Gewicht verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="kg" aria-label="Gewicht eintippen, aktuell 60 kg"><span class="sd-stepper__num sd-mono">60</span><span class="sd-stepper__unit">kg</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="1" aria-label="Gewicht erhöhen">+</button>
+                </div>
+                <div class="sd-stepper" role="group" aria-label="Wiederholungen">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="-1" aria-label="Wiederholungen verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="reps" aria-label="Wiederholungen eintippen, aktuell 6"><span class="sd-stepper__num sd-mono">6</span><span class="sd-stepper__unit">Wdh</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="1" aria-label="Wiederholungen erhöhen">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </main>
+    </div>
+    <div class="spec" data-w="390 320" data-label="Eingabe">
+      <main class="sd-main sd-main--tight">
+        <article class="sd-card" data-card="now">
+          <div class="sd-sets">
+            <div class="sd-set sd-set--active" role="group" aria-label="Satz 1">
+              <div class="sd-set__head"><span class="sd-set__title">Satz 1</span><button type="button" class="sd-btn sd-btn--text" data-action="commit-value">Fertig</button></div>
+              <div class="sd-steppers">
+                <div class="sd-stepper sd-stepper--weight" role="group" aria-label="Gewicht in kg">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="-1" aria-label="Gewicht verringern">−</button>
+                  <span class="sd-stepper__field"><input class="sd-stepper__input" type="text" inputmode="decimal" aria-label="Gewicht in kg" value="82,5" /><span class="sd-stepper__unit">kg</span></span>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="1" aria-label="Gewicht erhöhen">+</button>
+                </div>
+                <div class="sd-stepper" role="group" aria-label="Wiederholungen">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="-1" aria-label="Wiederholungen verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="reps" aria-label="Wiederholungen eintippen, aktuell 6"><span class="sd-stepper__num sd-mono">6</span><span class="sd-stepper__unit">Wdh</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="1" aria-label="Wiederholungen erhöhen">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </main>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="k6">
+  <header class="state__head"><span class="state__id">K6</span><h3>Stepper bei 320 px: untereinander</h3></header>
+  <p class="state__cap">Die beiden Stepper sitzen in einer umbrechenden Zeile. Passen sie nicht nebeneinander (bei 320 px immer, bei 390 px erst ab ca. 100 kg mit Komma), steht der Wiederholungs-Stepper unter dem Gewichts-Stepper, jeder über die volle Breite. Nichts wird abgeschnitten, alle Tasten bleiben 44 × 44 px. Daneben dieselbe Karte bei 390 px mit „62,5 kg“ (nebeneinander).</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <main class="sd-main sd-main--tight">
+        <article class="sd-card" data-card="now">
+          <div class="sd-card__top"><p class="sd-eyebrow sd-eyebrow--teal"><span class="sd-eyebrow__dot"></span>Jetzt</p><span class="sd-last sd-mono">Letztes Mal 4×5 · 62,5 kg</span></div>
+          <h2 class="sd-now__name">Squats</h2>
+          <div class="sd-sets">
+            <div class="sd-set sd-set--active" role="group" aria-label="Satz 2">
+              <div class="sd-set__head"><span class="sd-set__title">Satz 2</span></div>
+              <div class="sd-steppers">
+                <div class="sd-stepper sd-stepper--weight" role="group" aria-label="Gewicht in kg">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="-1" aria-label="Gewicht verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="kg" aria-label="Gewicht eintippen, aktuell 62,5 kg"><span class="sd-stepper__num sd-mono">62,5</span><span class="sd-stepper__unit">kg</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="1" aria-label="Gewicht erhöhen">+</button>
+                </div>
+                <div class="sd-stepper" role="group" aria-label="Wiederholungen">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="-1" aria-label="Wiederholungen verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="reps" aria-label="Wiederholungen eintippen, aktuell 6"><span class="sd-stepper__num sd-mono">6</span><span class="sd-stepper__unit">Wdh</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="1" aria-label="Wiederholungen erhöhen">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="sd-btn sd-btn--primary sd-btn--lg" data-action="finish-set">Satz 2 fertig</button>
+        </article>
+      </main>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="k7">
+  <header class="state__head"><span class="state__id">K7</span><h3>Nur-Wdh-Modus und Rückweg „+ Gewicht“ (E3)</h3></header>
+  <p class="state__cap">Übungen ohne Gewicht zeigen nur den Wdh-Stepper (über die volle Breite). Rechts im Satzkopf steht der Text-Button „+ Gewicht“. Ein Tipp blendet den Gewichts-Stepper für diese Einheit ein (Start 0 kg, Schritt 2,5 kg) und der Button verschwindet. Gespeichert wird 0 kg weiterhin als „ohne Gewicht“.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320" data-label="vorher">
+      <main class="sd-main sd-main--tight">
+        <article class="sd-card" data-card="now">
+          <div class="sd-card__top"><p class="sd-eyebrow sd-eyebrow--teal"><span class="sd-eyebrow__dot"></span>Jetzt</p><span class="sd-last sd-mono">Letztes Mal 4×6</span></div>
+          <div><h2 class="sd-now__name">Klimmzüge</h2><p class="sd-now__soll"><b>2×6</b> · skill-lastige Bewegung</p></div>
+          <p class="sd-tip sd-tip--stall">Seit 2 Einheiten ohne Steigerung</p>
+          <div class="sd-sets">
+            <div class="sd-set sd-set--active" role="group" aria-label="Satz 1">
+              <div class="sd-set__head"><span class="sd-set__title">Satz 1</span><button type="button" class="sd-btn sd-btn--text" data-action="add-weight">+ Gewicht</button></div>
+              <div class="sd-steppers">
+                <div class="sd-stepper sd-stepper--solo" role="group" aria-label="Wiederholungen">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="-1" aria-label="Wiederholungen verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="reps" aria-label="Wiederholungen eintippen, aktuell 6"><span class="sd-stepper__num sd-mono">6</span><span class="sd-stepper__unit">Wdh</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="1" aria-label="Wiederholungen erhöhen">+</button>
+                </div>
+              </div>
+            </div>
+            <div class="sd-set is-open"><span class="sd-set__label">Satz 2</span><span class="sd-set__value sd-mono">6 Wdh</span></div>
+          </div>
+          <button type="button" class="sd-btn sd-btn--primary sd-btn--lg" data-action="finish-set">Satz 1 fertig</button>
+        </article>
+      </main>
+    </div>
+    <div class="spec" data-w="390 320" data-label="nach „+ Gewicht“">
+      <main class="sd-main sd-main--tight">
+        <article class="sd-card" data-card="now">
+          <div class="sd-card__top"><p class="sd-eyebrow sd-eyebrow--teal"><span class="sd-eyebrow__dot"></span>Jetzt</p><span class="sd-last sd-mono">Letztes Mal 4×6</span></div>
+          <div><h2 class="sd-now__name">Klimmzüge</h2><p class="sd-now__soll"><b>2×6</b> · skill-lastige Bewegung</p></div>
+          <p class="sd-tip sd-tip--stall">Seit 2 Einheiten ohne Steigerung</p>
+          <div class="sd-sets">
+            <div class="sd-set sd-set--active" role="group" aria-label="Satz 1">
+              <div class="sd-set__head"><span class="sd-set__title">Satz 1</span></div>
+              <div class="sd-steppers">
+                <div class="sd-stepper sd-stepper--weight" role="group" aria-label="Zusatzgewicht in kg">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="-1" aria-label="Gewicht verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="kg" aria-label="Gewicht eintippen, aktuell 0 kg"><span class="sd-stepper__num sd-mono">0</span><span class="sd-stepper__unit">kg</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="1" aria-label="Gewicht erhöhen">+</button>
+                </div>
+                <div class="sd-stepper" role="group" aria-label="Wiederholungen">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="-1" aria-label="Wiederholungen verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="reps" aria-label="Wiederholungen eintippen, aktuell 6"><span class="sd-stepper__num sd-mono">6</span><span class="sd-stepper__unit">Wdh</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="1" aria-label="Wiederholungen erhöhen">+</button>
+                </div>
+              </div>
+            </div>
+            <div class="sd-set is-open"><span class="sd-set__label">Satz 2</span><span class="sd-set__value sd-mono">0 kg × 6</span></div>
+          </div>
+          <button type="button" class="sd-btn sd-btn--primary sd-btn--lg" data-action="finish-set">Satz 1 fertig</button>
+        </article>
+      </main>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="k8">
+  <header class="state__head"><span class="state__id">K8</span><h3>Ladefehler-Banner</h3></header>
+  <p class="state__cap">„Gespeicherte Sätze nicht geladen“ als Danger-Banner im Stil des Heute-Fehlerbanners, ganz oben unter der Kopfzeile. Eintragen bleibt möglich; der Text sagt das und sagt, wann gespeichert wird. Der weiße Button „Neu laden“ ist die einzige Aktion.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <nav class="sd-nav" aria-label="Kopfzeile">
+        <button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Heute</button>
+        <span class="sd-nav__meta">0 von 8 erledigt</span>
+      </nav>
+      <main class="sd-main sd-main--tight">
+        <div class="sd-card sd-card--danger" role="alert" data-card="load-error">
+          <p class="sd-card__title sd-card__title--danger">Gespeicherte Sätze nicht geladen</p>
+          <p class="sd-card__text sd-card__text--danger">Missing or insufficient permissions.</p>
+          <p class="sd-card__text sd-card__text--danger">Eintragen geht trotzdem. Gespeichert wird erst, wenn das behoben ist.</p>
+          <div class="sd-actions"><button type="button" class="sd-btn sd-btn--onbanner" data-action="reload">Neu laden</button></div>
+        </div>
+        <article class="sd-card" data-card="now">
+          <div class="sd-card__top"><p class="sd-eyebrow sd-eyebrow--teal"><span class="sd-eyebrow__dot"></span>Jetzt</p><span class="sd-last sd-mono">Letztes Mal 4×7 · 50 kg</span></div>
+          <div><h2 class="sd-now__name">Brustpresse</h2><p class="sd-now__soll"><b>2×6</b> · horizontaler Push</p></div>
+          <div class="sd-sets">
+            <div class="sd-set sd-set--active" role="group" aria-label="Satz 1">
+              <div class="sd-set__head"><span class="sd-set__title">Satz 1</span></div>
+              <div class="sd-steppers">
+                <div class="sd-stepper sd-stepper--weight" role="group" aria-label="Gewicht in kg">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="-1" aria-label="Gewicht verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="kg" aria-label="Gewicht eintippen, aktuell 40 kg"><span class="sd-stepper__num sd-mono">40</span><span class="sd-stepper__unit">kg</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="kg" data-dir="1" aria-label="Gewicht erhöhen">+</button>
+                </div>
+                <div class="sd-stepper" role="group" aria-label="Wiederholungen">
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="-1" aria-label="Wiederholungen verringern">−</button>
+                  <button type="button" class="sd-stepper__val" data-action="edit-value" data-field="reps" aria-label="Wiederholungen eintippen, aktuell 6"><span class="sd-stepper__num sd-mono">6</span><span class="sd-stepper__unit">Wdh</span></button>
+                  <button type="button" class="sd-stepper__btn" data-action="step" data-field="reps" data-dir="1" aria-label="Wiederholungen erhöhen">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="sd-btn sd-btn--primary sd-btn--lg" data-action="finish-set">Satz 1 fertig</button>
+        </article>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================= LAUF-TAG -->
+<h2 class="mk-group" id="g-lauf">Lauf-Tag (Variante B „Vergleich“)</h2>
+
+<section class="state" id="l1">
+  <header class="state__head"><span class="state__id">L1</span><h3>Nachgeholt-Zeile und Plan-Hinweis</h3></header>
+  <p class="state__cap">Der Lauf wurde einen Tag später gemacht: In der Strava-Zeile steht unter dem Laufnamen die amber Zeile „nachgeholt · Di, 20.10.“ (die Pill bleibt „automatisch“ bzw. „von Hand“). Der Hinweis aus dem Plan steht als ruhiger Text unter den Karten. Der Läufer-Satz mit Icon entfällt. Skala der Balken: Zone ±30 s bzw. ±18 bpm.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <nav class="sd-nav" aria-label="Kopfzeile">
+        <button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Woche</button>
+      </nav>
+      <div class="sd-daytitle">
+        <p class="sd-eyebrow sd-eyebrow--coral sd-eyebrow--plain">Lauf · Mo, 19.10.</p>
+        <h3 class="sd-display">Easy run · 8 km</h3>
+      </div>
+      <main class="sd-main">
+        <article class="sd-card sd-compare" data-card="compare">
+          <div class="sd-compare__top">
+            <div><p class="sd-bigkm sd-mono">8,2<span class="sd-unit">km</span></p><p class="sd-compare__sub">von 8 km · 52:12</p></div>
+            <span class="sd-pill sd-pill--ok">im Plan</span>
+          </div>
+          <div class="sd-bar sd-bar--lg sd-bar--coral" role="img" aria-label="Distanz: 100 % vom Soll" style="--pct:100"><span class="sd-bar__fill"></span></div>
+          <div class="sd-range">
+            <div class="sd-range__head"><span class="sd-range__label">Pace</span><span class="sd-range__value sd-mono is-ok">6:22 /km</span></div>
+            <div class="sd-range__track" style="--from:35.3;--to:64.7;--at:43.5"><span class="sd-range__band"></span><span class="sd-range__mark"></span></div>
+            <div class="sd-range__axis"><span>5:45</span><span>Ziel 6:15–6:40</span><span>7:10</span></div>
+          </div>
+          <div class="sd-range">
+            <div class="sd-range__head"><span class="sd-range__label">Ø Herzfrequenz</span><span class="sd-range__value sd-mono is-ok">151 bpm</span></div>
+            <div class="sd-range__track" style="--from:37.5;--to:62.5;--at:43.8"><span class="sd-range__band"></span><span class="sd-range__mark"></span></div>
+            <div class="sd-range__axis"><span>130</span><span>Ziel 148–160</span><span>178</span></div>
+          </div>
+        </article>
+        <button type="button" class="sd-linkrow" data-action="pick-run" data-date="2026-10-19">
+          <span class="sd-linkrow__main"><span class="sd-linkrow__label">Aus Strava</span><span class="sd-linkrow__name">Morgenlauf · 07:05</span><span class="sd-linkrow__note">nachgeholt · Di, 20.10.</span></span>
+          <span class="sd-pill">automatisch</span>
+          <svg class="sd-icon" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <div class="sd-planhint" data-card="plan-note"><p class="sd-planhint__label">Hinweis aus dem Plan</p><p class="sd-planhint__text">Locker laufen. Die HF-Obergrenze ist wichtiger als die Pace.</p></div>
+      </main>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="l2">
+  <header class="state__head"><span class="state__id">L2</span><h3>Lauf-Tag „verpasst“ (vergangener Tag ohne Lauf)</h3></header>
+  <p class="state__cap">Kein Strava-Lauf im Fenster und nicht bewusst ignoriert. Die Pill „verpasst“ ist Danger-Rot (nicht Koralle). Ein Satz sagt, was fehlt, ein Sekundärbutton ordnet von Hand zu, „Neu laden“ ist ein leiser Text-Button für Läufe, die nach dem Öffnen dazukamen. Das Ziel bleibt als Zeile unter dem Titel sichtbar.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <nav class="sd-nav" aria-label="Kopfzeile">
+        <button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Woche</button>
+      </nav>
+      <div class="sd-daytitle">
+        <p class="sd-eyebrow sd-eyebrow--coral sd-eyebrow--plain">Lauf · Di, 13.10.</p>
+        <h3 class="sd-display">Easy run · 8 km</h3>
+        <p class="sd-target sd-mono">Ziel 6:15–6:40 /km · HF 148–160</p>
+      </div>
+      <main class="sd-main">
+        <article class="sd-card sd-card--center" data-card="missed">
+          <span class="sd-pill sd-pill--danger">verpasst</span>
+          <h4 class="sd-card__title">Kein Lauf gefunden</h4>
+          <p class="sd-card__text">Strava-Läufe von einem Tag davor bis drei Tage danach.</p>
+          <div class="sd-actions">
+            <button type="button" class="sd-btn" data-action="pick-run" data-date="2026-10-13">Lauf von Hand zuordnen</button>
+            <button type="button" class="sd-btn sd-btn--text" data-action="reload-strava"><svg class="sd-icon" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.4 5.8"/><path d="M20 4v7h-7"/></svg>Neu laden</button>
+          </div>
+        </article>
+      </main>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="l3">
+  <header class="state__head"><span class="state__id">L3</span><h3>Range-Balken: offene, neutrale und freie Ziele (F9)</h3></header>
+  <p class="state__cap"><strong>Links:</strong> offene Grenze (Recovery „&gt; 6:40 /km“, „&lt; 148“): Das Zielband läuft bis an den Skalenrand. <strong>Mitte:</strong> Schwellenlauf: Der Pace-Schnitt enthält Ein- und Auslaufen und ist neutral (kein Balken, Wert in Textfarbe, ein Satz erklärt es); HF bleibt ein Balken, hier amber über der Grenze. <strong>Rechts:</strong> freies Ziel („Kalibrierungstest“): kein Balken, beide Werte neutral. Farbe trägt nie allein: grün oder amber steht am Wert und am Balken, die Lage des Markers zum Band sagt dasselbe.</p>
+  <div class="specs">
+    <div class="spec" data-w="390" data-label="offene Grenzen">
+      <nav class="sd-nav" aria-label="Kopfzeile"><button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Woche</button></nav>
+      <div class="sd-daytitle"><p class="sd-eyebrow sd-eyebrow--coral sd-eyebrow--plain">Lauf · So, 25.10.</p><h3 class="sd-display">Recovery run · 5 km</h3></div>
+      <main class="sd-main">
+        <article class="sd-card sd-compare" data-card="compare">
+          <div class="sd-compare__top"><div><p class="sd-bigkm sd-mono">5,1<span class="sd-unit">km</span></p><p class="sd-compare__sub">von 5 km · 35:02</p></div><span class="sd-pill sd-pill--ok">im Plan</span></div>
+          <div class="sd-bar sd-bar--lg sd-bar--coral" role="img" aria-label="Distanz: 100 % vom Soll" style="--pct:100"><span class="sd-bar__fill"></span></div>
+          <div class="sd-range">
+            <div class="sd-range__head"><span class="sd-range__label">Pace</span><span class="sd-range__value sd-mono is-ok">6:52 /km</span></div>
+            <div class="sd-range__track" style="--from:33.3;--to:100;--at:46.7"><span class="sd-range__band"></span><span class="sd-range__mark"></span></div>
+            <div class="sd-range__axis"><span>6:10</span><span>Ziel &gt; 6:40</span><span>7:40</span></div>
+          </div>
+          <div class="sd-range">
+            <div class="sd-range__head"><span class="sd-range__label">Ø Herzfrequenz</span><span class="sd-range__value sd-mono is-ok">139 bpm</span></div>
+            <div class="sd-range__track" style="--from:0;--to:66.7;--at:50"><span class="sd-range__band"></span><span class="sd-range__mark"></span></div>
+            <div class="sd-range__axis"><span>112</span><span>Ziel &lt; 148</span><span>166</span></div>
+          </div>
+        </article>
+      </main>
+    </div>
+    <div class="spec" data-w="390" data-label="Intervalle, Pace neutral">
+      <nav class="sd-nav" aria-label="Kopfzeile"><button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Woche</button></nav>
+      <div class="sd-daytitle"><p class="sd-eyebrow sd-eyebrow--coral sd-eyebrow--plain">Lauf · Do, 29.10.</p><h3 class="sd-display">Schwelle · 8 km</h3></div>
+      <main class="sd-main">
+        <article class="sd-card sd-compare" data-card="compare">
+          <div class="sd-compare__top"><div><p class="sd-bigkm sd-mono">8,6<span class="sd-unit">km</span></p><p class="sd-compare__sub">von 8 km · 44:08</p></div><span class="sd-pill sd-pill--ok">im Plan</span></div>
+          <div class="sd-bar sd-bar--lg sd-bar--coral" role="img" aria-label="Distanz: 100 % vom Soll" style="--pct:100"><span class="sd-bar__fill"></span></div>
+          <div class="sd-range">
+            <div class="sd-range__head"><span class="sd-range__label">Pace</span><span class="sd-range__value sd-mono">5:08 /km</span></div>
+            <p class="sd-range__note">Der Schnitt enthält Ein- und Auslaufen, darum ohne Zielband.</p>
+          </div>
+          <div class="sd-range">
+            <div class="sd-range__head"><span class="sd-range__label">Ø Herzfrequenz</span><span class="sd-range__value sd-mono is-warn">175 bpm</span></div>
+            <div class="sd-range__track" style="--from:41.9;--to:58.1;--at:65.1"><span class="sd-range__band"></span><span class="sd-range__mark"></span></div>
+            <div class="sd-range__axis"><span>147</span><span>Ziel 165–172</span><span>190</span></div>
+          </div>
+        </article>
+      </main>
+    </div>
+    <div class="spec" data-w="390" data-label="freies Ziel">
+      <nav class="sd-nav" aria-label="Kopfzeile"><button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Woche</button></nav>
+      <div class="sd-daytitle"><p class="sd-eyebrow sd-eyebrow--coral sd-eyebrow--plain">Lauf · Mi, 28.10.</p><h3 class="sd-display">Kalibrierungstest · 3 km</h3></div>
+      <main class="sd-main">
+        <article class="sd-card sd-compare" data-card="compare">
+          <div class="sd-compare__top"><div><p class="sd-bigkm sd-mono">3,1<span class="sd-unit">km</span></p><p class="sd-compare__sub">von 3 km · 15:58</p></div><span class="sd-pill sd-pill--ok">im Plan</span></div>
+          <div class="sd-bar sd-bar--lg sd-bar--coral" role="img" aria-label="Distanz: 100 % vom Soll" style="--pct:100"><span class="sd-bar__fill"></span></div>
+          <div class="sd-range"><div class="sd-range__head"><span class="sd-range__label">Pace</span><span class="sd-range__value sd-mono">5:09 /km</span></div></div>
+          <div class="sd-range"><div class="sd-range__head"><span class="sd-range__label">Ø Herzfrequenz</span><span class="sd-range__value sd-mono">169 bpm</span></div></div>
+          <p class="sd-range__note">Für den Test gibt es kein Zielband. Die Werte stehen nur zur Info.</p>
+        </article>
+      </main>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="l4">
+  <header class="state__head"><span class="state__id">L4</span><h3>Fehlerkarten im Lauf-Tag</h3></header>
+  <p class="state__cap">Drei getrennte Fehlerwelten im Stil des Heute-Fehlerbanners (Danger-Fläche, nie Koralle). Der Firebase-Fehler zeigt auf Anmeldung und Regeln, nicht auf Strava, darum dort kein „Neu verbinden“. Der Strava-Fehler hat zwei Aktionen, die bei schmaler Spalte umbrechen. „Strava noch nicht eingerichtet“ hat keine Aktion, weil der Nutzer nichts tun kann.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320" data-label="Firebase">
+      <nav class="sd-nav" aria-label="Kopfzeile"><button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Heute</button></nav>
+      <div class="sd-daytitle"><p class="sd-eyebrow sd-eyebrow--coral sd-eyebrow--plain">Lauf · Mi, 21.10.</p><h3 class="sd-display">Easy run · 8 km</h3><p class="sd-target sd-mono">Ziel 6:15–6:40 /km · HF 148–160</p></div>
+      <main class="sd-main">
+        <div class="sd-card sd-card--danger" role="alert" data-card="error" data-source="firebase">
+          <p class="sd-card__title sd-card__title--danger">Daten-Problem (Firebase)</p>
+          <p class="sd-card__text sd-card__text--danger">Missing or insufficient permissions.</p>
+          <p class="sd-card__text sd-card__text--danger">Nicht Strava, sondern der Datenspeicher. Prüfe, ob du angemeldet bist (Plan-Tab, Daten und Konto) und ob die Regeln aus <code>firestore.rules</code> in der Firebase-Console veröffentlicht sind.</p>
+          <div class="sd-actions"><button type="button" class="sd-btn sd-btn--onbanner" data-action="reload-strava">Nochmal versuchen</button></div>
+        </div>
+      </main>
+    </div>
+    <div class="spec" data-w="390 320" data-label="Strava">
+      <nav class="sd-nav" aria-label="Kopfzeile"><button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Heute</button></nav>
+      <div class="sd-daytitle"><p class="sd-eyebrow sd-eyebrow--coral sd-eyebrow--plain">Lauf · Mi, 21.10.</p><h3 class="sd-display">Easy run · 8 km</h3><p class="sd-target sd-mono">Ziel 6:15–6:40 /km · HF 148–160</p></div>
+      <main class="sd-main">
+        <div class="sd-card sd-card--danger" role="alert" data-card="error" data-source="strava">
+          <p class="sd-card__title sd-card__title--danger">Strava-Problem</p>
+          <p class="sd-card__text sd-card__text--danger">Strava antwortet gerade nicht (Fehler 429).</p>
+          <div class="sd-actions"><button type="button" class="sd-btn sd-btn--onbanner" data-action="reload-strava">Nochmal versuchen</button><button type="button" class="sd-btn sd-btn--onbanner" data-action="connect-strava">Neu verbinden</button></div>
+        </div>
+      </main>
+    </div>
+    <div class="spec" data-w="390" data-label="Worker fehlt">
+      <nav class="sd-nav" aria-label="Kopfzeile"><button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Heute</button></nav>
+      <div class="sd-daytitle"><p class="sd-eyebrow sd-eyebrow--coral sd-eyebrow--plain">Lauf · Mi, 21.10.</p><h3 class="sd-display">Easy run · 8 km</h3><p class="sd-target sd-mono">Ziel 6:15–6:40 /km · HF 148–160</p></div>
+      <main class="sd-main">
+        <div class="sd-card sd-card--danger" role="alert" data-card="error" data-source="worker">
+          <p class="sd-card__title sd-card__title--danger">Strava noch nicht eingerichtet</p>
+          <p class="sd-card__text sd-card__text--danger">Der Token-Worker fehlt (siehe README, Abschnitt „Strava“). Ohne ihn kann der Browser sich nicht bei Strava anmelden.</p>
+        </div>
+      </main>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="l5">
+  <header class="state__head"><span class="state__id">L5</span><h3>Zuordnungs-Sheet mit „Automatik zurück“ und „Neu laden“</h3></header>
+  <p class="state__cap">Aufbau wie im Prototyp (Radio-Zeilen, gewählte Zeile mit teal Ring, belegte Läufe mit 50 % Deckkraft und „gehört schon zu …“, unten der Danger-Button). Neu: zwei Text-Buttons unter der Liste. „Automatik zurück“ nur bei manueller Zuordnung (hier gewählt, darum die Pill „von Hand“), „Neu laden“ immer. Bei 320 px scrollt der Sheet-Inhalt (höchstens 78 % der Höhe).</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320" data-h="800">
+      <nav class="sd-nav" aria-label="Kopfzeile"><button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back"><svg class="sd-icon sd-icon--20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Woche</button></nav>
+      <div class="sd-daytitle"><p class="sd-eyebrow sd-eyebrow--coral sd-eyebrow--plain">Lauf · Mo, 19.10.</p><h3 class="sd-display">Easy run · 8 km</h3></div>
+      <main class="sd-main">
+        <article class="sd-card sd-compare">
+          <div class="sd-compare__top"><div><p class="sd-bigkm sd-mono">5,1<span class="sd-unit">km</span></p><p class="sd-compare__sub">von 8 km · 35:02</p></div><span class="sd-pill sd-pill--amber">zu kurz</span></div>
+          <div class="sd-bar sd-bar--lg sd-bar--coral" style="--pct:63.8"><span class="sd-bar__fill"></span></div>
+        </article>
+        <button type="button" class="sd-linkrow"><span class="sd-linkrow__main"><span class="sd-linkrow__label">Aus Strava</span><span class="sd-linkrow__name">Abendlauf · 18:30</span></span><span class="sd-pill sd-pill--amber">von Hand</span><svg class="sd-icon" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      </main>
+      <div class="sd-backdrop"></div>
+      <div class="sd-sheet" role="dialog" aria-modal="true" aria-label="Lauf für Mo, 19.10.">
+        <div class="sd-sheet__grip"></div>
+        <div class="sd-sheet__head"><h4 class="sd-sheet__title" tabindex="-1">Lauf für Mo, 19.10.</h4><button type="button" class="sd-sheet__close" data-action="close-sheet" aria-label="Schließen"><svg class="sd-icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <p class="sd-sheet__lead">Strava-Läufe von einem Tag davor bis drei Tage danach.</p>
+        <div class="sd-sheet__list" role="radiogroup" aria-label="Lauf wählen">
+          <button type="button" class="sd-option" role="radio" aria-checked="false" data-action="assign-run" data-run="9001"><span class="sd-radio"></span><span class="sd-option__main"><span class="sd-option__name">Mo, 19.10. · Morgenlauf</span><span class="sd-option__sub">8,2 km · 6:22 /km · am Plantag</span></span></button>
+          <button type="button" class="sd-option is-selected" role="radio" aria-checked="true" data-action="assign-run" data-run="9002"><span class="sd-radio"></span><span class="sd-option__main"><span class="sd-option__name">Mo, 19.10. · Abendlauf</span><span class="sd-option__sub">5,1 km · 6:52 /km · am Plantag</span></span></button>
+          <div class="sd-option" role="radio" aria-checked="false" aria-disabled="true"><span class="sd-radio"></span><span class="sd-option__main"><span class="sd-option__name">So, 18.10. · Recovery</span><span class="sd-option__sub">5,1 km · 6:52 /km · gehört schon zu So, 18.10.</span></span></div>
+        </div>
+        <div class="sd-sheet__tools">
+          <button type="button" class="sd-btn sd-btn--text" data-action="reset-run" data-date="2026-10-19">Automatik zurück</button>
+          <button type="button" class="sd-btn sd-btn--text" data-action="reload-strava"><svg class="sd-icon" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.4 5.8"/><path d="M20 4v7h-7"/></svg>Neu laden</button>
+        </div>
+        <button type="button" class="sd-btn sd-btn--danger sd-btn--md sd-btn--block" data-action="ignore-run" data-date="2026-10-19">Kein Lauf an diesem Tag</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================= WOCHE -->
+<h2 class="mk-group" id="g-woche">Woche</h2>
+
+<section class="state" id="w1">
+  <header class="state__head"><span class="state__id">W1</span><h3>Statuspills: „HF zu hoch“, verpasst, optional und kombinierte Heute-Pill</h3></header>
+  <p class="state__cap">Rangfolge je Zeile: Zukunft = offener Ring; erledigt = Haken-Kreis; erledigt mit HF über Grenze = amber Pill „HF zu hoch“ (statt Haken und statt des alten Warn-Dreiecks); teilweise = „7/8“; heute mit Teilfortschritt = eine einzige Pill „Heute · 2/8“ in Teal; verpasst = Danger-Pill; nicht gemachte optionale Einheit = gestrichelte Pill „optional“. Die Heute-Zeile trägt die Tönung und für Screenreader das versteckte Wort „heute“. Die Montagszeile ist aufgeklappt (immer nur eine Zeile offen).</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <div class="sd-intro sd-intro--tight">
+        <p class="sd-intro__sub">19.–25. Oktober · Entlastung</p>
+        <h3 class="sd-display">Woche 8</h3>
+      </div>
+      <main class="sd-main">
+        <div class="sd-card sd-card--list" data-card="days">
+          <div class="sd-day is-open">
+            <button type="button" class="sd-day__row" data-action="toggle-day-detail" aria-expanded="true">
+              <span class="sd-day__when"><span class="sd-day__dow">Mo</span><span class="sd-day__date sd-mono">19.</span></span>
+              <span class="sd-stripe sd-stripe--lauf"></span>
+              <span class="sd-day__main"><span class="sd-day__title">Easy run · 8 km</span><span class="sd-day__sub">Ist: 8,2 km · 6:22 /km</span></span>
+              <span class="sd-pill sd-pill--amber">HF zu hoch</span>
+            </button>
+            <div class="sd-day__detail">
+              <p>Ziel: 8 km · 6:15–6:40 /km · HF 148–160</p>
+              <p>Ist: 8,2 km · 6:22 /km · Ø 163 bpm</p>
+              <p class="is-warn">Ø HF über der Zone (höchstens 160 bpm).</p>
+              <button type="button" class="sd-btn" data-action="open-day" data-date="2026-10-19">Tag öffnen<svg class="sd-icon" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+            </div>
+          </div>
+          <div class="sd-day">
+            <button type="button" class="sd-day__row" data-action="toggle-day-detail" aria-expanded="false">
+              <span class="sd-day__when"><span class="sd-day__dow">Di</span><span class="sd-day__date sd-mono">20.</span></span>
+              <span class="sd-stripe sd-stripe--kraft"></span>
+              <span class="sd-day__main"><span class="sd-day__title">Full Body A</span><span class="sd-day__sub">0/8 erfasst</span></span>
+              <span class="sd-pill sd-pill--danger">verpasst</span>
+            </button>
+          </div>
+          <div class="sd-day">
+            <button type="button" class="sd-day__row" data-action="toggle-day-detail" aria-expanded="false">
+              <span class="sd-day__when"><span class="sd-day__dow">Mi</span><span class="sd-day__date sd-mono">21.</span></span>
+              <span class="sd-stripe sd-stripe--lauf"></span>
+              <span class="sd-day__main"><span class="sd-day__title">Recovery run · 3 km</span><span class="sd-day__sub">Optional</span></span>
+              <span class="sd-pill sd-pill--optional">optional</span>
+            </button>
+          </div>
+          <div class="sd-day is-today">
+            <button type="button" class="sd-day__row" data-action="toggle-day-detail" aria-expanded="false">
+              <span class="sd-day__when"><span class="sd-day__dow">Do<span class="sd-vh"> (heute)</span></span><span class="sd-day__date sd-mono">22.</span></span>
+              <span class="sd-stripe sd-stripe--kraft"></span>
+              <span class="sd-day__main"><span class="sd-day__title">Full Body B</span><span class="sd-day__sub">2/8 erfasst · Deload</span></span>
+              <span class="sd-pill sd-pill--primary">Heute · 2/8</span>
+            </button>
+          </div>
+          <div class="sd-day is-rest">
+            <div class="sd-day__row">
+              <span class="sd-day__when"><span class="sd-day__dow">Fr</span><span class="sd-day__date sd-mono">23.</span></span>
+              <span class="sd-stripe"></span>
+              <span class="sd-day__main"><span class="sd-day__title">Ruhe</span><span class="sd-day__sub">Mobility, Foam Rolling</span></span>
+            </div>
+          </div>
+          <div class="sd-day">
+            <button type="button" class="sd-day__row" data-action="toggle-day-detail" aria-expanded="false">
+              <span class="sd-day__when"><span class="sd-day__dow">Sa</span><span class="sd-day__date sd-mono">24.</span></span>
+              <span class="sd-stripe sd-stripe--long"></span>
+              <span class="sd-day__main"><span class="sd-day__title">Long run · 11 km</span><span class="sd-day__sub">Ziel: 6:15–6:40 /km · HF 148–160</span></span>
+              <span class="sd-ring"></span>
+            </button>
+          </div>
+        </div>
+      </main>
+      <nav class="sd-tabbar" aria-label="Hauptnavigation" data-fill="tabs" data-active="week"></nav>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================= PLAN -->
+<h2 class="mk-group" id="g-plan">Plan: „Daten und Konto“</h2>
+
+<section class="state" id="p1">
+  <header class="state__head"><span class="state__id">P1</span><h3>Daten und Konto mit Platzhalterzeile für 1b-B</h3></header>
+  <p class="state__cap"><strong>Links</strong> Strava verbunden mit dem Zeitpunkt des letzten Abrufs in dieser Sitzung. <strong>Rechts</strong> Strava nicht verbunden (Koralle-Fläche für „Strava verbinden“, wie auf Heute), der Export-Status und der Hinweis, wenn Abmelden wegen offener Einträge abgebrochen wurde. Die Zeile „Plan: Plandatei · Version 3“ ist reine Anzeige ohne Knopf; wenn 1b-B kommt, rutscht „Plan aus Datei übernehmen“ als Sekundärbutton in diese Zeile. Abmelden bleibt der Danger-Button.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320" data-label="verbunden">
+      <div class="sd-intro sd-intro--tight"><p class="sd-intro__sub">Woche 8 von 35 · 23 % geschafft</p><h3 class="sd-display">Trainingsplan</h3></div>
+      <main class="sd-main sd-main--flush">
+        <p class="sd-label">Daten und Konto</p>
+        <section class="sd-card sd-card--loose" data-card="account">
+          <div class="sd-split">
+            <div class="sd-split__main"><p class="sd-split__title">Daten exportieren</p><p class="sd-split__hint">Alle Trainingsdaten als JSON-Datei, ohne Zugangs- und Standortdaten.</p></div>
+            <button type="button" class="sd-btn" data-action="export-data">Export</button>
+          </div>
+          <hr class="sd-rule" />
+          <dl class="sd-kvlist">
+            <div class="sd-kv"><dt>Angemeldet als</dt><dd>louis@example.com</dd></div>
+            <div class="sd-kv"><dt>Strava</dt><dd>verbunden · Sync heute 07:12</dd></div>
+            <div class="sd-kv" data-slot="plan-source"><dt>Plan</dt><dd>Plandatei · Version 3</dd></div>
+          </dl>
+          <p class="sd-hint">Abmelden räumt dieses Gerät: lokale Kopien und der Offline-Speicher werden gelöscht. Nicht übertragene Einträge werden vorher gesendet.</p>
+          <div><button type="button" class="sd-btn sd-btn--danger" data-action="logout">Abmelden</button></div>
+        </section>
+      </main>
+      <nav class="sd-tabbar" aria-label="Hauptnavigation" data-fill="tabs" data-active="plan"></nav>
+    </div>
+    <div class="spec" data-w="390 320" data-label="Strava getrennt, Abmelden abgebrochen">
+      <div class="sd-intro sd-intro--tight"><p class="sd-intro__sub">Woche 8 von 35 · 23 % geschafft</p><h3 class="sd-display">Trainingsplan</h3></div>
+      <main class="sd-main sd-main--flush">
+        <p class="sd-label">Daten und Konto</p>
+        <section class="sd-card sd-card--loose" data-card="account">
+          <div class="sd-split">
+            <div class="sd-split__main"><p class="sd-split__title">Daten exportieren</p><p class="sd-split__hint" role="status">Export fertig: stride-export-2026-10-21.json</p></div>
+            <button type="button" class="sd-btn" data-action="export-data">Export</button>
+          </div>
+          <hr class="sd-rule" />
+          <dl class="sd-kvlist">
+            <div class="sd-kv"><dt>Angemeldet als</dt><dd>louis@example.com</dd></div>
+            <div class="sd-kv"><dt>Strava</dt><dd>nicht verbunden</dd></div>
+            <div class="sd-kv" data-slot="plan-source"><dt>Plan</dt><dd>Plandatei · Version 3</dd></div>
+          </dl>
+          <div><button type="button" class="sd-btn sd-btn--coral" data-action="connect-strava">Strava verbinden</button></div>
+          <hr class="sd-rule" />
+          <p class="sd-hint">Abmelden räumt dieses Gerät: lokale Kopien und der Offline-Speicher werden gelöscht. Nicht übertragene Einträge werden vorher gesendet.</p>
+          <p class="sd-notice sd-notice--danger" role="status">Abmelden abgebrochen. Es gibt noch nicht übertragene Einträge. Bitte mit Netz erneut versuchen.</p>
+          <div><button type="button" class="sd-btn sd-btn--danger" data-action="logout">Abmelden</button></div>
+        </section>
+      </main>
+      <nav class="sd-tabbar" aria-label="Hauptnavigation" data-fill="tabs" data-active="plan"></nav>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================= LOGIN-NEBENSCREENS -->
+<h2 class="mk-group" id="g-auth">Login-Nebenscreens</h2>
+
+<section class="state" id="a1">
+  <header class="state__head"><span class="state__id">A1</span><h3>„Kein Zugriff“ mit UID-Platzhalter</h3></header>
+  <p class="state__cap">Gleicher Aufbau wie der Login (Zeichen 64 px, „Stride“, eine Karte, ein Button). Die UID steht nur hier, in Mono und umbrechbar, damit ein Tippfehler in der erlaubten UID auffällt. Beispielwerte, nicht echt. Einzige Aktion: Primärbutton „Abmelden“.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <div class="sd-auth">
+        <div class="sd-auth__brand">
+          <svg class="sd-mark sd-mark--lg" viewBox="0 0 64 64" data-fill="mark"></svg>
+          <p class="sd-auth__name">Stride</p>
+        </div>
+        <section class="sd-card" data-card="no-access">
+          <div><h4 class="sd-title sd-title--sm">Kein Zugriff</h4><p class="sd-text">Dieses Konto ist für die App nicht freigegeben.</p></div>
+          <dl class="sd-kvlist">
+            <div class="sd-kv"><dt>E-Mail</dt><dd>gast@example.com</dd></div>
+            <div class="sd-kv"><dt>UID</dt><dd class="sd-mono">Qm4xT7vLz2NcR8aKdW5pYs3HbJe9</dd></div>
+          </dl>
+          <button type="button" class="sd-btn sd-btn--primary" data-action="forbidden-logout">Abmelden</button>
+        </section>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="a2">
+  <header class="state__head"><span class="state__id">A2</span><h3>„Noch nicht übertragene Einträge“</h3></header>
+  <p class="state__cap">Anonyme Altsitzung mit offenen Einträgen: nicht abmelden, erneut versuchen. Ein Satz, ein Button.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <div class="sd-auth">
+        <div class="sd-auth__brand">
+          <svg class="sd-mark sd-mark--lg" viewBox="0 0 64 64" data-fill="mark"></svg>
+          <p class="sd-auth__name">Stride</p>
+        </div>
+        <section class="sd-card" data-card="pending-writes">
+          <div><h4 class="sd-title sd-title--sm">Noch nicht übertragene Einträge</h4><p class="sd-text">Es gibt noch nicht übertragene Einträge. Bitte mit Netz erneut öffnen.</p></div>
+          <button type="button" class="sd-btn sd-btn--primary" data-action="retry-pending">Erneut versuchen</button>
+        </section>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="state" id="a3">
+  <header class="state__head"><span class="state__id">A3</span><h3>Abmelde-Hinweis: App noch in einem zweiten Tab offen</h3></header>
+  <p class="state__cap">Nach dem Abmelden kann der Offline-Speicher nicht geleert werden, weil die App in einem anderen Tab läuft. Der Hinweis steht als Amber-Block in der Login-Karte (Status, kein Fehler), über den Feldern. Rechts daneben zum Vergleich der normale Login mit Fehler („Bitte das Passwort eingeben.“).</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320" data-label="Hinweis">
+      <div class="sd-auth">
+        <div class="sd-auth__brand">
+          <svg class="sd-mark sd-mark--lg" viewBox="0 0 64 64" data-fill="mark"></svg>
+          <p class="sd-auth__name">Stride</p>
+          <p class="sd-auth__tag">Trainingsplan, Strava-Läufe und Krafteinheiten an einem Ort.</p>
+        </div>
+        <form class="sd-card" data-form="login" novalidate>
+          <p class="sd-notice sd-notice--amber" role="status" data-notice>Abgemeldet. Der Offline-Speicher dieses Geräts konnte nicht geleert werden, weil die App noch in einem anderen Tab offen ist. Bitte alle Tabs der App schließen.</p>
+          <label class="sd-field"><span class="sd-field__label">E-Mail</span><input class="sd-input" type="email" name="email" autocomplete="username" inputmode="email" value="louis@example.com" /></label>
+          <label class="sd-field"><span class="sd-field__label">Passwort</span><input class="sd-input" type="password" name="password" autocomplete="current-password" placeholder="••••••••" /></label>
+          <button type="submit" class="sd-btn sd-btn--primary">Anmelden</button>
+        </form>
+        <p class="sd-auth__foot">Registrieren ist in der App nicht möglich.</p>
+      </div>
+    </div>
+    <div class="spec" data-w="390" data-label="Login mit Fehler">
+      <div class="sd-auth">
+        <div class="sd-auth__brand">
+          <svg class="sd-mark sd-mark--lg" viewBox="0 0 64 64" data-fill="mark"></svg>
+          <p class="sd-auth__name">Stride</p>
+          <p class="sd-auth__tag">Trainingsplan, Strava-Läufe und Krafteinheiten an einem Ort.</p>
+        </div>
+        <form class="sd-card" data-form="login" novalidate>
+          <label class="sd-field"><span class="sd-field__label">E-Mail</span><input class="sd-input" type="email" name="email" autocomplete="username" inputmode="email" value="louis@example.com" /></label>
+          <label class="sd-field"><span class="sd-field__label">Passwort</span><input class="sd-input" type="password" name="password" autocomplete="current-password" placeholder="••••••••" /></label>
+          <p class="sd-notice sd-notice--danger" role="alert">Bitte das Passwort eingeben.</p>
+          <button type="submit" class="sd-btn sd-btn--primary">Anmelden</button>
+        </form>
+        <p class="sd-auth__foot">Registrieren ist in der App nicht möglich.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================= BAUSTEINE -->
+<h2 class="mk-group" id="g-bausteine">Bausteine (Referenz zu ui-markup-stride.md)</h2>
+
+<section class="state" id="z1">
+  <header class="state__head"><span class="state__id">Z1</span><h3>Buttons, Pills, Haken, Ampel, Segment, Tab-Leiste</h3></header>
+  <p class="state__cap">Alle Bausteine dieses Nachtrags an einem Ort, damit hell und dunkel direkt vergleichbar sind.</p>
+  <div class="specs">
+    <div class="spec" data-w="390 320">
+      <main class="sd-main sd-main--flush">
+        <p class="sd-label">Buttons</p>
+        <div class="sd-card">
+          <button type="button" class="sd-btn sd-btn--primary sd-btn--lg">Satz 2 fertig</button>
+          <button type="button" class="sd-btn sd-btn--primary">Lauf ansehen</button>
+          <div class="sd-actions"><button type="button" class="sd-btn">Sekundär</button><button type="button" class="sd-btn sd-btn--text">Text-Button</button><button type="button" class="sd-btn sd-btn--danger">Abmelden</button></div>
+          <div class="sd-card sd-card--danger"><div class="sd-actions"><button type="button" class="sd-btn sd-btn--onbanner">Neu laden</button></div></div>
+        </div>
+        <p class="sd-label">Pills</p>
+        <div class="sd-card"><div class="sd-actions">
+          <span class="sd-pill sd-pill--primary">Heute</span>
+          <span class="sd-pill sd-pill--ok"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>erledigt</span>
+          <span class="sd-pill sd-pill--amber">7/8</span>
+          <span class="sd-pill sd-pill--amber">HF zu hoch</span>
+          <span class="sd-pill sd-pill--danger">verpasst</span>
+          <span class="sd-pill">Deload</span>
+          <span class="sd-pill sd-pill--optional">optional</span>
+          <span class="sd-pill sd-pill--ok">im Plan</span>
+          <span class="sd-pill sd-pill--amber">zu kurz</span>
+          <span class="sd-pill">automatisch</span>
+          <span class="sd-pill sd-pill--amber">von Hand</span>
+          <span class="sd-pill sd-pill--purple">eigene</span>
+        </div></div>
+        <p class="sd-label">Haken, Ring, läuft</p>
+        <div class="sd-card"><div class="sd-actions sd-actions--center">
+          <span class="sd-check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+          <span class="sd-check sd-check--lauf"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+          <span class="sd-check sd-check--long"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+          <span class="sd-ring"></span><span class="sd-ring sd-ring--run"></span>
+        </div></div>
+        <p class="sd-label">Ampel-Formen</p>
+        <div class="sd-card"><div class="sd-actions sd-actions--center">
+          <span class="sd-legend"><span class="sd-ampel sd-ampel--ok"></span>im Plan</span>
+          <span class="sd-legend"><span class="sd-ampel sd-ampel--warn"></span>Achtung</span>
+          <span class="sd-legend"><span class="sd-ampel sd-ampel--crit"></span>kritisch</span>
+          <span class="sd-legend"><span class="sd-ampel sd-ampel--none"></span>keine Daten</span>
+          <span class="sd-legend"><span class="sd-ampel sd-ampel--load"></span>lädt</span>
+        </div></div>
+        <p class="sd-label">Segment</p>
+        <div class="sd-card"><div class="sd-seg" role="group" aria-label="Verlauf"><button type="button" class="sd-seg__opt is-active" aria-pressed="true">Lauf</button><button type="button" class="sd-seg__opt" aria-pressed="false">Kraft</button></div></div>
+      </main>
+      <nav class="sd-tabbar" aria-label="Hauptnavigation" data-fill="tabs" data-active="dashboard"></nav>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+/* Erzeugt aus jedem <div class="spec"> die Frames (Breiten x hell/dunkel), setzt die Statusleiste davor und
+   füllt Marke und Tab-Leiste. Nur Darstellung des Mockups; die App-Klassen liegen komplett im <style>. */
+(function () {
+  var MARK = '<rect class="m-bg" width="64" height="64" rx="15"/><g transform="rotate(14 32 32)"><rect class="m-a" x="17" y="27" width="11" height="22" rx="5.5"/><rect class="m-b" x="36" y="15" width="11" height="22" rx="5.5"/></g>';
+  var TABS = [
+    ["dashboard", "Heute", '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/>'],
+    ["week", "Woche", '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h2M11 13h2M15 13h2M7 17h2M11 17h2"/>'],
+    ["history", "Verlauf", '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'],
+    ["plan", "Plan", '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>']
+  ];
+  var STATUS = '<div class="mk-sb" aria-hidden="true"><span>9:41</span><span class="mk-batt"></span></div>';
+  var themes = [["light", "hell"], ["dark", "dunkel"]];
+
+  document.querySelectorAll(".spec").forEach(function (spec) {
+    var widths = (spec.getAttribute("data-w") || "390").split(/\s+/);
+    var h = spec.getAttribute("data-h");
+    var label = spec.getAttribute("data-label");
+    var html = spec.innerHTML;
+    var frag = document.createDocumentFragment();
+    widths.forEach(function (w) {
+      themes.forEach(function (t) {
+        var fig = document.createElement("figure");
+        fig.className = "fig fig-" + t[0];
+        var fr = document.createElement("div");
+        fr.className = "frame theme-" + t[0] + " w" + w + (h ? " h" + h : "");
+        fr.innerHTML = '<div class="sd-screen">' + STATUS + html + "</div>";
+        fr.querySelectorAll('[data-fill="mark"]').forEach(function (s) { s.innerHTML = MARK; s.removeAttribute("data-fill"); });
+        fr.querySelectorAll('[data-fill="tabs"]').forEach(function (n) {
+          var active = n.getAttribute("data-active");
+          n.innerHTML = TABS.map(function (tab) {
+            var on = tab[0] === active;
+            return '<button type="button" class="sd-tab' + (on ? " is-active" : "") + '"' + (on ? ' aria-current="page"' : "") + ' data-tab="' + tab[0] + '"><svg viewBox="0 0 24 24">' + tab[2] + "</svg><span>" + tab[1] + "</span></button>";
+          }).join("");
+          n.removeAttribute("data-fill"); n.removeAttribute("data-active");
+        });
+        fr.querySelectorAll("svg:not([aria-label])").forEach(function (s) {
+          s.setAttribute("aria-hidden", "true"); s.setAttribute("focusable", "false");
+        });
+        var cap = document.createElement("figcaption");
+        cap.textContent = (label ? label + " · " : "") + w + " px · " + t[1];
+        fig.appendChild(fr); fig.appendChild(cap); frag.appendChild(fig);
+      });
+    });
+    spec.replaceWith(frag);
+  });
+
+  var buttons = document.querySelectorAll(".mk-switch button");
+  buttons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.body.setAttribute("data-show", b.getAttribute("data-set"));
+      buttons.forEach(function (o) { o.setAttribute("aria-pressed", String(o === b)); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+- [Trainingsplanung backlog state](project_trainingsplanung_backlog.md) — ideas already in/declined for Stride backlog; backlog lives at repo-root backlog.md, German

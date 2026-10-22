@@ -32,3 +32,19 @@ Findings from Login 1b (docs/review-architecture-login-1b.md, 2026-10-03):
   with a timeout before any sign-out, never only a manual "open once with network" step.
 - Planner referenced a non-existent `checkAccess` hook in worker.js — verify named hooks exist.
 - Plan/MCP visual-plan tools were not available in the subagent for either review.
+
+Findings from Stride redesign (docs/review-architecture-stride.md, 2026-10-21):
+
+- Anything copied under docs/ is served by Pages on the app origin. Handoff prototypes
+  (*.dc.html + support.js) pull React/Babel from unpkg + Google Fonts. **How to apply:** for
+  third-party-loading reference files, recommend storing them inert (.txt) and check every new docs/ asset for external scripts.
+- Kraft data facts: time exercises store seconds in `reps` (progression.js timeBased); legacy logs can
+  have `kg: 0` (numOrNull("0")); 0 and null are read the same everywhere (`> 0` checks). Stepper UIs
+  prefill values, so partial saves must write only the sets that were actually done.
+- "Clean up other-date keys on open" patterns delete live drafts when Louis backfills past days
+  from the week tab. Prune by age instead.
+- bump-version.mjs stamps only index.html assets + JS imports, never CSS url(). Versioned filenames are the
+  fix; also demand a test that every url() in style.css exists.
+- config.js stub in app.test.mjs is a literal; stubs.test checks names only, not shape → derive THRESHOLDS from real config.
+- Main keeps moving with plan re-calibrations (28.10, 22.11). Those also touch plan-golden/app tests, not just
+  JSON. Demand merging main into the branch right away + plan-independent fixtures for placeholder-week tests.

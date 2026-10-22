@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width: 100%; height: 100%; border-radius: 22.5%; overflow: hidden; position: relative; box-shadow: {{ outerShadow }}; backdrop-filter: {{ backdrop }}; -webkit-backdrop-filter: {{ backdrop }};">
+  <svg viewBox="0 0 64 64" style="width: 100%; height: 100%; display: block;">
+    <defs>
+      <linearGradient id="{{ bgId }}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{ bg1 }}"></stop><stop offset="1" stop-color="{{ bg2 }}"></stop></linearGradient>
+      <linearGradient id="{{ fgId }}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{ fg1 }}"></stop><stop offset="1" stop-color="{{ fg2 }}"></stop></linearGradient>
+      <linearGradient id="{{ acId }}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{ ac1 }}" stop-opacity="{{ acOp }}"></stop><stop offset="1" stop-color="{{ ac2 }}" stop-opacity="{{ acOp }}"></stop></linearGradient>
+      <linearGradient id="{{ rimId }}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.9"></stop><stop offset="0.35" stop-color="#fff" stop-opacity="0"></stop><stop offset="0.75" stop-color="#000" stop-opacity="0"></stop><stop offset="1" stop-color="#000" stop-opacity="{{ darkEdge }}"></stop></linearGradient>
+      <linearGradient id="{{ specId }}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.55"></stop><stop offset="0.4" stop-color="#fff" stop-opacity="0"></stop></linearGradient>
+      <filter id="{{ blurId }}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.8"></feGaussianBlur></filter>
+    </defs>
+    <rect width="64" height="64" fill="url(#{{ bgId }})"></rect>
+
+    <sc-if value="{{ isBahn }}" hint-placeholder-val="{{ false }}">
+      <g transform="translate(0 2)" filter="url(#{{ blurId }})" opacity="{{ shadowOp }}"><rect x="11" y="19" width="42" height="26" rx="13" fill="none" stroke="#000" stroke-width="6"></rect><circle cx="49.2" cy="22.8" r="6.2" fill="#000"></circle></g>
+      <rect x="11" y="19" width="42" height="26" rx="13" fill="none" stroke="url(#{{ fgId }})" stroke-width="6.5"></rect>
+      <rect x="11" y="19" width="42" height="26" rx="13" fill="none" stroke="url(#{{ specId }})" stroke-width="6.5"></rect>
+      <circle cx="49.2" cy="22.8" r="6.2" fill="url(#{{ acId }})"></circle>
+      <circle cx="49.2" cy="22.8" r="5.8" fill="none" stroke="url(#{{ rimId }})" stroke-width="0.8"></circle>
+    </sc-if>
+
+    <sc-if value="{{ isKadenz }}" hint-placeholder-val="{{ false }}">
+      <g transform="rotate(14 32 32)">
+        <g transform="translate(0 2)" filter="url(#{{ blurId }})" opacity="{{ shadowOp }}"><rect x="17" y="27" width="11.5" height="22" rx="5.75" fill="#000"></rect><rect x="35.5" y="15" width="11.5" height="22" rx="5.75" fill="#000"></rect></g>
+        <rect x="17" y="27" width="11.5" height="22" rx="5.75" fill="url(#{{ fgId }})"></rect>
+        <rect x="17.4" y="27.4" width="10.7" height="21.2" rx="5.35" fill="none" stroke="url(#{{ rimId }})" stroke-width="0.8"></rect>
+        <rect x="35.5" y="15" width="11.5" height="22" rx="5.75" fill="url(#{{ acId }})"></rect>
+        <rect x="35.9" y="15.4" width="10.7" height="21.2" rx="5.35" fill="none" stroke="url(#{{ rimId }})" stroke-width="0.8"></rect>
+      </g>
+    </sc-if>
+
+    <sc-if value="{{ isSplit }}" hint-placeholder-val="{{ false }}">
+      <g transform="translate(0 2)" filter="url(#{{ blurId }})" opacity="{{ shadowOp }}"><rect x="13" y="18" width="23" height="11.5" rx="5.75" fill="#000"></rect><rect x="13" y="35" width="38" height="11.5" rx="5.75" fill="#000"></rect></g>
+      <rect x="13" y="18" width="23" height="11.5" rx="5.75" fill="url(#{{ fgId }})"></rect>
+      <rect x="13.4" y="18.4" width="22.2" height="10.7" rx="5.35" fill="none" stroke="url(#{{ rimId }})" stroke-width="0.8"></rect>
+      <rect x="13" y="35" width="38" height="11.5" rx="5.75" fill="url(#{{ acId }})"></rect>
+      <rect x="13.4" y="35.4" width="37.2" height="10.7" rx="5.35" fill="none" stroke="url(#{{ rimId }})" stroke-width="0.8"></rect>
+    </sc-if>
+
+    <sc-if value="{{ isSub }}" hint-placeholder-val="{{ false }}">
+      <g transform="translate(0 2)" filter="url(#{{ blurId }})" opacity="{{ shadowOp }}"><text x="30" y="41" text-anchor="middle" font-family="Geist, sans-serif" font-weight="700" font-size="23" letter-spacing="-1" fill="#000">sub</text><circle cx="49" cy="18" r="5.5" fill="#000"></circle></g>
+      <text x="30" y="41" text-anchor="middle" font-family="Geist, sans-serif" font-weight="700" font-size="23" letter-spacing="-1" fill="url(#{{ fgId }})">sub</text>
+      <circle cx="49" cy="18" r="5.5" fill="url(#{{ acId }})"></circle>
+      <circle cx="49" cy="18" r="5.1" fill="none" stroke="url(#{{ rimId }})" stroke-width="0.8"></circle>
+    </sc-if>
+  </svg>
+  <div style="position: absolute; inset: 0; border-radius: 22.5%; pointer-events: none; box-shadow: inset 0 1.5px 0.5px rgba(255,255,255,0.45), inset 0 -1px 0.5px rgba(255,255,255,0.18), inset 0 0 0 0.5px rgba(255,255,255,0.12);"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:180,&quot;height&quot;:180},&quot;motif&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;bahn&quot;,&quot;kadenz&quot;,&quot;split&quot;,&quot;sub&quot;],&quot;default&quot;:&quot;bahn&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;default&quot;,&quot;dark&quot;,&quot;clear&quot;,&quot;tinted&quot;],&quot;default&quot;:&quot;default&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  uid = Math.random().toString(36).slice(2, 8);
+  renderVals() {
+    const motif = this.props.motif ?? "bahn";
+    const mode = this.props.mode ?? "default";
+    const P = {
+      default: { bg1: "#1f9a78", bg2: "#0a5241", fg1: "#ffffff", fg2: "#e3efe9", ac1: "#ffa27c", ac2: "#de5a2a", acOp: 0.94, shadowOp: 0.35, darkEdge: 0.18, outerShadow: "0 8px 18px rgba(0,0,0,0.22)", backdrop: "none" },
+      dark: { bg1: "#2c2c30", bg2: "#111113", fg1: "#8ff0cb", fg2: "#3fb48b", ac1: "#ffb894", ac2: "#e8763f", acOp: 0.94, shadowOp: 0.6, darkEdge: 0.3, outerShadow: "0 8px 18px rgba(0,0,0,0.35)", backdrop: "none" },
+      clear: { bg1: "rgba(255,255,255,0.34)", bg2: "rgba(255,255,255,0.12)", fg1: "rgba(255,255,255,0.98)", fg2: "rgba(255,255,255,0.72)", ac1: "#ffffff", ac2: "#ffffff", acOp: 0.55, shadowOp: 0.22, darkEdge: 0.12, outerShadow: "0 8px 18px rgba(0,0,0,0.16)", backdrop: "blur(14px) saturate(160%)" },
+      tinted: { bg1: "#3b3024", bg2: "#18140f", fg1: "#ffe0ae", fg2: "#d8a45c", ac1: "#fff4dc", ac2: "#f2c47c", acOp: 0.9, shadowOp: 0.55, darkEdge: 0.3, outerShadow: "0 8px 18px rgba(0,0,0,0.3)", backdrop: "none" },
+    }[mode];
+    const id = (k) => `gi-${k}-${this.uid}`;
+    return {
+      ...P,
+      isBahn: motif === "bahn", isKadenz: motif === "kadenz", isSplit: motif === "split", isSub: motif === "sub",
+      bgId: id("bg"), fgId: id("fg"), acId: id("ac"), rimId: id("rim"), specId: id("spec"), blurId: id("blur"),
+    };
+  }
+}
+</script>
+</body>
+</html>
