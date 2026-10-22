@@ -4,19 +4,12 @@
 // importiert nie Firebase, Strava oder app.js). Keine eigenen Styles und kein
 // style="...": alle Klassen kommen aus style.css, das Markup steht in
 // docs/ui-markup-stride.md, Abschnitt 9. Fremde Texte immer durch esc().
-import { formatKm, formatKm1 } from "./metrics.js?v=202610221430";
-import { esc, markSVG, checkCircle, ringOpen, pill, numAttr } from "./ui.js?v=202610221430";
-import { slug } from "./plan.js?v=202610221430";
-import { distanceStatus } from "./runcompare.js?v=202610221430";
+import { formatKm, formatKm1 } from "./metrics.js?v=202610221509";
+import { ICONS, esc, markSVG, checkCircle, ringOpen, pill, numAttr } from "./ui.js?v=202610221509";
+import { slug } from "./plan.js?v=202610221509";
+import { distanceStatus } from "./runcompare.js?v=202610221509";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
-
-// Icons mit Größenklasse (die ICONS-Map in ui.js hat keine, siehe Markup-Doc 9).
-const I_CHAT = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-4 4V5z"/><path d="M8 9h8M8 12.5h5"/></svg>';
-const I_INFO = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r="1.2" fill="currentColor" stroke="none"/></svg>';
-const I_CHEV_R = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
-const I_CHEV_D = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
-const I_CHECK_W = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
 // numAttr lebt in ui.js (auch view-week.js braucht es); hier re-exportiert.
 export { numAttr };
@@ -114,7 +107,7 @@ function tomorrowRowHTML(tomorrow) {
   }
   return `<button type="button" class="sd-nextrow" data-action="open-day" data-date="${esc(tomorrow.iso)}">` +
     `<span class="sd-stripe ${STRIPE[tomorrow.kind] ?? ""}"></span>` +
-    `<span class="sd-nextrow__main"><span class="sd-nextrow__label">Morgen</span><span class="sd-nextrow__value">${esc(tomorrow.value)}</span></span>${I_CHEV_R}</button>`;
+    `<span class="sd-nextrow__main"><span class="sd-nextrow__label">Morgen</span><span class="sd-nextrow__value">${esc(tomorrow.value)}</span></span>${ICONS.chevR}</button>`;
 }
 
 export function todayRestHTML(tomorrow) {
@@ -188,7 +181,7 @@ export function todayNoPlanHTML({ summary, runsKnown }) {
 // ---------- Coach (9.4) ----------
 export function coachLoadingHTML() {
   return `<article class="sd-card sd-card--coach" data-card="coach" data-state="loading" aria-busy="true">
-  <p class="sd-eyebrow sd-eyebrow--purple">${I_CHAT}Coach</p>
+  <p class="sd-eyebrow sd-eyebrow--purple">${ICONS.chat}Coach</p>
   <div class="sd-skelstack" role="status"><span class="sd-skel sd-skel--purple sd-skel--w92"></span><span class="sd-skel sd-skel--purple sd-skel--w60"></span><span class="sd-vh">Coach wird vorbereitet</span></div>
 </article>`;
 }
@@ -197,7 +190,7 @@ export function coachLoadingHTML() {
 // "Kein Plan"/"Bis zum Rennen" läuft durch dieselbe Karte.
 export function coachHTML(text, bilanzHTML = "") {
   return `<article class="sd-card sd-card--coach" data-card="coach">
-  <p class="sd-eyebrow sd-eyebrow--purple">${I_CHAT}Coach</p>
+  <p class="sd-eyebrow sd-eyebrow--purple">${ICONS.chat}Coach</p>
   <p class="sd-coach__text">${esc(text)}</p>${bilanzHTML}
 </article>`;
 }
@@ -208,7 +201,7 @@ export function bilanzOpenHTML(weekN, text) {
 }
 // Di bis So: Auslöser plus zu-/aufgeklappter Text.
 export function bilanzToggleHTML(weekN, expanded, text) {
-  return `<div class="sd-bilanz"><button type="button" class="sd-bilanz__toggle" data-action="toggle-bilanz" aria-expanded="${expanded ? "true" : "false"}" aria-controls="bilanzBody">Wochenbilanz W${Number(weekN)}${I_CHEV_D}</button>` +
+  return `<div class="sd-bilanz"><button type="button" class="sd-bilanz__toggle" data-action="toggle-bilanz" aria-expanded="${expanded ? "true" : "false"}" aria-controls="bilanzBody">Wochenbilanz W${Number(weekN)}${ICONS.chevD}</button>` +
     `<p class="sd-bilanz__body" id="bilanzBody"${expanded ? "" : " hidden"}>${esc(text)}</p></div>`;
 }
 
@@ -224,7 +217,7 @@ function statusRowHTML(key, status, detailHTML) {
   return `<button type="button" class="sd-statusrow" data-action="open-info" data-info="${key}" data-status="${st}">
   <span class="sd-statusrow__shape" aria-hidden="true"><span class="sd-ampel sd-ampel--${STATUS_SHAPE[st]}"></span></span>
   <span class="sd-statusrow__main"><span class="sd-statusrow__title">${esc(AMPEL_LABELS[key])}</span><span class="sd-statusrow__detail">${detailHTML}</span></span>
-  ${I_INFO}<span class="sd-vh">${STATUS_SR[st]}</span>
+  ${ICONS.info}<span class="sd-vh">${STATUS_SR[st]}</span>
 </button>`;
 }
 
@@ -248,7 +241,7 @@ function weekDayHTML(day) {
   if (!rest && day.state === "done") classes.push("is-done");
   if (!rest && day.state === "missed") classes.push("is-missed");
   if (day.today) classes.push("is-today");
-  const dot = rest ? "–" : day.state === "done" ? I_CHECK_W : esc(day.dot);
+  const dot = rest ? "–" : day.state === "done" ? ICONS.checkW : esc(day.dot);
   const sr = `${day.dayLong}, ${rest ? "Ruhetag" : `${day.what}, ${WD_STATE_WORD[day.state] ?? "offen"}`}${day.today ? ", heute" : ""}`;
   return `<span class="${classes.join(" ")}"><span class="sd-wd__dow" aria-hidden="true">${esc(day.dow)}</span>` +
     `<span class="sd-wd__dot" aria-hidden="true">${dot}</span><span class="sd-vh">${esc(sr)}</span></span>`;

@@ -8,12 +8,9 @@
 // Die Tageszeile ist ein Akkordeon: der Zeilen-Button klappt die Details auf,
 // "Tag öffnen" (eigener Button im Detail, keine verschachtelten Buttons) führt
 // in die Tagesansicht.
-import { formatKm } from "./metrics.js?v=202610221430";
-import { esc, checkCircle, ringOpen, pill, numAttr, MONTHS_DE } from "./ui.js?v=202610221430";
+import { formatKm } from "./metrics.js?v=202610221509";
+import { ICONS, esc, checkCircle, ringOpen, pill, numAttr, MONTHS_DE } from "./ui.js?v=202610221509";
 
-const I_CHEV_L20 = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
-const I_CHEV_R20 = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
-const I_CHEV_R = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
 
 // Streifenklasse aus fester Map, nie aus Daten (Markup 10.3).
 const STRIPE_CLASS = { kraft: " sd-stripe--kraft", lauf: " sd-stripe--lauf", long: " sd-stripe--long" };
@@ -36,8 +33,8 @@ export function weekHeadHTML({ n, weekType, dateRange, hasPrev, hasNext, showTod
   return `<div class="sd-weekhead">
   <div class="sd-weekhead__titles"><p class="sd-intro__sub">${esc(sub)}</p><h1 class="sd-display">Woche ${n}</h1></div>
   <div class="sd-weeknav" role="group" aria-label="Woche wechseln">
-    <button type="button" class="sd-roundbtn" data-action="week-prev"${hasPrev ? "" : " disabled"} aria-label="Vorherige Woche">${I_CHEV_L20}</button>
-    <button type="button" class="sd-roundbtn" data-action="week-next"${hasNext ? "" : " disabled"} aria-label="Nächste Woche">${I_CHEV_R20}</button>
+    <button type="button" class="sd-roundbtn" data-action="week-prev"${hasPrev ? "" : " disabled"} aria-label="Vorherige Woche">${ICONS.chevL}</button>
+    <button type="button" class="sd-roundbtn" data-action="week-next"${hasNext ? "" : " disabled"} aria-label="Nächste Woche">${ICONS.chevR20}</button>
   </div>${today}
 </div>`;
 }
@@ -125,7 +122,7 @@ export function dayRowHTML(day) {
   </button>
   <div class="sd-day__detail" id="${detailId}"${day.isOpen ? "" : " hidden"}>
     ${lines}
-    <button type="button" class="sd-btn" data-action="open-day" data-date="${esc(day.iso)}">Tag öffnen${I_CHEV_R}</button>
+    <button type="button" class="sd-btn" data-action="open-day" data-date="${esc(day.iso)}">Tag öffnen${ICONS.chevR}</button>
   </div>
 </div>`;
 }

@@ -196,3 +196,35 @@ Repos kopieren, `.txt` entfernen und die `.dc.html` lokal öffnen, nicht über G
 
 Grenzen: `style.css` nicht anfassen (Designer), C10-Dateien nicht anfassen, danach
 `npm run version` und `npm test` komplett. Danach kurze Nachprüfung durch den reviewer.
+
+## Korrekturrunde 1
+
+Behoben (coder, Schritt 10 → 7, Runde 1 von 2):
+
+- **I1 (C4):** `distanceStatus` in `runcompare.js` rundet jetzt mit `Number(actualKm.toFixed(1))`,
+  also exakt wie `formatKm1` anzeigt. 8,95 km von 10 km zeigt „8,9“ und ist „zu kurz“; 8,96 zeigt
+  „9,0“ und ist „im Plan“. Neue Testfälle in `tests/runcompare.test.mjs` (inkl. 89 %/90 %, die alten
+  Fälle bleiben grün).
+- **I2 (C3):** `tests/naming-guard.test.mjs` prüft, dass jede `url(...)` in `style.css` auf eine
+  vorhandene Datei zeigt.
+- **I3:** altes, ungenutztes `ICONS` in `ui.js` ersetzt (siehe M3); ungenutzte Importe `ICONS`,
+  `phaseRange`, `formatGoal`, `fromISO` aus `app.js` entfernt (per grep geprüft).
+- **Security L1:** `strava.js` lässt als `date` nur `YYYY-MM-DD` durch (`activityDate`), Läufe und
+  Krafteinheiten ohne gültiges Datum fallen weg; `startTime` nur als `HH:MM`. Damit ist
+  `shortDate(run.date)` an allen Aufrufstellen sicher, ohne die Views anzufassen.
+- **M1:** `saveKraftExercise` merkt sich die `kraftSaved`-Map des Tages und reicht sie an
+  `rollbackSave` weiter; eine späte Rücknahme berührt die Map eines neueren Kraft-Tags nicht mehr.
+- **M2:** Der Entwurf trägt `weightAdded` (nur bei `true`, `serializeDraft`/`parseDraft` in
+  `kraftflow.js`, Test dazu); „+ Gewicht“ mit 0 kg überlebt den Reload, `kg: null` im Dokument
+  (C1) bleibt unberührt.
+- **M3:** Die `sd-icon`-SVGs stehen einmal in `ui.js` (`ICONS`: chat, checkW, chevD, chevL, chevR,
+  chevR20, info, refresh) und die Zurück-Zeile als `backNavHTML(label)`; `app.js`, `view-run.js`,
+  `view-kraft.js`, `view-week.js`, `view-dashboard.js`, `view-history.js` nutzen sie.
+- **M4:** Die Lade-Schritte in `renderKraftDay` laufen in einem eigenen `try`; Fehler zeigen
+  „Kraft-Tag nicht geladen: …“ als Fehlerkarte.
+- **M5:** `scenario("26b")` gesetzt; Zählung jetzt 26 = 1, 26b = 2. Ledger-Zeile in
+  `tests/README.md` angepasst.
+- **M7:** `aria-live` am `sd-stepper__num` entfernt; `#kraftLive` bleibt die eine Ansage.
+- **M8:** `docs/design-stride/README.md` nennt die `.txt`-Endung und wie man lokal ansieht.
+
+Nicht angefasst: M6 (nach dem Merge), `style.css`, C10-Dateien.

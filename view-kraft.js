@@ -11,9 +11,8 @@
 //     saveError: string|null, editing: { field, text }|null,
 //     chip: { level, text }|null, lastText: string|null, savedSets: [{ kg, reps }],
 //     nextSlug, nextName }   // nextSlug/nextName nur an der Jetzt-Übung gesetzt
-import { esc, checkCircle, ringOpen, ringRunning, pill } from "./ui.js?v=202610221430";
+import { ICONS, esc, checkCircle, ringOpen, ringRunning, pill } from "./ui.js?v=202610221509";
 
-const I_CHEV_L = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
 
 // Deutsche Kommazahl: 62.5 -> "62,5", 20 -> "20"
 export const fmtNum = (n) => String(Math.round(Number(n) * 10) / 10).replace(".", ",");
@@ -53,7 +52,7 @@ function dotsHTML(exercises, focusSlug) {
 }
 
 const backButton = (backLabel) =>
-  `<button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back">${I_CHEV_L}${esc(backLabel)}</button>`;
+  `<button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back">${ICONS.chevL}${esc(backLabel)}</button>`;
 
 /**
  * Inhalt von <header class="sd-pagehead"> (setPageHead). exercises = null beim Laden
@@ -116,7 +115,7 @@ function stepperHTML(field, value, vm, solo) {
   const editing = vm.editing?.field === field;
   const mid = editing
     ? `<span class="sd-stepper__field"><input class="sd-stepper__input" type="text" inputmode="${f.inputmode}" enterkeyhint="done" autocomplete="off" aria-label="${esc(group)}" value="${esc(vm.editing.text)}"><span class="sd-stepper__unit">${f.unit}</span></span>`
-    : `<button type="button" class="sd-stepper__val" data-action="edit-value" data-field="${field}" aria-label="${esc(f.valLabel(value))}"><span class="sd-stepper__num sd-mono" aria-live="polite">${fmtNum(value)}</span><span class="sd-stepper__unit">${f.unit}</span></button>`;
+    : `<button type="button" class="sd-stepper__val" data-action="edit-value" data-field="${field}" aria-label="${esc(f.valLabel(value))}"><span class="sd-stepper__num sd-mono">${fmtNum(value)}</span><span class="sd-stepper__unit">${f.unit}</span></button>`;
   return `<div class="sd-stepper${f.cls}${solo ? " sd-stepper--solo" : ""}" role="group" aria-label="${esc(group)}">
 <button type="button" class="sd-stepper__btn" data-action="step" data-field="${field}" data-dir="-1" aria-label="${f.dec}"${value <= 0 ? " disabled" : ""}>−</button>
 ${mid}

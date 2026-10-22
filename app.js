@@ -1,41 +1,41 @@
 import {
-  slug, toISO, fromISO, addDays,
-  weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
-  sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
+  slug, toISO, addDays,
+  weekStart, weekDates, weekOf, weekNumberFor, phaseOf,
+  sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610221430";
-import { loadPlans } from "./plan-store.js?v=202610221430";
+} from "./plan.js?v=202610221509";
+import { loadPlans } from "./plan-store.js?v=202610221509";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610221430";
+} from "./firebase-init.js?v=202610221509";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport, lastFetchedAt,
-} from "./strava.js?v=202610221430";
-import { previousEntry, progressionChip } from "./progression.js?v=202610221430";
+} from "./strava.js?v=202610221509";
+import { previousEntry, progressionChip } from "./progression.js?v=202610221509";
 import {
   exerciseMode, startSets, lastTimeText, applyWeightForward, initialFocus, nextOpenExercise,
   stepValue, buildLogPayload, MAX_VALUE,
   draftKey, serializeDraft, parseDraft, staleDraftKeys, dropSavedFromDraft,
-} from "./kraftflow.js?v=202610221430";
-import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610221430";
-import { distanceStatus, hrStatus } from "./runcompare.js?v=202610221430";
-import { esc, ICONS, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet, createSheet } from "./ui.js?v=202610221430";
-import * as dash from "./view-dashboard.js?v=202610221430";
-import * as dashWeek from "./view-week.js?v=202610221430";
-import * as kraftView from "./view-kraft.js?v=202610221430";
-import * as runView from "./view-run.js?v=202610221430";
-import * as historyView from "./view-history.js?v=202610221430";
-import * as planView from "./view-plan.js?v=202610221430";
-import * as metrics from "./metrics.js?v=202610221430";
-import * as coach from "./coach.js?v=202610221430";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610221430";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610221430";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderGateWait, renderGateError, renderAccountSection } from "./view-account.js?v=202610221430";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610221430";
+} from "./kraftflow.js?v=202610221509";
+import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610221509";
+import { distanceStatus, hrStatus } from "./runcompare.js?v=202610221509";
+import { esc, backNavHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet, createSheet } from "./ui.js?v=202610221509";
+import * as dash from "./view-dashboard.js?v=202610221509";
+import * as dashWeek from "./view-week.js?v=202610221509";
+import * as kraftView from "./view-kraft.js?v=202610221509";
+import * as runView from "./view-run.js?v=202610221509";
+import * as historyView from "./view-history.js?v=202610221509";
+import * as planView from "./view-plan.js?v=202610221509";
+import * as metrics from "./metrics.js?v=202610221509";
+import * as coach from "./coach.js?v=202610221509";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610221509";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610221509";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderGateWait, renderGateError, renderAccountSection } from "./view-account.js?v=202610221509";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610221509";
 
 const INFO_CONTENT = { ...dash.infoContent(THRESHOLDS), ...historyView.infoContent() };
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -86,8 +86,6 @@ function renderMain(html) {
 function plainHead(title) {
   return `<div class="sd-daytitle"><h1 class="sd-display" tabindex="-1">${esc(title)}</h1></div>`;
 }
-
-const I_CHEV_L = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
 
 function setPageHead(html) {
   pageHeadHTML = html;
@@ -923,7 +921,7 @@ async function renderDay(iso, { showBack, backLabel }) {
     : info.kind === "keinPlan" ? "Kein aktiver Plan"
     : "Ruhetag";
   const nav = showBack
-    ? `<nav class="sd-nav" aria-label="Kopfzeile"><button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back">${I_CHEV_L}${esc(label)}</button></nav>`
+    ? backNavHTML(label)
     : "";
   setPageHead(`${nav}
 <div class="sd-daytitle">
@@ -1004,12 +1002,19 @@ async function renderKraftDay(info, iso, backLabel) {
   }
   if (gen !== kraftGen || !kraftOpen) return; // Nutzer ist schon woanders
 
-  currentKraftDay = { info, iso };
-  kraftSaved = saved;
-  buildLogState(effectiveExercises(info), iso);
-  focusExerciseId = pickInitialFocus();
-  restoreKraftDraft(iso);
-  paintKraft();
+  try {
+    currentKraftDay = { info, iso };
+    kraftSaved = saved;
+    buildLogState(effectiveExercises(info), iso);
+    focusExerciseId = pickInitialFocus();
+    restoreKraftDraft(iso);
+    paintKraft();
+  } catch (err) {
+    // z. B. ein kaputtes Log-Dokument: als Banner statt stehendem Lade-Skelett
+    console.error(err);
+    renderMain(errorCard("Kraft-Tag nicht geladen: " + err.message));
+    return;
+  }
   fillSessionSlot(iso, gen);
 }
 
@@ -1178,7 +1183,7 @@ function persistKraftDraft() {
   const ex = {};
   for (const st of logState.values()) {
     if (st.saved || !isDirty(st, iso)) continue;
-    ex[st.slug] = { sets: st.sets, doneSets: st.sets.filter((x) => x.done).length };
+    ex[st.slug] = { sets: st.sets, doneSets: st.sets.filter((x) => x.done).length, weightAdded: st.weightAdded === true };
   }
   if (!Object.keys(ex).length) return draftRemove(iso);
   draftWrite(iso, serializeDraft({ focus: Object.hasOwn(ex, focusExerciseId) ? focusExerciseId : null, ex }));
@@ -1198,7 +1203,7 @@ function restoreKraftDraft(iso) {
     const done = Math.min(d.doneSets, d.sets.length - 1);
     st.sets = d.sets.map((x, i) => ({ kg: x.kg, reps: x.reps, done: i < done }));
     st.activeIndex = firstUndone(st.sets);
-    if (st.mode === "reps" && st.sets.some((x) => x.kg > 0)) { st.mode = "weight"; st.weightAdded = true; }
+    if (st.mode === "reps" && (d.weightAdded || st.sets.some((x) => x.kg > 0))) { st.mode = "weight"; st.weightAdded = true; }
   }
   if (draft.focus) focusExerciseId = draft.focus;
   if (!draftSeen.has(iso)) toast("Eingaben von vorhin wiederhergestellt");
@@ -1424,6 +1429,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function saveKraftExercise(st, snapshot) {
   const { iso } = currentKraftDay;
   const gen = kraftGen;
+  // Eigene Referenz: eine späte Rücknahme darf die Map eines neueren Kraft-Tags nicht ändern.
+  const savedMap = kraftSaved;
   const payload = buildLogPayload({
     week: weekForLog(iso), name: st.name, soll: st.soll, custom: st.custom,
     sets: st.sets.filter((s) => s.done), mode: st.mode,
@@ -1435,13 +1442,13 @@ async function saveKraftExercise(st, snapshot) {
 
   const write = (async () => saveLog(iso, st.slug, payload))().then(() => null, (err) => err ?? new Error("Unbekannter Fehler"));
   const early = await Promise.race([write, sleep(SAVE_OPTIMISTIC_MS).then(() => null)]);
-  if (early) return rollbackSave(st, snapshot, early, gen);
+  if (early) return rollbackSave(st, snapshot, early, gen, savedMap);
 
   st.saving = false;
   st.saved = true;
   st.savedSets = payload.sets;
-  kraftSaved[st.slug] = { completed: true, sets: payload.sets };
-  write.then((err) => { if (err) rollbackSave(st, snapshot, err, gen); });
+  savedMap[st.slug] = { completed: true, sets: payload.sets };
+  write.then((err) => { if (err) rollbackSave(st, snapshot, err, gen, savedMap); });
   if (!kraftOpen || gen !== kraftGen) return;
 
   const list = [...logState.values()];
@@ -1450,11 +1457,11 @@ async function saveKraftExercise(st, snapshot) {
   paintKraft(focusExerciseId === st.slug ? { kind: "primary" } : null);
 }
 
-function rollbackSave(st, snapshot, err, gen) {
+function rollbackSave(st, snapshot, err, gen, savedMap) {
   console.error(err);
   Object.assign(st, snapshot, { saving: false, saveError: err.message || String(err) });
-  delete kraftSaved[st.slug];
-  if (snapshot.saved) kraftSaved[st.slug] = { completed: true, sets: snapshot.savedSets };
+  delete savedMap[st.slug];
+  if (snapshot.saved) savedMap[st.slug] = { completed: true, sets: snapshot.savedSets };
   toast("Speichern fehlgeschlagen: " + st.saveError, true);
   if (!kraftOpen || gen !== kraftGen || editMode) return;
   focusExerciseId = st.slug;

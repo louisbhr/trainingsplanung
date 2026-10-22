@@ -8,7 +8,7 @@ Die App „Halbmarathon Tracker / HM Tracker“ (Repo `louisbhr/trainingsplanung
 ## About the Design Files
 Die Dateien in `design/` sind **Design-Referenzen in HTML**, also Prototypen, die Aussehen und Verhalten zeigen. Sie sind kein Produktionscode. Die Aufgabe ist, sie im **bestehenden Vanilla-JS-Setup** des Repos nachzubauen (`index.html`, `style.css` mit CSS-Variablen, `app.js` / `view-*.js` mit Template-Strings, `ui.js`). Kein Framework einführen, keinen Code aus `design/` übernehmen.
 
-Zum Ansehen `design/Stride Prototyp.dc.html` im Browser öffnen; `support.js` muss daneben liegen. In der Leiste links lassen sich Screens, Varianten, Hell/Dunkel und Zustände umschalten. Gültig ist **Kraft-Tag B** und **Lauf-Tag B**; A ist verworfen.
+Zum Ansehen `design/Stride Prototyp.dc.html` im Browser öffnen; `support.js` muss daneben liegen. In der Leiste links lassen sich Screens, Varianten, Hell/Dunkel und Zustände umschalten. Im Repo tragen die Prototypen die Endung `.txt` (`….dc.html.txt`, `support.js.txt`). Zum Ansehen beide Dateien in einen Ordner außerhalb des Repos kopieren, das `.txt` entfernen und die `.dc.html` lokal öffnen, nicht über GitHub Pages. Gültig ist **Kraft-Tag B** und **Lauf-Tag B**; A ist verworfen.
 
 ## Fidelity
 **High-fidelity.** Farben, Typografie, Abstände, Radien und Interaktionen sind final und sollen so genau wie möglich umgesetzt werden. Inhalte (Gewichte, Strava-Läufe, Verlaufswerte) sind Beispieldaten; die echten kommen wie bisher aus Firestore, Strava und `plans/hm-2027.json`.

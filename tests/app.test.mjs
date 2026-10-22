@@ -2331,6 +2331,7 @@ for (const [fail, want, notWant, label] of [
   ["auth/network-request-failed", "nicht erreichbar", "Anmeldung abgelaufen", "offline"],
   [true, "Anmeldung abgelaufen", "nicht erreichbar", "abgemeldet"],
 ]) {
+  scenario("26b");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
   await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
   await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));

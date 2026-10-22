@@ -116,6 +116,12 @@ test("distanceStatus: bewertet auf der angezeigten Genauigkeit (eine Nachkommast
   assert.equal(distanceStatus(6.3, 7, THRESHOLDS), "imPlan", "Gleitkomma-Rest 7 * 0.9");
   assert.equal(distanceStatus(6.2, 7, THRESHOLDS), "zuKurz");
 });
+test("distanceStatus: urteilt wie formatKm1 anzeigt (8,95 km zeigt 8,9)", () => {
+  assert.equal((8.95).toFixed(1), "8.9", "Annahme: toFixed rundet 8.95 ab");
+  assert.equal(distanceStatus(8.95, 10, THRESHOLDS), "zuKurz", "angezeigt 8,9 von 10 = 89 %");
+  assert.equal(distanceStatus(8.96, 10, THRESHOLDS), "imPlan", "angezeigt 9,0 = 90 %");
+  assert.equal(distanceStatus(9.04, 10, THRESHOLDS), "imPlan");
+});
 test("distanceStatus: länger als Soll und Null-Fälle", () => {
   assert.equal(distanceStatus(12, 8, THRESHOLDS), "imPlan");
   assert.equal(distanceStatus(0, 8, THRESHOLDS), "zuKurz");

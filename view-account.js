@@ -2,7 +2,7 @@
 // "Daten und Konto" im Plan-Tab. Reine String-Funktionen (wie view-dashboard.js); alles
 // aus Nutzer- oder Firebase-Daten läuft durch esc(). Die Klassen stehen in style.css
 // (Abschnitte "Anmeldung" und "Verlauf + Plan (E7)").
-import { esc, markSVG } from "./ui.js?v=202610221430";
+import { esc, markSVG } from "./ui.js?v=202610221509";
 
 const TAGLINE = "Trainingsplan, Strava-Läufe und Krafteinheiten an einem Ort.";
 

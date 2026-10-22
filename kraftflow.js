@@ -6,7 +6,7 @@
 // (Auflage C5): Aufrufer reichen Daten herein, das Lesen und Schreiben des
 // Entwurfs übernimmt app.js mit serializeDraft/parseDraft.
 
-import { parseSoll } from "./progression.js?v=202610221430";
+import { parseSoll } from "./progression.js?v=202610221509";
 
 export const MAX_SETS = 8; // wie setsCountFromSoll in app.js
 export const MAX_VALUE = 1000; // obere Grenze für kg, Wdh und Sekunden im Entwurf
@@ -235,6 +235,8 @@ export function serializeDraft(draft) {
       sets: (e.sets ?? []).map((s) => ({ kg: s.kg ?? null, reps: s.reps ?? null })),
       doneSets: e.doneSets ?? 0,
     };
+    // "+ Gewicht" getippt, aber noch 0 kg: der Modus muss den Reload überleben (M2)
+    if (e.weightAdded === true) ex[slug].weightAdded = true;
   }
   return JSON.stringify({ v: 1, focus: draft?.focus ?? null, ex });
 }
@@ -247,7 +249,7 @@ function parseDraftExercise(e) {
     return { kg: s.kg, reps: s.reps };
   });
   if (!Number.isInteger(e.doneSets) || e.doneSets < 0 || e.doneSets > sets.length) throw new Error("doneSets");
-  return { sets, doneSets: e.doneSets };
+  return e.weightAdded === true ? { sets, doneSets: e.doneSets, weightAdded: true } : { sets, doneSets: e.doneSets };
 }
 
 /**

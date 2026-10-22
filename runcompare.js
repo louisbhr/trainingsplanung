@@ -92,7 +92,8 @@ export function rangeBar(scale, target, value) {
 export function distanceStatus(actualKm, sollKm, THRESHOLDS) {
   if (!(typeof actualKm === "number" && Number.isFinite(actualKm) && actualKm >= 0)) return null;
   if (!(typeof sollKm === "number" && sollKm > 0)) return null;
-  const shownTenths = Math.round(actualKm * 10);
+  // Gleiche Rundung wie formatKm1 (toFixed(1)), sonst widerspricht der Status der Anzeige
+  const shownTenths = Math.round(Number(actualKm.toFixed(1)) * 10);
   const neededTenths = sollKm * THRESHOLDS.lauf.zuKurz * 10;
   // 1e-9 fängt Gleitkomma-Reste wie 7 * 0.9 * 10 = 63.00000000000001 ab
   return shownTenths + 1e-9 >= neededTenths ? "imPlan" : "zuKurz";

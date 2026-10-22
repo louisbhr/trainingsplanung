@@ -2,7 +2,7 @@
 // Trendtext der Kraft-Übungen, Läufe seit Planstart. Kein DOM, kein Zugriff
 // auf Firebase; die Aufrufer reichen Logs, Plan und Läufe herein.
 
-import { weekNumberFor } from "./plan.js?v=202610221430";
+import { weekNumberFor } from "./plan.js?v=202610221509";
 
 const round1 = (n) => Math.round(n * 10) / 10;
 const de = (n) => String(round1(n)).replace(".", ",");

@@ -6,16 +6,13 @@
 // Inline-SVG mit Zahlen-Attributen (Auflage C5, Entscheid E6). Alle Klassen
 // kommen aus style.css, das Markup steht in docs/ui-markup-stride.md, Abschnitt 12.
 // Fremde Texte (Plan, Laufname, Fehlermeldung) laufen immer durch esc().
-import { formatKm1 } from "./metrics.js?v=202610221430";
-import { esc, pill, numAttr, dayNameDE, shortDate } from "./ui.js?v=202610221430";
+import { formatKm1 } from "./metrics.js?v=202610221509";
+import { ICONS, backNavHTML, esc, pill, numAttr, dayNameDE, shortDate } from "./ui.js?v=202610221509";
 import {
   parseTarget, rangeScale, rangeBar, distanceStatus, paceStatus, hrStatus,
-} from "./runcompare.js?v=202610221430";
-import { daysBetween, pickableRuns, PICKER_WINDOW } from "./runmatch.js?v=202610221430";
+} from "./runcompare.js?v=202610221509";
+import { daysBetween, pickableRuns, PICKER_WINDOW } from "./runmatch.js?v=202610221509";
 
-const I_CHEV_L = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
-const I_CHEV_R = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
-const I_REFRESH = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 5.8"/><path d="M20 4v7h-7"/></svg>';
 
 // SVG-Geometrie: Prozent der Spur, 0 bis 100, eine Nachkommastelle, Punkt als Trenner.
 const pct = (x) => (Number.isFinite(x) ? String(Math.round(Math.min(100, Math.max(0, x)) * 10) / 10) : "0");
@@ -36,7 +33,7 @@ function targetLine(info) {
  */
 export function headHTML({ iso, info, isLong, backLabel, showTarget }) {
   const tone = isLong ? "purple" : "coral";
-  return `<nav class="sd-nav" aria-label="Kopfzeile"><button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back">${I_CHEV_L}${esc(backLabel)}</button></nav>
+  return `${backNavHTML(backLabel)}
 <div class="sd-daytitle">
   <p class="sd-eyebrow sd-eyebrow--${tone} sd-eyebrow--plain">${dayEyebrow(iso)}</p>
   <h1 class="sd-display" tabindex="-1">${esc(info.type)} · ${esc(info.dist)}</h1>
@@ -198,7 +195,7 @@ export function stravaRowHTML({ iso, assignment: a }) {
     ${shift}
   </span>
   ${manual ? pill("amber", "von Hand") : pill("", "automatisch")}
-  ${I_CHEV_R}
+  ${ICONS.chevR}
 </button>`;
 }
 
@@ -218,7 +215,7 @@ export const missedHTML = (iso) => `<article class="sd-card sd-card--center" dat
   <p class="sd-card__text">Strava-Läufe von einem Tag davor bis drei Tage danach.</p>
   <div class="sd-actions">
     ${pickButton(iso)}
-    <button type="button" class="sd-btn sd-btn--text" data-action="reload-strava">${I_REFRESH}Neu laden</button>
+    <button type="button" class="sd-btn sd-btn--text" data-action="reload-strava">${ICONS.refresh}Neu laden</button>
   </div>
 </article>`;
 
@@ -350,7 +347,7 @@ export function sheetBodyHTML({ iso, options, selectedId, source, busy }) {
   return `${list}
 <div class="sd-sheet__tools">
   ${reset}
-  <button type="button" class="sd-btn sd-btn--text" data-action="reload-strava"${busyAttrs}>${I_REFRESH}Neu laden</button>
+  <button type="button" class="sd-btn sd-btn--text" data-action="reload-strava"${busyAttrs}>${ICONS.refresh}Neu laden</button>
 </div>
 <button type="button" class="sd-btn sd-btn--danger sd-btn--md sd-btn--block" data-action="ignore-run" data-date="${esc(iso)}">Kein Lauf an diesem Tag</button>`;
 }

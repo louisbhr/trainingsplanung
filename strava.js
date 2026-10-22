@@ -1,6 +1,6 @@
-import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610221430";
-import { fetchWithAuthRetry } from "./access.js?v=202610221430";
-import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610221430";
+import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610221509";
+import { fetchWithAuthRetry } from "./access.js?v=202610221509";
+import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610221509";
 
 // Die Client-ID ist unkritisch öffentlich (sie steht ohnehin in der
 // Authorize-URL). Das Client-Secret liegt NICHT hier, sondern nur als
@@ -215,6 +215,7 @@ export async function fetchRecentRuns(sinceISO, { force = false } = {}) {
   const runs = all
     .filter((a) => a.type === "Run" || a.sport_type === "Run" || a.sport_type === "TrailRun")
     .map(mapActivity)
+    .filter((r) => r.date) // ohne gültiges Datum nicht darstellbar (Security L1)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   // Krafteinheiten kommen von der Uhr als WeightTraining. Strava kennt
@@ -223,6 +224,7 @@ export async function fetchRecentRuns(sinceISO, { force = false } = {}) {
   lastSessions = all
     .filter((a) => a.type === "WeightTraining" || a.sport_type === "WeightTraining" || a.sport_type === "Workout")
     .map(mapSession)
+    .filter((r) => r.date)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   runCache = { sinceISO, runs, sessions: lastSessions, fetchedAt: Date.now() };
@@ -248,7 +250,7 @@ export function sessionForDate(dateISO) {
 function mapSession(a) {
   return {
     id: a.id,
-    date: (a.start_date_local || a.start_date || "").slice(0, 10),
+    date: activityDate(a),
     name: a.name,
     movingTimeSec: a.moving_time || 0,
     avgHr: a.average_heartrate ? Math.round(a.average_heartrate) : null,
@@ -259,15 +261,23 @@ function mapSession(a) {
   };
 }
 
+// Datum der Aktivität als YYYY-MM-DD, sonst "". Strava-Daten landen in innerHTML-Texten,
+// daher nur das erwartete Format durchlassen (Security L1).
+function activityDate(a) {
+  const d = String(a.start_date_local || a.start_date || "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "";
+}
+
 function mapActivity(a) {
   const distanceM = a.distance || 0;
   const movingTimeSec = a.moving_time || 0;
   const paceSecPerKm = distanceM > 0 ? movingTimeSec / (distanceM / 1000) : null;
   return {
     id: a.id,
-    date: (a.start_date_local || a.start_date || "").slice(0, 10),
+    date: activityDate(a),
     // Ortszeit "HH:MM" aus start_date_local (Lauf-Tag zeigt "Name · HH:MM"); leer, wenn unbekannt
-    startTime: (a.start_date_local || "").slice(11, 16),
+    startTime: /^\d{2}:\d{2}$/.test(String(a.start_date_local || "").slice(11, 16))
+      ? String(a.start_date_local).slice(11, 16) : "",
     name: a.name,
     distanceKm: distanceM / 1000,
     movingTimeSec,

@@ -47,6 +47,15 @@ test("jedes Manifest-Icon existiert als Datei", () => {
   }
 });
 
+test("jede url(...) in style.css zeigt auf eine vorhandene Datei", () => {
+  const urls = [...read("style.css").matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)].map((m) => m[2]);
+  assert.ok(urls.length > 0, "style.css enthält url()-Verweise");
+  for (const u of urls) {
+    if (/^(data:|https?:|#)/.test(u)) continue;
+    assert.ok(existsSync(join(root, u.split(/[?#]/)[0])), `fehlt: ${u}`);
+  }
+});
+
 test("index.html verweist auf apple-touch-icon.png, das existiert", () => {
   assert.match(read("index.html"), /rel="apple-touch-icon"\s+href="apple-touch-icon\.png"/);
   assert.ok(existsSync(join(root, "apple-touch-icon.png")));

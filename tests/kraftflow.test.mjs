@@ -260,6 +260,12 @@ const goodDraft = {
 test("Entwurf: serializeDraft und parseDraft sind rundum verlustfrei", () => {
   assert.deepEqual(parseDraft(serializeDraft(goodDraft), SLUGS), goodDraft);
 });
+test("Entwurf: weightAdded überlebt den Rundlauf, nur als echtes true", () => {
+  const d = { focus: null, ex: { squats: { sets: [{ kg: 0, reps: 8 }], doneSets: 0, weightAdded: true } } };
+  assert.deepEqual(parseDraft(serializeDraft(d), SLUGS), d);
+  const off = { focus: null, ex: { squats: { sets: [{ kg: 0, reps: 8 }], doneSets: 0, weightAdded: false } } };
+  assert.equal(parseDraft(serializeDraft(off), SLUGS).ex.squats.weightAdded, undefined);
+});
 test("Entwurf: Slugs außerhalb der aktuellen Liste werden ausgelassen, Fokus darauf wird null", () => {
   const draft = { focus: "alt", ex: { ...goodDraft.ex, alt: { sets: [{ kg: 1, reps: 1 }], doneSets: 0 } } };
   const got = parseDraft(serializeDraft(draft), SLUGS);

@@ -4,13 +4,12 @@
 // sind Inline-SVG mit Zahlen-Attributen, die Farbe kommt über Klassen (Entscheid E7).
 // Markup und Klassen: docs/ui-markup-stride.md, Abschnitt 13. Fremde Texte (Laufname,
 // Übungsname, Fehlermeldung) laufen immer durch esc().
-import { addDays, weekNumberFor, weekOf } from "./plan.js?v=202610221430";
-import { formatKm1 } from "./metrics.js?v=202610221430";
-import { esc, dayNameDE, shortDate } from "./ui.js?v=202610221430";
-import { kraftWeeklyBars, kraftTrendText, runsSince } from "./history-data.js?v=202610221430";
-import { errorHTML as stravaErrorHTML, workerMissingHTML } from "./view-run.js?v=202610221430";
+import { addDays, weekNumberFor, weekOf } from "./plan.js?v=202610221509";
+import { formatKm1 } from "./metrics.js?v=202610221509";
+import { ICONS, esc, dayNameDE, shortDate } from "./ui.js?v=202610221509";
+import { kraftWeeklyBars, kraftTrendText, runsSince } from "./history-data.js?v=202610221509";
+import { errorHTML as stravaErrorHTML, workerMissingHTML } from "./view-run.js?v=202610221509";
 
-const I_INFO = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r="1.2" fill="currentColor" stroke="none"/></svg>';
 
 const PLOT_W = 320;
 const MAX_LIST = 10;
@@ -143,7 +142,7 @@ export function runStats(runs, today, planStart) {
 function tilesHTML(stats, planStart) {
   const tile = (key, label, value, unit = "") =>
     `<div class="sd-tile" data-tile="${key}"><dt class="sd-tile__label">${label}</dt><dd class="sd-tile__value sd-mono">${value}${unit ? `<span class="sd-unit">${unit}</span>` : ""}</dd></div>`;
-  const paceLabel = `Ø Pace<button type="button" class="sd-infobtn" data-action="open-info" data-info="verlauf-pace" aria-haspopup="dialog" aria-label="Erklärung: Ø Pace">${I_INFO}</button>`;
+  const paceLabel = `Ø Pace<button type="button" class="sd-infobtn" data-action="open-info" data-info="verlauf-pace" aria-haspopup="dialog" aria-label="Erklärung: Ø Pace">${ICONS.info}</button>`;
   return `<dl class="sd-tiles" data-card="run-stats">
   ${tile("km7", "Letzte 7 Tage", formatKm1(stats.km7), "km")}
   ${tile("km28", "Letzte 28 Tage", formatKm1(stats.km28), "km")}
@@ -271,7 +270,7 @@ function trendHTML(bars) {
   const [delta, since] = text.split(" seit ");
   const unchanged = delta.startsWith("±");
   const up = delta.startsWith("+");
-  return `<p class="sd-trend sd-mono${up ? " is-up" : ""}"><span>${unchanged ? "unverändert" : esc(delta)}</span><span class="sd-trend__since">seit ${esc(since)}</span><button type="button" class="sd-infobtn" data-action="open-info" data-info="verlauf-trend" aria-haspopup="dialog" aria-label="Erklärung: Trend">${I_INFO}</button></p>`;
+  return `<p class="sd-trend sd-mono${up ? " is-up" : ""}"><span>${unchanged ? "unverändert" : esc(delta)}</span><span class="sd-trend__since">seit ${esc(since)}</span><button type="button" class="sd-infobtn" data-action="open-info" data-info="verlauf-trend" aria-haspopup="dialog" aria-label="Erklärung: Trend">${ICONS.info}</button></p>`;
 }
 
 function strengthChartHTML(slots, unit, weightMode, currentWeek) {
