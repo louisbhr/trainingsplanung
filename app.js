@@ -3,39 +3,39 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610221024";
-import { loadPlans } from "./plan-store.js?v=202610221024";
+} from "./plan.js?v=202610221048";
+import { loadPlans } from "./plan-store.js?v=202610221048";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610221024";
+} from "./firebase-init.js?v=202610221048";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport, lastFetchedAt,
-} from "./strava.js?v=202610221024";
-import { previousEntry, progressionChip } from "./progression.js?v=202610221024";
+} from "./strava.js?v=202610221048";
+import { previousEntry, progressionChip } from "./progression.js?v=202610221048";
 import {
   exerciseMode, startSets, lastTimeText, applyWeightForward, initialFocus, nextOpenExercise,
   stepValue, buildLogPayload, MAX_VALUE,
   draftKey, serializeDraft, parseDraft, staleDraftKeys, dropSavedFromDraft,
-} from "./kraftflow.js?v=202610221024";
-import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610221024";
-import { distanceStatus, hrStatus } from "./runcompare.js?v=202610221024";
-import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet, createSheet } from "./ui.js?v=202610221024";
-import * as dash from "./view-dashboard.js?v=202610221024";
-import * as dashWeek from "./view-week.js?v=202610221024";
-import * as kraftView from "./view-kraft.js?v=202610221024";
-import * as runView from "./view-run.js?v=202610221024";
-import * as historyView from "./view-history.js?v=202610221024";
-import * as planView from "./view-plan.js?v=202610221024";
-import * as metrics from "./metrics.js?v=202610221024";
-import * as coach from "./coach.js?v=202610221024";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610221024";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610221024";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountSection } from "./view-account.js?v=202610221024";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610221024";
+} from "./kraftflow.js?v=202610221048";
+import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610221048";
+import { distanceStatus, hrStatus } from "./runcompare.js?v=202610221048";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet, createSheet } from "./ui.js?v=202610221048";
+import * as dash from "./view-dashboard.js?v=202610221048";
+import * as dashWeek from "./view-week.js?v=202610221048";
+import * as kraftView from "./view-kraft.js?v=202610221048";
+import * as runView from "./view-run.js?v=202610221048";
+import * as historyView from "./view-history.js?v=202610221048";
+import * as planView from "./view-plan.js?v=202610221048";
+import * as metrics from "./metrics.js?v=202610221048";
+import * as coach from "./coach.js?v=202610221048";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610221048";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610221048";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderGateWait, renderGateError, renderAccountSection } from "./view-account.js?v=202610221048";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610221048";
 
 const INFO_CONTENT = { ...dash.infoContent(THRESHOLDS), ...historyView.infoContent() };
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -2209,15 +2209,21 @@ const PENDING_WRITES_TIMEOUT_MS = 10000;
 let currentUser = null; // { email, uid } der angemeldeten Sitzung
 
 // Anmelde-, Fremdkonto- und Hinweisschirme: ohne Tableiste.
-function showGate(title, html) {
+// Der Seitenkopf bleibt exakt leer (.sd-pagehead:empty); den einen h1 trägt die Karte.
+function showGate(html) {
   appEl.classList.add("no-session");
   appEl.classList.remove("is-detail");
-  setPageHead(`<h1>${esc(title)}</h1>`);
+  setPageHead("");
   renderMain(html);
 }
 
-function showLogin(email = "", error = "", notice = "") {
-  showGate("Anmelden", renderLogin({ email, error, notice }));
+// invalid: Namen leerer Felder. Nach einem Fehler springt der Fokus auf das erste markierte
+// Feld, sonst auf das Passwort (das Formular wurde ersetzt); ohne Fehler kein Fokus (keine Tastatur).
+function showLogin(email = "", error = "", notice = "", invalid = []) {
+  showGate(renderLogin({ email, error, notice, invalid }));
+  if (!error) return;
+  const form = main.querySelector('form[data-form="login"]');
+  (form?.querySelector('[aria-invalid="true"]') ?? form?.querySelector("#login-password"))?.focus();
 }
 
 // Einmaliger Hinweis über das Neuladen hinweg (sessionStorage, nicht der
@@ -2240,14 +2246,14 @@ function takeLogoutNotice() {
 // gesendeten Einträge übertragen lassen (sie gehören diesem Nutzer und
 // gingen sonst verloren), dann still abmelden. Bei Timeout nicht abmelden.
 async function handleAnonymousSession() {
-  showGate("Anmeldung", loadingCard("Einen Moment …"));
+  showGate(renderGateWait("Einen Moment …"));
   const flushed = await raceTimeout(waitForPendingWrites(), PENDING_WRITES_TIMEOUT_MS);
-  if (!flushed) return showGate("Anmeldung", renderPendingWrites());
+  if (!flushed) return showGate(renderPendingWrites());
   try {
     await signOutUser();
   } catch (err) {
     console.error(err);
-    return showGate("Anmeldung", errorCard(err.message));
+    return showGate(renderGateError(err.message));
   }
   showLogin();
 }
@@ -2410,8 +2416,12 @@ appEl.addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = form.elements.email.value.trim();
   const password = form.elements.password.value;
-  if (!email || !password) return showLogin(email, "Bitte E-Mail und Passwort eingeben.");
+  if (!email || !password) {
+    const invalid = [!email && "email", !password && "password"].filter(Boolean);
+    return showLogin(email, "Bitte E-Mail und Passwort eingeben.", "", invalid);
+  }
   form.querySelector('button[type="submit"]').disabled = true;
+  form.setAttribute("aria-busy", "true");
   try {
     await signIn(email, password);
   } catch (err) {
@@ -2424,21 +2434,21 @@ appEl.addEventListener("submit", async (e) => {
 
 async function init() {
   appEl.classList.add("no-session");
-  setPageHead(`<h1>Trainingsplan</h1>`);
-  renderMain(loadingCard("Anmeldung wird geprüft …"));
+  setPageHead("");
+  renderMain(renderGateWait("Prüfe Anmeldung …"));
   let user;
   try {
     user = await authReady();
   } catch (err) {
     console.error(err);
-    renderMain(errorCard(err.message));
+    renderMain(renderGateError(err.message));
     return;
   }
   const access = accessState(user, ALLOWED_UID);
   if (access === "signedOut") return showLogin("", "", takeLogoutNotice());
   if (access === "anonymous") return handleAnonymousSession();
   if (access === "forbidden") {
-    return showGate("Kein Zugriff", renderNoAccess({ email: user.email, uid: user.uid }));
+    return showGate(renderNoAccess({ email: user.email, uid: user.uid }));
   }
   currentUser = { email: user.email, uid: user.uid };
   appEl.classList.remove("no-session");

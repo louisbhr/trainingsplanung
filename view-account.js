@@ -2,59 +2,113 @@
 // "Daten und Konto" im Plan-Tab. Reine String-Funktionen (wie view-dashboard.js); alles
 // aus Nutzer- oder Firebase-Daten läuft durch esc(). Die Klassen stehen in style.css
 // (Abschnitte "Anmeldung" und "Verlauf + Plan (E7)").
-import { esc, markSVG } from "./ui.js?v=202610221024";
+import { esc, markSVG } from "./ui.js?v=202610221048";
+
+const TAGLINE = "Trainingsplan, Strava-Läufe und Krafteinheiten an einem Ort.";
+
+/**
+ * Markenblock über der Karte (Markup 15.0): Zeichen und Name liegen auf --bg, nie in der
+ * Karte (das dunkle Zeichen hat eine Kachel in Kartenfarbe). Name ist ein <p>, kein h1.
+ */
+export function authBrandHTML(tagline = "") {
+  return `<div class="sd-auth__brand">
+    ${markSVG(64)}
+    <p class="sd-auth__name">Stride</p>${tagline ? `
+    <p class="sd-auth__tag">${esc(tagline)}</p>` : ""}
+  </div>`;
+}
+
+/** Warte-Zustand ohne Karte (Markup 15.4): Marke plus Statuszeile. */
+export function renderGateWait(text) {
+  return `<div class="sd-auth" data-card="auth-wait">
+  <div class="sd-auth__brand">
+    ${markSVG(64)}
+    <p class="sd-auth__name">Stride</p>
+    <p class="sd-auth__tag" role="status">${esc(text)}</p>
+  </div>
+</div>`;
+}
+
+/** Fehler beim Prüfen der Anmeldung (Markup 15.5). */
+export function renderGateError(message) {
+  return `<div class="sd-auth">
+  ${authBrandHTML()}
+  <section class="sd-card sd-card--danger" data-card="gate-error" role="alert" aria-labelledby="gateErrorTitle">
+    <div>
+      <h1 class="sd-card__title sd-card__title--danger" id="gateErrorTitle">Problem</h1>
+      <p class="sd-card__text sd-card__text--danger">${esc(message)}</p>
+    </div>
+    <button type="button" class="sd-btn sd-btn--onbanner" data-action="reload">Neu laden</button>
+  </section>
+</div>`;
+}
+
+// Eingabefeld mit label[for]. invalid: Ring plus aria-invalid; describe: hängt am allgemeinen Fehler.
+function loginField({ id, label, invalid, describe, inputAttrs }) {
+  const aria = (invalid ? ' aria-invalid="true"' : "") + (describe ? ' aria-describedby="login-error"' : "");
+  return `<div class="sd-field${invalid ? " is-invalid" : ""}">
+      <label class="sd-field__label" for="${id}">${label}</label>
+      <input class="sd-input" id="${id}" ${inputAttrs}${aria} />
+    </div>`;
+}
 
 // Anmeldeformular. Ein echtes <form> mit autocomplete username und
 // current-password, damit der iCloud-Schlüsselbund ausfüllt und speichert.
 // Die Felder haben mindestens 16px (iOS zoomt sonst beim Antippen).
-export function renderLogin({ email = "", error = "", notice = "" } = {}) {
-  return `<form class="card auth-card" data-form="login" novalidate>
-    <div class="auth-brand">
-      ${markSVG(64)}
-      <span class="auth-brand-name">Stride</span>
-    </div>
-    <p class="name">Anmelden</p>
-    <p class="hint">Diese App ist privat. Anmelden geht nur mit dem Konto des Besitzers.</p>
-    ${notice ? `<p class="hint" role="status" data-notice>${esc(notice)}</p>` : ""}
-    <label class="field">
-      <span class="field-label">E-Mail</span>
-      <input class="text-input" type="email" name="email" autocomplete="username" inputmode="email"
-        autocapitalize="none" autocorrect="off" spellcheck="false" required value="${esc(email)}" />
-    </label>
-    <label class="field">
-      <span class="field-label">Passwort</span>
-      <input class="text-input" type="password" name="password" autocomplete="current-password" required />
-    </label>
-    <p class="auth-error" role="alert" ${error ? "" : "hidden"}>${esc(error)}</p>
-    <button type="submit" class="primary-btn auth-submit">Anmelden</button>
-  </form>`;
+// invalid: Namen der leeren Felder ("email" | "password"); der Text bleibt ein einziger
+// allgemeiner Fehler. Der Fehlerblock hängt per aria-describedby an allen markierten
+// Feldern, bei einem Firebase-Fehler (invalid leer) am Passwortfeld.
+export function renderLogin({ email = "", error = "", notice = "", invalid = [] } = {}) {
+  const emailBad = invalid.includes("email");
+  const pwBad = invalid.includes("password");
+  const describePw = !!error && (pwBad || !emailBad);
+  return `<div class="sd-auth">
+  ${authBrandHTML(TAGLINE)}
+  <form class="sd-card" data-form="login" data-card="login" novalidate aria-labelledby="loginTitle">
+    <h1 class="sd-vh" id="loginTitle">Anmelden</h1>${notice ? `
+    <p class="sd-notice sd-notice--amber" role="status" data-notice>${esc(notice)}</p>` : ""}
+    ${loginField({ id: "login-email", label: "E-Mail", invalid: emailBad, describe: !!error && emailBad,
+      inputAttrs: `type="email" name="email" autocomplete="username" inputmode="email" enterkeyhint="next" autocapitalize="none" autocorrect="off" spellcheck="false" required value="${esc(email)}"` })}
+    ${loginField({ id: "login-password", label: "Passwort", invalid: pwBad, describe: describePw,
+      inputAttrs: 'type="password" name="password" autocomplete="current-password" enterkeyhint="go" required' })}${error ? `
+    <p class="sd-notice sd-notice--danger" role="alert" id="login-error" data-slot="login-error">${esc(error)}</p>` : ""}
+    <button type="submit" class="sd-btn sd-btn--primary">Anmelden</button>
+  </form>
+  <p class="sd-auth__foot">Registrieren ist in der App nicht möglich.</p>
+</div>`;
 }
 
-// Fremdes Konto: kein Zugriff, nur Abmelden. Die UID wird angezeigt, damit
+// Fremdes Konto: kein Zugriff, nur Abmelden. Die UID wird angezeigt (nur hier), damit
 // ein Tippfehler in der erlaubten UID auffällt.
 export function renderNoAccess({ email, uid }) {
-  return `<div class="card auth-card">
-    <p class="name">Kein Zugriff</p>
-    <p class="hint">Dieses Konto ist für die App nicht freigegeben.</p>
-    ${accountRows({ email, uid })}
-    <button type="button" class="primary-btn auth-submit" data-action="forbidden-logout">Abmelden</button>
-  </div>`;
+  return `<div class="sd-auth">
+  ${authBrandHTML()}
+  <section class="sd-card" data-card="no-access" aria-labelledby="noAccessTitle">
+    <div>
+      <h1 class="sd-title sd-title--sm" id="noAccessTitle">Kein Zugriff</h1>
+      <p class="sd-text">Dieses Konto ist für die App nicht freigegeben.</p>
+    </div>
+    <dl class="sd-kvlist">
+      <div class="sd-kv"><dt>E-Mail</dt><dd>${esc(email || "unbekannt")}</dd></div>
+      <div class="sd-kv"><dt>UID</dt><dd class="sd-mono">${esc(uid)}</dd></div>
+    </dl>
+    <button type="button" class="sd-btn sd-btn--primary" data-action="forbidden-logout">Abmelden</button>
+  </section>
+</div>`;
 }
 
 // Anonyme Altsitzung mit noch nicht übertragenen Einträgen: nicht abmelden.
 export function renderPendingWrites() {
-  return `<div class="card auth-card">
-    <p class="name">Noch nicht übertragene Einträge</p>
-    <p class="hint">Es gibt noch nicht übertragene Einträge. Bitte mit Netz erneut öffnen.</p>
-    <button type="button" class="primary-btn auth-submit" data-action="retry-pending">Erneut versuchen</button>
-  </div>`;
-}
-
-function accountRows({ email, uid }) {
-  return `<dl class="account-rows">
-    <div class="account-row"><dt>E-Mail</dt><dd>${esc(email || "unbekannt")}</dd></div>
-    <div class="account-row"><dt>UID</dt><dd class="account-uid">${esc(uid)}</dd></div>
-  </dl>`;
+  return `<div class="sd-auth">
+  ${authBrandHTML()}
+  <section class="sd-card" data-card="pending-writes" aria-labelledby="pendingTitle">
+    <div>
+      <h1 class="sd-title sd-title--sm" id="pendingTitle">Noch nicht übertragene Einträge</h1>
+      <p class="sd-text">Es gibt noch nicht übertragene Einträge. Bitte mit Netz erneut öffnen.</p>
+    </div>
+    <button type="button" class="sd-btn sd-btn--primary" data-action="retry-pending">Erneut versuchen</button>
+  </section>
+</div>`;
 }
 
 // ---------- Daten und Konto im Plan-Tab (Stride E7, Markup 14.5) ----------

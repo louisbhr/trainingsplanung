@@ -4,11 +4,11 @@
 // sind Inline-SVG mit Zahlen-Attributen, die Farbe kommt über Klassen (Entscheid E7).
 // Markup und Klassen: docs/ui-markup-stride.md, Abschnitt 13. Fremde Texte (Laufname,
 // Übungsname, Fehlermeldung) laufen immer durch esc().
-import { addDays, weekNumberFor, weekOf } from "./plan.js?v=202610221024";
-import { formatKm1 } from "./metrics.js?v=202610221024";
-import { esc, dayNameDE, shortDate } from "./ui.js?v=202610221024";
-import { kraftWeeklyBars, kraftTrendText, runsSince } from "./history-data.js?v=202610221024";
-import { errorHTML as stravaErrorHTML, workerMissingHTML } from "./view-run.js?v=202610221024";
+import { addDays, weekNumberFor, weekOf } from "./plan.js?v=202610221048";
+import { formatKm1 } from "./metrics.js?v=202610221048";
+import { esc, dayNameDE, shortDate } from "./ui.js?v=202610221048";
+import { kraftWeeklyBars, kraftTrendText, runsSince } from "./history-data.js?v=202610221048";
+import { errorHTML as stravaErrorHTML, workerMissingHTML } from "./view-run.js?v=202610221048";
 
 const I_INFO = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r="1.2" fill="currentColor" stroke="none"/></svg>';
 
@@ -305,7 +305,7 @@ function strengthBestHTML(bars, currentWeek) {
   return `<section class="sd-card" data-card="strength-best" aria-labelledby="bestTitle">
   <div>
     <h2 class="sd-card__title" id="bestTitle">${weightMode ? "Bestes Satzgewicht" : "Wiederholungen gesamt"}</h2>
-    <p class="sd-hint">${weightMode ? "Schwerster Satz je Woche" : "Höchste Summe je Woche"}</p>
+    <p class="sd-hint">${weightMode ? "Schwerster Satz je Woche" : "Wiederholungen je Woche, alle Einheiten zusammen"}</p>
   </div>
   <div class="sd-best">
     <p class="sd-best__val sd-mono"><span class="sd-vh">Zuletzt </span>${de1(bars[bars.length - 1].value)}<span class="sd-unit">${unit}</span></p>

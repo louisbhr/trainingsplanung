@@ -3,8 +3,8 @@
 // Inline-SVG mit Zahlen-Attributen, kein style="..." (Entscheid E7). Das Konto-Teil liefert
 // view-account.js und kommt als fertiger String herein. Markup: docs/ui-markup-stride.md,
 // Abschnitt 14. Plan-Texte (Phase, Zone, Ziel) laufen durch esc(); tone nur aus fester Liste.
-import { formatGoal, germanDate, monthLabel, phaseRange } from "./plan.js?v=202610221024";
-import { esc } from "./ui.js?v=202610221024";
+import { formatGoal, germanDate, monthLabel, phaseRange } from "./plan.js?v=202610221048";
+import { esc } from "./ui.js?v=202610221048";
 
 const BAR_W = 300;
 const BAR_GAP = 3;

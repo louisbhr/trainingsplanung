@@ -15,4 +15,4 @@ E7 (Commit cf92f5c auf stride-redesign): `view-history.js` (headHTML, pageHTML, 
 - `noHScroll` im Test nimmt Chips in `.sd-filter` aus (die Zeile scrollt in sich).
 - Abweichungen: Prozentzeichen nach ` ` (Designer-Markup `&nbsp;`, nicht U+202F); Kraft-Wdh-Hinweis „Höchste Summe je Woche“ steht im Markup, `kraftWeeklyBars` summiert aber mehrere Einträge einer Woche; Pläne ohne `weekType`-Deload nutzen `deload`-Flag; Plan-Zeile immer „Plandatei“ ohne Version (F1); Strava-Fehler mit `errorSource` firebase wird im Konto auch als „Abruf fehlgeschlagen“ gezeigt; Kopf von Verlauf/Plan hat keine Markenzeile mehr (Test 12 angepasst); „Sicherheitsabstand“-Messpunkte auf `.sd-pagehead` ≥ 8 und `.sd-main` ≥ 12.
 - Test-Hook: `window.__EMAIL__` im FIREBASE_STUB überschreibt die E-Mail (Escape-Test); `exportPage({ breakFile: true })` lässt `File` werfen (Fehlerton).
-- Offen für E9: `brandHeadHTML()` in ui.js hat keinen Aufrufer mehr.
+- brandHeadHTML() und der Kraft-Hinweis wurden in E8 erledigt.

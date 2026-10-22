@@ -30,22 +30,30 @@ export const db = {};
 // signOutUser) vor window.__AUTH__ (per addInitScript) vor "ok".
 const AUTH_USERS = {
   ok: { uid: "${TEST_UID}", email: (typeof window !== "undefined" && window.__EMAIL__) || "louis@example.test", isAnonymous: false },
-  forbidden: { uid: "fremde-uid-1234567890", email: "fremd@example.test", isAnonymous: false },
+  forbidden: { uid: (typeof window !== "undefined" && window.__UID__) || "fremde-uid-1234567890", email: (typeof window !== "undefined" && window.__EMAIL__) || "fremd@example.test", isAnonymous: false },
   anonymous: { uid: "anon-uid", email: null, isAnonymous: true },
   signedOut: null,
 };
 const authMode = () => sessionStorage.getItem("test.auth") || window.__AUTH__ || "ok";
 const bumpCount = (k) => { window[k] = (window[k] || 0) + 1; };
 const fs = () => bumpCount("__FS_CALLS__");
-export async function authReady() { return AUTH_USERS[authMode()] ?? null; }
+// Test-Haken: __AUTH_HANG__ = Prüfung hängt (Warte-Zustand), __AUTH_FAIL__ (Text) = Prüfung scheitert (Gate-Fehler),
+// __SIGNIN_HANG__ = Anmeldung hängt (Sende-Zustand), __SIGNOUT_FAIL__ (Text) = stilles Abmelden scheitert.
+export async function authReady() {
+  if (window.__AUTH_HANG__) return new Promise(() => {});
+  if (window.__AUTH_FAIL__) throw new Error(window.__AUTH_FAIL__);
+  return AUTH_USERS[authMode()] ?? null;
+}
 export async function signIn(email, password) {
   bumpCount("__SIGNIN_CALLS__");
   window.__SIGNIN_ARGS__ = [email, password];
+  if (window.__SIGNIN_HANG__) return new Promise(() => {});
   if (window.__SIGNIN_FAIL__) { const e = new Error("bad"); e.code = window.__SIGNIN_FAIL__; throw e; }
   sessionStorage.setItem("test.auth", "ok");
   return AUTH_USERS.ok;
 }
 export async function signOutUser() {
+  if (window.__SIGNOUT_FAIL__) throw new Error(window.__SIGNOUT_FAIL__);
   sessionStorage.setItem("test.signouts", String(Number(sessionStorage.getItem("test.signouts") || 0) + 1));
   sessionStorage.setItem("test.auth", "signedOut");
 }
@@ -2630,40 +2638,96 @@ async function authPage(auth, { url = "/index.html", flags = {}, viewport } = {}
 const fsCalls = (page) => page.evaluate(() => window.__FS_CALLS__ || 0);
 const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("test.signouts") || 0));
 
+// ---- Gate-Screens (E8, Markup 15): gemeinsame Prüfungen ----
+// Genau ein h1 (Kartentitel), Seitenkopf exakt leer (.sd-pagehead:empty), kein style= im #main.
+async function gateShape(page, label, { h1 = 1 } = {}) {
+  const g = await page.evaluate(() => ({
+    h1: document.querySelectorAll("#main h1").length,
+    head: document.querySelector("#main > header.sd-pagehead")?.innerHTML,
+    styled: document.querySelectorAll("#main [style]").length,
+  }));
+  ok(g.h1 === h1, `${label}: genau ${h1} h1 (${g.h1})`);
+  ok(g.head === "", `${label}: Seitenkopf exakt leer (${JSON.stringify(g.head)})`);
+  ok(g.styled === 0, `${label}: kein style= im #main (${g.styled})`);
+}
+// Marke liegt auf --bg über der Karte, nie in ihr; im Dunkelmodus kommt die dunkle Marke.
+async function markOutsideCard(page, label, scheme) {
+  // <picture> wählt die Quelle nach einem Wechsel des Farbschemas asynchron neu.
+  const want = scheme === "dark" ? "stride-mark-dark.svg" : "stride-mark.svg";
+  await page.waitForFunction((w) => document.querySelector(".sd-auth__brand .sd-mark--lg")?.currentSrc.endsWith(w), want, { timeout: 3000 }).catch(() => {});
+  const r = await page.evaluate(() => {
+    const mark = document.querySelector(".sd-auth__brand .sd-mark--lg");
+    const card = document.querySelector(".sd-auth [data-card]");
+    if (!mark) return null;
+    const m = mark.getBoundingClientRect();
+    const c = card?.getBoundingClientRect();
+    return { inside: !!card?.contains(mark), above: c ? m.bottom <= c.top : true, src: mark.currentSrc };
+  });
+  ok(r && !r.inside && r.above && r.src.endsWith(scheme === "dark" ? "stride-mark-dark.svg" : "stride-mark.svg"),
+    `${label}: Marke über der Karte auf dem Hintergrund, nicht in ihr (${scheme}: ${r?.src?.split("/").pop()})`);
+}
+// Block von der Marke bis zur Fußnote (oder zur Karte) steht mittig im Raum unter dem leeren Kopf.
+const gateCentre = (page) => page.evaluate(() => {
+  const m = document.getElementById("main").getBoundingClientRect();
+  const head = document.querySelector("#main > header.sd-pagehead").getBoundingClientRect();
+  const top = document.querySelector(".sd-auth__brand").getBoundingClientRect().top;
+  const end = (document.querySelector(".sd-auth__foot") || document.querySelector(".sd-auth [data-card]")).getBoundingClientRect().bottom;
+  return { above: Math.round(top - head.bottom), below: Math.round(m.bottom - end) };
+});
+const activeId = (page) => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName);
+const LOGIN = '[data-card="login"]';
+const loginErr = '[data-slot="login-error"]';
+const NOTICE_KEPT = "Abgemeldet. Der Offline-Speicher dieses Geräts konnte nicht geleert werden, weil die App noch in einem anderen Tab offen ist. Bitte alle Tabs der App schließen.";
+// Legt den Abmelde-Hinweis einmal in sessionStorage (überlebt ein Neuladen, wird aber nur einmal gesetzt).
+const seedNotice = ([text]) => {
+  if (sessionStorage.getItem("test.seeded")) return;
+  sessionStorage.setItem("test.seeded", "1");
+  sessionStorage.setItem("hm-tracker-notice", text);
+};
+
 // 30a. Abgemeldet: Anmeldebildschirm, keine Tableiste, 0 Firestore-Aufrufe
 {
   scenario("30a");
   const { page, ctx, errors } = await authPage("signedOut");
   await page.waitForSelector('form[data-form="login"]');
-  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Anmelden", "Login: Überschrift 'Anmelden'");
-  const gate = await page.evaluate(() => {
-    const m = document.getElementById("main").getBoundingClientRect();
-    // Der Seitenkopf steht jetzt im #main: zentriert wird in dem Raum darunter.
-    const head = document.querySelector("#main > header.sd-pagehead").getBoundingClientRect();
-    const c = document.querySelector(".auth-card").getBoundingClientRect();
-    return { above: c.top - head.bottom, below: m.bottom - c.bottom, logo: (() => { const r = document.querySelector(".auth-brand .sd-mark--lg")?.getBoundingClientRect(); return r ? Math.round(r.width) : 0; })() };
-  });
-  ok(gate.above > 40 && Math.abs(gate.above - gate.below) < 24, `Login: Karte vertikal zentriert (oben ${gate.above}, unten ${gate.below})`);
-  ok(gate.logo === 64, `Login: Stride-Zeichen 64 px in der Karte (${gate.logo})`);
-  const email = page.locator('form[data-form="login"] input[name="email"]');
-  const pw = page.locator('form[data-form="login"] input[name="password"]');
+  ok((await page.textContent(`${LOGIN} h1`)) === "Anmelden", "Login: Überschrift 'Anmelden' (unsichtbarer h1 der Karte)");
+  await gateShape(page, "Login");
+  const gate = await gateCentre(page);
+  ok(gate.above > 40 && Math.abs(gate.above - gate.below) < 32, `Login 390x844: Block von Marke bis Fußnote vertikal zentriert (oben ${gate.above}, unten ${gate.below})`);
+  const logo = await page.evaluate(() => Math.round(document.querySelector(".sd-auth__brand .sd-mark--lg")?.getBoundingClientRect().width || 0));
+  ok(logo === 64, `Login: Stride-Zeichen 64 px (${logo})`);
+  await markOutsideCard(page, "Login", "light");
+  ok((await page.textContent(".sd-auth__name")) === "Stride" && (await page.locator(".sd-auth__name").evaluate((e) => e.tagName)) === "P",
+    "Login: Markenname 'Stride' ist ein Absatz, keine Überschrift");
+  ok((await page.textContent(".sd-auth__foot")) === "Registrieren ist in der App nicht möglich.", "Login: Fußnote 'Registrieren ist in der App nicht möglich.'");
+  const email = page.locator("#login-email");
+  const pw = page.locator("#login-password");
+  ok((await page.locator('label[for="login-email"]').textContent()) === "E-Mail" && (await page.locator('label[for="login-password"]').textContent()) === "Passwort",
+    "Login: beide Felder haben ein sichtbares label[for] (E-Mail, Passwort)");
   ok((await email.getAttribute("autocomplete")) === "username", "Login: E-Mail-Feld mit autocomplete=username (Schlüsselbund)");
   ok((await pw.getAttribute("autocomplete")) === "current-password", "Login: Passwortfeld mit autocomplete=current-password");
   ok((await email.getAttribute("type")) === "email" && (await pw.getAttribute("type")) === "password", "Login: Feldtypen email/password");
+  ok((await email.getAttribute("enterkeyhint")) === "next" && (await pw.getAttribute("enterkeyhint")) === "go", "Login: enterkeyhint next/go");
+  ok((await email.getAttribute("aria-invalid")) === null && (await pw.getAttribute("aria-invalid")) === null && (await page.locator(loginErr).count()) === 0,
+    "Login: in Ruhe weder aria-invalid noch Fehlerblock");
   const sizes = await page.locator("form[data-form=login] input").evaluateAll((els) =>
     els.map((el) => parseFloat(getComputedStyle(el).fontSize)));
   ok(sizes.length === 2 && sizes.every((n) => n >= 16), `Login: Felder mindestens 16px (${sizes})`);
   ok((await page.locator("#tabbar").isVisible()) === false, "Login: keine Tableiste ohne Anmeldung");
   ok((await page.locator('[data-card="today"]').count()) === 0, "Login: kein Dashboard-Inhalt ohne Anmeldung");
+  ok((await activeId(page)) === "BODY", `Login: kein automatischer Fokus beim ersten Aufruf (${await activeId(page)})`);
   await page.waitForTimeout(300);
   ok((await fsCalls(page)) === 0, "Login: abgemeldet = 0 Firestore-Aufrufe");
   await shot(page, "30a-login");
   await noHScroll(page, "Login 390");
   await page.setViewportSize({ width: 320, height: 568 });
   await noHScroll(page, "Login 320");
+  const small = await gateCentre(page);
+  ok(Math.abs(small.above - small.below) < 32, `Login 320x568: Block vertikal zentriert bzw. bündig (oben ${small.above}, unten ${small.below})`);
   await page.setViewportSize({ width: 1280, height: 800 });
   await noHScroll(page, "Login 1280");
   await page.emulateMedia({ colorScheme: "dark" });
+  await markOutsideCard(page, "Login", "dark");
   await shot(page, "30a-login-dark");
   ok(errors.length === 0, "Login: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -2675,17 +2739,41 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   const { page, ctx, errors } = await authPage("signedOut", { flags: { __SIGNIN_FAIL__: "auth/invalid-credential" } });
   await page.waitForSelector('form[data-form="login"]');
   await page.click('form[data-form="login"] button[type="submit"]');
-  ok((await page.textContent(".auth-error")).includes("Bitte E-Mail und Passwort eingeben"), "Login: leere Felder werden abgefangen");
+  ok((await page.textContent(loginErr)).includes("Bitte E-Mail und Passwort eingeben"), "Login: leere Felder werden abgefangen (ein allgemeiner Fehler)");
+  ok((await page.getAttribute(loginErr, "role")) === "alert", "Login: Fehlerblock hat role=alert");
   ok((await page.evaluate(() => window.__SIGNIN_CALLS__ || 0)) === 0, "Login: leere Felder lösen keinen Anmeldeversuch aus");
-  await page.fill('input[name="email"]', "louis@example.test");
-  await page.fill('input[name="password"]', "falsch");
+  const both = await page.evaluate(() => ["login-email", "login-password"].map((id) => {
+    const el = document.getElementById(id);
+    return [el.getAttribute("aria-invalid"), el.getAttribute("aria-describedby"), el.closest(".sd-field").classList.contains("is-invalid")].join("|");
+  }));
+  ok(both.every((s) => s === "true|login-error|true"), `Login: beide leeren Felder aria-invalid + aria-describedby=login-error + Ring (${both})`);
+  ok((await activeId(page)) === "login-email", `Login: Fokus auf dem ersten ungültigen Feld (${await activeId(page)})`);
+  await page.fill("#login-email", "louis@example.test");
   await page.click('form[data-form="login"] button[type="submit"]');
-  await page.waitForFunction(() => document.querySelector(".auth-error")?.textContent.includes("E-Mail oder Passwort stimmt nicht"));
-  ok(await page.locator(".auth-error").isVisible(), "Login: falsches Passwort zeigt die deutsche Meldung");
-  ok((await page.inputValue('input[name="email"]')) === "louis@example.test", "Login: E-Mail bleibt nach einem Fehler stehen");
+  const onlyPw = await page.evaluate(() => ({
+    email: document.getElementById("login-email").getAttribute("aria-invalid"),
+    pw: document.getElementById("login-password").getAttribute("aria-invalid"),
+    value: document.getElementById("login-email").value,
+  }));
+  ok(onlyPw.email === null && onlyPw.pw === "true" && onlyPw.value === "louis@example.test", `Login: nur das leere Passwortfeld ist ungültig, E-Mail bleibt gefüllt (${JSON.stringify(onlyPw)})`);
+  ok((await activeId(page)) === "login-password", `Login: Fokus auf dem Passwortfeld (${await activeId(page)})`);
+  await page.fill("#login-password", "falsch");
+  await page.click('form[data-form="login"] button[type="submit"]');
+  await page.waitForFunction(() => document.querySelector('[data-slot="login-error"]')?.textContent.includes("E-Mail oder Passwort stimmt nicht"));
+  ok(await page.locator(loginErr).isVisible(), "Login: falsches Passwort zeigt die deutsche Meldung");
+  ok((await page.inputValue("#login-email")) === "louis@example.test", "Login: E-Mail bleibt nach einem Fehler stehen");
+  ok((await page.inputValue("#login-password")) === "", "Login: Passwort ist nach einem Fehler leer");
+  ok((await activeId(page)) === "login-password", `Login: nach Firebase-Fehler Fokus auf dem Passwortfeld (${await activeId(page)})`);
+  const fb = await page.evaluate(() => ({
+    emailInvalid: document.getElementById("login-email").getAttribute("aria-invalid"),
+    pwInvalid: document.getElementById("login-password").getAttribute("aria-invalid"),
+    pwDesc: document.getElementById("login-password").getAttribute("aria-describedby"),
+  }));
+  ok(fb.emailInvalid === null && fb.pwInvalid === null && fb.pwDesc === "login-error", `Login: Firebase-Fehler ist allgemein, hängt per aria-describedby am Passwortfeld (${JSON.stringify(fb)})`);
   ok((await page.locator("#tabbar").isVisible()) === false, "Login: nach Fehler weiter ohne Tableiste");
+  await gateShape(page, "Login mit Fehler");
   await page.evaluate(() => { window.__SIGNIN_FAIL__ = null; });
-  await page.fill('input[name="password"]', "richtig");
+  await page.fill("#login-password", "richtig");
   await page.click('form[data-form="login"] button[type="submit"]');
   await page.waitForSelector('#main [data-card="today"]');
   ok((await page.evaluate(() => window.__SIGNIN_ARGS__)).join("|") === "louis@example.test|richtig", "Login: Zugangsdaten gehen unverändert an signIn");
@@ -2701,8 +2789,12 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   const { page, ctx, errors } = await authPage("forbidden");
   await page.waitForSelector('[data-action="forbidden-logout"]');
   const txt = await page.textContent("#main");
-  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Kein Zugriff", "Fremdes Konto: Überschrift 'Kein Zugriff'");
+  ok((await page.textContent('[data-card="no-access"] h1')) === "Kein Zugriff", "Fremdes Konto: Überschrift 'Kein Zugriff'");
+  await gateShape(page, "Fremdes Konto");
+  await markOutsideCard(page, "Fremdes Konto", "light");
   ok(txt.includes("fremde-uid-1234567890") && txt.includes("fremd@example.test"), "Fremdes Konto: zeigt E-Mail und UID des angemeldeten Kontos");
+  ok((await page.textContent('[data-card="no-access"] dd.sd-mono')) === "fremde-uid-1234567890", "Fremdes Konto: UID steht im Mono-Wert der Karte");
+  ok((await page.locator('[data-card="no-access"] .sd-btn--primary').count()) === 1, "Fremdes Konto: genau ein Primärknopf (Abmelden)");
   ok((await page.locator("#tabbar").isVisible()) === false, "Fremdes Konto: keine Tableiste");
   await page.waitForTimeout(300);
   ok((await fsCalls(page)) === 0, "Fremdes Konto: 0 Firestore-Aufrufe");
@@ -2711,6 +2803,7 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   await page.click('[data-action="forbidden-logout"]');
   await page.waitForSelector('form[data-form="login"]');
   ok((await signouts(page)) === 1, "Fremdes Konto: Abmelden ruft signOutUser genau einmal auf, danach Login");
+  ok(!(await page.textContent("#main")).includes("fremde-uid"), "Fremdes Konto: die UID steht nur auf 'Kein Zugriff', nicht auf dem Login");
   ok(errors.length === 0, "Fremdes Konto: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
@@ -2736,9 +2829,14 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   await page.addInitScript(() => { window.__AUTH__ = "anonymous"; window.__PENDING__ = "hang"; });
   await page.goto(BASE + "/index.html");
   await page.waitForFunction(() => (window.__FLUSH_CALLS__ || 0) === 1);
+  ok((await page.textContent('[data-card="auth-wait"] .sd-auth__tag')) === "Einen Moment …", "Anonym hängend: bis zum Timeout steht 'Einen Moment …' (Warte-Zustand)");
   await page.clock.runFor(11000);
   await page.waitForSelector('[data-action="retry-pending"]');
-  ok((await page.textContent("#main")).includes("noch nicht übertragene Einträge"), "Anonym hängend: Hinweiskarte zu offenen Einträgen");
+  ok((await page.textContent('[data-card="pending-writes"]')).includes("noch nicht übertragene Einträge"), "Anonym hängend: Hinweiskarte zu offenen Einträgen");
+  ok((await page.textContent('[data-card="pending-writes"] h1')).includes("Noch nicht übertragene Einträge"), "Anonym hängend: Titel der Karte ist der h1");
+  await gateShape(page, "Offene Einträge");
+  await markOutsideCard(page, "Offene Einträge", "light");
+  ok((await page.locator('[data-action="forbidden-logout"], [data-action="logout"]').count()) === 0, "Anonym hängend: kein Abmelden-Knopf auf der Karte");
   ok((await signouts(page)) === 0, "Anonym hängend: es wird NICHT abgemeldet");
   ok((await page.locator('form[data-form="login"]').count()) === 0, "Anonym hängend: kein Login-Formular, kein Weitermachen");
   await noHScroll(page, "Hinweiskarte offene Einträge");
@@ -2747,6 +2845,129 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   await page.click('[data-action="retry-pending"]');
   await page.waitForSelector('form[data-form="login"]');
   ok((await signouts(page)) === 1, "Anonym: nach 'Erneut versuchen' und gelungenem Flush wird abgemeldet");
+  await ctx.close();
+}
+
+// 30h. Login-Zustände: Warten, Senden, Hinweis (anderer Tab), Escaping
+{
+  scenario("30h");
+  // Warten: Prüfung hängt
+  const wait = await authPage("signedOut", { flags: { __AUTH_HANG__: true } });
+  await wait.page.waitForSelector('[data-card="auth-wait"]');
+  ok((await wait.page.textContent('[data-card="auth-wait"] .sd-auth__tag')) === "Prüfe Anmeldung …", "Warten: 'Prüfe Anmeldung …' unter Marke und Name");
+  ok((await wait.page.getAttribute('[data-card="auth-wait"] .sd-auth__tag', "role")) === "status", "Warten: Statuszeile hat role=status");
+  await gateShape(wait.page, "Warten", { h1: 0 });
+  await markOutsideCard(wait.page, "Warten", "light");
+  ok((await wait.page.locator(".sd-card").count()) === 0 && (await wait.page.locator("#tabbar").isVisible()) === false, "Warten: keine Karte, keine Tableiste");
+  await noHScroll(wait.page, "Warten");
+  await wait.ctx.close();
+
+  // Senden: Anmeldung hängt
+  const busy = await authPage("signedOut", { flags: { __SIGNIN_HANG__: true } });
+  await busy.page.waitForSelector('form[data-form="login"]');
+  await busy.page.fill("#login-email", "louis@example.test");
+  await busy.page.fill("#login-password", "geheim");
+  await busy.page.click('form[data-form="login"] button[type="submit"]');
+  await busy.page.waitForFunction(() => (window.__SIGNIN_CALLS__ || 0) === 1);
+  const sending = await busy.page.evaluate(() => ({
+    disabled: document.querySelector('form[data-form="login"] button[type="submit"]').disabled,
+    busy: document.querySelector('form[data-form="login"]').getAttribute("aria-busy"),
+  }));
+  ok(sending.disabled && sending.busy === "true", `Senden: Knopf disabled und Formular aria-busy=true (${JSON.stringify(sending)})`);
+  await busy.ctx.close();
+
+  // Hinweis: amber, role=status, vor den Feldern, einmalig, ohne Fokus, escaped
+  const note = await authPage("signedOut");
+  await note.page.addInitScript(seedNotice, ['Abgemeldet <b id="x">fett</b> & "Tab"']);
+  await note.page.reload();
+  await note.page.waitForSelector("[data-notice]");
+  const n = await note.page.evaluate(() => {
+    const el = document.querySelector("[data-notice]");
+    return { role: el.getAttribute("role"), cls: el.className, text: el.textContent, injected: !!document.getElementById("x"),
+      beforeFields: !!(el.compareDocumentPosition(document.getElementById("login-email")) & Node.DOCUMENT_POSITION_FOLLOWING),
+      focus: document.activeElement?.tagName };
+  });
+  ok(n.role === "status" && n.cls.includes("sd-notice--amber") && n.beforeFields, `Hinweis: amber, role=status, steht vor den Feldern (${n.cls})`);
+  ok(n.text === 'Abgemeldet <b id="x">fett</b> & "Tab"' && !n.injected, "Hinweis: Text kommt aus sessionStorage und läuft durch esc()");
+  ok(n.focus === "BODY", "Hinweis: kein automatischer Fokus");
+  await gateShape(note.page, "Login mit Hinweis");
+  await note.page.reload();
+  await note.page.waitForSelector('form[data-form="login"]');
+  ok((await note.page.locator("[data-notice]").count()) === 0, "Hinweis: erscheint nur einmal");
+  await note.ctx.close();
+
+  // Escaping von E-Mail und UID auf Kein Zugriff
+  const esc = await authPage("forbidden", { flags: { __EMAIL__: 'a<b id="e">x</b>"@example.test', __UID__: '<i id="u">uid</i>' } });
+  await esc.page.waitForSelector('[data-card="no-access"]');
+  const e = await esc.page.evaluate(() => ({ e: !!document.getElementById("e"), u: !!document.getElementById("u"), text: document.querySelector('[data-card="no-access"]').textContent }));
+  ok(!e.e && !e.u && e.text.includes('a<b id="e">x</b>"@example.test') && e.text.includes('<i id="u">uid</i>'), "Kein Zugriff: E-Mail und UID werden als Text gezeigt (esc)");
+  await esc.ctx.close();
+
+  // E-Mail im value-Attribut nach einem Fehler
+  const val = await authPage("signedOut");
+  await val.page.waitForSelector('form[data-form="login"]');
+  await val.page.fill("#login-email", '"><b id="v">x</b>');
+  await val.page.click('form[data-form="login"] button[type="submit"]');
+  await val.page.waitForSelector(loginErr);
+  ok((await val.page.inputValue("#login-email")) === '"><b id="v">x</b>' && (await val.page.locator("#v").count()) === 0, "Login: E-Mail im value-Attribut nach Fehler escaped");
+  await val.ctx.close();
+}
+
+// 30i. Gate-Fehler: Prüfung scheitert, Abmelden der Altsitzung scheitert
+{
+  scenario("30i");
+  const a = await authPage("signedOut", { flags: { __AUTH_FAIL__: 'Netz <b id="g">weg</b>' } });
+  await a.page.waitForSelector('[data-card="gate-error"]');
+  const g = await a.page.evaluate(() => {
+    const c = document.querySelector('[data-card="gate-error"]');
+    return { role: c.getAttribute("role"), danger: c.classList.contains("sd-card--danger"), h1: c.querySelector("h1")?.textContent,
+      text: c.textContent, injected: !!document.getElementById("g"), btn: c.querySelector("button")?.dataset.action, label: c.querySelector("button")?.textContent };
+  });
+  ok(g.role === "alert" && g.danger && g.h1 === "Problem" && g.btn === "reload" && g.label === "Neu laden", `Gate-Fehler: Danger-Karte 'Problem' mit 'Neu laden' (${JSON.stringify(g)})`);
+  ok(g.text.includes('Netz <b id="g">weg</b>') && !g.injected, "Gate-Fehler: Meldung wird als Text gezeigt (esc)");
+  await gateShape(a.page, "Gate-Fehler");
+  await markOutsideCard(a.page, "Gate-Fehler", "light");
+  await noHScroll(a.page, "Gate-Fehler");
+  await shot(a.page, "30i-gate-error");
+  await a.ctx.close();
+
+  const b = await authPage("anonymous", { flags: { __SIGNOUT_FAIL__: "Abmelden kaputt" } });
+  await b.page.waitForSelector('[data-card="gate-error"]');
+  ok((await b.page.textContent('[data-card="gate-error"]')).includes("Abmelden kaputt") && (await b.page.locator('form[data-form="login"]').count()) === 0,
+    "Gate-Fehler: scheitert das Abmelden der Altsitzung, erscheint die Fehlerkarte statt des Logins");
+  await b.ctx.close();
+}
+
+// 30j. Niedrige Höhe (320x568) mit Hinweis und Fehler: scrollt, nichts ist abgeschnitten
+{
+  scenario("30j");
+  const { page, ctx } = await authPage("signedOut", { viewport: { width: 320, height: 568 } });
+  await page.addInitScript(seedNotice, [NOTICE_KEPT]);
+  await page.reload();
+  await page.waitForSelector("[data-notice]");
+  await noHScroll(page, "Login 320x568 mit Hinweis");
+  // Der Hinweis ist einmalig und entfällt beim Fehler-Rerender; Fehlerfall danach.
+  await page.fill("#login-email", "louis@example.test");
+  await page.click('form[data-form="login"] button[type="submit"]');
+  await page.waitForSelector(loginErr);
+  const r = await page.evaluate(() => {
+    const main = document.getElementById("main");
+    const head = document.querySelector("#main > header.sd-pagehead").getBoundingClientRect();
+    main.scrollTop = 0;
+    const brand = document.querySelector(".sd-auth__brand").getBoundingClientRect();
+    const topOk = brand.top >= head.bottom - 1;
+    main.scrollTop = main.scrollHeight;
+    const mb = main.getBoundingClientRect();
+    const foot = document.querySelector(".sd-auth__foot").getBoundingClientRect();
+    const btn = document.querySelector('form[data-form="login"] button[type="submit"]').getBoundingClientRect();
+    return { scrollable: main.scrollHeight > main.clientHeight, topOk, footOk: foot.bottom <= mb.bottom + 1, btnOk: btn.bottom <= mb.bottom + 1 && btn.top >= 0,
+      hscroll: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  ok(r.scrollable, "320x568 mit Fehler: #main scrollt, weil der Inhalt höher ist");
+  ok(r.topOk && r.footOk && r.btnOk, `320x568: oben und unten erreichbar, Marke, Knopf und Fußnote nicht abgeschnitten (${JSON.stringify(r)})`);
+  ok(r.hscroll <= 0, `320x568: kein horizontales Scrollen (${r.hscroll}px)`);
+  await noHScroll(page, "Login 320x568 mit Fehler");
+  await shot(page, "30j-login-320-fehler");
   await ctx.close();
 }
 
@@ -2930,8 +3151,8 @@ const refreshOk = { status: 200, body: { access_token: "at2", refresh_token: "rt
   await page.waitForTimeout(300);
   ok(exchanges.length === 0, "Strava-Redirect: abgemeldet wird der Code noch nicht eingelöst");
   ok(page.url().includes("code=redirect-code-1"), "Strava-Redirect: der Code bleibt in der URL, bis angemeldet");
-  await page.fill('input[name="email"]', "louis@example.test");
-  await page.fill('input[name="password"]', "richtig");
+  await page.fill("#login-email", "louis@example.test");
+  await page.fill("#login-password", "richtig");
   await page.click('form[data-form="login"] button[type="submit"]');
   await page.waitForFunction(() => document.getElementById("toast")?.textContent.includes("Mit Strava verbunden"));
   ok(exchanges.length === 1, `Strava-Redirect: nach dem Login genau ein /exchange-Aufruf (${exchanges.length})`);

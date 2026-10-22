@@ -2,7 +2,7 @@
 // Datumsformatierung, Toast, Fehler-/Lade-Karten und die Sheet-Fabrik
 // (createSheet, Auflage C6). Bewusst ohne Firebase-Abhängigkeiten,
 // nur plan.js für die reinen Datums-Helfer.
-import { fromISO } from "./plan.js?v=202610221024";
+import { fromISO } from "./plan.js?v=202610221048";
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -36,12 +36,6 @@ export function markSVG(size = 28) {
   const lg = size >= 64 ? " sd-mark--lg" : "";
   return `<picture><source srcset="stride-mark-dark.svg" media="(prefers-color-scheme: dark)">` +
     `<img class="sd-mark${lg}" src="stride-mark.svg" alt="" width="${size}" height="${size}"></picture>`;
-}
-
-// Kopfzeile der Tab-Seiten: Zeichen + Wortmarke. Bewusst ohne .sd-head als direktes Kind
-// von #header: das würde per :has() das Seitenpolster der noch alten Kopfinhalte nullen.
-export function brandHeadHTML() {
-  return `<div class="sd-brand">${markSVG(28)}<span>Stride</span></div>`;
 }
 
 // Gefüllter Haken-Kreis; kind: "kraft" | "lauf" | "long", size: 20 | 22 | 24.
