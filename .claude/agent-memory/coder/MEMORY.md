@@ -6,3 +6,4 @@
 - [Aufräumrunde 20.10.](project_cleanup_utilities.md) — Utility-Klassen statt Inline-Styles, AUTH_MODE weg, Stub-Flags, N3 offen
 - [Stride E5a Kraft-Tag](project_stride_e5a_kraft.md) — logState/paintKraft-Modell, Speicher-Rollback, Blur-Regel, Abweichungen; vor E5b lesen
 - [Stride E6 Lauf-Tag](project_stride_e6_lauftag.md) — view-run.js-API, runOpen/paintRunSlot, Sheet-/Fokusregeln, Abweichungen; vor E7/E9 lesen
+- [Stride E7 Verlauf + Plan](project_stride_e7_verlauf_plan.md) — view-history/view-plan/Konto-API, histGen/Fokus, Abweichungen; vor E8/E9 lesen
