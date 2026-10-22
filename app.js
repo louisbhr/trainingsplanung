@@ -3,36 +3,37 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610211239";
-import { loadPlans } from "./plan-store.js?v=202610211239";
+} from "./plan.js?v=202610220932";
+import { loadPlans } from "./plan-store.js?v=202610220932";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610211239";
+} from "./firebase-init.js?v=202610220932";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatPace, formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport,
-} from "./strava.js?v=202610211239";
-import { previousEntry, progressionChip } from "./progression.js?v=202610211239";
+} from "./strava.js?v=202610220932";
+import { previousEntry, progressionChip } from "./progression.js?v=202610220932";
 import {
   exerciseMode, startSets, lastTimeText, applyWeightForward, initialFocus, nextOpenExercise,
   stepValue, buildLogPayload, MAX_VALUE,
   draftKey, serializeDraft, parseDraft, staleDraftKeys, dropSavedFromDraft,
-} from "./kraftflow.js?v=202610211239";
-import { assignRuns, pickableRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610211239";
-import { distanceStatus, hrStatus } from "./runcompare.js?v=202610211239";
-import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet } from "./ui.js?v=202610211239";
-import * as dash from "./view-dashboard.js?v=202610211239";
-import * as dashWeek from "./view-week.js?v=202610211239";
-import * as kraftView from "./view-kraft.js?v=202610211239";
-import * as metrics from "./metrics.js?v=202610211239";
-import * as coach from "./coach.js?v=202610211239";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610211239";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610211239";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610211239";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610211239";
+} from "./kraftflow.js?v=202610220932";
+import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610220932";
+import { distanceStatus, hrStatus } from "./runcompare.js?v=202610220932";
+import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet, createSheet } from "./ui.js?v=202610220932";
+import * as dash from "./view-dashboard.js?v=202610220932";
+import * as dashWeek from "./view-week.js?v=202610220932";
+import * as kraftView from "./view-kraft.js?v=202610220932";
+import * as runView from "./view-run.js?v=202610220932";
+import * as metrics from "./metrics.js?v=202610220932";
+import * as coach from "./coach.js?v=202610220932";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610220932";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610220932";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610220932";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610220932";
 
 const INFO_CONTENT = dash.infoContent(THRESHOLDS);
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
@@ -133,7 +134,6 @@ let stravaState = { runs: null, error: null, errorSource: null, connected: null 
 // Plan-Datum -> { run, offset, source }
 let runAssignment = {};
 let runLinks = {};
-let runPickerFor = null; // Plan-Datum, für das gerade die Auswahl offen ist
 let allLogs = null; // Kraft-Verlauf, für die Progressionsvorschläge
 let allDayPlans = null; // Tages-Anpassungen aller Tage, für die Wochensoll-Ampel (M2-5)
 
@@ -899,6 +899,8 @@ function setDetailMode(on) {
 
 function render() {
   kraftOpen = false; // renderKraftDay setzt es wieder, sobald der Kraft-Tag die Seite ist
+  runOpen = false; // ebenso renderRunDay; das Zuordnungs-Sheet gehört nur zum Lauf-Tag
+  assignSheet.closeImmediately();
   if (!plans.length) return; // Plan lädt noch (siehe init()); nichts zu rendern
   syncTabbar();
   setDetailMode(false); // renderDay schaltet es für Kraft-/Lauf-Tage wieder ein
@@ -928,6 +930,8 @@ async function renderDay(iso, { showBack, backLabel }) {
   setDetailMode(info.kind === "kraft" || info.kind === "lauf");
   // Der Kraft-Tag baut Kopf und Inhalt komplett selbst (view-kraft.js)
   if (info.kind === "kraft") return renderKraftDay(info, iso, label);
+  // Der Lauf-Tag ebenso (view-run.js)
+  if (info.kind === "lauf") return renderRunDay(info, iso, label);
 
   setPageHead(`
     <p class="eyebrow">${showBack ? `<button class="link-btn" data-action="back">${ICONS.back} ${esc(label)}</button> · ` : ""}${dayNameDE(iso)} · ${shortDate(iso)}${isToday ? " · heute" : ""}</p>
@@ -940,7 +944,6 @@ async function renderDay(iso, { showBack, backLabel }) {
       : "Ruhetag"
     }</h1>${badgeForKind(info)}</div>`);
 
-  if (info.kind === "lauf") return renderRunDay(info, iso);
   if (info.kind === "placeholder") {
     renderMain(`<div class="card"><p class="name">Details folgen</p>
       <p class="hint">${esc(info.focus || "")} — die genauen Werte tragen wir nach der Re-Kalibrierung nach.</p></div>`);
@@ -1418,7 +1421,6 @@ function kraftNextExercise(slugName) {
 function kraftFinishSession() {
   if (currentKraftDay.iso) draftRemove(currentKraftDay.iso);
   state.selectedDate = null;
-  runPickerFor = null;
   render();
 }
 
@@ -1629,11 +1631,20 @@ function recomputeAssignment() {
   runAssignment = assignRuns(allPlanRunDays(), stravaState.runs || [], runLinks);
 }
 
+// ---- Lauf-Tag (Stride E6): Zustand ----
+// Kopf und Plan-Hinweis stehen sofort da, nur #strava-slot lädt nach. runOpen sagt,
+// ob der Lauf-Tag gerade die Seite ist; runGen verwirft späte Antworten einer alten
+// Öffnung. Das Markup liefert view-run.js, hier nur Zustand, Laden und Verdrahtung.
+const assignSheet = createSheet("assignSheet", "assignBackdrop");
+let runOpen = false;
+let runGen = 0;
+let runDay = { iso: null, info: null, backLabel: "Heute" };
+let assignBusy = false; // "Neu laden" im Sheet läuft
+
 function setRunLink(planDate, activityId) {
   runLinks[planDate] = { activityId };
   recomputeAssignment();
-  runPickerFor = null;
-  render();
+  afterRunLinkChange({ ignored: activityId === null });
   saveRunLink(planDate, activityId).catch((err) => {
     console.error(err);
     toast("Zuordnung nicht gespeichert: " + err.message, true);
@@ -1643,134 +1654,119 @@ function setRunLink(planDate, activityId) {
 function resetRunLink(planDate) {
   delete runLinks[planDate];
   recomputeAssignment();
-  runPickerFor = null;
-  render();
+  afterRunLinkChange({ ignored: false });
   clearRunLink(planDate).catch((err) => {
     console.error(err);
     toast("Zuordnung nicht zurückgesetzt: " + err.message, true);
   });
 }
 
-async function renderRunDay(info, iso) {
-  renderMain(
-    planRunCard(info) +
-    `<div id="strava-slot">${loadingCard("Strava wird geprüft …")}</div>` +
-    `<div class="strava-note">${ICONS.run}<p>${esc(info.note || "Wird nicht hier eingetragen — die Daten kommen automatisch aus Strava.")}</p></div>`);
+// Erst den Slot neu schreiben, dann das Sheet schließen: so findet das Sheet den
+// neuen Auslöser (pick-run + data-date) und gibt ihm den Fokus (Auflage C6).
+function afterRunLinkChange({ ignored }) {
+  if (runOpen) paintRunSlot();
+  assignSheet.close();
+  if (!runOpen) return;
+  if (ignored) document.querySelector('#strava-slot [data-action="reset-run"]')?.focus();
+  else keepRunFocus();
+}
 
+// Fokus nie auf body fallen lassen: sonst auf die erste Aktion im Slot, zuletzt auf den Titel.
+function keepRunFocus() {
+  const a = document.activeElement;
+  if (a && a !== document.body && a.isConnected) return;
+  (document.querySelector('#strava-slot [data-action="pick-run"]') || document.querySelector("#main h1"))?.focus();
+}
+
+function runSlotViewModel() {
+  const { iso, info } = runDay;
+  return {
+    iso, info, isLong: isLongRun(info), past: iso < todayISO(),
+    workerConfigured: isWorkerConfigured,
+    error: stravaState.error, errorSource: stravaState.errorSource, connected: stravaState.connected,
+    assignment: runAssignment[iso], THRESHOLDS, formatDuration,
+  };
+}
+
+// Schreibt Slot und (falls nötig) Kopf aus dem aktuellen Zustand. Der Kopf wird nur
+// angefasst, wenn sich die Ziel-Zeile ändert, damit der Fokus auf "Zurück" bleibt.
+function paintRunSlot() {
   const slot = document.getElementById("strava-slot");
-  const s = await loadStrava();
-  if (!slot.isConnected) return; // Nutzer hat inzwischen weitergeklickt
-  slot.innerHTML = stravaResultHTML(s, iso);
+  if (!slot) return;
+  const { html, showTarget } = runView.slotState(runSlotViewModel());
+  paintRunHead(showTarget);
+  slot.innerHTML = html;
 }
 
-function planRunCard(info) {
-  return `<div class="card bg-coral">
-    <p class="name fg-coral">${esc(info.type)}</p>
-    <div class="metric-grid mt-8">
-      <div><p class="metric-label">Ziel-Distanz</p><p class="metric-value fg-coral">${esc(info.dist)}</p></div>
-      <div><p class="metric-label">Ziel-Pace</p><p class="metric-value xs">${esc(info.pace)}</p></div>
-    </div>
-    <p class="hint mt-8">HF-Zone ${esc(info.hf)}</p>
-  </div>`;
+function paintRunHead(showTarget) {
+  const { iso, info, backLabel } = runDay;
+  const head = runView.headHTML({ iso, info, isLong: isLongRun(info), backLabel, showTarget });
+  if (head !== pageHeadHTML) setPageHead(head);
 }
 
-// Getrennte Karten für die beiden Fehlerwelten: an Firestore-Problemen
-// hilft "Neu verbinden" nicht, und der Hinweis muss auf Firebase zeigen.
-function problemCard(s) {
-  if (s.errorSource === "firebase") {
-    return `<div class="card error-card">
-      <p class="name">Daten-Problem (Firebase)</p>
-      <p class="hint">${esc(s.error)}</p>
-      <p class="hint mt-6">Nicht Strava, sondern der Datenspeicher. Prüfe, ob du angemeldet bist (Plan-Tab, Konto) und ob die Regeln aus <code>firestore.rules</code> in der Firebase-Console veröffentlicht sind.</p>
-      <button data-action="reload-strava" class="mt-8">Nochmal versuchen</button></div>`;
-  }
-  return `<div class="card error-card"><p class="name">Strava-Problem</p>
-    <p class="hint">${esc(s.error)}</p>
-    <div class="row mt-8 gap-8">
-      <button data-action="reload-strava">Nochmal versuchen</button>
-      <button data-action="connect-strava">Neu verbinden</button>
-    </div></div>`;
+async function renderRunDay(info, iso, backLabel) {
+  runOpen = true;
+  const gen = ++runGen;
+  runDay = { iso, info, backLabel };
+  assignBusy = false;
+  setPageHead(runView.headHTML({ iso, info, isLong: isLongRun(info), backLabel, showTarget: true }));
+  renderMain(runView.pageHTML({ slotHTML: runView.loadingHTML(), note: info.note }));
+
+  await loadStrava();
+  if (gen !== runGen || !runOpen) return; // Nutzer hat inzwischen weitergeklickt
+  paintRunSlot();
 }
 
-function stravaResultHTML(s, iso) {
-  if (!isWorkerConfigured) {
-    return `<div class="card error-card">
-      <p class="name">Strava noch nicht eingerichtet</p>
-      <p class="hint">Der Token-Worker fehlt (siehe README, Abschnitt „Strava"). Ohne ihn kann der Browser sich nicht bei Strava anmelden.</p></div>`;
-  }
-  if (s.error) return problemCard(s);
-  if (s.connected === false) {
-    return `<button class="primary-btn mt-10" data-action="connect-strava">Mit Strava verbinden</button>`;
-  }
-
+function paintAssignBody() {
+  const { iso } = runDay;
   const a = runAssignment[iso];
-  const picker = runPickerFor === iso ? runPickerHTML(s, iso) : "";
-
-  if (!a || !a.run) {
-    return `<div class="card">
-        <p class="name">Noch kein Lauf zugeordnet</p>
-        <p class="hint">${a?.source === "ignored"
-          ? "Für diesen Tag ist bewusst kein Lauf hinterlegt."
-          : "In Strava liegt kein Lauf an diesem Tag und keiner in den Tagen danach."}</p>
-        <div class="row mt-8 gap-8">
-          <button data-action="pick-run" data-date="${iso}">Lauf zuordnen</button>
-          ${a?.source === "ignored" ? `<button data-action="reset-run" data-date="${iso}">Automatik zurück</button>` : ""}
-          <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
-        </div>
-      </div>${picker}`;
-  }
-
-  const m = a.run;
-  const shifted = a.offset !== 0;
-  return `<div class="card${shifted ? " shifted" : ""} mt-10">
-    <div class="row jc-between">
-      <p class="name">Erfasst (Strava)</p>
-      <button class="icon-btn" data-action="reload-strava" aria-label="Neu laden">${ICONS.refresh}</button>
-    </div>
-    <p class="hint">${esc(m.name)}</p>
-    ${shifted
-      ? `<p class="shift-note">${dayNameDE(m.date)}, ${shortDate(m.date)} · ${esc(offsetLabel(a.offset))}</p>`
-      : ""}
-    <div class="metric-grid mt-8">
-      <div><p class="metric-label">Distanz</p><p class="metric-value">${metrics.formatKm1(m.distanceKm)} km</p></div>
-      <div><p class="metric-label">Pace</p><p class="metric-value sm">${esc(m.paceLabel)}</p></div>
-      <div><p class="metric-label">Dauer</p><p class="metric-value sm">${esc(formatDuration(m.movingTimeSec))}</p></div>
-      <div><p class="metric-label">Ø HF</p><p class="metric-value sm">${m.avgHr ? m.avgHr + " bpm" : "–"}</p></div>
-    </div>
-    <div class="row mt-10 gap-8">
-      ${a.source === "auto"
-        ? `<button class="small-btn" data-action="ignore-run" data-date="${iso}">Passt nicht</button>` : ""}
-      ${a.source === "manual"
-        ? `<button class="small-btn" data-action="reset-run" data-date="${iso}">Zuordnung aufheben</button>` : ""}
-      <button class="small-btn" data-action="pick-run" data-date="${iso}">Anderen Lauf</button>
-    </div>
-  </div>${picker}`;
+  document.getElementById("assignSheetBody").innerHTML = runView.sheetBodyHTML({
+    iso,
+    options: runView.pickerOptions(stravaState.runs || [], runAssignment, iso),
+    selectedId: a?.run?.id,
+    source: a?.source,
+    busy: assignBusy,
+  });
 }
 
-function runPickerHTML(s, iso) {
-  const options = pickableRuns(s.runs || [], runAssignment, iso);
-  if (!options.length) {
-    return `<div class="card">
-      <p class="name">Kein Lauf zur Auswahl</p>
-      <p class="hint">In Strava liegt im Umkreis von sieben Tagen kein freier Lauf.</p>
-      <button data-action="close-picker" class="mt-8">Schließen</button></div>`;
+function openAssignSheet(iso, trigger) {
+  if (!runOpen || iso !== runDay.iso) return;
+  document.getElementById("assignSheetTitle").textContent = runView.sheetTitle(iso);
+  paintAssignBody();
+  assignSheet.open(trigger);
+}
+
+// Tipp auf einen Lauf im Sheet: der schon zugeordnete schließt ohne Änderung.
+function chooseRun(target) {
+  const iso = target.dataset.date;
+  if (String(runAssignment[iso]?.run?.id) === target.dataset.run) return assignSheet.close();
+  setRunLink(iso, Number(target.dataset.run));
+}
+
+// "Neu laden" auf dem Lauf-Tag. Im Sheet bleibt es offen (Knopf gesperrt, danach nur
+// der Körper neu); im Slot erscheint wieder der Platzhalter, der Kopf bleibt stehen.
+async function reloadRunDay(target) {
+  const inSheet = !!target.closest("#assignSheet");
+  const gen = runGen;
+  if (inSheet) {
+    assignBusy = true;
+    paintAssignBody();
+    document.querySelector('#assignSheet [data-action="reload-strava"]')?.focus();
+  } else {
+    document.getElementById("strava-slot").innerHTML = runView.loadingHTML();
+    document.querySelector("#main h1")?.focus(); // der Auslöser ist weg: Fokus auf den Titel (tabindex -1)
   }
-  const current = runAssignment[iso]?.run?.id;
-  return `<div class="card">
-    <div class="row jc-between">
-      <p class="name">Lauf für ${dayNameDE(iso)}, ${shortDate(iso)}</p>
-      <button class="small-btn" data-action="close-picker">Schließen</button>
-    </div>
-    ${options.map((r) => {
-      const off = daysBetween(iso, r.date);
-      return `<button class="pick-row${String(r.id) === String(current) ? " on" : ""}"
-          data-action="assign-run" data-date="${iso}" data-run="${r.id}">
-        <span class="pick-main">${dayNameDE(r.date)}, ${shortDate(r.date)}${off ? ` · ${off > 0 ? "+" : ""}${off} ${Math.abs(off) === 1 ? "Tag" : "Tage"}` : " · am Plantag"}</span>
-        <span class="pick-sub">${esc(r.name)} · ${metrics.formatKm1(r.distanceKm)} km · ${esc(r.paceLabel)}</span>
-      </button>`;
-    }).join("")}
-    <button class="w-full mt-8" data-action="ignore-run" data-date="${iso}">Kein Lauf an diesem Tag</button>
-  </div>`;
+  await loadStrava({ force: true });
+  recomputeAssignment();
+  assignBusy = false;
+  if (gen !== runGen || !runOpen) return;
+  paintRunSlot();
+  if (inSheet && assignSheet.isOpen()) {
+    paintAssignBody();
+    document.querySelector('#assignSheet [data-action="reload-strava"]')?.focus();
+  } else {
+    keepRunFocus();
+  }
 }
 
 // ---------- Woche ----------
@@ -2213,9 +2209,9 @@ document.getElementById("app").addEventListener("click", async (e) => {
   if (action === "export-data") return exportData(target);
   if (action === "forbidden-logout") return forbiddenLogout(target);
   if (action === "retry-pending") return init();
-  if (action === "back") { state.selectedDate = null; runPickerFor = null; return render(); }
+  if (action === "back") { state.selectedDate = null; return render(); }
   if (action === "toggle-day-detail") return toggleWeekDay(target);
-  if (action === "open-day") { state.selectedDate = target.dataset.date; runPickerFor = null; return render(); }
+  if (action === "open-day") { state.selectedDate = target.dataset.date; return render(); }
   if (action === "go-tab") return switchTab(target.dataset.tab);
   if (action === "open-info") {
     const c = INFO_CONTENT[target.dataset.info];
@@ -2259,12 +2255,12 @@ document.getElementById("app").addEventListener("click", async (e) => {
   if (action === "finish-session") return kraftFinishSession();
   if (action === "hist-mode") { state.historyMode = target.dataset.mode; return render(); }
   if (action === "connect-strava") return startAuthorization();
-  if (action === "pick-run") { runPickerFor = target.dataset.date; return render(); }
-  if (action === "close-picker") { runPickerFor = null; return render(); }
-  if (action === "assign-run") return setRunLink(target.dataset.date, Number(target.dataset.run));
+  if (action === "pick-run") return openAssignSheet(target.dataset.date, target);
+  if (action === "assign-run") return chooseRun(target);
   if (action === "ignore-run") return setRunLink(target.dataset.date, null);
   if (action === "reset-run") return resetRunLink(target.dataset.date);
   if (action === "reload-strava") {
+    if (runOpen) return reloadRunDay(target);
     target.disabled = true;
     await loadStrava({ force: true });
     recomputeAssignment();
@@ -2294,7 +2290,6 @@ function switchTab(tab) {
   if (!TAB_KEYS.includes(tab)) return;
   state.tab = tab;
   state.selectedDate = null;
-  runPickerFor = null;
   if (tab === "woche") { state.weekNo = weekNoForTab(todayISO()); state.openDayIndex = null; weekFocusAction = null; }
   render();
 }

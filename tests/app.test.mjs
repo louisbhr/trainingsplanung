@@ -282,6 +282,48 @@ async function openKraftViaWeek(page, iso = "2026-09-08") {
   await waitKraft(page);
 }
 
+// ---- Lauf-Tag (Stride E6): stabile Haken, docs/ui-markup-stride.md Abschnitt 12 ----
+// Slot #strava-slot trägt [data-card="compare"|"strava-run"|"empty"|"missed"|"no-strava"|"ignored"|"error"],
+// das Zuordnungs-Sheet #assignSheet seine Optionen als .sd-option[role="radio"]. Gesprochen wird nur über data-action.
+const CMP = '#strava-slot [data-card="compare"]';
+const RUNROW = '#strava-slot [data-card="strava-run"]';
+const ASSIGN = "#assignSheet";
+const OPTIONS = '#assignSheet .sd-option[role="radio"]';
+const RUN_HEAD = "#main > header.sd-pagehead";
+const waitRunSlot = (page) => page.waitForSelector('#strava-slot [data-card]:not([data-card="loading"])');
+// Lauf-Tag von Heute aus öffnen (die Uhr steht auf dem Plantag)
+async function openRunToday(page) {
+  await page.waitForSelector(`${TODAY} [data-action="open-day"]`);
+  await page.click(`${TODAY} [data-action="open-day"]`);
+  await waitRunSlot(page);
+}
+// Aktiviertes Element als Kurzbeschreibung: { id, action, tag }
+const activeEl = (page) => page.evaluate(() => {
+  const a = document.activeElement;
+  return { id: a?.id || "", action: a?.dataset?.action || "", tag: a?.tagName || "", card: a?.dataset?.card || "" };
+});
+const sheetIsOpen = (page, sel = ASSIGN) => page.evaluate((s) => document.querySelector(s).classList.contains("open"), sel);
+const sheetIsHidden = (page, sel = ASSIGN) => page.evaluate((s) => document.querySelector(s).hidden, sel);
+const waitSheetHidden = (page, sel = ASSIGN) => page.waitForFunction((s) => document.querySelector(s).hidden, sel, { timeout: 2000 }).then(() => true, () => false);
+const rangeTexts = (page) => page.locator(`${CMP} .sd-range`).evaluateAll((els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim()));
+// Zahlen der SVG-Geometrie je Range-Zeile: Band (x, width) und Marker (x1, x2); null = nicht vorhanden
+const svgGeometry = (page) => page.locator(`${CMP} .sd-range`).evaluateAll((rows) => rows.map((row) => {
+  const rect = row.querySelector(".sd-range__band rect");
+  const tick = row.querySelector(".sd-range__tick");
+  return {
+    band: rect ? { x: rect.getAttribute("x"), width: rect.getAttribute("width") } : null,
+    mark: tick ? { x1: tick.getAttribute("x1"), x2: tick.getAttribute("x2") } : null,
+    axis: [...row.querySelectorAll(".sd-range__axis span")].map((e) => e.textContent),
+    ampel: row.querySelector(".sd-ampel")?.className ?? null,
+    value: row.querySelector(".sd-range__value")?.className ?? null,
+  };
+}));
+// Strava-Aktivität für die Lauf-Tag-Fixtures
+const run = (id, name, date, time, meters, sec, hr) => ({
+  id, type: "Run", name, start_date_local: `${date}T${time}:00Z`, distance: meters, moving_time: sec,
+  ...(hr ? { average_heartrate: hr } : {}),
+});
+
 // ---- 1. Dashboard, nicht verbunden (07.09.2026 = W2 Montag, Easy run) ----
 // Ersetzt die alte "Heute"-Tagesansicht als Starttab (M2-4). Die
 // Tagesansicht mit dem Strava-"Verbinden"-Einstieg bleibt über den
@@ -339,11 +381,11 @@ async function openKraftViaWeek(page, iso = "2026-09-08") {
   // Pace, Ø HF und Dauer zeigt nicht mehr die Heute-Karte (Markup 9.3: km, Urteil, Name),
   // sondern der Lauf-Tag, den "Lauf ansehen" öffnet.
   await page.click(`${TODAY} [data-action="open-day"]`);
-  await page.waitForSelector("#strava-slot .metric-value");
-  const run = await page.textContent("#strava-slot");
-  ok(run.includes("6:15 /km"), "Lauf-Tag aus Heute: Pace korrekt berechnet");
-  ok(run.includes("155 bpm"), "Lauf-Tag aus Heute: Ø HF angezeigt");
-  ok(run.includes("50:10 min"), "Lauf-Tag aus Heute: Dauer formatiert");
+  await page.waitForSelector(CMP);
+  const runTxt = await page.textContent("#strava-slot");
+  ok(runTxt.includes("6:15 /km"), "Lauf-Tag aus Heute: Pace korrekt berechnet");
+  ok(runTxt.includes("155 bpm"), "Lauf-Tag aus Heute: Ø HF angezeigt");
+  ok(runTxt.includes("50:10 min"), "Lauf-Tag aus Heute: Dauer formatiert");
   ok(errors.length === 0, "Dashboard mit Strava: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
@@ -494,8 +536,7 @@ async function openKraftViaWeek(page, iso = "2026-09-08") {
 // gerade erst geöffnete neue Sheet wieder — Escape/× wirkten danach nicht
 // mehr, weil closeInfo() sheet.hidden fälschlich als "schon zu" las.
 // Mit createSheet() hat jedes Sheet seinen eigenen Timer; der Wechsel A -> B und
-// B -> A zwischen Info- und Zuordnungs-Sheet wird in E6 ergänzt, sobald es das
-// zweite Sheet gibt.
+// B -> A zwischen Info- und Zuordnungs-Sheet steht in Szenario 38h (E6).
 {
   scenario("2c-2");
   const { page, ctx, errors } = await newPage({ connected: true });
@@ -788,7 +829,7 @@ const weekStripTexts = (page) => page.locator('[data-card="week"] .sd-wd .sd-vh'
     "Ruhetag: 'Morgen' nennt den Long Run und führt zum morgigen Tag");
   await next.click();
   await page.waitForSelector("#main > header.sd-pagehead h1");
-  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Lauf" && (await page.textContent('#main > header.sd-pagehead [data-action="back"]')).includes("Heute"),
+  ok((await page.textContent("#main > header.sd-pagehead h1")) === "Long run · 13 km" && (await page.textContent('#main > header.sd-pagehead [data-action="back"]')).includes("Heute"),
     "Ruhetag: 'Morgen' öffnet den Lauf-Tag, Zurück heißt 'Heute'");
   ok(errors.length === 0, "Ruhetag: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -1253,9 +1294,12 @@ for (const [recal, wantText, notText, label] of [
   // Tagesansicht (Wochen-Tab), nicht mehr auf dem Dashboard-Starttab.
   await goTab(page, "woche");
   await openDay(page, "2026-09-07");
-  await page.waitForSelector("#strava-slot .card");
+  await page.waitForSelector('#strava-slot [data-card="error"][data-source="worker"]');
   ok((await page.textContent("#strava-slot")).includes("Strava noch nicht eingerichtet"),
      "Setup: fehlender Worker wird erklärt statt zu hängen");
+  ok((await page.locator('#strava-slot [data-card="error"][role="alert"] button').count()) === 0 &&
+     (await page.textContent(`${RUN_HEAD} .sd-target`)).includes("Ziel 6:10–6:35 /km"),
+     "Setup: Worker-Fehlerkarte ohne Aktion (Alarm, nichts zu tun), Ziel-Zeile steht im Kopf");
   await shot(page, "08-worker-fehlt");
   await ctx.close();
 }
@@ -1397,13 +1441,16 @@ for (const [recal, wantText, notText, label] of [
   // Tagesansicht (#strava-slot), nicht auf dem Dashboard-Starttab.
   await goTab(page, "woche");
   await openDay(page, "2026-09-07");
-  await page.waitForSelector("#strava-slot .error-card");
+  await page.waitForSelector('#strava-slot [data-card="error"][data-source="firebase"]');
   const runTxt = await page.textContent("#strava-slot");
   ok(runTxt.includes("Daten-Problem (Firebase)"), "Fehlerquelle: Firestore-Fehler wird nicht als Strava-Problem gezeigt");
   ok(runTxt.includes("Missing or insufficient permissions."), "Fehlerquelle: Originalmeldung sichtbar");
   ok(runTxt.includes("angemeldet"), "Fehlerquelle: Hinweis auf die tatsächliche Ursache");
   ok((await page.locator('#strava-slot [data-action="connect-strava"]').count()) === 0,
      "Fehlerquelle: kein irreführendes 'Neu verbinden' bei Firebase-Fehlern");
+  ok((await page.locator('#strava-slot [data-card="error"][role="alert"] [data-action="reload-strava"]').count()) === 1 &&
+     (await page.locator('#strava-slot [data-source="strava"]').count()) === 0,
+     "Fehlerquelle: Firebase-Karte (Alarm) mit 'Nochmal versuchen', keine Strava-Karte daneben");
   await shot(page, "09-firebase-fehler-lauftag");
 
   // Krafttag: Meldung muss stehen bleiben, nicht als Toast verschwinden
@@ -1423,64 +1470,130 @@ for (const [recal, wantText, notText, label] of [
   await ctx.close();
 }
 
-// ---- 11. Verschobener Lauf: Mittwoch geplant, Donnerstag gelaufen ----
+// ---- 11. Verschobener Lauf: Mittwoch geplant, Donnerstag gelaufen; Zuordnungs-Sheet (Stride E6) ----
 {
   scenario("11");
   const { page, ctx, errors } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
   await goTab(page, "woche");
   await openDay(page, "2026-09-09"); // Mi = Easy run + 4x20s
-  await page.waitForSelector("#strava-slot .card");
-  const txt = await page.textContent("#strava-slot");
-  ok(txt.includes("Erfasst (Strava)"), "Verschoben: Lauf wird trotzdem gefunden");
-  ok(txt.includes("Nachgeholt"), "Verschoben: der richtige Lauf (Do 10.09.)");
-  ok(txt.includes("einen Tag später nachgeholt"), "Verschoben: als nachgeholt ausgewiesen");
-  ok(txt.includes("Do, 10.09."), "Verschoben: tatsächliches Datum sichtbar");
-  ok((await page.locator("#strava-slot .card.shifted").count()) === 1, "Verschoben: optisch markiert");
+  await waitRunSlot(page);
+  ok((await page.locator(CMP).count()) === 1 && (await page.locator(`${RUNROW}[data-source="auto"]`).count()) === 1,
+     "Verschoben: Lauf wird trotzdem gefunden (Vergleichs-Karte plus Strava-Zeile, automatisch)");
+  ok((await page.textContent(`${RUNROW} .sd-linkrow__name`)).includes("Nachgeholt"), "Verschoben: der richtige Lauf (Do 10.09.)");
+  const shiftText = (await page.textContent(`${RUNROW} [data-slot="shift-note"]`)).trim();
+  ok(shiftText === "nachgeholt · Do, 10.09.", `Verschoben: als nachgeholt ausgewiesen, mit dem tatsächlichen Datum (${shiftText})`);
+  ok((await page.locator(`${RUNROW} [data-slot="shift-note"]`).count()) === 1 && (await page.locator("#strava-slot .shifted, #strava-slot .shift-note").count()) === 0,
+     "Verschoben: genau eine Notiz in der Strava-Zeile, die alten Klassen sind weg");
   await shot(page, "13-verschobener-lauf");
 
   // Der Montagslauf darf davon unberührt bleiben
   await page.click('[data-action="back"]');
   await openDay(page, "2026-09-07");
-  await page.waitForSelector("#strava-slot .card");
-  const mo = await page.textContent("#strava-slot");
-  ok(mo.includes("8,0 km") && !mo.includes("nachgeholt"), "Verschoben: exakter Treffer bleibt exakt");
+  await waitRunSlot(page);
+  ok((await page.textContent(`${CMP} .sd-bigkm`)).includes("8,0") && (await page.locator('[data-slot="shift-note"]').count()) === 0,
+     "Verschoben: exakter Treffer bleibt exakt (8,0 km, keine Notiz)");
 
-  // "Passt nicht" -> Automatik aus, Angebot zur Zuordnung
+  // Sheet öffnen: Kopf, Fokus, Auswahl, gesperrte Läufe
   await page.click('[data-action="back"]');
   await openDay(page, "2026-09-09");
-  await page.waitForSelector('[data-action="ignore-run"]');
-  await page.click('[data-action="ignore-run"]');
-  await page.waitForSelector('[data-action="pick-run"]');
-  ok((await page.textContent("#strava-slot")).includes("bewusst kein Lauf"),
-     "Verschoben: 'Passt nicht' merkt sich die Entscheidung");
-
-  // Manuell zuordnen
-  await page.click('[data-action="pick-run"]');
-  await page.waitForSelector(".pick-row");
-  const rows = await page.locator(".pick-row .pick-main").allTextContents();
-  ok(rows.length > 0 && rows[0].includes("Do, 10.09."), `Auswahl: nächstliegender Lauf zuerst (${rows[0]})`);
-  ok(rows[0].includes("+1 Tag") && !rows[0].includes("+1 Tage"), `Auswahl: Einzahl bei einem Tag (${rows[0]})`);
+  await waitRunSlot(page);
+  await page.click(`${RUNROW}[data-action="pick-run"]`);
+  await page.waitForSelector(`${ASSIGN}.open`);
+  ok((await page.textContent("#assignSheetTitle")) === "Lauf für Mi, 09.09." && (await activeEl(page)).id === "assignSheetTitle",
+     "Sheet: Titel nennt den Plantag, Fokus liegt auf dem Titel");
+  const optTexts = await page.locator(OPTIONS).evaluateAll((els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim()));
+  ok(optTexts.length === 5 && optTexts[0].startsWith("Do, 10.09. · Nachgeholt"), `Auswahl: nächstliegender Lauf zuerst (${optTexts[0]})`);
+  ok(optTexts[0].includes("1 Tag später") && !optTexts[0].includes("1 Tage"), `Auswahl: Einzahl bei einem Tag (${optTexts[0]})`);
+  ok((await page.locator(`${OPTIONS}.is-selected[aria-checked="true"]`).count()) === 1 &&
+     (await page.locator(`${ASSIGN} .sd-option.is-selected`).textContent()).includes("Nachgeholt"),
+     "Auswahl: der aktuell zugeordnete Lauf ist gewählt (auch bei automatischer Zuordnung)");
+  const taken = await page.locator(`${ASSIGN} .sd-option[aria-disabled="true"]`).evaluateAll((els) =>
+    els.map((e) => ({ why: e.querySelector(".sd-option__why")?.textContent, action: e.dataset.action ?? null, tag: e.tagName })));
+  ok(taken.length === 3 && taken.every((t) => t.action === null && t.tag === "DIV") &&
+     taken.map((t) => t.why).join("|") === "gehört schon zu Mo, 07.09.|gehört schon zu Sa, 05.09.|gehört schon zu Mi, 02.09.",
+     `Auswahl: Läufe anderer Plantage sind gesperrt und nennen ihren Tag (${JSON.stringify(taken.map((t) => t.why))})`);
+  ok((await page.locator(`${ASSIGN} [data-action="assign-run"]`).count()) === 2, "Auswahl: nur die zwei freien Läufe sind antippbar");
+  ok((await page.locator(`${ASSIGN} [data-action="reset-run"]`).count()) === 0 && (await page.locator(`${ASSIGN} [data-action="reload-strava"]`).count()) === 1 &&
+     (await page.locator(`${ASSIGN} [data-action="ignore-run"]`).textContent()).trim() === "Kein Lauf an diesem Tag",
+     "Sheet: bei automatischer Zuordnung kein 'Automatik zurück', aber 'Neu laden' und 'Kein Lauf an diesem Tag'");
   await noHScroll(page, "Lauf-Auswahl");
   await shot(page, "14-lauf-zuordnen");
-  await page.click('.pick-row');
-  await page.waitForSelector("#strava-slot .card.shifted");
-  ok((await page.textContent("#strava-slot")).includes("Zuordnung aufheben"),
-     "Auswahl: manuell zugeordnet");
 
-  // Überlebt den Reload
+  // Schließen: Escape, ×, Backdrop; der Fokus kehrt zur Strava-Zeile zurück
+  await page.keyboard.press("Escape");
+  await page.waitForSelector(`${ASSIGN}:not(.open)`);
+  const afterEsc = await activeEl(page);
+  ok(afterEsc.card === "strava-run" && afterEsc.action === "pick-run", `Sheet: Escape schließt, Fokus zurück auf die Strava-Zeile (${JSON.stringify(afterEsc)})`);
+  ok(await waitSheetHidden(page), "Sheet: nach Escape auch tatsächlich hidden");
+  await page.click(`${RUNROW}[data-action="pick-run"]`);
+  await page.waitForSelector(`${ASSIGN}.open`);
+  await page.click("#assignSheetClose");
+  await page.waitForSelector(`${ASSIGN}:not(.open)`);
+  ok((await activeEl(page)).card === "strava-run", "Sheet: das × schließt, Fokus zurück auf die Strava-Zeile");
+  await page.click(`${RUNROW}[data-action="pick-run"]`);
+  await page.waitForSelector(`${ASSIGN}.open`);
+  await page.click("#assignBackdrop", { position: { x: 12, y: 12 } });
+  await page.waitForSelector(`${ASSIGN}:not(.open)`);
+  ok((await activeEl(page)).card === "strava-run", "Sheet: Tipp auf den Hintergrund schließt, Fokus zurück auf die Strava-Zeile");
+
+  // Der schon zugeordnete Lauf: Tipp schließt ohne Änderung
+  await page.click(`${RUNROW}[data-action="pick-run"]`);
+  await page.waitForSelector(`${ASSIGN}.open`);
+  await page.click(`${ASSIGN} .sd-option.is-selected`);
+  await page.waitForSelector(`${ASSIGN}:not(.open)`);
+  ok((await page.locator(`${RUNROW}[data-source="auto"]`).count()) === 1 && (await page.evaluate(() => localStorage.getItem("test.runlinks"))) === null,
+     "Sheet: Tipp auf den schon zugeordneten Lauf ändert nichts und schreibt nichts");
+
+  // Einen anderen Lauf wählen: von Hand, "vorgezogen", Fokus auf der neuen Zeile
+  await page.click(`${RUNROW}[data-action="pick-run"]`);
+  await page.waitForSelector(`${ASSIGN}.open`);
+  await page.click(`${ASSIGN} [data-action="assign-run"][data-run="2"]`); // Kurzer Trab, Mo 07.09.
+  await page.waitForSelector(`${ASSIGN}:not(.open)`);
+  ok((await page.locator(`${RUNROW}[data-source="manual"]`).count()) === 1 && (await page.textContent(RUNROW)).includes("von Hand") &&
+     (await page.textContent(`${RUNROW} .sd-linkrow__name`)).includes("Kurzer Trab"),
+     "Auswahl: manuell zugeordnet (Zeile 'von Hand', neuer Laufname)");
+  const early = (await page.textContent(`${RUNROW} [data-slot="shift-note"]`)).trim();
+  ok(early === "vorgezogen · Mo, 07.09.", `Auswahl: negativer Abstand heißt 'vorgezogen' (${early})`);
+  const afterPick = await activeEl(page);
+  ok(afterPick.card === "strava-run" && afterPick.action === "pick-run", `Auswahl: Fokus liegt auf der neu gezeichneten Strava-Zeile (${JSON.stringify(afterPick)})`);
+
+  // Überlebt den Reload; "Automatik zurück" nur bei manueller Zuordnung
   await page.reload();
   await page.waitForSelector("#tabbar button.active");
   await goTab(page, "woche");
   await openDay(page, "2026-09-09");
-  await page.waitForSelector("#strava-slot .card");
-  ok((await page.textContent("#strava-slot")).includes("Nachgeholt"), "Zuordnung überlebt den Reload");
+  await waitRunSlot(page);
+  ok((await page.locator(`${RUNROW}[data-source="manual"]`).count()) === 1, "Zuordnung überlebt den Reload");
+  await page.click(`${RUNROW}[data-action="pick-run"]`);
+  await page.waitForSelector(`${ASSIGN}.open`);
+  ok((await page.locator(`${ASSIGN} .sd-option.is-selected`).textContent()).includes("Kurzer Trab") &&
+     (await page.locator(`${ASSIGN} [data-action="reset-run"]`).count()) === 1,
+     "Sheet: bei manueller Zuordnung ist der Lauf gewählt und 'Automatik zurück' sichtbar");
 
-  // Zurück auf Automatik
-  await page.click('[data-action="reset-run"]');
-  await page.waitForSelector("#strava-slot .card");
-  ok((await page.textContent("#strava-slot")).includes("Passt nicht"),
+  // Zurück auf Automatik, Fokus auf der Zeile
+  await page.click(`${ASSIGN} [data-action="reset-run"]`);
+  await page.waitForSelector(`${ASSIGN}:not(.open)`);
+  ok((await page.locator(`${RUNROW}[data-source="auto"]`).count()) === 1 && (await page.textContent(`${RUNROW} [data-slot="shift-note"]`)).includes("nachgeholt"),
      "Zurücksetzen: wieder automatisch zugeordnet");
+  ok((await activeEl(page)).card === "strava-run", "Zurücksetzen: Fokus auf der neu gezeichneten Strava-Zeile");
+  ok((await page.evaluate(() => localStorage.getItem("test.runlinks"))) === "{}", "Zurücksetzen: Zuordnung im Speicher gelöscht");
+
+  // "Kein Lauf an diesem Tag" -> Karte 'Bewusst leer gelassen' -> 'Automatik zurück'
+  await page.click(`${RUNROW}[data-action="pick-run"]`);
+  await page.waitForSelector(`${ASSIGN}.open`);
+  await page.click(`${ASSIGN} [data-action="ignore-run"]`);
+  await page.waitForSelector('#strava-slot [data-card="ignored"]');
+  ok((await page.textContent('#strava-slot [data-card="ignored"]')).includes("Bewusst leer gelassen") && (await page.locator(CMP).count()) === 0,
+     "Ignoriert: Karte 'Bewusst leer gelassen' statt Vergleich");
+  await page.waitForSelector(`${ASSIGN}:not(.open)`);
+  ok((await activeEl(page)).action === "reset-run", "Ignoriert: Fokus auf 'Automatik zurück' der neuen Karte (der Auslöser existiert nicht mehr)");
+  ok((await page.textContent(`${RUN_HEAD} .sd-target`)).includes("Ziel 6:10–6:35 /km"), "Ignoriert: Ziel-Zeile steht wieder im Kopf");
+  await page.click('#strava-slot [data-action="reset-run"]');
+  await page.waitForSelector(RUNROW);
+  ok((await page.locator(`${RUNROW}[data-source="auto"]`).count()) === 1 && (await page.locator(`${RUN_HEAD} .sd-target`).count()) === 0,
+     "Ignoriert: 'Automatik zurück' bringt Vergleich und Strava-Zeile wieder, die Ziel-Zeile verschwindet aus dem Kopf");
+  ok((await activeEl(page)).action === "pick-run", "Ignoriert: Fokus liegt danach auf der Strava-Zeile, nicht auf body");
   ok(errors.length === 0, "Verschoben: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
@@ -2205,6 +2318,15 @@ for (const [fail, want, notWant, label] of [
   await waitStatusLoaded(page);
   await page.waitForTimeout(300); // Zeit für eventuelle, fälschlich parallele Abrufe
   ok(activityCalls === 1, `loadStrava: genau ein Abruf von /athlete/activities pro Dashboard-Start, nicht fünf (${activityCalls})`);
+  // Lauf-Tag (Stride E6): das Öffnen nutzt den Zwischenspeicher, kein zweiter Abruf; erst 'Neu laden' holt neu
+  await page.click(`${TODAY} [data-action="open-day"]`);
+  await waitRunSlot(page);
+  ok(activityCalls === 1, `loadStrava: der Lauf-Tag öffnet ohne zweiten Abruf (${activityCalls})`);
+  await page.click(`${RUNROW}[data-action="pick-run"]`);
+  await page.waitForSelector("#assignSheet.open");
+  await page.click('#assignSheet [data-action="reload-strava"]');
+  await page.waitForSelector('#assignSheet [data-action="reload-strava"]:not([disabled])');
+  ok(activityCalls === 2 && (await sheetIsOpen(page)), `loadStrava: 'Neu laden' im Sheet ruft genau einmal neu ab und lässt das Sheet offen (${activityCalls})`);
   ok(errors.length === 0, "loadStrava-Dedup: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
@@ -2239,6 +2361,28 @@ for (const [fail, want, notWant, label] of [
   await page.waitForSelector(COACH);
   await page.waitForTimeout(500); // Zeit für eine mögliche (falsche) Wochenbilanz-Anfrage
   ok(!coachKinds.includes("weekly"), `Wochenbilanz: keine Anfrage ohne echte Strava-Daten (${JSON.stringify(coachKinds)})`);
+
+  // Lauf-Tag (Stride E6): derselbe Abruffehler als Strava-Karte mit beiden Aktionen, Ziel im Kopf
+  await goTab(page, "woche");
+  await openDay(page, "2026-09-16"); // Mi = Easy run + 4x20s
+  await page.waitForSelector('#strava-slot [data-card="error"][data-source="strava"]');
+  ok((await page.locator('#strava-slot [data-card="error"][role="alert"] [data-action="reload-strava"]').count()) === 1 &&
+     (await page.locator('#strava-slot [data-card="error"] [data-action="connect-strava"]').count()) === 1 &&
+     (await page.locator('#strava-slot [data-source="firebase"]').count()) === 0,
+     "Lauf-Tag bei Abruffehler: Strava-Karte (Alarm) mit 'Nochmal versuchen' und 'Neu verbinden'");
+  ok((await page.textContent(`${RUN_HEAD} .sd-target`)).includes("Ziel 6:10–6:35 /km") && (await page.locator(CMP).count()) === 0,
+     "Lauf-Tag bei Abruffehler: Ziel-Zeile im Kopf, kein Vergleich");
+  // 'Nochmal versuchen': Platzhalter während des Abrufs, danach wieder die Karte; Fokus auf dem Titel
+  await ctx.route("https://www.strava.com/api/v3/athlete/activities*", async (r) => {
+    await new Promise((res) => setTimeout(res, 500));
+    r.fulfill({ status: 500, body: "boom" });
+  });
+  await page.click('#strava-slot [data-action="reload-strava"]');
+  await page.waitForSelector('#strava-slot [data-card="loading"][aria-busy="true"]');
+  ok((await activeEl(page)).tag === "H1", "Lauf-Tag bei Abruffehler: Fokus wandert beim Neu-Laden auf den Titel");
+  await page.waitForSelector('#strava-slot [data-card="error"][data-source="strava"]');
+  ok((await activeEl(page)).tag === "H1" && (await page.locator('#strava-slot [data-card="loading"]').count()) === 0,
+     "Lauf-Tag bei Abruffehler: nach dem Abruf wieder die Fehlerkarte, Fokus bleibt auf dem Titel");
   await ctx.close();
 }
 
@@ -3586,6 +3730,340 @@ for (const origin of ["Heute", "Woche"]) {
     ok(!(await toastState(page)).shown && (await kraftMeta(page)) === "1 von 8 erledigt", "Speicher gesperrt: nach dem Neuladen kein Hinweis, Tag öffnet normal");
     ok(errors.length === 0, "Speicher gesperrt: keine Konsolenfehler " + JSON.stringify(errors));
     await ctx.close();
+  }
+}
+
+// ---- 38. Lauf-Tag B "Vergleich" (Stride E6, docs/ui-markup-stride.md Abschnitt 12) ----
+// Alle Geometriezahlen der Range-Balken liegen als SVG-Attribute im DOM (kein style=, keine Custom Properties).
+const geoInRange = (geo) => geo.every((g) =>
+  (!g.band || (Number(g.band.x) >= 0 && Number(g.band.width) >= 0 && Number(g.band.x) + Number(g.band.width) <= 100.05)) &&
+  (!g.mark || (g.mark.x1 === g.mark.x2 && Number(g.mark.x1) >= 0 && Number(g.mark.x1) <= 100)));
+{
+  // A: Easy run im Plan: Karte, Balken, Ampel-Form, Achse, Kopf, Strava-Zeile
+  {
+    scenario("38a");
+    const { page, ctx, errors } = await newPage({ connected: true, activities: [run(101, "Easy run", "2026-09-07", "07:10", 8200, 3050, 150)] });
+    await page.goto(BASE + "/index.html");
+    await openRunToday(page);
+    ok((await page.getAttribute(CMP, "data-status")) === "ok" && (await page.textContent(`${CMP} .sd-pill`)).trim() === "im Plan" &&
+       (await page.textContent(`${CMP} .sd-bigkm`)).trim() === "8,2km" && (await page.textContent(`${CMP} .sd-compare__sub`)).trim() === "von 8 km · 50:50 min",
+       "Vergleich im Plan: 8,2 km von 8 km, Dauer, Pille 'im Plan'");
+    const bar = await page.locator(`${CMP} progress`).evaluate((el) => ({ cls: el.className, value: el.getAttribute("value"), max: el.getAttribute("max"), label: el.getAttribute("aria-label") }));
+    ok(bar.cls.includes("sd-prog--coral") && !bar.cls.includes("purple") && bar.value === "8.2" && bar.max === "8" && bar.label === "Distanz, 8,2 von 8 km",
+       `Distanzbalken: <progress> in Koralle, Punkt im Attribut, Komma im Label (${JSON.stringify(bar)})`);
+    const geo = await svgGeometry(page);
+    ok((await page.locator(`${CMP} .sd-range`).count()) === 2 && geo[0].band.x === "35.3" && geo[0].band.width === "29.4" && geo[0].mark.x1 === "37.6" && geo[0].mark.x2 === "37.6",
+       `Pace-Balken: geschlossenes Band 35,3 + 29,4, Marker bei 37,6 (${JSON.stringify(geo[0])})`);
+    ok(geo[1].band.x === "35.3" && geo[1].band.width === "29.4" && geo[1].mark.x1 === "39.2", `HF-Balken: Band und Marker bei 39,2 (${JSON.stringify(geo[1])})`);
+    ok(JSON.stringify(geo[0].axis) === '["5:40","Ziel 6:10–6:35","7:05"]' && JSON.stringify(geo[1].axis) === '["130","Ziel 148–163","181"]',
+       `Achsen: immer drei Spans, Mitte mit Originaltext (${JSON.stringify([geo[0].axis, geo[1].axis])})`);
+    const rows = await rangeTexts(page);
+    ok(geo[0].ampel.includes("sd-ampel--ok") && geo[0].value.includes("is-ok") && rows[0].includes("6:12 /km, im Zielbereich") && rows[1].includes("150 bpm, im Zielbereich"),
+       `Werte: Ampel-Form (Kreis) und verstecktes Wort statt nur Farbe (${rows[0]})`);
+    ok(geoInRange(geo), "Range-Balken: alle SVG-Zahlen liegen zwischen 0 und 100");
+    const head = await page.textContent(RUN_HEAD);
+    ok((await page.locator(`${RUN_HEAD} .sd-eyebrow--coral`).textContent()).includes("Lauf · Mo, 07.09.") && (await page.textContent(`${RUN_HEAD} h1`)) === "Easy run · 8 km" &&
+       (await page.getAttribute(`${RUN_HEAD} h1`, "tabindex")) === "-1" && head.includes("Heute"),
+       "Kopf: Überzeile 'Lauf · Mo, 07.09.' in Koralle, Titel mit tabindex -1, Zurück heißt 'Heute'");
+    ok((await page.locator(`${RUN_HEAD} .sd-target`).count()) === 0, "Kopf: mit Vergleichs-Karte keine Ziel-Zeile (das Ziel steht in der Achse)");
+    const row = await page.textContent(RUNROW);
+    ok((await page.textContent(`${RUNROW} .sd-linkrow__name`)).trim() === "Easy run · 07:10" && row.includes("automatisch") && (await page.locator('[data-slot="shift-note"]').count()) === 0 &&
+       (await page.getAttribute(RUNROW, "aria-haspopup")) === "dialog",
+       "Strava-Zeile: 'Name · Uhrzeit' (startTime), Pille 'automatisch', keine Verschiebe-Notiz, öffnet ein Dialog-Sheet");
+    ok((await page.locator('[data-card="plan-note"]').count()) === 0, "Plan-Hinweis: ohne Notiz im Plan kein Hinweis");
+    ok((await page.locator("#app.is-detail").count()) === 1 && !(await page.locator("#tabbar").isVisible()), "Lauf-Tag: Tab-Leiste ausgeblendet");
+    ok((await styleAttrCount(page)) === 0, "Lauf-Tag: kein style-Attribut im Markup (C5)");
+    await shot(page, "38a-lauf-im-plan");
+    await noHScroll(page, "Lauf-Tag");
+    await page.setViewportSize({ width: 320, height: 700 });
+    await noHScroll(page, "Lauf-Tag bei 320 px");
+    const tight = await page.evaluate(() => {
+      const el = document.querySelector('#strava-slot [data-card="compare"] .sd-bigkm');
+      return { right: el.getBoundingClientRect().right, win: window.innerWidth, font: parseFloat(getComputedStyle(el).fontSize) };
+    });
+    ok(tight.right <= tight.win && tight.font >= 40, `Lauf-Tag bei 320 px: große Zahl bleibt im Bild und mindestens 40 px groß (${JSON.stringify(tight)})`);
+    ok(errors.length === 0, "Lauf-Tag: keine Konsolenfehler " + JSON.stringify(errors));
+    await ctx.close();
+  }
+
+  // B: 'zu kurz' und 'im Plan' auf der angezeigten Genauigkeit (Auflage C4), 8 km Soll
+  scenario("38b");
+  for (const [meters, status, pillText, shown] of [
+    [7100, "short", "zu kurz", "7,1"],   // 88,75 %
+    [7140, "short", "zu kurz", "7,1"],   // gerundet 7,1
+    [7160, "ok", "im Plan", "7,2"],      // gerundet 7,2 = genau 90 %
+    [7200, "ok", "im Plan", "7,2"],      // 90 %
+  ]) {
+    const { page, ctx } = await newPage({ connected: true, activities: [run(111, "Easy run", "2026-09-07", "07:10", meters, 3000, 150)] });
+    await page.goto(BASE + "/index.html");
+    await openRunToday(page);
+    const info = await page.locator(CMP).evaluate((el) => ({
+      status: el.dataset.status, pill: el.querySelector(".sd-pill").textContent.trim(), pillCls: el.querySelector(".sd-pill").className,
+      big: el.querySelector(".sd-bigkm").textContent, value: Number(el.querySelector("progress").getAttribute("value")), max: Number(el.querySelector("progress").getAttribute("max")),
+    }));
+    ok(info.status === status && info.pill === pillText && info.big.startsWith(shown) && info.pillCls.includes(status === "ok" ? "sd-pill--ok" : "sd-pill--amber") && info.value < info.max,
+       `Distanz ${meters / 1000} km von 8: '${pillText}' bei angezeigten ${shown} km (${JSON.stringify(info)})`);
+    await ctx.close();
+  }
+
+  // C: Long Run in Violett, Laufname wird escaped
+  {
+    scenario("38c");
+    const { page, ctx } = await newPage({ connected: true, now: "2026-09-05T09:00:00Z",
+      activities: [run(121, 'Long <i>run</i> & "co"', "2026-09-05", "09:00", 12030, 4700, 151)] });
+    await page.goto(BASE + "/index.html");
+    await openRunToday(page);
+    ok((await page.locator(`${CMP} progress.sd-prog--purple`).count()) === 1 && (await page.locator(`${CMP} progress.sd-prog--coral`).count()) === 0 &&
+       (await page.locator(`${RUN_HEAD} .sd-eyebrow--purple`).count()) === 1 && (await page.locator(`${RUN_HEAD} .sd-eyebrow--coral`).count()) === 0,
+       "Long Run: Distanzbalken und Überzeile in Violett statt Koralle");
+    ok((await page.textContent(`${RUNROW} .sd-linkrow__name`)).includes('Long <i>run</i> & "co"') && (await page.locator("#strava-slot i").count()) === 0,
+       "Laufname mit HTML erscheint als Text (kein Element im Slot)");
+    ok((await page.getAttribute(`${CMP} progress`, "aria-label")) === "Distanz, 12,0 von 12 km" && (await page.getAttribute(CMP, "data-status")) === "ok",
+       "Long Run: 12,0 von 12 km im Plan");
+    await ctx.close();
+  }
+
+  // D: Range-Balken: offen unten/oben, Marker geklemmt, Pace neutral, kein Messwert, frei
+  {
+    scenario("38d");
+    // D1: Recovery, Pace "> 6:40" (zu schnell, Marker am Rand geklemmt) und HF "< 148"
+    let { page, ctx } = await newPage({ connected: true, now: "2026-10-04T09:00:00Z",
+      activities: [run(131, "Recovery", "2026-10-04", "08:00", 4200, 1500, 140)] });
+    await page.goto(BASE + "/index.html");
+    await openRunToday(page);
+    let geo = await svgGeometry(page);
+    ok(geo[0].band.x === "33.3" && geo[0].band.width === "66.7" && JSON.stringify(geo[0].axis) === '["6:10","Ziel > 6:40","7:40"]',
+       `Offen unten ('> 6:40'): Band bis zum rechten Rand, Achsenmitte als Text (${JSON.stringify(geo[0])})`);
+    ok(geo[1].band.x === "0" && geo[1].band.width === "66.7" && geo[1].mark.x1 === "51.9" && JSON.stringify(geo[1].axis) === '["112","Ziel < 148","166"]',
+       `Offen oben ('< 148'): Band ab dem linken Rand, Marker bei 51,9 (${JSON.stringify(geo[1])})`);
+    ok(geo[0].mark.x1 === "0" && geoInRange(geo), `Marker außerhalb der Skala wird auf 0 geklemmt (${geo[0].mark.x1}), alle Zahlen zwischen 0 und 100`);
+    const rows = await rangeTexts(page);
+    ok(geo[0].ampel.includes("sd-ampel--warn") && geo[0].value.includes("is-warn") && rows[0].includes(", außerhalb des Zielbereichs") && geo[1].ampel.includes("sd-ampel--ok"),
+       "Außerhalb des Bands: Raute (warn) mit verstecktem Wort, HF im Bereich: Kreis (ok)");
+    await ctx.close();
+
+    // D2: Schwelle, ohne Herzfrequenz: Pace neutral (Notiz statt Balken), HF "–" ohne Marker
+    ({ page, ctx } = await newPage({ connected: true, now: "2026-11-04T09:00:00Z",
+      activities: [run(132, "Schwelle", "2026-11-04", "18:00", 11000, 3400)] }));
+    await page.goto(BASE + "/index.html");
+    await openRunToday(page);
+    geo = await svgGeometry(page);
+    const rowsS = await rangeTexts(page);
+    ok(rowsS[0].includes("Der Schnitt enthält Ein- und Auslaufen, darum ohne Zielband.") && geo[0].band === null && geo[0].mark === null && geo[0].ampel === null && !geo[0].value.includes("is-"),
+       `Pace neutral (Schwelle): Notiz statt Spur, keine Ampel, keine Farbe (${rowsS[0]})`);
+    ok(geo[1].band !== null && geo[1].mark === null && geo[1].ampel === null && rowsS[1].startsWith("Ø HF–"),
+       "Kein Messwert: HF zeigt '–' ohne Marker und ohne Ampel, das Band bleibt");
+    ok((await page.textContent('[data-card="plan-note"]')).includes("2 min Trabpause") && (await page.locator('[data-card="plan-note"] .sd-planhint__label').textContent()) === "Hinweis aus dem Plan",
+       "Plan-Hinweis: Notiz der Einheit unter den Karten");
+    ok((await styleAttrCount(page)) === 0, "Range-Zustände: kein style-Attribut");
+    await ctx.close();
+
+    // D3: Kalibrierungstest: beide Ziele frei, genau eine Hinweiszeile, keine Spur
+    ({ page, ctx } = await newPage({ connected: true, now: "2026-10-28T09:00:00Z",
+      activities: [run(133, "Test", "2026-10-28", "18:00", 11000, 3600, 160)] }));
+    await page.goto(BASE + "/index.html");
+    await openRunToday(page);
+    ok((await page.locator(`${CMP} .sd-range--plain`).count()) === 2 && (await page.locator(`${CMP} .sd-range__track`).count()) === 0 && (await page.locator(`${CMP} .sd-ampel`).count()) === 0,
+       "Frei (Test): zwei Zeilen ohne Spur und ohne Ampel");
+    ok((await page.locator(`${CMP} .sd-range__note`).count()) === 1 && (await page.textContent(`${CMP} .sd-range__note`)) === "Für den Test gibt es kein Zielband. Die Werte stehen nur zur Info.",
+       "Frei (Test): genau der abgenommene Hinweis-Satz");
+    await ctx.close();
+
+    // D4: Long run mit zügigem Schluss: Pace und HF frei, allgemeiner Hinweis, violett
+    ({ page, ctx } = await newPage({ connected: true, now: "2026-11-28T09:00:00Z",
+      activities: [run(134, "Long progressiv", "2026-11-28", "09:00", 17000, 6000, 155)] }));
+    await page.goto(BASE + "/index.html");
+    await openRunToday(page);
+    ok((await page.locator(`${CMP} .sd-range--plain`).count()) === 2 && (await page.textContent(`${CMP} .sd-range__note`)) === "Für diesen Lauf gibt es kein Zielband. Die Werte stehen nur zur Info." &&
+       (await page.locator(`${CMP} progress.sd-prog--purple`).count()) === 1,
+       "Frei (zusammengesetztes Ziel): allgemeiner Hinweis, Long Run violett");
+    await ctx.close();
+  }
+
+  // E: Zustände ohne Vergleich: Zukunft/heute, ignoriert, verpasst, Strava nicht verbunden
+  {
+    scenario("38e");
+    // E1: heute, noch kein Lauf; Sheet ohne Auswahl; Escape; ignorieren; Automatik zurück
+    let { page, ctx } = await newPage({ connected: true, activities: [] });
+    await page.goto(BASE + "/index.html");
+    await openRunToday(page);
+    ok((await page.textContent('#strava-slot [data-card="empty"]')).includes("Noch kein Lauf") &&
+       (await page.textContent('#strava-slot [data-card="empty"]')).includes("Sobald der Lauf in Strava liegt, erscheint er hier.") &&
+       (await page.locator('#strava-slot [data-card="empty"] [data-action="pick-run"]').textContent()).trim() === "Lauf von Hand zuordnen",
+       "Heute ohne Lauf: Karte 'Noch kein Lauf' mit 'Lauf von Hand zuordnen'");
+    ok((await page.textContent(`${RUN_HEAD} .sd-target`)).trim() === "Ziel 6:10–6:35 /km · HF 148–163 bpm" && (await page.locator(CMP).count()) === 0,
+       "Heute ohne Lauf: Ziel-Zeile im Kopf, kein Vergleich");
+    ok((await styleAttrCount(page)) === 0, "Zustandskarte: kein style-Attribut");
+    await page.click('#strava-slot [data-action="pick-run"]');
+    await page.waitForSelector(`${ASSIGN}.open`);
+    ok((await page.locator(`${ASSIGN} [data-slot="no-options"]`).count()) === 1 && (await page.locator(`${ASSIGN} [role="radiogroup"]`).count()) === 0 &&
+       (await page.locator(`${ASSIGN} [data-action="reset-run"]`).count()) === 0 && (await page.locator(`${ASSIGN} [data-action="reload-strava"]`).count()) === 1,
+       "Sheet ohne freien Lauf: Hinweis statt Liste, 'Neu laden' und 'Kein Lauf an diesem Tag' bleiben, kein 'Automatik zurück'");
+    await page.keyboard.press("Escape");
+    await page.waitForSelector(`${ASSIGN}:not(.open)`);
+    const back = await activeEl(page);
+    ok(back.action === "pick-run" && back.tag === "BUTTON", `Sheet: Fokus zurück auf 'Lauf von Hand zuordnen' (${JSON.stringify(back)})`);
+    await page.click('#strava-slot [data-action="pick-run"]');
+    await page.waitForSelector(`${ASSIGN}.open`);
+    await page.click(`${ASSIGN} [data-action="ignore-run"]`);
+    await page.waitForSelector('#strava-slot [data-card="ignored"]');
+    ok((await page.textContent('#strava-slot [data-card="ignored"]')).includes("Kein Lauf an diesem Tag. Zählt als verpasst."), "Ignoriert: Karte erklärt, dass der Tag als verpasst zählt");
+    await page.waitForSelector(`${ASSIGN}:not(.open)`);
+    ok((await activeEl(page)).action === "reset-run", "Ignoriert: Fokus auf 'Automatik zurück'");
+    await page.click('#strava-slot [data-action="reset-run"]');
+    await page.waitForSelector('#strava-slot [data-card="empty"]');
+    ok((await activeEl(page)).action === "pick-run", "Automatik zurück: Karte 'Noch kein Lauf' wieder da, Fokus nicht auf body");
+    await ctx.close();
+
+    // E2: Tag vorbei, kein Lauf: verpasst; 'Neu laden' zeigt den Platzhalter und fokussiert den Titel
+    ({ page, ctx } = await newPage({ connected: true, activities: [], now: "2026-09-10T09:00:00Z" }));
+    await ctx.route("https://www.strava.com/api/v3/athlete/activities*", async (r) => {
+      await new Promise((res) => setTimeout(res, 500));
+      r.fulfill({ contentType: "application/json", body: "[]" });
+    });
+    await page.goto(BASE + "/index.html");
+    await goTab(page, "woche");
+    await openDay(page, "2026-09-07");
+    await page.waitForSelector('#strava-slot [data-card="missed"]');
+    const missed = await page.textContent('#strava-slot [data-card="missed"]');
+    ok(missed.includes("verpasst") && missed.includes("Kein Lauf gefunden") && missed.includes("von einem Tag davor bis drei Tage danach") &&
+       (await page.locator('#strava-slot [data-card="missed"] .sd-pill--danger').count()) === 1 &&
+       (await page.locator('#strava-slot [data-card="missed"] [data-action="pick-run"]').count()) === 1,
+       "Verpasst: vergangener Tag ohne Lauf zeigt Pille, Titel, Suchfenster und 'Lauf von Hand zuordnen'");
+    await page.click('#strava-slot [data-action="reload-strava"]');
+    await page.waitForSelector('#strava-slot [data-card="loading"][aria-busy="true"]');
+    ok((await activeEl(page)).tag === "H1" && (await page.locator(RUN_HEAD).count()) === 1, "Neu laden im Slot: Platzhalter, Kopf bleibt stehen, Fokus auf dem Titel");
+    await page.waitForSelector('#strava-slot [data-card="missed"]');
+    ok((await activeEl(page)).tag === "H1", "Neu laden im Slot: nach dem Abruf bleibt der Fokus auf dem Titel");
+    await ctx.close();
+
+    // E3: Strava nicht verbunden
+    ({ page, ctx } = await newPage({ connected: false }));
+    await page.goto(BASE + "/index.html");
+    await goTab(page, "woche");
+    await openDay(page, "2026-09-07");
+    await page.waitForSelector('#strava-slot [data-card="no-strava"]');
+    ok((await page.textContent('#strava-slot [data-card="no-strava"]')).includes("Verbinde Strava, dann erscheint der Lauf hier automatisch.") &&
+       (await page.locator('#strava-slot [data-card="no-strava"] .sd-btn--primary[data-action="connect-strava"]').textContent()).trim() === "Mit Strava verbinden" &&
+       (await page.locator("#main .sd-btn--primary").count()) === 1,
+       "Strava nicht verbunden: Karte mit der einen gefüllten Schaltfläche 'Mit Strava verbinden'");
+    ok((await page.locator(`${RUN_HEAD} .sd-target`).count()) === 1, "Strava nicht verbunden: Ziel-Zeile im Kopf");
+    await ctx.close();
+  }
+
+  // F: Sheet 'Neu laden': Knopf gesperrt, Sheet bleibt offen, danach nur der Körper neu
+  {
+    scenario("38f");
+    const { page, ctx } = await newPage({ connected: true });
+    let calls = 0;
+    await ctx.route("https://www.strava.com/api/v3/athlete/activities*", async (r) => {
+      const isFirstPage = new URL(r.request().url()).searchParams.get("page") === "1";
+      if (isFirstPage) calls++;
+      if (calls > 1) await new Promise((res) => setTimeout(res, 500));
+      const extra = run(99, "Neu hochgeladen", "2026-09-06", "10:00", 5000, 1800);
+      r.fulfill({ contentType: "application/json", body: JSON.stringify(!isFirstPage ? [] : calls > 1 ? [...ACTIVITIES, extra] : ACTIVITIES) });
+    });
+    await page.goto(BASE + "/index.html");
+    await openRunToday(page);
+    await page.click(`${RUNROW}[data-action="pick-run"]`);
+    await page.waitForSelector(`${ASSIGN}.open`);
+    const before = await page.locator(OPTIONS).count();
+    await page.click(`${ASSIGN} [data-action="reload-strava"]`);
+    const busy = await page.locator(`${ASSIGN} [data-action="reload-strava"]`).evaluate((el) => ({ disabled: el.disabled, busy: el.getAttribute("aria-busy"), text: el.textContent.trim() }));
+    ok(busy.disabled && busy.busy === "true" && busy.text === "Neu laden" && (await sheetIsOpen(page)) && (await page.locator('#strava-slot [data-card="loading"]').count()) === 0,
+       `Sheet 'Neu laden': Knopf gesperrt mit aria-busy, Beschriftung bleibt, Sheet bleibt offen, Slot dahinter ohne Platzhalter (${JSON.stringify(busy)})`);
+    await page.waitForSelector(`${ASSIGN} [data-action="reload-strava"]:not([disabled])`);
+    ok((await page.locator(OPTIONS).count()) === before + 1 && (await page.textContent("#assignSheetTitle")) === "Lauf für Mo, 07.09." && (await sheetIsOpen(page)),
+       `Sheet 'Neu laden': neuer Lauf erscheint in der Liste (${before} -> ${before + 1}), Titel bleibt, Sheet bleibt offen`);
+    ok((await activeEl(page)).action === "reload-strava" && !(await page.getAttribute(`${ASSIGN} [data-action="reload-strava"]`, "aria-busy")),
+       "Sheet 'Neu laden': Fokus bleibt auf 'Neu laden', aria-busy ist wieder weg");
+    await ctx.close();
+  }
+
+  // G: Zwei Sheets (Auflage C6): Info-Sheet und Zuordnungs-Sheet direkt nacheinander, jeder Timer für sich
+  {
+    scenario("38h");
+    const { page, ctx, errors } = await newPage({ connected: true });
+    await page.goto(BASE + "/index.html");
+    await openRunToday(page);
+    // Auslöser fürs Info-Sheet: der Lauf-Tag hat keinen, darum ein Prüfknopf mit denselben Attributen
+    await page.evaluate(() => {
+      const b = document.createElement("button");
+      b.id = "probe-info"; b.dataset.action = "open-info"; b.dataset.info = "wochensoll"; b.textContent = "i";
+      document.getElementById("main").appendChild(b);
+    });
+    const state = () => page.evaluate(() => {
+      const q = (s) => document.querySelector(s);
+      return {
+        info: q("#infoSheet").classList.contains("open"), infoHidden: q("#infoSheet").hidden, infoBackdropHidden: q("#infoBackdrop").hidden,
+        assign: q("#assignSheet").classList.contains("open"), assignHidden: q("#assignSheet").hidden, assignBackdropHidden: q("#assignBackdrop").hidden,
+        focus: document.activeElement?.id || document.activeElement?.dataset?.card || "",
+      };
+    });
+    const ROW = '#strava-slot [data-action="pick-run"]';
+    // A -> B: Info offen, im selben Atemzug das Zuordnungs-Sheet
+    await page.evaluate((row) => { document.getElementById("probe-info").click(); document.querySelector(row).click(); }, ROW);
+    let st = await state();
+    ok(!st.info && st.infoHidden && st.infoBackdropHidden && st.assign && !st.assignHidden && st.focus === "assignSheetTitle",
+       `A->B: Info-Sheet schließt sofort ohne Animation (hidden), Zuordnungs-Sheet offen, Fokus auf dessen Titel (${JSON.stringify(st)})`);
+    await page.waitForTimeout(400);
+    st = await state();
+    ok(st.assign && !st.assignHidden && !st.info, "A->B: nach der Ausblendzeit bleibt das Zuordnungs-Sheet offen (kein alter Timer versteckt es)");
+    // B -> A
+    await page.evaluate(() => document.getElementById("probe-info").click());
+    st = await state();
+    ok(st.info && !st.infoHidden && !st.assign && st.assignHidden && st.assignBackdropHidden && st.focus === "infoSheetTitle",
+       `B->A: Zuordnungs-Sheet schließt sofort, Info-Sheet offen, Fokus auf dessen Titel (${JSON.stringify(st)})`);
+    await page.waitForTimeout(400);
+    st = await state();
+    ok(st.info && !st.infoHidden && st.assignHidden, "B->A: nach der Ausblendzeit bleibt das Info-Sheet offen");
+    // Escape schließt, dann sofort das andere Sheet: der Timer des geschlossenen darf das neue nicht verstecken
+    await page.evaluate((row) => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      document.querySelector(row).click();
+    }, ROW);
+    await page.waitForTimeout(400);
+    st = await state();
+    ok(st.assign && !st.assignHidden && st.infoHidden && !st.info, `Escape auf dem Info-Sheet, sofort Zuordnung: das neue bleibt offen (${JSON.stringify(st)})`);
+    await page.evaluate(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      document.getElementById("probe-info").click();
+    });
+    await page.waitForTimeout(400);
+    st = await state();
+    ok(st.info && !st.infoHidden && st.assignHidden && !st.assign, `Escape auf der Zuordnung, sofort Info-Sheet: das neue bleibt offen (${JSON.stringify(st)})`);
+    // Ein globaler Escape-Handler: schließt genau das offene Sheet, Fokus zum eigenen Auslöser
+    await page.keyboard.press("Escape");
+    await page.waitForSelector("#infoSheet:not(.open)");
+    ok((await state()).focus === "probe-info", "Escape: Fokus kehrt zum Auslöser des Info-Sheets zurück, nicht zu dem des Zuordnungs-Sheets");
+    await page.click(ROW);
+    await page.waitForSelector(`${ASSIGN}.open`);
+    await page.keyboard.press("Escape");
+    await page.waitForSelector(`${ASSIGN}:not(.open)`);
+    st = await state();
+    ok(st.focus === "strava-run" && !st.info, "Escape: Fokus kehrt zur Strava-Zeile zurück, das Info-Sheet bleibt zu");
+    // Seitenwechsel bei offenem Sheet schließt es sofort
+    await page.click(ROW);
+    await page.waitForSelector(`${ASSIGN}.open`);
+    await page.evaluate(() => document.querySelector('#main [data-action="back"]').click());
+    st = await state();
+    ok(!st.assign && st.assignHidden, "Zurück bei offenem Zuordnungs-Sheet: schließt sofort, es bleibt nicht über der nächsten Seite stehen");
+    ok(errors.length === 0, "Zwei Sheets: keine Konsolenfehler " + JSON.stringify(errors));
+    await ctx.close();
+  }
+
+  // H: Quelltext-Wächter: kein style=, keine alten Lauf-Klassen, kein Gedankenstrich in neuen Texten
+  {
+    scenario("38i");
+    const code = (file) => readFileSync(new URL(`../${file}`, import.meta.url), "utf8").split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
+    const view = code("view-run.js");
+    ok(!/\bstyle\s*=/.test(view) && !/var\(--|--[a-z-]+\s*:/.test(view), "view-run.js: kein style= und keine Custom Property im Markup");
+    ok(!view.includes("—"), "view-run.js: kein Gedankenstrich in den Texten");
+    const app = code("app.js");
+    ok(!/pick-row|pick-main|pick-sub|shift-note|strava-note|close-picker|Wird nicht hier eingetragen|runPickerFor|planRunCard|stravaResultHTML|runPickerHTML/.test(app),
+       "app.js: die alten Lauf-Tag-Klassen, close-picker und der Em-Dash-Satz sind weg");
+    ok(/createSheet\("assignSheet", "assignBackdrop"\)/.test(app) && !/import[^;]*from "\.\/(firebase-init|strava)\.js/.test(view),
+       "Lauf-Tag: Zuordnungs-Sheet über die gemeinsame Fabrik, view-run.js importiert weder Firebase noch Strava (C5)");
   }
 }
 

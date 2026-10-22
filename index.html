@@ -11,10 +11,10 @@
 <meta name="apple-mobile-web-app-title" content="Stride" />
 <link rel="icon" href="icon.png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<link rel="manifest" href="manifest.webmanifest?v=202610211239" />
+<link rel="manifest" href="manifest.webmanifest?v=202610220932" />
 <!-- Preload nur für Geist (steht auf jedem Screen sofort im Bild). URL identisch zum @font-face in style.css, ohne ?v=, mit crossorigin (Review C3). Geist Mono lädt bei Bedarf, ein Preload ohne frühe Nutzung würde warnen. -->
 <link rel="preload" href="fonts/Geist-Variable-1.8.1.woff2" as="font" type="font/woff2" crossorigin />
-<link rel="stylesheet" href="style.css?v=202610211239" />
+<link rel="stylesheet" href="style.css?v=202610220932" />
 </head>
 <body>
 <div id="app">
@@ -35,8 +35,17 @@
     </div>
     <div id="infoSheetBody"></div>
   </div>
+  <div id="assignBackdrop" class="sd-backdrop" data-action="close-sheet" hidden></div>
+  <div id="assignSheet" class="sd-sheet" role="dialog" aria-modal="true" aria-labelledby="assignSheetTitle" hidden>
+    <div class="sd-sheet__grip"></div>
+    <div class="sd-sheet__head">
+      <h2 class="sd-sheet__title" id="assignSheetTitle" tabindex="-1"></h2>
+      <button type="button" id="assignSheetClose" class="sd-sheet__close" data-action="close-sheet" aria-label="Schließen"><svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div id="assignSheetBody"></div>
+  </div>
 </div>
 <noscript><p style="padding:1.25rem;font-family:sans-serif;">Diese App braucht JavaScript.</p></noscript>
-<script type="module" src="app.js?v=202610211239"></script>
+<script type="module" src="app.js?v=202610220932"></script>
 </body>
 </html>

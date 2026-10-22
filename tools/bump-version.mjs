@@ -43,6 +43,7 @@ const MODULES = [
   "view-account.js",
   "view-dashboard.js",
   "view-kraft.js",
+  "view-run.js",
   "view-week.js",
 ];
 const ASSETS = ["style.css", "app.js", "manifest.webmanifest"];

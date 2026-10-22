@@ -1,6 +1,6 @@
-import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610211239";
-import { fetchWithAuthRetry } from "./access.js?v=202610211239";
-import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610211239";
+import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610220932";
+import { fetchWithAuthRetry } from "./access.js?v=202610220932";
+import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610220932";
 
 // Die Client-ID ist unkritisch öffentlich (sie steht ohnehin in der
 // Authorize-URL). Das Client-Secret liegt NICHT hier, sondern nur als
@@ -261,6 +261,8 @@ function mapActivity(a) {
   return {
     id: a.id,
     date: (a.start_date_local || a.start_date || "").slice(0, 10),
+    // Ortszeit "HH:MM" aus start_date_local (Lauf-Tag zeigt "Name · HH:MM"); leer, wenn unbekannt
+    startTime: (a.start_date_local || "").slice(11, 16),
     name: a.name,
     distanceKm: distanceM / 1000,
     movingTimeSec,

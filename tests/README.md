@@ -8,7 +8,7 @@ npm install            # http-server + playwright
 npx playwright install chromium
 
 npm run serve          # in einem zweiten Terminal: Server auf :8099
-npm test               # 13 Läufe: Logik-/Worker-Tests ohne Browser, dann Browser-Tests
+npm test               # 18 Läufe: Logik-/Worker-Tests ohne Browser, dann Browser-Tests
 ```
 
 - `plan.test.mjs` — prüft `plans/hm-2027.json` direkt (Struktur, lückenlose
@@ -53,6 +53,10 @@ npm test               # 13 Läufe: Logik-/Worker-Tests ohne Browser, dann Brows
 - `metrics.test.mjs`, `coach.test.mjs` — Ampeln und Kennzahlen; Coach-
   Eingabe, Hash, Cache-Entscheidung, Tageslimit (Anmeldefehler des Workers
   verbrauchen es nicht) und Fallback-Texte.
+- `view-run.test.mjs` — Lauf-Tag-Markup (`view-run.js`) ohne Browser: kein Soll-km,
+  nur Pace oder nur HF ohne Zielband, Marker ohne Messwert/geklemmt, `esc()`,
+  Rangfolge der Zustände, `pickerOptions` (gesperrte Läufe mit `takenBy`),
+  Sheet-Körper (`Automatik zurück`, `Neu laden` gesperrt).
 - `app.test.mjs` — startet Chromium gegen `http://127.0.0.1:8099`.
   Firebase wird durch einen localStorage-Stub ersetzt, die Strava-API
   durch feste Beispieldaten — es werden also keine echten Konten
@@ -79,7 +83,7 @@ druckt am Ende „Checks je Szenario“ (`scenario("…")` steht in der ersten Z
 kein Szenario verschwindet, keine Absicht fällt weg. Aufgefüllt wird nicht, um eine Zahl zu halten.
 
 Baseline: der Plan nennt 336 Checks; gemessen am Merge-Base `a6e6c4b` waren es **390** (Login und
-Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nach dem Kopf-Umbau (Seitenkopf scrollt mit, +6 in Szenario 12) 447, nach E4 (Woche) 491, nach E5a (Kraft-Tag B „Fokus“) **614**.
+Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nach dem Kopf-Umbau (Seitenkopf scrollt mit, +6 in Szenario 12) 447, nach E4 (Woche) 491, nach E5a (Kraft-Tag B „Fokus“) 614, nach E5b (V2-Entwurf) 659, nach E6 (Lauf-Tag B „Vergleich“) **750**.
 
 | Szenario | Prüfabsichten | a6e6c4b | E2 | E3 | Etappe |
 | --- | --- | --- | --- | --- | --- |
@@ -87,7 +91,7 @@ Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nac
 | 2 | Längster Lauf des Tages (8,0 km); „im Plan“; Banner-Slot leer bei Verbindung; keine doppelten Einheiten; Pace, Ø HF, Dauer (zogen vom Heute-Kachelblock in den Lauf-Tag um, Karte zeigt nur km, Urteil, Name) | 6 | 6 | 9 | E3 |
 | 2b | Krafttag-Karte mit Titel und Anzahl; „Training starten“; Vorschau 3 Zeilen + „+ 5 weitere“; Zeilen nicht antippbar; Einstieg öffnet Kraft-Tag; Zurück „Heute“; Fortschritt nach Speichern „1 von 8“ (Rest des Blocks: Kraft-Tag, E5) | 9 | 9 | 10 | E3 (bis Kraft-Tag) |
 | 2c | Ampel Wochensoll/Detail, Belastung, Kraft rot + Detail, Easy; Info-Sheet über Tab-Leiste, Titel, Grenzwerte (42 Tage, 2 oder mehr), Fokus auf Titel, Escape + Fokus zurück; neu: Dialog-Rolle, Blockreihenfolge, Backdrop schließt | 22 | 22 | 20 | E3 |
-| 2c-2 | Timer-Race: Schließen und sofort neu öffnen bleibt offen, Escape wirkt, hidden folgt; neu: Fokus zum letzten Auslöser. A→B / B→A mit zweitem Sheet folgt in E6 | 5 | 5 | 6 | E3 |
+| 2c-2 | Timer-Race: Schließen und sofort neu öffnen bleibt offen, Escape wirkt, hidden folgt; neu: Fokus zum letzten Auslöser. A→B / B→A mit zweitem Sheet steht in 38h (E6) | 5 | 5 | 6 → 6 | E3 |
 | 2c-4 | Tab-Leiste folgt dem Tab (Start, Woche, Tag aus Woche, Tag aus Heute, Zurück) | 6 | 6 | 6 | E3 |
 | 2d | Coach: KI-Text als Text, kein XSS (Tag und Bilanz), ein daily/weekly-Request, gleicher Hash kein zweiter; neu: Montag offen ohne Auslöser | 9 | 9 | 10 | E3 |
 | 2d-2 | Bilanz Di–So eingeklappt, Kurzform W1, per Tap auf, kein H-Scroll; neu: aria-expanded, Fokus | 5 | 5 | 6 | E3 |
@@ -137,6 +141,21 @@ Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nac
 | 37f (neu) | Entwurf weg nach Speichern der Übung und aller 8 Übungen; „Training abschließen“ räumt einen Rest-Entwurf | – | – | – → 6 | E5b |
 | 37g (neu) | Abmelden: Entwurfs-Präfix liegt unter `hm-tracker.`, `signOutAndWipeDevice` räumt diesen Präfix (Quelltext-Prüfung, die echte Funktion braucht Firebase) | – | – | – → 2 | E5b |
 | 37h (neu) | `localStorage` wirft für Entwurfsschlüssel: Kraft-Tag voll nutzbar (Sätze, Speichern, Neuladen), kein Konsolenfehler | – | – | – → 4 | E5b |
+| 8 (Lauf-Tag) | Worker fehlt: Fehlerkarte `[data-card="error"][data-source="worker"]` statt `.card`; neu: Alarm ohne Aktion, Ziel-Zeile im Kopf | 1 | 1 | 1 → 2 | E6 |
+| 9 (Lauf-Tag) | Firestore verweigert: Firebase-Karte `[data-source="firebase"]`, Originalmeldung, Hinweis, kein „Neu verbinden“; neu: Alarm mit „Nochmal versuchen“, keine Strava-Karte daneben (Szenario gesamt 8 → 9, mit Kraft-Teil) | – | – | 8 → 9 | E6 |
+| 2 (Lauf-Tag) | Pace, Ø HF, Dauer jetzt in der Vergleichs-Karte (`[data-card="compare"]`) statt `.metric-value` | 3 | 3 | 3 → 3 | E6 |
+| 11 | Verschobener Lauf auf neuen Haken: Vergleichs-Karte + Strava-Zeile, `[data-slot="shift-note"]` „nachgeholt · Do, 10.09.“ statt `.shifted`/`.shift-note`; „Passt nicht“/`.pick-row` werden zu Sheet und „Kein Lauf an diesem Tag“ (Ignoriert-Karte, Fokus auf „Automatik zurück“). **Neu:** Sheet-Titel, Fokus auf Titel, 5 Optionen nächster Tag zuerst, Einzahl „1 Tag später“, gewählt = zugeordnet, 3 gesperrte Läufe mit „gehört schon zu …“, nur 2 antippbar, „Automatik zurück“ nur bei manuell, Escape/×/Backdrop mit Fokus zurück auf die Strava-Zeile, Tipp auf den gewählten Lauf ändert nichts, manuelle Wahl „von Hand“ + „vorgezogen · Mo, 07.09.“, Fokus auf der neuen Zeile, Reload, Zurücksetzen (Speicher leer), Ignoriert + Automatik zurück (Ziel-Zeile im Kopf nur ohne Vergleich) | 14 | 14 | 14 → 32 | E6 |
+| 27 (Lauf-Tag) | Lauf-Tag öffnet ohne zweiten Abruf; „Neu laden“ im Sheet ruft genau einmal neu ab und lässt das Sheet offen | 2 | 2 | 2 → 4 | E6 |
+| 28 (Lauf-Tag) | Abruffehler auf dem Lauf-Tag: Strava-Karte (Alarm) mit „Nochmal versuchen“ und „Neu verbinden“, Ziel im Kopf, Platzhalter beim Neu-Laden, Fokus auf dem Titel | 5 | 5 | 6 → 10 | E6 |
+| 26, 26b | unverändert: beide prüfen den Strava-Redirect/Token-Toast, haben keinen Lauf-Tag-Anteil | – | – | – | E6 |
+| 38a (neu) | Vergleich „im Plan“ (8,2 von 8 km): Pille, Sub-Zeile, `<progress>` in Koralle mit Punkt im Attribut und Komma im Label, Band/Marker als SVG-Zahlen (35,3 + 29,4, Marker 37,6 / 39,2), drei Achsen-Spans, Ampel-Form + verstecktes Wort, alle Zahlen 0–100, Kopf (Überzeile koralle, Titel `tabindex -1`, „Heute“), keine Ziel-Zeile mit Karte, Strava-Zeile „Name · 07:10“ (startTime), kein Plan-Hinweis, Tab-Leiste weg, kein `style=`, kein H-Scroll bei 390 und 320 px, Zahl ≥ 40 px, keine Konsolenfehler | – | – | – → 17 | E6 |
+| 38b (neu) | „zu kurz“ bei 88,75 % (7,1 km) und bei 7,14 km (zeigt 7,1), „im Plan“ bei 7,16 km (zeigt 7,2) und genau 90 % (C4) | – | – | – → 4 | E6 |
+| 38c (neu) | Long Run: Balken und Überzeile violett; Laufname mit HTML bleibt Text; 12,0 von 12 km | – | – | – → 3 | E6 |
+| 38d (neu) | Range-Varianten: offen unten „> 6:40“ und offen oben „< 148“ (Band bis 100 bzw. ab 0, Achsenmitte als Text), Marker außerhalb auf 0 geklemmt, Raute für „außerhalb“, Pace neutral (Schwelle: Notiz statt Spur), kein Messwert („–“, kein Marker, Band bleibt), Plan-Hinweis, frei beim Kalibrierungstest (Test-Satz) und beim zusammengesetzten Ziel (allgemeiner Satz, violett) | – | – | – → 11 | E6 |
+| 38e (neu) | Zustände: heute ohne Lauf (Karte, Ziel-Zeile im Kopf), Sheet ohne freien Lauf (Hinweis statt Liste, kein „Automatik zurück“), Escape mit Fokus zurück, „Kein Lauf an diesem Tag“ → Ignoriert-Karte, Fokus auf „Automatik zurück“ → leer, Fokus nicht auf body; verpasst (Pille, Suchfenster, Aktionen), „Neu laden“ im Slot (Platzhalter, Kopf bleibt, Fokus Titel); Strava nicht verbunden (eine gefüllte Schaltfläche) | – | – | – → 13 | E6 |
+| 38f (neu) | „Neu laden“ im Sheet: Knopf gesperrt mit `aria-busy`, Beschriftung bleibt, Sheet bleibt offen, Slot dahinter ohne Platzhalter; neuer Lauf erscheint, Titel bleibt, Fokus bleibt auf „Neu laden“ | – | – | – → 3 | E6 |
+| 38h (neu) | Zwei Sheets (C6): Info → Zuordnung und Zuordnung → Info direkt nacheinander (sofort hidden, Fokus auf den Titel des neuen), nach der Ausblendzeit bleibt das neue offen; Escape + sofort anderes Sheet in beide Richtungen (kein alter Timer versteckt es); ein Escape-Handler mit Fokus zum jeweils eigenen Auslöser; Seitenwechsel bei offenem Sheet schließt sofort | – | – | – → 10 | E6 |
+| 38i (neu) | Quelltext-Wächter: `view-run.js` ohne `style=`, Custom Property und Gedankenstrich; `app.js` ohne alte Lauf-Klassen, `close-picker`, Em-Dash-Satz; Sheet über `createSheet`, `view-run.js` ohne Firebase/Strava-Import | – | – | – → 4 | E6 |
 | übrige (5–8, 15, 17–19b, 23, 24, 26, 27, 29–33) | unverändert; nur Selektoren auf Heute angepasst (27, 23, 30b); 29 hat keinen Kraft-Tag-Teil mehr (seit E3 nur Ampel und Banner) | – | – | – | – |
 
 **Bewusste Ausnahmen in 2c („Im Detail“, einzeln):** Wochenvolumen (8 Wochen, aktuelle Woche, kein Ist
