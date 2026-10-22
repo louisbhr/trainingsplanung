@@ -19,7 +19,7 @@ Klasse, fragt er den Designer (Review-Auflage C5).
 | Präfix | Alle neuen Klassen beginnen mit `sd-` (Stride). Grund: Alte Screens laufen bis zu ihrer Ablösung auf derselben `style.css` (Plan: „alte Klassen bleiben bis zu ihrer Ablösung“). `.card`, `.badge`, `.hint`, `.start-btn` usw. bleiben bis dahin unberührt und werden nicht wiederverwendet. |
 | Aufbau | BEM-nah: Baustein `sd-card`, Teil `sd-card__top`, Variante `sd-card--danger`. Zwei Unterstriche für Teile, zwei Bindestriche für Varianten. Keine Verschachtelung tiefer als `baustein__teil`. |
 | Zustand | `is-done`, `is-current`, `is-open`, `is-active`, `is-selected`, `is-today`, `is-rest`, `is-removed`, `is-ok`, `is-warn`. Zustände setzt der Coder per Klassenliste, nie per Inline-Style. |
-| Geometrie | Einzige erlaubte Inline-Form: **CSS-Custom-Property mit geklemmter Zahl**, z. B. `style="--pct:27"`. Erlaubt sind `--pct`, `--from`, `--to`, `--at` (jeweils 0 bis 100, höchstens eine Nachkommastelle, ohne Einheit). Nie Text aus Daten im `style`. **Seit E3 gilt für reine Fortschrittsbalken stattdessen `<progress class="sd-prog" value max>` ganz ohne `style` (Abschnitt 9.0).** Die `style`-Form bleibt nur für `sd-range` (Lauf-Tag, E6) übrig, solange es dafür keine Alternative gibt. |
+| Geometrie | Einzige erlaubte Inline-Form: **CSS-Custom-Property mit geklemmter Zahl**, z. B. `style="--pct:27"`. Erlaubt sind `--pct`, `--from`, `--to`, `--at` (jeweils 0 bis 100, höchstens eine Nachkommastelle, ohne Einheit). Nie Text aus Daten im `style`. **Seit E3 gilt für reine Fortschrittsbalken stattdessen `<progress class="sd-prog" value max>` ganz ohne `style` (Abschnitt 9.0).** **Seit E6 gibt es auch für `sd-range` kein `style` mehr: Band und Marker sind Inline-SVG, die Lage steht in Zahlen-Attributen (Abschnitt 12.3).** Damit ist `style=` auf allen Stride-Screens verboten; `--from`/`--to`/`--at` und `--pct` (`.sd-bar`) sind tot. |
 | Test-Haken | `data-action` für Klicks, `data-form` für Formulare, `data-card` / `data-kind` für Karten, `data-slug`, `data-date`, `data-run`, `data-set`, `data-field`, `data-dir` für Parameter. Dazu Rollen und `aria-label`. Layout-Klassen sind keine Test-Haken. |
 | Mockup-Klassen | `mk-*` und `.frame`/`.spec`/`.state` gehören nur dem Mockup und kommen nie in die App. |
 | Sprache | Sichtbare Texte Deutsch, Sentence case. Kein Gedankenstrich (Em-Dash) in sichtbaren Texten; der Halbgeviertstrich in Zahlenbereichen („6:15–6:40“) ist erlaubt. Zahlen deutsch („8,2 km“, „1:29:59“). |
@@ -278,7 +278,7 @@ Eine Fehlerkarte hat 0 bis 2 Aktionen; Koralle nie.
 | K8 | Ladefehler | `sd-card--danger[data-card=load-error]` |
 | L1 | Nachgeholt, Plan-Hinweis | `sd-linkrow__note`, `.sd-planhint[data-card=plan-note]` |
 | L2 | verpasst | `sd-card--center[data-card=missed]`, `sd-pill--danger`, `[data-action=pick-run]`, `[data-action=reload-strava]` |
-| L3 | Range-Balken | `sd-range`, `sd-range__track[style="--from:…;--to:…;--at:…"]`; neutral: `sd-range__note` statt Spur; frei: nur `sd-range__head` |
+| L3 | Range-Balken | `sd-range`, `sd-range__track` mit SVG `sd-range__band` und `sd-range__mark` (Zahlen-Attribute statt `style`, siehe 12.3); neutral: `sd-range__note` statt Spur; frei: `sd-range--plain` nur mit `sd-range__head` |
 | L4 | Fehlerkarten | `sd-card--danger[data-source=…]` |
 | L5 | Zuordnungs-Sheet | `sd-sheet`, `sd-option`, `sd-sheet__tools` |
 | W1 | Wochenzeilen | `sd-day`, `sd-day__row`, Pills laut 3.3, `sd-vh` „(heute)“, `sd-day__detail` |
@@ -362,7 +362,7 @@ laufen durch einen Helfer `pct(x)` (Zahl, `Number.isFinite`, auf 0 bis 100 gekle
 - **E3 Heute:** erledigt, siehe Abschnitt 9 unten (Kopf, Banner, Heute-Karten, Coach, Status, Diese Woche, Info-Sheet-Blöcke).
 - **E4 Woche:** erledigt, siehe Abschnitt 10 (Kopf mit Rundtasten, Summen-Karte, Tageszeilen-Akkordeon).
 - **E5 Kraft-Tag:** Design erledigt, siehe Abschnitt 11 (Kopf, Dots, Jetzt-Karte, Sätze, Stepper, Reihenfolge, Strava-Zeile, Ladefehler, Anpassen-Modus E5b, Löschliste 11.14).
-- **E6 Lauf-Tag:** Zustände Zukunft, Strava fehlt, ignoriert (aus dem Prototyp, offen).
+- **E6 Lauf-Tag:** Design erledigt, siehe Abschnitt 12 (Kopf, Vergleichs-Karte, Distanz- und Range-Balken, Strava-Zeile, alle Zustände, Zuordnungs-Sheet, Löschliste 12.12).
 - **E7 Verlauf und Plan**, **E8 Login:** offen.
 
 ---
@@ -1339,3 +1339,322 @@ Erst löschen, wenn `view-kraft.js` die alten Funktionen (`exerciseCard`, `simpl
 - Progression: `.tip`, `.tip-up`, `.tip-hold`, `.tip-down`, `.tip-info` (ersetzt durch `.sd-tip--*`).
 - Nach E5 prüfen: `.done-dot`, `.strava-note` (E6), `.link-btn` (E6), `.small-btn` (E6), `.seg`, die Utilities `.jc-between`, `.ai-start`, `.gap-10`, `.gap-8`, `.flex-1`, `.min-w-0`, `.mt-6`, `.mt-8`, `.mb-8`, `.w-full`, `.w-70`, `.fs-11`, `.fg-secondary` (je einzeln greppen, mehrere werden erst nach E6 frei).
 - Aus `app.js` entfallen mit E5: `data-action="toggle-sets"`, `data-action="save"`, Ids `session-slot` (bleibt, aber mit neuem Inhalt), `progress-line`, `data-ex`, `data-status`, `data-kg`, `data-reps`.
+
+---
+
+## 12. Screen-Ergänzungen: Lauf-Tag (E6)
+
+Optik: Handoff §5.4 (Variante B „Vergleich“), Mockup L1 bis L5 (abgenommen), Prototyp „Lauf-Tag B“.
+CSS: Abschnitt „Lauf-Tag (E6)“ am Ende von `style.css`; die Bausteine (`sd-compare`, `sd-bigkm`, `sd-range*`, `sd-linkrow*`, `sd-planhint*`, `sd-option*`, `sd-radio`, `sd-sheet__*`) stehen im E1-Teil.
+**Kein `style=` auf diesem Screen.** Distanzbalken = `<progress>`, Range-Balken = Inline-SVG mit Zahlen-Attributen (12.3).
+
+Icon-Konstanten (einmal im Lauf-Modul; `ICONS.*` hat keine Größenklasse und ist hier tabu):
+```js
+const I_CHEV_L  = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
+const I_CHEV_R  = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+const I_REFRESH = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 5.8"/><path d="M20 4v7h-7"/></svg>';
+```
+Geometrie-Helfer `pct(x)` (wie 9.0/Abschnitt 6): `Number.isFinite(x) ? String(Math.round(Math.min(100, Math.max(0, x)) * 10) / 10) : "0"`, Punkt als Dezimaltrenner. Nie `formatKm1()` in einem Attribut.
+
+### 12.0 Seitenaufbau und Slots
+
+```html
+<header class="sd-pagehead" data-region="pagehead">
+  <nav class="sd-nav" aria-label="Kopfzeile">…12.1…</nav>
+  <div class="sd-daytitle">
+    <p class="sd-eyebrow sd-eyebrow--coral sd-eyebrow--plain">Lauf · Mo, 19.10.</p>
+    <h1 class="sd-display" tabindex="-1">Easy run · 8 km</h1>
+    <p class="sd-target sd-mono">Ziel 6:15–6:40 /km · HF 148–160</p>   <!-- nur ohne Vergleichs-Karte, siehe 12.1 -->
+  </div>
+</header>
+<div class="sd-main sd-main--tight">
+  <div id="strava-slot">…eine der Karten aus 12.2 bis 12.9…</div>
+  <div class="sd-planhint" data-card="plan-note">…12.5…</div>   <!-- nur wenn info.note -->
+</div>
+```
+- Der Kopf ist **sofort** komplett (Plandaten sind da), nur `#strava-slot` lädt nach. `#strava-slot` behält seine Id (Tests). Er ist nie leer (Laden, Karte oder Fehler); im Slot liegen 1 bis 2 Karten untereinander (Gap 12 kommt vom Slot).
+- Kein `#main` mit altem `planRunCard` mehr, kein `.strava-note` mit Läufer-Icon, kein Standard-Satz „Wird nicht hier eingetragen …“ (entfällt ersatzlos).
+- `#app.is-detail` blendet die Tab-Leiste aus (wie Kraft-Tag). Kein Link zur Desktop-Analyse.
+
+### 12.1 Kopfzeile
+
+| Teil | Regel |
+| --- | --- |
+| Zurück | `<button type="button" class="sd-btn sd-btn--text sd-btn--back" data-action="back">${I_CHEV_L}Heute</button>`, Label „Heute“ oder „Woche“ nach Herkunft (fester String). Kein `sd-nav__meta` |
+| Überzeile | `Lauf · ${dayNameDE(iso)}, ${shortDate(iso)}` (Helfer-Ausgabe, kein `esc()` nötig). Farbe: Easy, Recovery, Intervalle, Schwelle: `sd-eyebrow--coral`; Long Run (`isLongRun(info)`): `sd-eyebrow--purple`. Beide ohne Punkt (`sd-eyebrow--plain`); das Wort „Lauf“ bleibt, die Farbe ist nur Zusatz. Großschrift macht das CSS |
+| Titel | `<h1 class="sd-display" tabindex="-1">${esc(info.type)} · ${esc(info.dist)}</h1>`, Anzeigegröße 26 bis 30 px fluid, bricht um statt abzuschneiden. `tabindex="-1"`: Fokusziel nach Neu-Laden (12.11) |
+| Ziel-Zeile | `<p class="sd-target sd-mono">Ziel ${esc(info.pace)} · HF ${esc(info.hf)}</p>` **nur in Zuständen ohne Vergleichs-Karte** (Zukunft, verpasst, ignoriert, Strava fehlt, Fehler, Laden). Mit Vergleichs-Karte steht das Ziel in der Achse der Balken. Fehlt einer der beiden Texte, entfällt sein Teil samt Trennpunkt |
+
+### 12.2 Laden
+
+Slot-Inhalt, bis `loadStrava()` fertig ist (ersetzt `loadingCard`):
+```html
+<article class="sd-card sd-compare" data-card="loading" aria-busy="true" role="status">
+  <div class="sd-skelstack sd-skelstack--fill">
+    <span class="sd-skel sd-skel--km"></span><span class="sd-skel sd-skel--w60"></span>
+    <span class="sd-skel sd-skel--bar"></span>
+    <span class="sd-skel sd-skel--w92"></span><span class="sd-skel sd-skel--w92"></span>
+    <span class="sd-vh">Strava wird geprüft</span>
+  </div>
+</article>
+```
+„Neu laden“ (`reload-strava`) zeigt denselben Platzhalter im Slot, der Kopf bleibt stehen.
+
+### 12.3 Vergleichs-Karte (Lauf zugeordnet)
+
+```html
+<article class="sd-card sd-compare" data-card="compare" data-status="ok" aria-label="Vergleich mit dem Plan">
+  <div class="sd-compare__top">
+    <div>
+      <p class="sd-bigkm sd-mono">8,2<span class="sd-unit">km</span></p>
+      <p class="sd-compare__sub">von 8 km · 52:12</p>
+    </div>
+    <span class="sd-pill sd-pill--ok">im Plan</span>
+  </div>
+  <progress class="sd-prog sd-prog--lg sd-prog--coral" value="8.2" max="8" aria-label="Distanz, 8,2 von 8 km"></progress>
+  <div class="sd-range">…Pace 12.4…</div>
+  <div class="sd-range">…Ø HF 12.4…</div>
+</article>
+```
+**Distanz (variantenweise)**
+
+| Fall | Unterschied |
+| --- | --- |
+| im Plan | `data-status="ok"`, Pill `sd-pill sd-pill--ok` „im Plan“ (`distanceStatus` = `imPlan`) |
+| zu kurz | `data-status="short"`, Pill `sd-pill sd-pill--amber` „zu kurz“; Sub-Zeile und Balken wie oben (Balken < 100 %) |
+| kein Soll-km (Platzhalter, freier Lauf) | `data-status="none"`; **keine** Pill, **kein** `<progress>`, Sub-Zeile nur `Dauer 52:12`. Rest der Karte unverändert |
+| Long Run | Balken `sd-prog sd-prog--lg sd-prog--purple` statt `--coral`, sonst identisch |
+
+- Zahl: `<p class="sd-bigkm sd-mono">` + `formatKm1()` (Komma) + `<span class="sd-unit">km</span>`. Größe `clamp(40px, 12.4cqi, 48px)`: bei 320 px 40 px, ab ca. 390 px 48 px. Die linke Spalte darf schrumpfen (`min-width: 0`), die Pill rutscht bei Platznot unter die Zahl statt sie zu quetschen.
+- Sub-Zeile: `von ${esc(info.dist)} · ${esc(formatDuration(movingTimeSec))}`.
+- **Distanzbalken ohne `style`:** `<progress value max>` mit `value` = Ist-km, `max` = Soll-km (Punkt als Dezimaltrenner, Helfer `numAttr` aus 9.0). Das Element klemmt selbst: Ist über Soll = voll, 0 = leer. `max` muss > 0 sein, sonst wird der Balken weggelassen (Fall „kein Soll“). `aria-label` nennt die echten Werte (auch über 100 %), `formatKm1()` im Label, `numAttr()` in `value`/`max`.
+
+**12.3a Range-Balken ohne `style` (Auflage C5, Entscheid E6)**
+
+Band und Marker sind **Inline-SVG; die Position steht in Zahlen-Attributen** (`x`, `width`, `x1`, `x2`). Es gibt kein `style`-Attribut und keine Custom Property. Die Zahlen kommen aus `rangeBar()` (`runcompare.js`, schon 0 bis 100, eine Nachkommastelle, geklemmt) und laufen zusätzlich durch `pct()`; im SVG sind sie reine Geometrie, nie Text aus Daten.
+```html
+<div class="sd-range">
+  <div class="sd-range__head">
+    <span class="sd-range__label">Pace</span>
+    <span class="sd-range__value sd-mono is-ok"><span class="sd-ampel sd-ampel--ok" aria-hidden="true"></span>6:22 /km<span class="sd-vh">, im Zielbereich</span></span>
+  </div>
+  <div class="sd-range__track">
+    <svg class="sd-range__band" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect x="35.3" y="0" width="29.4" height="6"/></svg>
+    <svg class="sd-range__mark" viewBox="0 0 100 18" preserveAspectRatio="none" aria-hidden="true" focusable="false"><line class="sd-range__halo" x1="43.5" y1="2" x2="43.5" y2="16"/><line class="sd-range__tick" x1="43.5" y1="2" x2="43.5" y2="16"/></svg>
+  </div>
+  <div class="sd-range__axis"><span>5:45</span><span>Ziel 6:15–6:40</span><span>7:10</span></div>
+</div>
+```
+- Band: `x="${pct(from)}"`, `width="${pct(to - from)}"` (nie negativ; `from ≤ to` garantiert `rangeBar`). Marker: beide `<line>` bekommen `x1 = x2 = ${pct(at)}`. Alles andere (`y`, `height`, `viewBox`) ist fester Text.
+- `preserveAspectRatio="none"` dehnt die 0 bis 100 auf die Spurbreite; Strichbreite und runde Enden des Markers bleiben durch `vector-effect: non-scaling-stroke` bei 4 px (Halo 8 px in `--card`, ergibt den 2-px-Rand). Wer die Zahlen im DOM liest, sieht Prozent der Spur.
+- Beide SVG sind `aria-hidden`; der Text (Wert, Wort, Achse) trägt die Information.
+- Wert: `<span class="sd-range__value sd-mono is-ok|is-warn">` mit Ampel-Form (`sd-ampel--ok` Kreis / `sd-ampel--warn` Raute) und verstecktem Wort `, im Zielbereich` bzw. `, außerhalb des Zielbereichs` (`sd-vh`). Die Form ist die Designer-Ergänzung gegenüber dem Mockup: Farbe allein trägt den Status nicht. Pace-Format `m:ss /km` (aus `paceLabel`), HF `151 bpm`.
+- Achse: **immer drei `<span>`**: Skalen-Min, Mitte `Ziel …` mit dem Originaltext der Zone (durch `esc()`; `>` und `<` werden zu `&gt;`/`&lt;`), Skalen-Max. Min/Max aus `rangeScale()`, Pace als `m:ss` (ohne „/km“), HF als ganze Zahl. Die Mitte steht mittig (Grid), nicht zwischen den Rändern verteilt.
+
+### 12.4 Die Range-Zeilen im Einzelnen
+
+Zwei Zeilen in dieser Reihenfolge: Pace, dann Ø Herzfrequenz. Jede Zeile entscheidet für sich.
+
+| Fall | Bedingung | Markup |
+| --- | --- | --- |
+| **geschlossen** | `parseTarget` = `closed` | wie 12.3a, Band `from` bis `to` |
+| **offen unten** („> 6:40“) | `openMin` | Band bis 100 (`to` = 100), Achse Mitte `Ziel &gt; 6:40` |
+| **offen oben** („< 148“) | `openMax` | Band ab 0 (`from` = 0), Achse Mitte `Ziel &lt; 148` |
+| **Pace neutral** | `paceStatus` = `neutral` bei Ziel ≠ free (Schwelle, Intervalle, Test) | Kopf ohne `is-ok`/`is-warn`, **keine** Ampel, **keine** Spur, **keine** Achse; statt dessen `<p class="sd-range__note">Der Schnitt enthält Ein- und Auslaufen, darum ohne Zielband.</p>` im selben `.sd-range` |
+| **frei** | Ziel = `free` | `<div class="sd-range sd-range--plain"><div class="sd-range__head">…Label und Wert neutral…</div></div>`, keine Ampel, keine Spur |
+| **kein Messwert** | `avgHr`/Pace fehlt | Wert `–` (Halbgeviertstrich, kein Em-Dash), weder `is-ok` noch Ampel, kein Marker (`at = null`: `<svg class="sd-range__mark">` weglassen), Band und Achse bleiben |
+
+Hinweiszeile nach den Zeilen, wenn mindestens eine Zeile `sd-range--plain` ist (direktes Kind der Karte, erklärt beide):
+| Fall | Text |
+| --- | --- |
+| beide frei | `<p class="sd-range__note">Für diesen Lauf gibt es kein Zielband. Die Werte stehen nur zur Info.</p>` (beim Kalibrierungstest, `/test|kalibrierung/i`, genau der abgenommene Mockup-Satz: „Für den Test gibt es kein Zielband. Die Werte stehen nur zur Info.“) |
+| nur Pace frei | `Für die Pace gibt es kein Zielband.` |
+| nur HF frei | `Für die Herzfrequenz gibt es kein Zielband.` |
+Pace-neutral braucht diese Zeile nicht (er trägt seine eigene Notiz). Farbregel: Pace `is-ok` im Band, sonst `is-warn`; HF `is-ok` genau bei `avgHr ≤ hfMax`; beides kommt fertig aus `paceStatus()`/`hrStatus()`.
+
+### 12.5 Strava-Zeile und Plan-Hinweis
+
+Zweites Element im Slot, nur wenn ein Lauf zugeordnet ist. Die ganze Zeile ist der Auslöser des Zuordnungs-Sheets (kein Läufer-Icon).
+```html
+<button type="button" class="sd-linkrow" data-card="strava-run" data-source="auto" data-action="pick-run" data-date="2026-10-19" aria-haspopup="dialog">
+  <span class="sd-linkrow__main">
+    <span class="sd-linkrow__label">Aus Strava</span>
+    <span class="sd-linkrow__name">Morgenlauf</span>
+    <span class="sd-linkrow__note" data-slot="shift-note">nachgeholt · Di, 20.10.</span>
+  </span>
+  <span class="sd-pill">automatisch</span>
+  ${I_CHEV_R}
+</button>
+```
+| Teil | Regel |
+| --- | --- |
+| Name | `${esc(run.name)}`. Das Mockup zeigt „Morgenlauf · 07:05“: die Uhrzeit ist im Laufmodell (`mapActivity`) nicht vorhanden. Sie erscheint nur, wenn der Coder `startTime` (`start_date_local.slice(11, 16)`) ergänzt, dann ` · ${startTime}`; sonst nur der Name |
+| Pill automatisch | `source === "auto"` (und `"exact"`): neutral `<span class="sd-pill">automatisch</span>`, `data-source="auto"` |
+| Pill von Hand | `source === "manual"`: `<span class="sd-pill sd-pill--amber">von Hand</span>`, `data-source="manual"` |
+| Verschoben | Nur wenn `offset !== 0`: Zeile `sd-linkrow__note`. `offset > 0`: `nachgeholt · ${dayNameDE(run.date)}, ${shortDate(run.date)}`; `offset < 0`: `vorgezogen · ${dayNameDE(run.date)}, ${shortDate(run.date)}`. Amber, Text trägt den Status (nicht nur Farbe). Ersetzt `.shift-note` und `offsetLabel` im Lauf-Tag (Woche nutzt `offsetLabel` weiter) |
+| Plan-Hinweis | Unter dem Slot: `<div class="sd-planhint" data-card="plan-note"><p class="sd-planhint__label">Hinweis aus dem Plan</p><p class="sd-planhint__text">${esc(info.note)}</p></div>`. Nur wenn `info.note` nicht leer; in **jedem** Zustand sichtbar, auch beim Laden (steht im statischen Teil, nicht im Slot) |
+Tippfläche mindestens 64 px hoch. Bei Spalten unter 340 px schrumpfen Gap und Seitenpolster der Zeile; Name und Notiz brechen um, Pill und Chevron bleiben.
+
+### 12.6 Zustandskarten (kein Lauf)
+
+Alle einzeln zentriert (`sd-card sd-card--center`), Slot-Inhalt, mit Ziel-Zeile im Kopf (12.1). `<h2 class="sd-card__title">`.
+
+**Zukunft oder heute, noch kein Lauf** (`data-card="empty"`):
+```html
+<article class="sd-card sd-card--center" data-card="empty">
+  <h2 class="sd-card__title">Noch kein Lauf</h2>
+  <p class="sd-card__text">Sobald der Lauf in Strava liegt, erscheint er hier.</p>
+  <div class="sd-actions"><button type="button" class="sd-btn" data-action="pick-run" data-date="${iso}">Lauf von Hand zuordnen</button></div>
+</article>
+```
+**Verpasst** (vergangener Tag, kein Lauf im Fenster, nicht ignoriert; `data-card="missed"`):
+```html
+<article class="sd-card sd-card--center" data-card="missed">
+  <span class="sd-pill sd-pill--danger">verpasst</span>
+  <h2 class="sd-card__title">Kein Lauf gefunden</h2>
+  <p class="sd-card__text">Strava-Läufe von einem Tag davor bis drei Tage danach.</p>
+  <div class="sd-actions">
+    <button type="button" class="sd-btn" data-action="pick-run" data-date="${iso}">Lauf von Hand zuordnen</button>
+    <button type="button" class="sd-btn sd-btn--text" data-action="reload-strava">${I_REFRESH}Neu laden</button>
+  </div>
+</article>
+```
+**Strava nicht verbunden** (`connected === false`, Worker da; `data-card="no-strava"`):
+```html
+<article class="sd-card sd-card--center" data-card="no-strava">
+  <h2 class="sd-card__title">Strava ist nicht verbunden</h2>
+  <p class="sd-card__text">Verbinde Strava, dann erscheint der Lauf hier automatisch.</p>
+  <div class="sd-actions"><button type="button" class="sd-btn sd-btn--primary" data-action="connect-strava">Mit Strava verbinden</button></div>
+</article>
+```
+Das ist die einzige gefüllte Teal-Fläche des Screens. Ersetzt den losen `primary-btn`.
+
+**Bewusst ignoriert** (`source === "ignored"`; `data-card="ignored"`):
+```html
+<article class="sd-card sd-card--center" data-card="ignored">
+  <h2 class="sd-card__title">Bewusst leer gelassen</h2>
+  <p class="sd-card__text">Kein Lauf an diesem Tag. Zählt als verpasst.</p>
+  <div class="sd-actions"><button type="button" class="sd-btn" data-action="reset-run" data-date="${iso}">Automatik zurück</button></div>
+</article>
+```
+Sprachregel: „Lauf von Hand zuordnen“ öffnet immer das Zuordnungs-Sheet (`pick-run`), „Automatik zurück“ heißt überall gleich (Karte und Sheet).
+
+### 12.7 Fehler
+
+Slot-Inhalt statt der Karten; Kopf mit Ziel-Zeile. Fehlerkarte wie 3.10 (`role="alert"`, Danger, Koralle nie), drei getrennte Welten (`data-source`):
+```html
+<div class="sd-card sd-card--danger" role="alert" data-card="error" data-source="firebase">
+  <p class="sd-card__title sd-card__title--danger">Daten-Problem (Firebase)</p>
+  <p class="sd-card__text sd-card__text--danger">${esc(s.error)}</p>
+  <p class="sd-card__text sd-card__text--danger">Nicht Strava, sondern der Datenspeicher. Prüfe, ob du angemeldet bist (Plan-Tab, Daten und Konto) und ob die Regeln aus <code>firestore.rules</code> in der Firebase-Console veröffentlicht sind.</p>
+  <div class="sd-actions"><button type="button" class="sd-btn sd-btn--onbanner" data-action="reload-strava">Nochmal versuchen</button></div>
+</div>
+
+<div class="sd-card sd-card--danger" role="alert" data-card="error" data-source="strava">
+  <p class="sd-card__title sd-card__title--danger">Strava-Problem</p>
+  <p class="sd-card__text sd-card__text--danger">${esc(s.error)}</p>
+  <div class="sd-actions">
+    <button type="button" class="sd-btn sd-btn--onbanner" data-action="reload-strava">Nochmal versuchen</button>
+    <button type="button" class="sd-btn sd-btn--onbanner" data-action="connect-strava">Neu verbinden</button>
+  </div>
+</div>
+
+<div class="sd-card sd-card--danger" role="alert" data-card="error" data-source="worker">
+  <p class="sd-card__title sd-card__title--danger">Strava noch nicht eingerichtet</p>
+  <p class="sd-card__text sd-card__text--danger">Der Token-Worker fehlt (siehe README, Abschnitt „Strava“). Ohne ihn kann der Browser sich nicht bei Strava anmelden.</p>
+</div>
+```
+Reihenfolge der Prüfung wie bisher: Worker fehlt, dann Fehler (Firebase vor Strava), dann nicht verbunden. Der Worker-Fall hat bewusst keine Aktion. Die Fehlertexte aus den Quellen (`Missing or insufficient permissions.` usw.) werden nicht verändert; ein Em-Dash in ihnen ist nicht Sache des Designs.
+### 12.8 Gesamtzustands-Tabelle
+
+| Zustand | Ziel-Zeile im Kopf | Slot-Inhalt |
+| --- | --- | --- |
+| Laden | ja | 12.2 |
+| Worker fehlt | ja | 12.7 worker |
+| Firebase- oder Strava-Fehler | ja | 12.7 |
+| Strava nicht verbunden | ja | 12.6 no-strava |
+| Bewusst ignoriert | ja | 12.6 ignored |
+| Zugeordnet, auto oder von Hand | nein | 12.3 + 12.5 (+ Plan-Hinweis) |
+| Kein Lauf, Tag heute oder Zukunft | ja | 12.6 empty |
+| Kein Lauf, Tag vorbei | ja | 12.6 missed |
+
+### 12.9 Zuordnungs-Sheet `#assignSheet`
+
+Statische Hülle in `index.html`, Geschwister von `#infoSheet` (selbe Klassen, `createSheet("assignSheet", "assignBackdrop")`); der Coder füllt nur Titel und Körper:
+```html
+<div id="assignBackdrop" class="sd-backdrop" data-action="close-sheet" hidden></div>
+<div id="assignSheet" class="sd-sheet" role="dialog" aria-modal="true" aria-labelledby="assignSheetTitle" hidden>
+  <div class="sd-sheet__grip"></div>
+  <div class="sd-sheet__head">
+    <h2 class="sd-sheet__title" id="assignSheetTitle" tabindex="-1"></h2>
+    <button type="button" id="assignSheetClose" class="sd-sheet__close" data-action="close-sheet" aria-label="Schließen"><svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div id="assignSheetBody"></div>
+</div>
+```
+Titel per `textContent`: `Lauf für ${dayNameDE(iso)}, ${shortDate(iso)}` („Lauf für Mo, 19.10.“). Schließen: Backdrop, ×, Escape (alles schon in `createSheet`). Fokus beim Öffnen auf den Titel, beim Schließen zurück auf den Auslöser (Knopf mit `data-action="pick-run"` und gleichem `data-date`).
+
+Körper (`#assignSheetBody.innerHTML`):
+```html
+<p class="sd-sheet__lead">Strava-Läufe von einem Tag davor bis drei Tage danach.</p>
+<div class="sd-sheet__list" role="radiogroup" aria-label="Lauf wählen">
+  <button type="button" class="sd-option" role="radio" aria-checked="false" data-action="assign-run" data-date="${iso}" data-run="${esc(id)}">
+    <span class="sd-radio"></span>
+    <span class="sd-option__main"><span class="sd-option__name">Mo, 19.10. · Morgenlauf</span><span class="sd-option__sub">8,2 km · 6:22 /km · am Plantag</span></span>
+  </button>
+  <button type="button" class="sd-option is-selected" role="radio" aria-checked="true" data-action="assign-run" data-date="${iso}" data-run="${esc(id)}">…</button>
+  <div class="sd-option" role="radio" aria-checked="false" aria-disabled="true">
+    <span class="sd-radio"></span>
+    <span class="sd-option__main"><span class="sd-option__name">So, 18.10. · Recovery</span><span class="sd-option__sub">5,1 km · 6:52 /km</span><span class="sd-option__why">gehört schon zu So, 18.10.</span></span>
+  </div>
+</div>
+<div class="sd-sheet__tools">
+  <button type="button" class="sd-btn sd-btn--text" data-action="reset-run" data-date="${iso}">Automatik zurück</button>
+  <button type="button" class="sd-btn sd-btn--text" data-action="reload-strava">${I_REFRESH}Neu laden</button>
+</div>
+<button type="button" class="sd-btn sd-btn--danger sd-btn--md sd-btn--block" data-action="ignore-run" data-date="${iso}">Kein Lauf an diesem Tag</button>
+```
+| Teil | Regel |
+| --- | --- |
+| Optionen | Sortierung wie `pickableRuns` (nächster Tag zuerst). Name `${dayNameDE(r.date)}, ${shortDate(r.date)} · ${esc(r.name)}`; Sub `${km} km · ${esc(r.paceLabel)} · ${abstand}`, `abstand` = „am Plantag“, „1 Tag später“, „2 Tage später“, „1 Tag früher“ (Betrag über `daysBetween`) |
+| Gewählt | `is-selected` + `aria-checked="true"` am aktuell zugeordneten Lauf (`runAssignment[iso].run`), egal ob auto oder von Hand. Tipp auf ihn schließt das Sheet ohne Änderung |
+| Belegt | Lauf, der fest zu einem anderen Plantag gehört (`manual`/`exact` dort): `<div>` statt `<button>`, `aria-disabled="true"`, **ohne** `data-action`; Inhalt 50 %, der Grund `sd-option__why` „gehört schon zu ${dayNameDE}, ${shortDate}“ bleibt voll lesbar. Dafür muss `pickableRuns` diese Läufe mitliefern (statt sie auszufiltern), mit Feld `takenBy` (ISO des anderen Tags) |
+| Automatik zurück | Nur wenn `source` `manual` oder `ignored` ist, sonst weglassen. Bei nur einem Text-Button steht „Neu laden“ allein links |
+| Neu laden | Immer. Während des Ladens bleibt das Sheet offen, der Knopf ist `disabled` + `aria-busy="true"` und heißt weiter „Neu laden“; danach wird nur der Körper neu geschrieben (Titel und Fokus bleiben) |
+| Kein Lauf zur Auswahl | `radiogroup` entfällt, statt dessen `<p class="sd-sheet__lead" data-slot="no-options">Im Zeitfenster liegt kein freier Lauf. Mit „Neu laden“ holst du gerade hochgeladene Läufe.</p>`; Tools und Danger-Button bleiben |
+| Danger-Button | Immer, „Kein Lauf an diesem Tag“ (`ignore-run`); danach zeigt der Slot die Karte „Bewusst leer gelassen“ |
+
+### 12.10 `data-action`-Namen auf dem Lauf-Tag
+
+Unverändert (Tests und Handler hängen daran): `back`, `pick-run`, `assign-run`, `reset-run`, `ignore-run`, `reload-strava`, `connect-strava`.
+`close-picker` entfällt (ersetzt durch `close-sheet`, Abschnitt 5). Sonst keine neuen Namen. Parameter: `data-date` (ISO des Plantags) an `pick-run`/`assign-run`/`reset-run`/`ignore-run`, `data-run` (Strava-ID) nur an `assign-run`.
+Stabile Test-Haken (ersetzen `.card.shifted`, `.pick-row`, `.pick-main`): `[data-card="compare"][data-status="ok|short|none"]`, `[data-card="strava-run"][data-source="auto|manual"]`, `[data-slot="shift-note"]`, `[data-card="plan-note"]`, `[data-card="empty|missed|no-strava|ignored|loading"]`, `[data-card="error"][data-source]`, `#assignSheet .sd-option[role="radio"]`, `.sd-option.is-selected`, `.sd-option[aria-disabled="true"]`, `.sd-range` (Anzahl 2), `.sd-range--plain`, `.sd-range__note`, `#strava-slot`.
+
+### 12.11 Welche Texte durch `esc()`, Barrierefreiheit, Fokus, Responsive
+
+**`esc()`** zusätzlich zu Abschnitt 6: `info.type`, `info.dist`, `info.pace`, `info.hf`, `info.note` (Titel, Ziel-Zeile, Achsenmitte „Ziel …“, Plan-Hinweis), `run.name`, `run.paceLabel`, `data-run="${esc(id)}"`, `s.error`. **Nicht**: feste Strings, Icon-Konstanten, `formatKm1()`/`formatDuration()`/`dayNameDE()`/`shortDate()`-Ausgaben, `value`/`max` (`numAttr`), SVG-Zahlen (`pct()`), `data-date` (ISO), Skalenwerte der Achse (formatierte Zahlen).
+
+**ARIA**
+- Sheet: `role="dialog" aria-modal="true" aria-labelledby`; Liste `role="radiogroup"`, Optionen `role="radio"` mit `aria-checked`; Belegte `aria-disabled="true"`. Alle wählbaren Optionen bleiben per Tab erreichbar (jede ist ein Button, Auswahl wirkt sofort); Pfeiltasten sind optional und kein Muss.
+- Range-Balken: SVG `aria-hidden`; der Wert trägt Ampel-Form und verstecktes Wort („im Zielbereich“ / „außerhalb des Zielbereichs“), die Achse liest sich als Text („5:45 Ziel 6:15–6:40 7:10“). Distanzbalken: `<progress>` mit `aria-label` inklusive Werten.
+- Vergleichs-Karte `aria-label`, Fehlerkarten `role="alert"`, Laden `role="status"`. Strava-Zeile `aria-haspopup="dialog"`.
+
+**Fokus**
+- Zuordnen (`assign-run`), Automatik zurück (`reset-run`): erst den Slot neu schreiben, **dann** `sheet.close()` aufrufen; so findet `liveTrigger` die neue Zeile über `data-action="pick-run"` + `data-date` und der Fokus liegt dort.
+- `ignore-run`: der Auslöser existiert danach nicht mehr; Fokus auf `[data-action="reset-run"]` der Ignoriert-Karte.
+- `reload-strava` im Slot: Fokus auf den Titel (`h1`, `tabindex="-1"`), wenn der Auslöser verschwindet. Im Sheet bleibt der Fokus auf „Neu laden“.
+- Fokus nie auf `body` fallen lassen.
+
+**Tippflächen:** Strava-Zeile 64, Optionen 56, Sheet-Buttons 44 (Danger 48), × 44 per `::after`, Karten-Buttons 44.
+**Responsive:** 320: Zahl 40 px, Pill fällt bei Bedarf unter die Zahl, Strava-Zeile rückt enger, Achse bleibt dreispaltig, Aktionsreihen der Zustandskarten umbrechen, Sheet-Inhalt scrollt (höchstens 78 % der Höhe). 1280: Spalte bleibt 480 px zentriert.
+**Bewegung:** Sheet 250 ms ease-out, unter `prefers-reduced-motion` aus (bestehende Regel). Keine neue Animation.
+**Sprache:** Kein Gedankenstrich in den hier definierten Texten; der Halbgeviertstrich in „6:15–6:40“ und im Platzhalter „–“ ist erlaubt.
+
+### 12.12 Durch E6 überflüssig werdende alte Klassen (Löschliste, **nicht** vorab löschen)
+
+Greppen vom Designer am Stand HEAD 2062fbf: Alle folgenden Klassen werden **heute noch** von `app.js` (`renderRunDay`, `planRunCard`, `stravaResultHTML`, `runPickerHTML`) bzw. `tests/app.test.mjs` genutzt, darum steht die Löschung erst nach dem Umbau an:
+- Lauf-Tag-eigen (nach dem Umbau und nach Umstellung von `tests/app.test.mjs` Z. 1439, 1460, 1461, 1466, 1467 löschen): `.strava-note` (+ `svg`, `p`), `.card.shifted`, `.shift-note`, `.pick-row` (+ `.on`, `.pick-main`, `.pick-sub`).
+- Wahrscheinlich frei, je einzeln greppen: `.card.bg-coral`-Nutzung samt `.bg-coral`, `.fg-coral`, `.metric-value.xs`, `.metric-grid`, `.metric-label`, `.metric-value`, `.metric-value.sm` (`planRunCard` und `stravaResultHTML` waren die letzten Nutzer außer der Konto-Karte; `view-account.js` vorher prüfen).
+- **Nicht löschen** (andere Screens): `.primary-btn` (Heute-Fallback, `app.js` Z. 2079, `view-dashboard.js` Z. 60), `.card.error-card` (`view-account.js`, `ui.js`), `.icon-btn`, `.small-btn`, `.link-btn` (je greppen, Verlauf/Plan nutzen sie evtl. noch), `.danger-btn`.
+- Aus `app.js` entfallen: `data-action="close-picker"`, Ids/Klassen `pick-row`, `shift-note`, `shifted`, `strava-note`, der Standardsatz „Wird nicht hier eingetragen — die Daten kommen automatisch aus Strava.“ (enthält einen Em-Dash), `runPickerFor`-Inline-Karte (ersetzt durch das Sheet).
+- Bereits gelöscht (Grep über `*.js`, `*.html`, `tests/`: keine Treffer): `.sd-bar`, `.sd-bar__fill`, `.sd-bar--coral`, `.sd-bar--lg`, `.sd-intro .sd-bar` und damit die letzte Nutzung von `--pct`.

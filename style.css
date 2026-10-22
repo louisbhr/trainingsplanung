@@ -598,14 +598,7 @@ select {
 .sd-intro { padding: 24px 20px 0; }
 .sd-intro--tight { padding-top: 8px; }
 .sd-intro__sub { margin: 0; font-size: 14px; color: var(--text-secondary); }
-.sd-intro .sd-bar { margin-top: 18px; }
 .sd-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; margin-top: 8px; font: 11.5px var(--font-mono); color: var(--text-secondary); }
-/* Balken: Breite nur über die geklemmte Custom Property --pct (0 bis 100). */
-.sd-bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
-.sd-bar__fill { display: block; height: 100%; width: calc(var(--pct, 0) * 1%); border-radius: 3px; background: var(--teal); }
-.sd-bar--coral .sd-bar__fill { background: var(--coral-accent); }
-.sd-bar--lg { height: 8px; border-radius: 4px; }
-.sd-bar--lg .sd-bar__fill { border-radius: 4px; }
 
 /* ---- Spalte und Karten ---- */
 .sd-main { display: flex; flex-direction: column; gap: 12px; padding: 20px max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left)); }
@@ -830,7 +823,8 @@ button.sd-set { cursor: pointer; }
 
 /* ---- Lauf: Vergleich ---- */
 .sd-compare { gap: 20px; padding: 22px 20px; }
-.sd-compare__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px 12px; }
+.sd-compare__top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 12px; }
+.sd-compare__top > :first-child { flex: 1 1 auto; min-width: 0; }
 .sd-bigkm { margin: 0; font-size: 44px; font-size: clamp(40px, 12.4cqi, 48px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
 .sd-bigkm .sd-unit { font-size: 18px; margin-left: 6px; }
 .sd-compare__sub { margin: 8px 0 0; font-size: 13.5px; color: var(--text-secondary); }
@@ -842,10 +836,18 @@ button.sd-set { cursor: pointer; }
 .sd-range__value.is-warn { color: var(--amber); }
 .sd-range__track { position: relative; height: 22px; }
 .sd-range__track::before { content: ""; position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px; background: var(--sunk); }
-/* Band und Marker laufen nur über die geklemmten Custom Properties --from/--to/--at. */
-.sd-range__band { position: absolute; top: 8px; height: 6px; border-radius: 3px; background: var(--ok-band); left: calc(var(--from, 0) * 1%); width: calc((var(--to, 0) - var(--from, 0)) * 1%); }
-.sd-range__mark { position: absolute; top: 2px; left: calc(var(--at, 0) * 1%); width: 4px; height: 18px; margin-left: -2px; border-radius: 2px; background: var(--text-primary); box-shadow: 0 0 0 2px var(--card); }
-.sd-range__axis { display: flex; justify-content: space-between; gap: 2px 8px; flex-wrap: wrap; font: 10.5px var(--font-mono); color: var(--text-muted); }
+/* Band und Marker sind Inline-SVG (E6, Auflage C5): Lage und Breite stehen als Zahlen-
+   Attribute (x, width, x1, x2) im Markup, nie in style. Details im Abschnitt "Lauf-Tag (E6)". */
+.sd-range__band { position: absolute; left: 0; top: 8px; display: block; width: 100%; height: 6px; border-radius: 3px; overflow: hidden; }
+.sd-range__band rect { fill: var(--ok-band); }
+.sd-range__mark { position: absolute; left: 0; top: 2px; display: block; width: 100%; height: 18px; overflow: visible; pointer-events: none; }
+.sd-range__mark line { vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.sd-range__halo { stroke: var(--card); stroke-width: 8; }
+.sd-range__tick { stroke: var(--text-primary); stroke-width: 4; }
+/* Mitte (Zielangabe) sitzt wirklich mittig, egal wie breit Min und Max sind. */
+.sd-range__axis { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0 8px; font: 10.5px var(--font-mono); color: var(--text-muted); }
+.sd-range__axis > :nth-child(2) { text-align: center; overflow-wrap: anywhere; }
+.sd-range__axis > :last-child { text-align: right; }
 .sd-range__note { margin: 0; font-size: 12px; line-height: 1.4; color: var(--text-muted); }
 .sd-linkrow { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 16px 20px; border: 0; border-radius: 22px; background: var(--card); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .sd-linkrow__main { flex: 1; min-width: 0; }
@@ -1152,6 +1154,73 @@ button.sd-set:active { background: color-mix(in srgb, var(--bg) 92%, var(--text-
 
 /* ---- Anpassen-Modus ---- */
 .sd-edit__form .sd-actions { align-items: center; }
+
+/* =====================================================================
+   Lauf-Tag (E6), Variante B "Vergleich". Bausteine (sd-compare, sd-bigkm, sd-range*,
+   sd-linkrow*, sd-planhint*, sd-option*, sd-radio, sd-sheet__*) stehen im E0/E1-Teil
+   oben (Mockup L1 bis L5). Hier: Titel-Korrektur, Balken, Zustände, Sheet-Feinschliff.
+   Markup: docs/ui-markup-stride.md, Abschnitt 12. Kein style= (C5):
+   - Distanzbalken: <progress class="sd-prog sd-prog--lg" value max>
+   - Range-Balken: Inline-SVG, Lage nur über Zahlen-Attribute (x, width, x1, x2)
+   ===================================================================== */
+
+/* ---- Kopf: Titel in Display-Größe ----
+   `.sd-pagehead h1` (24px, Alt-Kopf) schlägt `.sd-display` in der Spezifität. Im Tageskopf
+   gilt darum die Display-Größe ausdrücklich (gilt auch für den Anpassen-Titel im Kraft-Tag). */
+.sd-daytitle .sd-display { font-size: 30px; font-size: clamp(26px, 7.7cqi, 30px); letter-spacing: -0.03em; line-height: 1.1; }
+.sd-daytitle .sd-target { overflow-wrap: anywhere; }
+
+/* ---- Distanzbalken: 8px, Kategoriefarbe ---- */
+.sd-prog--lg { height: 8px; border-radius: 4px; }
+.sd-prog--lg::-webkit-progress-bar, .sd-prog--lg::-webkit-progress-value { border-radius: 4px; }
+.sd-prog--lg::-moz-progress-bar { border-radius: 4px; }
+.sd-prog--purple { --prog-fill: var(--purple); }
+
+/* ---- Vergleichs-Karte ---- */
+/* Lange Zahl ("123,4") darf nie über den Kartenrand laufen: umbrechen statt abschneiden. */
+.sd-bigkm { max-width: 100%; overflow-wrap: anywhere; }
+.sd-bigkm .sd-unit { letter-spacing: 0; }
+
+/* Wert mit Ampel-Form: Farbe trägt den Status nicht allein (Form + Screenreader-Wort). */
+.sd-range__value { display: inline-flex; align-items: center; gap: 6px; }
+/* Zeilen ohne Balken (freies Ziel) rücken enger zusammen als Zeilen mit Balken. */
+.sd-compare > .sd-range--plain + .sd-range--plain { margin-top: -8px; }
+.sd-compare > .sd-range + .sd-range__note { margin-top: -8px; }
+.sd-range__note { text-wrap: pretty; }
+
+/* ---- Strava-Zeile: Zustände ---- */
+.sd-linkrow:active { background: color-mix(in srgb, var(--card) 94%, var(--text-primary)); }
+@media (hover: hover) {
+  .sd-linkrow:hover { background: color-mix(in srgb, var(--card) 96%, var(--text-primary)); }
+}
+@container (max-width: 340px) {
+  .sd-linkrow { gap: 10px; padding-inline: 16px; }
+}
+
+/* ---- Hinweis aus dem Plan ---- */
+.sd-planhint__text { text-wrap: pretty; overflow-wrap: anywhere; }
+
+/* ---- Zustandskarten (Zukunft, verpasst, Strava fehlt, ignoriert) ---- */
+.sd-card--center .sd-card__text { max-width: 34ch; text-wrap: balance; }
+
+/* ---- Ladezustand der Vergleichs-Karte ---- */
+.sd-skel--km { width: 45%; height: 44px; border-radius: 10px; }
+.sd-skel--bar { width: 100%; height: 8px; border-radius: 4px; }
+
+/* ---- Zuordnungs-Sheet ---- */
+/* Text-Buttons unter der Liste: der Text fluchtet mit den Listenkanten statt 12px eingerückt. */
+.sd-sheet__tools { margin-inline: -12px; }
+.sd-sheet__tools .sd-btn--text { padding-inline: 12px; }
+button.sd-option:active { background: color-mix(in srgb, var(--bg) 92%, var(--text-primary)); }
+button.sd-option.is-selected:active { background: var(--teal-tint); }
+@media (hover: hover) {
+  button.sd-option:not(.is-selected):hover { background: color-mix(in srgb, var(--bg) 94%, var(--text-primary)); }
+}
+/* Läufe, die zu einem anderen Tag gehören: Inhalt auf 50 %, der Grund ("gehört schon zu …")
+   bleibt in voller Lesbarkeit, weil er die einzige Erklärung ist. */
+.sd-option[aria-disabled="true"] { opacity: 1; }
+.sd-option[aria-disabled="true"] :is(.sd-radio, .sd-option__name, .sd-option__sub) { opacity: 0.5; }
+.sd-option__why { display: block; margin-top: 3px; font-size: 12.5px; color: var(--text-secondary); }
 
 /* Bewegung nur dort, wo sie etwas erklärt, und abschaltbar */
 @media (prefers-reduced-motion: reduce) {

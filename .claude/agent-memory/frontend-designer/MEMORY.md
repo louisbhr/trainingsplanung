@@ -9,4 +9,5 @@
 - [Stride E0 decisions](project_stride_e0_decisions.md) — sd- class prefix, stepper unit below value + wrap at 320, template-cloned mockup, cq-unit pitfall with fixed tab bar
 - [Stride E3 Heute decisions](project_stride_e3_heute.md) — <progress> instead of style=--pct (C5), empty-slot :empty rule, week-strip circle sizes by container query
 - [Stride E5 Kraft-Tag decisions](project_stride_e5_kraft_tag.md) — E5 mostly CSS-already-ported; asymmetric dots hit area, .sd-order overflow, sd-card--done, deleted E4 classes
+- [Stride E6 Lauf-Tag decisions](project_stride_e6_lauf_tag.md) — range bars = inline SVG w/ number attrs (no style), h1 specificity trap, mockup deviations
 - [Oct 3 spacing-pass bug patterns](feedback_spacing_pass_oct03.md) — small icon-button padding inheritance collapses content box, async-slot wrapper divs eat parent flex gap, 3-child space-between makes a "column" float/jump
