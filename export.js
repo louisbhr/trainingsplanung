@@ -3,7 +3,7 @@
 // bewusst rein (keine Firebase-/Strava-Importe), damit es ohne Browser
 // testbar ist; das Laden der Daten und das Teilen/Herunterladen steht in
 // app.js.
-import { toISO } from "./plan.js?v=202610220932";
+import { toISO } from "./plan.js?v=202610221024";
 
 // Der Export beginnt mit dem Jahr, in dem das Training begann.
 export const EXPORT_SINCE = "2026-01-01";

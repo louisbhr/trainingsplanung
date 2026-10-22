@@ -8,8 +8,8 @@
 // Die Tageszeile ist ein Akkordeon: der Zeilen-Button klappt die Details auf,
 // "Tag öffnen" (eigener Button im Detail, keine verschachtelten Buttons) führt
 // in die Tagesansicht.
-import { formatKm } from "./metrics.js?v=202610220932";
-import { esc, checkCircle, ringOpen, pill, numAttr, MONTHS_DE } from "./ui.js?v=202610220932";
+import { formatKm } from "./metrics.js?v=202610221024";
+import { esc, checkCircle, ringOpen, pill, numAttr, MONTHS_DE } from "./ui.js?v=202610221024";
 
 const I_CHEV_L20 = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
 const I_CHEV_R20 = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';

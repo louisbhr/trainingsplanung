@@ -42,7 +42,9 @@ const MODULES = [
   "ui.js",
   "view-account.js",
   "view-dashboard.js",
+  "view-history.js",
   "view-kraft.js",
+  "view-plan.js",
   "view-run.js",
   "view-week.js",
 ];

@@ -6,12 +6,12 @@
 // Inline-SVG mit Zahlen-Attributen (Auflage C5, Entscheid E6). Alle Klassen
 // kommen aus style.css, das Markup steht in docs/ui-markup-stride.md, Abschnitt 12.
 // Fremde Texte (Plan, Laufname, Fehlermeldung) laufen immer durch esc().
-import { formatKm1 } from "./metrics.js?v=202610220932";
-import { esc, pill, numAttr, dayNameDE, shortDate } from "./ui.js?v=202610220932";
+import { formatKm1 } from "./metrics.js?v=202610221024";
+import { esc, pill, numAttr, dayNameDE, shortDate } from "./ui.js?v=202610221024";
 import {
   parseTarget, rangeScale, rangeBar, distanceStatus, paceStatus, hrStatus,
-} from "./runcompare.js?v=202610220932";
-import { daysBetween, pickableRuns, PICKER_WINDOW } from "./runmatch.js?v=202610220932";
+} from "./runcompare.js?v=202610221024";
+import { daysBetween, pickableRuns, PICKER_WINDOW } from "./runmatch.js?v=202610221024";
 
 const I_CHEV_L = '<svg class="sd-icon sd-icon--20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
 const I_CHEV_R = '<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';

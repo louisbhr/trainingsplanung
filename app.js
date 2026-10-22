@@ -3,39 +3,41 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf, phaseRange,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog, formatGoal,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610220932";
-import { loadPlans } from "./plan-store.js?v=202610220932";
+} from "./plan.js?v=202610221024";
+import { loadPlans } from "./plan-store.js?v=202610221024";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites,
-} from "./firebase-init.js?v=202610220932";
+} from "./firebase-init.js?v=202610221024";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
-  formatPace, formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport,
-} from "./strava.js?v=202610220932";
-import { previousEntry, progressionChip } from "./progression.js?v=202610220932";
+  formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport, lastFetchedAt,
+} from "./strava.js?v=202610221024";
+import { previousEntry, progressionChip } from "./progression.js?v=202610221024";
 import {
   exerciseMode, startSets, lastTimeText, applyWeightForward, initialFocus, nextOpenExercise,
   stepValue, buildLogPayload, MAX_VALUE,
   draftKey, serializeDraft, parseDraft, staleDraftKeys, dropSavedFromDraft,
-} from "./kraftflow.js?v=202610220932";
-import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610220932";
-import { distanceStatus, hrStatus } from "./runcompare.js?v=202610220932";
-import { esc, ICONS, badge, brandHeadHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet, createSheet } from "./ui.js?v=202610220932";
-import * as dash from "./view-dashboard.js?v=202610220932";
-import * as dashWeek from "./view-week.js?v=202610220932";
-import * as kraftView from "./view-kraft.js?v=202610220932";
-import * as runView from "./view-run.js?v=202610220932";
-import * as metrics from "./metrics.js?v=202610220932";
-import * as coach from "./coach.js?v=202610220932";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610220932";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610220932";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountCard, renderExportCard } from "./view-account.js?v=202610220932";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610220932";
+} from "./kraftflow.js?v=202610221024";
+import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610221024";
+import { distanceStatus, hrStatus } from "./runcompare.js?v=202610221024";
+import { esc, ICONS, badge, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet, createSheet } from "./ui.js?v=202610221024";
+import * as dash from "./view-dashboard.js?v=202610221024";
+import * as dashWeek from "./view-week.js?v=202610221024";
+import * as kraftView from "./view-kraft.js?v=202610221024";
+import * as runView from "./view-run.js?v=202610221024";
+import * as historyView from "./view-history.js?v=202610221024";
+import * as planView from "./view-plan.js?v=202610221024";
+import * as metrics from "./metrics.js?v=202610221024";
+import * as coach from "./coach.js?v=202610221024";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610221024";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610221024";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderAccountSection } from "./view-account.js?v=202610221024";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610221024";
 
-const INFO_CONTENT = dash.infoContent(THRESHOLDS);
+const INFO_CONTENT = { ...dash.infoContent(THRESHOLDS), ...historyView.infoContent() };
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die
 // eigentliche Konstante steht im Worker; ein Auseinanderlaufen ist
 // unkritisch, das Feld dient nur der späteren Auswertung/Migration.
@@ -91,7 +93,7 @@ const state = {
   weekNo: 1, // richtiger Wert kommt aus init(), sobald der Plan geladen ist
   openDayIndex: null, // offene Zeile im Wochen-Tab (0..6), höchstens eine; null = alle zu
   selectedDate: null,
-  historyMode: "kraft",
+  historyMode: "lauf", // Verlauf startet auf Lauf (Handoff 5.5)
   historyExercise: null,
   bilanzExpanded: false, // Wochenbilanz Di–So: eingeklappt, per Tap aufklappbar (Mo startet automatisch offen)
 };
@@ -881,11 +883,6 @@ function renderDashboard() {
 function syncTabbar() {
   document.querySelectorAll("#tabbar button").forEach((b) =>
     b.classList.toggle("active", b.dataset.tab === state.tab));
-}
-
-// Kopfbereich der vier Tab-Seiten: Marke + Wortmarke, danach der Seiteninhalt.
-function setTabHeader(html) {
-  setPageHead(brandHeadHTML() + html);
 }
 
 // Detailseiten (Kraft-Tag, Lauf-Tag) blenden die schwebende Tableiste aus
@@ -1988,214 +1985,109 @@ async function renderWeek() {
   weekFocusAction = null;
 }
 
-// ---------- Verlauf ----------
+// ---------- Verlauf (Stride E7) ----------
+// Kopf und Segment stehen sofort, nur #hist-slot lädt nach (view-history.js). histGen
+// verwirft späte Antworten einer alten Anzeige, z. B. nach schnellem Moduswechsel.
+let histGen = 0;
+
+const exerciseChips = () => exerciseCatalog(plans[0]).map((e) => ({ name: e.name, slug: slug(e.name) }));
+
 async function renderHistory() {
-  const m = state.historyMode;
-  setTabHeader(`<div class="title-row"><h1>Verlauf</h1>
-    <div class="seg">
-      <button data-action="hist-mode" data-mode="kraft" class="${m === "kraft" ? "on" : ""}">Kraft</button>
-      <button data-action="hist-mode" data-mode="lauf" class="${m === "lauf" ? "on" : ""}">Lauf</button>
-    </div></div>`);
-  renderMain(loadingCard());
-  if (m === "kraft") await renderKraftHistory();
-  else await renderRunHistory();
+  const gen = ++histGen;
+  const mode = state.historyMode;
+  setPageHead(historyView.headHTML({ mode, exercises: exerciseChips(), activeSlug: state.historyExercise }));
+  renderMain(historyView.pageHTML({
+    slotHTML: mode === "kraft" ? historyView.strengthLoadingHTML() : historyView.runLoadingHTML(),
+  }));
+  if (mode === "kraft") scrollActiveChipIntoView();
+
+  const html = mode === "kraft" ? await strengthHistoryHTML() : await runHistoryHTML();
+  const slot = document.getElementById("hist-slot");
+  if (gen !== histGen || !slot) return;
+  slot.innerHTML = html;
 }
 
-async function renderKraftHistory() {
-  const options = exerciseCatalog(plans[0])
-    .map((e) => `<option value="${slug(e.name)}" ${slug(e.name) === state.historyExercise ? "selected" : ""}>${esc(e.name)}</option>`)
-    .join("");
-
-  let logs = [];
-  try {
-    logs = await loadLogsForExercise(state.historyExercise);
-  } catch (err) {
-    renderMain(errorCard("Verlauf konnte nicht geladen werden: " + err.message));
-    return;
-  }
-
-  const points = logs
-    .map((l) => {
-      const sets = l.sets || [];
-      const topKg = l.topKg ?? Math.max(0, ...sets.map((s) => s.kg ?? 0));
-      const totalReps = l.totalReps ?? sets.reduce((a, s) => a + (s.reps ?? 0), 0);
-      return { date: l.date, topKg, totalReps };
-    })
-    .filter((p) => p.topKg > 0 || p.totalReps > 0)
-    .slice(-10);
-
-  const usesWeight = points.some((p) => p.topKg > 0);
-  const valueOf = (p) => (usesWeight ? p.topKg : p.totalReps);
-  const unit = usesWeight ? "kg" : "Wdh";
-
-  const picker = `<select id="ex-picker" aria-label="Übung wählen">${options}</select>`;
-
-  if (!points.length) {
-    renderMain(`${picker}<p class="center-note">Noch nichts erfasst für diese Übung.</p>`);
-    wirePicker();
-    return;
-  }
-
-  renderMain(`${picker}
-    <div class="card">
-      <p class="name">${usesWeight ? "Bestes Satzgewicht" : "Wiederholungen gesamt"}</p>
-      <p class="hint">Letzte ${points.length} Einheiten</p>
-      ${barsHTML(points.map((p) => ({ value: valueOf(p), label: shortDate(p.date), value_label: `${valueOf(p)} ${unit}` })), "var(--teal-fg)")}
-    </div>
-    <div class="card">
-      <p class="name">Einträge</p>
-      ${points.slice().reverse().map((p) => `<div class="row list-row"><span>${shortDate(p.date)}</span>
-        <span class="fg-secondary">${p.topKg > 0 ? p.topKg + " kg" : "–"} · ${p.totalReps} Wdh</span></div>`).join("")}
-    </div>`);
-  wirePicker();
+function scrollActiveChipIntoView() {
+  document.querySelector(".sd-filter__chip.is-active")?.scrollIntoView({ inline: "center", block: "nearest" });
 }
 
-function wirePicker() {
-  const sel = document.getElementById("ex-picker");
-  if (!sel) return;
-  sel.addEventListener("change", () => {
-    state.historyExercise = sel.value;
-    renderHistory();
+// Der Kopf wird bei Moduswechsel und Übungswahl neu gebaut: der Fokus geht auf den neuen
+// Schalter bzw. das neue Chip, nie auf body.
+function focusHistoryControl(selector) {
+  const el = document.querySelector(selector);
+  el?.focus({ preventScroll: true });
+  el?.scrollIntoView({ inline: "center", block: "nearest" });
+}
+
+// Läufe mit Plan-Typ und Long-Run-Kennzeichen aus der Zuordnung (Listentitel, Balkenfarbe).
+function historyRuns(runs) {
+  const byRun = new Map();
+  for (const [date, a] of Object.entries(runAssignment)) {
+    if (!a?.run) continue;
+    const info = dayInfo(date);
+    if (info.kind === "lauf") byRun.set(a.run.id, { planType: info.type, long: isLongRun(info) });
+  }
+  return (runs || []).map((r) => ({ ...r, ...(byRun.get(r.id) ?? { planType: null, long: false }) }));
+}
+
+async function runHistoryHTML() {
+  const s = await loadStrava();
+  return historyView.runSlotHTML({
+    workerConfigured: isWorkerConfigured, error: s.error, errorSource: s.errorSource, connected: s.connected,
+    runs: historyRuns(s.runs), today: todayISO(), planStart: plans[0].start, sinceISO: STRAVA_SINCE,
   });
 }
 
-async function renderRunHistory() {
-  const s = await loadStrava();
-
-  if (!isWorkerConfigured) {
-    renderMain(`<div class="card error-card"><p class="name">Strava noch nicht eingerichtet</p>
-      <p class="hint">Siehe README, Abschnitt „Strava".</p></div>`);
-    return;
+async function strengthHistoryHTML() {
+  const exSlug = state.historyExercise;
+  const name = exerciseChips().find((e) => e.slug === exSlug)?.name ?? exSlug;
+  let logs;
+  try {
+    logs = await loadLogsForExercise(exSlug);
+  } catch (err) {
+    return historyView.strengthErrorHTML(err.message);
   }
-  if (s.error) {
-    renderMain(errorCard(s.error));
-    return;
-  }
-  if (s.connected === false) {
-    renderMain(`<button class="primary-btn" data-action="connect-strava">Mit Strava verbinden</button>`);
-    return;
-  }
-  const runs = s.runs || [];
-  if (!runs.length) {
-    renderMain(`<p class="center-note">Noch keine Läufe seit ${shortDate(STRAVA_SINCE)} in Strava.</p>`);
-    return;
-  }
-
-  const last = runs.slice(-10);
-  const km7 = sumKm(runs, 7);
-  const km28 = sumKm(runs, 28);
-  const withPace = last.filter((r) => r.paceSecPerKm);
-  const avgPace = withPace.length
-    ? withPace.reduce((a, r) => a + r.paceSecPerKm, 0) / withPace.length
-    : null;
-
-  renderMain(`
-    <div class="card">
-      <div class="metric-grid">
-        <div><p class="metric-label">Letzte 7 Tage</p><p class="metric-value">${metrics.formatKm1(km7)} km</p></div>
-        <div><p class="metric-label">Letzte 28 Tage</p><p class="metric-value">${metrics.formatKm1(km28)} km</p></div>
-        <div><p class="metric-label">Ø Pace (${withPace.length} ${withPace.length === 1 ? "Lauf" : "Läufe"})</p><p class="metric-value sm">${esc(formatPace(avgPace))}</p></div>
-        <div><p class="metric-label">Läufe gesamt</p><p class="metric-value">${runs.length}</p></div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="name">Distanz je Lauf</p>
-      <p class="hint">Label = Pace</p>
-      ${barsHTML(last.map((r) => ({ value: r.distanceKm, label: esc(r.paceLabel.replace(" /km", "")), value_label: metrics.formatKm1(r.distanceKm) + " km" })), "var(--coral-fg)")}
-    </div>
-    <div class="card">
-      <p class="name">Läufe</p>
-      ${last.slice().reverse().map((r) => `<div class="row list-row"><span>${shortDate(r.date)} ${esc(r.name)}</span>
-        <span class="fg-secondary">${metrics.formatKm1(r.distanceKm)} km · ${esc(r.paceLabel)}</span></div>`).join("")}
-    </div>`);
+  return historyView.strengthSlotHTML({ name, slug: exSlug, logs, plan: plans[0], today: todayISO() });
 }
 
-function sumKm(runs, days) {
-  const today = todayISO();
-  const cutoff = addDays(today, -days + 1);
-  // Obergrenze heute: ein Lauf mit Datum in der Zukunft (Zeitzone, manuell
-  // in Strava nachgetragen) gehört nicht in „die letzten 7 Tage".
-  return runs.filter((r) => r.date >= cutoff && r.date <= today).reduce((a, r) => a + r.distanceKm, 0);
+// ---------- Plan (Stride E7) ----------
+// Der Plan-Tab zeigt den (einzigen) Plan der Registry; Markup in view-plan.js, das Konto
+// in view-account.js. Der Strava-Status im Konto lädt bei Bedarf nach und patcht nur die Karte.
+function accountSectionHTML() {
+  return renderAccountSection({
+    email: currentUser.email,
+    strava: {
+      workerConfigured: isWorkerConfigured, connected: stravaState.connected, error: stravaState.error,
+      fetchedAt: lastFetchedAt(), now: Date.now(),
+    },
+  });
 }
 
-// Balken mit echten Höhen — Werte werden auf 8..90 px abgebildet.
-function barsHTML(points, color) {
-  const max = Math.max(...points.map((p) => p.value), 0);
-  if (max <= 0) return `<p class="center-note">Keine Werte.</p>`;
-  return `<div class="bars">
-    ${points.map((p) => {
-      const h = Math.max(8, Math.round((p.value / max) * 90));
-      return `<div class="bar-col" title="${esc(p.value_label)}">
-        <span class="bar-value">${esc(p.value_label)}</span>
-        <div class="bar" style="height:${h}px;background:${color}"></div>
-        <span class="bar-label">${p.label}</span>
-      </div>`;
-    }).join("")}
-  </div>`;
+function paintPlanAccount() {
+  const card = document.querySelector('#main [data-card="account"]');
+  if (!card || !currentUser || card.contains(document.activeElement)) return;
+  const tpl = document.createElement("template");
+  tpl.innerHTML = accountSectionHTML();
+  card.replaceWith(tpl.content.querySelector('[data-card="account"]'));
 }
 
-// ---------- Plan ----------
-// Wie beim Wochen-Tab: der Plan-Tab bleibt in Schritt 1 unverändert und
-// zeigt deshalb den (einzigen) Plan der Registry.
 function renderPlan() {
   const plan = plans[0];
   const today = todayISO();
-  // Heute liegt praktisch immer in einer Planwoche; außerhalb (I3: vor dem
-  // Start Woche 1/0%, nach der letzten Planwoche "fertig") stürzt der
-  // Fortschrittsbalken trotzdem nicht ab.
-  const w = weekNumberFor(plan, today) ?? (today < plan.start ? 1 : plan.totalWeeks);
-  const done = Math.max(0, w - 1);
-  const pct = Math.round((done / plan.totalWeeks) * 100);
-  const displayGoal = formatGoal(plan.goal);
+  // Heute liegt praktisch immer in einer Planwoche; außerhalb (I3: vor dem Start
+  // Woche 1/0 %, nach der letzten Planwoche "fertig") stürzt die Anzeige trotzdem nicht ab.
+  const inWeek = weekNumberFor(plan, today);
+  const w = inWeek ?? (today < plan.start ? 1 : plan.totalWeeks);
+  const status = inWeek != null ? "in" : today < plan.start ? "before" : "after";
+  const pct = Math.round((Math.max(0, w - 1) / plan.totalWeeks) * 100);
 
-  setTabHeader(`<h1>Trainingsplan</h1>
-    <p class="eyebrow mt-2">Woche ${w} von ${plan.totalWeeks} · ${pct}% geschafft</p>`);
-
-  renderMain(`
-    <div class="card goal-card">
-      <p class="metric-label">Ziel</p>
-      <p class="goal-time">${esc(displayGoal.time)}</p>
-      <p class="hint mt-4">${esc(displayGoal.race)} · Renntempo ${esc(plan.goal.targetPace)}</p>
-      <div class="timeline">
-        ${plan.phases.map((p) => {
-          const len = p.weeks.to - p.weeks.from + 1;
-          // Anteil dieser Phase, der schon hinter dir liegt
-          const fill = w > p.weeks.to ? 100 : w < p.weeks.from ? 0 : ((w - p.weeks.from + 1) / len) * 100;
-          return `<div class="seg tone-${p.tone}" style="flex:${len}" title="Phase ${p.n}"><i style="width:${fill}%"></i></div>`;
-        }).join("")}
-      </div>
-      <div class="timeline-marker"><span>${shortDate(plan.start)}</span><span>Wettkampf</span></div>
-      <div class="timeline-legend">
-        ${plan.phases.map((p) => `<span class="tone-${p.tone}"><i></i>${esc(p.name)}</span>`).join("")}
-      </div>
-    </div>
-
-    ${plan.phases.map((p) => {
-      const current = w >= p.weeks.from && w <= p.weeks.to;
-      return `<div class="phase-card tone-${p.tone}${current ? " is-current" : ""}">
-        <div class="phase-head">
-          <p class="name">Phase ${p.n} – ${esc(p.name)}</p>
-          <span class="phase-weeks">W${p.weeks.from}–${p.weeks.to}</span>
-        </div>
-        <p class="hint mt-2">${esc(phaseRange(plan, p))}</p>
-        <p class="hint mt-4">${esc(p.focus)}${current ? " · läuft gerade" : ""}</p>
-      </div>`;
-    }).join("")}
-
-    <div class="card">
-      <p class="name">Trainingsbereiche</p>
-      ${plan.zones.map((z) => {
-        const [tag, label] = z.zone.split(" – ");
-        return `<div class="zone-line tone-${z.tone}">
-          <span class="zone-chip">${esc(tag)}</span>
-          <span class="zname">${esc(label)}<br><span class="fg-muted fs-11">${esc(z.use)}</span></span>
-          <span class="zvals">${esc(z.hf)} bpm<br>${esc(z.pace)}</span>
-        </div>`;
-      }).join("")}
-    </div>
-
-    ${currentUser ? renderExportCard() : ""}
-    ${currentUser ? renderAccountCard(currentUser) : ""}`);
+  setPageHead(planView.headHTML({ week: w, totalWeeks: plan.totalWeeks, pct }));
+  renderMain(planView.pageHTML({
+    plan, week: w, status, accountHTML: currentUser ? accountSectionHTML() : "",
+  }));
+  if (currentUser && isWorkerConfigured && stravaState.connected === null && !stravaState.error) {
+    loadStrava().then(() => { if (state.tab === "plan") paintPlanAccount(); });
+  }
 }
 
 // ---------- Interaktion ----------
@@ -2253,7 +2145,16 @@ document.getElementById("app").addEventListener("click", async (e) => {
   if (action === "reopen-set") return kraftReopenSet(Number(target.dataset.set));
   if (action === "next-exercise") return kraftNextExercise(target.dataset.slug);
   if (action === "finish-session") return kraftFinishSession();
-  if (action === "hist-mode") { state.historyMode = target.dataset.mode; return render(); }
+  if (action === "hist-mode") {
+    state.historyMode = target.dataset.mode;
+    render();
+    return focusHistoryControl(`[data-action="hist-mode"][data-mode="${state.historyMode}"]`);
+  }
+  if (action === "pick-exercise") {
+    state.historyExercise = target.dataset.slug;
+    render();
+    return focusHistoryControl(`[data-action="pick-exercise"][data-slug="${CSS.escape(state.historyExercise)}"]`);
+  }
   if (action === "connect-strava") return startAuthorization();
   if (action === "pick-run") return openAssignSheet(target.dataset.date, target);
   if (action === "assign-run") return chooseRun(target);
@@ -2351,11 +2252,13 @@ async function handleAnonymousSession() {
   showLogin();
 }
 
-function setAccountStatus(text) {
+// tone "danger" färbt den Hinweis, sonst bleibt er ruhig (Markup 14.5).
+function setAccountStatus(text, tone = "") {
   const el = document.getElementById("account-status");
   if (!el) return;
   el.textContent = text;
   el.hidden = !text;
+  el.className = "sd-notice " + (tone === "danger" ? "sd-notice--danger" : "sd-notice--quiet");
 }
 
 // "Abmelden" im Plan-Tab räumt das Gerät (E4). Offene Einträge: abbrechen,
@@ -2367,13 +2270,13 @@ async function logout(btn) {
   try {
     res = await signOutAndWipeDevice();
     if (!res.ok) {
-      setAccountStatus("Es gibt noch nicht übertragene Einträge. Bitte mit Netz noch einmal versuchen.");
+      setAccountStatus("Abmelden abgebrochen. Es gibt noch nicht übertragene Einträge. Bitte mit Netz erneut versuchen.", "danger");
       btn.disabled = false;
       return;
     }
   } catch (err) {
     console.error(err);
-    setAccountStatus("Abmelden fehlgeschlagen: " + err.message);
+    setAccountStatus("Abmelden fehlgeschlagen: " + err.message, "danger");
     btn.disabled = false;
     return;
   }
@@ -2383,11 +2286,13 @@ async function logout(btn) {
   location.reload();
 }
 
-function setExportStatus(text) {
+// tone "warn" (unvollständig) oder "danger" (Fehler); ohne tone neutral (Markup 14.5).
+function setExportStatus(text, tone = "") {
   const el = document.getElementById("export-status");
   if (!el) return;
   el.textContent = text;
   el.hidden = !text;
+  el.className = "sd-split__hint sd-split__status" + (tone ? " is-" + tone : "");
 }
 
 // Führt einen Teil des Exports aus. Scheitert er, wird der Grund als Warnung
@@ -2469,12 +2374,12 @@ async function exportData(btn) {
     const file = new File([serializeExport(data)], exportFileName(now), { type: "application/json" });
     setExportStatus("Datei wird erstellt …");
     const delivered = await deliverExportFile(file);
-    setExportStatus(delivered
-      ? (warnings.length ? "Exportiert, aber unvollständig: " + warnings.join(" ") : "Export fertig.")
-      : "");
+    if (!delivered) setExportStatus("");
+    else if (warnings.length) setExportStatus("Exportiert, aber unvollständig: " + warnings.join(" "), "warn");
+    else setExportStatus("Export fertig.");
   } catch (err) {
     console.error(err);
-    setExportStatus("Export fehlgeschlagen: " + err.message);
+    setExportStatus("Export fehlgeschlagen: " + err.message, "danger");
     toast("Export fehlgeschlagen: " + err.message, true);
   } finally {
     btn.disabled = false;

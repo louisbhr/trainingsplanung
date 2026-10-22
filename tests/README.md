@@ -8,7 +8,7 @@ npm install            # http-server + playwright
 npx playwright install chromium
 
 npm run serve          # in einem zweiten Terminal: Server auf :8099
-npm test               # 18 Läufe: Logik-/Worker-Tests ohne Browser, dann Browser-Tests
+npm test               # 19 Läufe: Logik-/Worker-Tests ohne Browser, dann Browser-Tests
 ```
 
 - `plan.test.mjs` — prüft `plans/hm-2027.json` direkt (Struktur, lückenlose
@@ -57,6 +57,13 @@ npm test               # 18 Läufe: Logik-/Worker-Tests ohne Browser, dann Brows
   nur Pace oder nur HF ohne Zielband, Marker ohne Messwert/geklemmt, `esc()`,
   Rangfolge der Zustände, `pickerOptions` (gesperrte Läufe mit `takenBy`),
   Sheet-Körper (`Automatik zurück`, `Neu laden` gesperrt).
+- `view-history.test.mjs` — Verlauf, Plan und Konto (E7) ohne Browser: Balken-Geometrie (y + height
+  endet nach dem Runden genau auf Grundlinie + 5, Mindesthöhe 4, leere Plätze), Ausdünnen der Achse
+  (n = 10, 11, 35; aktuelle Woche beschriftet), `runStats` (Läufe ab Planstart statt ab Strava-Fenster),
+  Zustandsreihenfolge und `esc()` im Lauf-Slot, Trend (+, −, unverändert, ein Wert), Einheit Wdh,
+  Phasenbalken (Breiten, Lücken, Füllung vor/in/nach dem Plan), Ziel-Karte mit offenem Renndatum,
+  `syncText`, Strava-Zeile in allen Zuständen, Konto-Abschnitt (E-Mail escaped, keine UID), Quelltext-
+  Wächter (kein `style=`, kein Firebase/Strava-Import, kein Gedankenstrich).
 - `app.test.mjs` — startet Chromium gegen `http://127.0.0.1:8099`.
   Firebase wird durch einen localStorage-Stub ersetzt, die Strava-API
   durch feste Beispieldaten — es werden also keine echten Konten
@@ -83,7 +90,7 @@ druckt am Ende „Checks je Szenario“ (`scenario("…")` steht in der ersten Z
 kein Szenario verschwindet, keine Absicht fällt weg. Aufgefüllt wird nicht, um eine Zahl zu halten.
 
 Baseline: der Plan nennt 336 Checks; gemessen am Merge-Base `a6e6c4b` waren es **390** (Login und
-Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nach dem Kopf-Umbau (Seitenkopf scrollt mit, +6 in Szenario 12) 447, nach E4 (Woche) 491, nach E5a (Kraft-Tag B „Fokus“) 614, nach E5b (V2-Entwurf) 659, nach E6 (Lauf-Tag B „Vergleich“) **750**.
+Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nach dem Kopf-Umbau (Seitenkopf scrollt mit, +6 in Szenario 12) 447, nach E4 (Woche) 491, nach E5a (Kraft-Tag B „Fokus“) 614, nach E5b (V2-Entwurf) 659, nach E6 (Lauf-Tag B „Vergleich“) 750, nach E7 (Verlauf + Plan) **838**.
 
 | Szenario | Prüfabsichten | a6e6c4b | E2 | E3 | Etappe |
 | --- | --- | --- | --- | --- | --- |
@@ -156,7 +163,22 @@ Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nac
 | 38f (neu) | „Neu laden“ im Sheet: Knopf gesperrt mit `aria-busy`, Beschriftung bleibt, Sheet bleibt offen, Slot dahinter ohne Platzhalter; neuer Lauf erscheint, Titel bleibt, Fokus bleibt auf „Neu laden“ | – | – | – → 3 | E6 |
 | 38h (neu) | Zwei Sheets (C6): Info → Zuordnung und Zuordnung → Info direkt nacheinander (sofort hidden, Fokus auf den Titel des neuen), nach der Ausblendzeit bleibt das neue offen; Escape + sofort anderes Sheet in beide Richtungen (kein alter Timer versteckt es); ein Escape-Handler mit Fokus zum jeweils eigenen Auslöser; Seitenwechsel bei offenem Sheet schließt sofort | – | – | – → 10 | E6 |
 | 38i (neu) | Quelltext-Wächter: `view-run.js` ohne `style=`, Custom Property und Gedankenstrich; `app.js` ohne alte Lauf-Klassen, `close-picker`, Em-Dash-Satz; Sheet über `createSheet`, `view-run.js` ohne Firebase/Strava-Import | – | – | – → 4 | E6 |
-| übrige (5–8, 15, 17–19b, 23, 24, 26, 27, 29–33) | unverändert; nur Selektoren auf Heute angepasst (27, 23, 30b); 29 hat keinen Kraft-Tag-Teil mehr (seit E3 nur Ampel und Banner) | – | – | – | – |
+| 5 | Verlauf: startet jetzt auf Lauf (Segment `aria-pressed`), Lauf-Balken (`[data-card="run-chart"] .sd-chart__bar`, Höhen aus den Rect-Attributen), 7-Tage-Kachel `[data-tile="km7"]` 29,1; Kraft über Segment, Balken `strength-best`, `80 kg` in der Liste, Chip statt `#ex-picker` zeigt „Noch nichts erfasst“. **Neu:** „startet im Modus Lauf“ | 10 | 10 | 10 → 11 | E7 |
+| 6 | Plan auf neue Haken: `.sd-intro__sub`, `.sd-phase(.is-current)`, `.sd-zone`, `.sd-phasebar__seg`/`__fill`, Farbe über `.sd-phase__num` statt `.phase-card`; Anzahlen und Texte unverändert | 11 | 11 | 11 → 11 | E7 |
+| 12 (Kopf) | Verlauf und Plan wie Woche: Titelzeile `.sd-tabhead` ohne Markenzeile (Markup 13.0/14.0); die Prüfung „Stride-Zeichen 28 px“ gilt nur noch für Heute | 19 | 19 | 19 → 19 | E7 |
+| 15, 16 | `#main .goal-card` → `[data-card="goal"]`; „Glas“: Inhalt läuft unter der Leiste durch, geprüft an mehreren Scrollstellen und an `.sd-card`; 16 wartet auf den Verlauf-Slot statt auf `#ex-picker` | 8, 10 | 8, 10 | 8, 10 | E7 |
+| 16 (Sicherheitsabstand) | Messpunkte der neuen Köpfe: oben `.sd-pagehead` ≥ 8 px (vorher 16, 8 + env), seitlich `.sd-main` ≥ 12 px (vorher #main 20). Absicht unverändert: `env(safe-area-inset-*)` wird berücksichtigt | 2 | 2 | 2 → 2 | E7 |
+| 21, 22, 24p | `.zone-line` → `.sd-zone`; „0% geschafft“ → „0 %“ mit geschütztem Leerzeichen (U+00A0); 24p „Halbmarathon, 02.05.2027“ → Ziel-Karte „Renntag 02.05.2027“, `.timeline .seg` → `.sd-phasebar__seg`. **Neu in 22:** vor Planstart keine laufende Phase, nichts im Phasenbalken gefüllt | 4 (22) | 4 | 4 → 5 (22) | E7 |
+| 30f, 30g | `.account-card` → `[data-card="account"]`; UID steht nicht mehr auf dem Plan-Tab (Prüfung dreht sich: E-Mail ja, UID nein). **Neu:** „Abmelden abgebrochen“ als Gefahren-Hinweis mit dem Mockup-Text | 11, 3 | 11, 3 | 11 → 12, 3 | E7 |
+| 33 | `.export-card` → Bereich `[data-card="account"]`. **Neu:** Status „unvollständig“ in Warnfarbe (`is-warn`), „fertig“ ohne Tonklasse | 22 | 22 | 22 → 24 | E7 |
+| 39a (neu) | Verlauf Lauf: Segment als Gruppe (Lauf, Kraft), vier Kacheln in fester Reihenfolge, „Läufe seit 31.08.“ zählt nur Läufe ab Planstart (Fixture mit Lauf vom 20.08.), Ø Pace m:ss, Rect-Attribute Zahlen im viewBox, Label-Anzahl = Balkenanzahl (Tag des Monats), Long Run + Legende, Text-Alternative, Liste neueste zuerst, Plan-Typ statt Strava-Name, HTML im Namen bleibt Text, (i) öffnet das Info-Sheet, kein H-Scroll bei 390/320/1280, Segment schaltet mit `aria-pressed` und Fokus | – | – | – → 21 | E7 |
+| 39b (neu) | Verlauf Lauf, Zustände: nicht verbunden (eine Primär-Schaltfläche), keine Läufe (Suchfenster ab 27.07.), Abruffehler (Strava-Karte, zwei Aktionen), Worker fehlt (ohne Aktion) | – | – | – → 5 | E7 |
+| 39c (neu) | Verlauf Kraft: Chips als Gruppe, Chip-Wechsel (aria-pressed, Fokus, Diagramm ändert sich), Wochenbalken mit leerer Woche, Achse eine Spanne je Woche, aktuelle Woche `is-current`, Deload-Balken markiert (Klasse, Tooltip, Legende, Text-Alternative), Trend „+10 kg seit W1“, große Zahl, Liste mit „Woche 4 · Entlastung“, (i) am Trend, Übung ohne Gewicht (Wdh, „+4 Wdh seit W2“, keine Deload-Legende), ein Wert = kein Trend, leere Übung, kein H-Scroll | – | – | – → 21 | E7 |
+| 39d (neu) | 35 Wochen: 35 Achsen-Plätze, Labels W3, W7, …, W35 (Ausdünnen vom neuesten Platz), aktuelle Woche beschriftet, höchstens 3 Zeichen, kein H-Scroll bei 320 px | – | – | – → 6 | E7 |
+| 40a (neu) | Plan in Woche 10: Kopfzeile mit U+00A0, Ziel-Karte, Phasenbalken (Breiten proportional 8:12:13:2, Lücke 3, Phase 1 ganz gefüllt, Phase 2 anteilig, Farbklassen, viewBox, Text-Alternative „läuft“), nur Phase 2 mit Pille und `aria-current`, Z1 bis Z5 als Badges, h2-Überschriften, kein H-Scroll 320/1280 | – | – | – → 13 | E7 |
+| 40b (neu) | Konto: E-Mail durch `esc()`, „verbunden · Sync heute 11:00“ aus `lastFetchedAt()`, keine Strava-Aktion, Plan-Zeile „Plandatei“ ohne Knopf, nicht verbunden (koralle Schaltfläche), Abruffehler (rote Zeile, Hinweis, zwei Aktionen), Worker fehlt, Status starten versteckt, Export scheitert (`is-danger`, Knopf wieder aktiv) | – | – | – → 10 | E7 |
+| 40c (neu) | Kein `style=` im `#main` auf Heute, Woche, Verlauf (Lauf und Kraft), Plan, Kraft-Tag, Lauf-Tag | – | – | – → 7 | E7 |
+| übrige (7, 8, 17–19b, 23, 24, 26, 27, 29–32) | unverändert; nur Selektoren auf Heute angepasst (27, 23, 30b); 29 hat keinen Kraft-Tag-Teil mehr (seit E3 nur Ampel und Banner) | – | – | – | – |
 
 **Bewusste Ausnahmen in 2c („Im Detail“, einzeln):** Wochenvolumen (8 Wochen, aktuelle Woche, kein Ist
 in der Zukunft), Aerobe Effizienz (−15 s/km), Adhärenz (50 %, 3 von 6), „Nächster Long Run“,

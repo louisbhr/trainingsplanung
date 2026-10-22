@@ -29,7 +29,7 @@ export const db = {};
 // Auth-Zustand des Tests: sessionStorage (überlebt ein Neuladen, z. B. nach
 // signOutUser) vor window.__AUTH__ (per addInitScript) vor "ok".
 const AUTH_USERS = {
-  ok: { uid: "${TEST_UID}", email: "louis@example.test", isAnonymous: false },
+  ok: { uid: "${TEST_UID}", email: (typeof window !== "undefined" && window.__EMAIL__) || "louis@example.test", isAnonymous: false },
   forbidden: { uid: "fremde-uid-1234567890", email: "fremd@example.test", isAnonymous: false },
   anonymous: { uid: "anon-uid", email: null, isAnonymous: true },
   signedOut: null,
@@ -197,10 +197,39 @@ const openRows = (page) => page.locator(".sd-day.is-open").count();
 const rowPills = (row) => row.locator(".sd-day__status .sd-pill").allTextContents().then((a) => a.map((t) => t.trim()));
 const activeAction = (page) => page.evaluate(() => document.activeElement?.dataset?.action ?? null);
 
+const ACCOUNT = '[data-card="account"]';
+// ---- Verlauf + Plan (Stride E7): stabile Haken, docs/ui-markup-stride.md Abschnitte 13 und 14 ----
+// Verlauf: Segment [data-action="hist-mode"][aria-pressed], Chips .sd-filter__chip, Slot #hist-slot mit
+// [data-card="run-stats|run-chart|run-list|strength-best|strength-list|strength-empty|empty|no-strava|error"].
+// Plan: [data-card="goal|phases|zones|account"], .sd-phase, .sd-zone, .sd-phasebar__seg, [data-slot=...].
+const PLAN_SUB = "#main > header.sd-pagehead .sd-intro__sub";
+const NBSP_PCT = " %"; // das Leerzeichen vor "%" ist geschützt (Markup 14.0)
+const histMode = (page) => page.getAttribute('[data-action="hist-mode"][aria-pressed="true"]', "data-mode");
+// Balken eines Diagramms: Attribute als Zahlen (NaN, wenn keine), Klasse, Tooltip
+const chartBars = (page, card) => page.locator(`[data-card="${card}"] .sd-chart__bar`).evaluateAll((els) => els.map((el) => ({
+  cls: el.getAttribute("class"),
+  x: Number(el.getAttribute("x")), y: Number(el.getAttribute("y")),
+  width: Number(el.getAttribute("width")), height: Number(el.getAttribute("height")), rx: Number(el.getAttribute("rx")),
+  title: el.querySelector("title")?.textContent ?? "",
+})));
+const chartAxis = (page, card) => page.locator(`[data-card="${card}"] .sd-chart__axis span`).evaluateAll((els) =>
+  els.map((el) => ({ text: el.textContent, current: el.classList.contains("is-current") })));
+const chartBox = (page, card) => page.locator(`[data-card="${card}"] svg.sd-chart__plot`).evaluate((el) => ({
+  w: el.viewBox.baseVal.width, h: el.viewBox.baseVal.height, aria: el.getAttribute("aria-label"),
+}));
+// Alle Rects liegen als Zahlen im Zeichenfeld (unten darf das Rect 5 Einheiten überstehen, das SVG schneidet ab)
+const barsInside = (bars, box) => bars.length > 0 && bars.every((b) =>
+  [b.x, b.y, b.width, b.height, b.rx].every(Number.isFinite) &&
+  b.x >= 0 && b.x + b.width <= box.w && b.y >= 0 && b.y + b.height <= box.h + 5);
+const hasStyleAttr = (page) => page.evaluate(() => document.querySelectorAll("#main [style]").length);
+const clickChip = (page, slug) => page.click(`.sd-filter__chip[data-slug="${slug}"]`);
+const pressedChips = (page) => page.locator('.sd-filter__chip[aria-pressed="true"]').evaluateAll((els) => els.map((e) => e.dataset.slug));
+
 async function noHScroll(page, where) {
   const { doc, over } = await page.evaluate(() => ({
     doc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     over: [...document.querySelectorAll("#main *, #header *")]
+      .filter((el) => !el.closest(".sd-filter") || el.matches(".sd-filter")) // die Chip-Zeile scrollt in sich (Markup 13.5), nur die Zeile selbst muss passen
       .filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1)
       .map((el) => el.tagName + "." + el.className).slice(0, 5),
   }));
@@ -1183,7 +1212,7 @@ for (const [recal, wantText, notText, label] of [
   await ctx.close();
 }
 
-// ---- 5. Verlauf ----
+// ---- 5. Verlauf (Stride E7: startet auf Lauf, Kraft über Chips) ----
 {
   scenario("5");
   const { page, ctx, errors } = await newPage({ connected: true });
@@ -1195,49 +1224,49 @@ for (const [recal, wantText, notText, label] of [
   });
   await page.goto(BASE + "/index.html");
   await goTab(page, "verlauf");
-  await page.waitForSelector("#ex-picker");
-  ok((await page.locator(".bar").count()) === 2, "Verlauf Kraft: 2 Balken");
-  const heights = await page.locator(".bar").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+  await page.waitForSelector('#hist-slot [data-card="run-list"]');
+  ok((await histMode(page)) === "lauf", "Verlauf: startet im Modus Lauf");
+  ok((await page.locator('[data-card="run-chart"] .sd-chart__bar').count()) === 5, "Verlauf Lauf: 5 Läufe (Radfahrt gefiltert)");
+  const h2 = (await chartBars(page, "run-chart")).map((b) => b.height);
+  ok(new Set(h2).size > 1 && Math.min(...h2) >= 9, `Verlauf Lauf: Balken haben echte Höhen (${h2.join(", ")})`);
+  ok((await page.textContent('[data-tile="km7"]')).includes("29,1"), "Verlauf Lauf: 7-Tage-Summe zählt nur bis heute");
+  await shot(page, "06-verlauf-lauf");
+  await noHScroll(page, "Verlauf Lauf");
+
+  await page.click('[data-action="hist-mode"][data-mode="kraft"]');
+  await page.waitForSelector('#hist-slot [data-card="strength-best"]');
+  ok((await page.locator('[data-card="strength-best"] .sd-chart__bar').count()) === 2, "Verlauf Kraft: 2 Balken");
+  const heights = (await chartBars(page, "strength-best")).map((b) => b.height);
   ok(heights[1] > heights[0] && heights[1] > 10, `Verlauf Kraft: Balkenhöhen echt (${heights.join(", ")})`);
   ok((await page.textContent("#main")).includes("80 kg"), "Verlauf Kraft: Werte gelabelt");
   await shot(page, "05-verlauf-kraft");
   await noHScroll(page, "Verlauf Kraft");
 
-  await page.selectOption("#ex-picker", "deadlift");
-  await page.waitForSelector(".center-note");
+  await page.click('.sd-filter__chip[data-slug="deadlift"]');
+  await page.waitForSelector('#hist-slot [data-card="strength-empty"]');
   ok((await page.textContent("#main")).includes("Noch nichts erfasst"), "Verlauf Kraft: leere Übung sauber");
-
-  await page.click('[data-action="hist-mode"][data-mode="lauf"]');
-  await page.waitForSelector(".bars");
-  ok((await page.locator(".bar").count()) === 5, "Verlauf Lauf: 5 Läufe (Radfahrt gefiltert)");
-  const h2 = await page.locator(".bar").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
-  ok(new Set(h2).size > 1 && Math.min(...h2) >= 8, `Verlauf Lauf: Balken haben echte Höhen (${h2.join(", ")})`);
-  const t = await page.textContent("#main");
-  ok(t.includes("29,1 km"), "Verlauf Lauf: 7-Tage-Summe zählt nur bis heute");
-  await shot(page, "06-verlauf-lauf");
-  await noHScroll(page, "Verlauf Lauf");
   ok(errors.length === 0, "Verlauf: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
 }
 
-// ---- 6. Plan-Tab ----
+// ---- 6. Plan-Tab (Stride E7) ----
 {
   scenario("6");
   const { page, ctx, errors } = await newPage();
   await page.goto(BASE + "/index.html");
   await goTab(page, "plan");
-  await page.waitForSelector(".zone-line");
+  await page.waitForSelector(".sd-zone");
   const t = await page.textContent("#main");
-  ok((await page.textContent("#main > header.sd-pagehead .eyebrow")).includes("Woche 2 von 35"), "Plan: aktuelle Woche (35 Wochen)");
-  ok((await page.locator(".phase-card.is-current").count()) === 1, "Plan: laufende Phase hervorgehoben");
-  ok((await page.locator(".phase-card").count()) === 4, "Plan: 4 Phasenkarten, farblich getrennt");
-  ok((await page.locator(".zone-line").count()) === 5, "Plan: 5 Zonen");
+  ok((await page.textContent(PLAN_SUB)).includes("Woche 2 von 35"), "Plan: aktuelle Woche (35 Wochen)");
+  ok((await page.locator(".sd-phase.is-current").count()) === 1, "Plan: laufende Phase hervorgehoben");
+  ok((await page.locator(".sd-phase").count()) === 4, "Plan: 4 Phasenzeilen, farblich getrennt");
+  ok((await page.locator(".sd-zone").count()) === 5, "Plan: 5 Zonen");
   ok(t.includes("148–163 bpm"), "Plan: HF-Werte sichtbar");
   ok(t.includes("1:29:59 h"), "Plan: Zielzeit prominent");
-  ok((await page.locator(".timeline .seg").count()) === 4, "Plan: Zeitleiste über alle vier Phasen");
-  const fill = await page.locator(".timeline .seg i").first().evaluate((el) => el.getBoundingClientRect().width);
+  ok((await page.locator(".sd-phasebar__seg").count()) === 4, "Plan: Phasenbalken über alle vier Phasen");
+  const fill = await page.locator(".sd-phasebar__fill").first().evaluate((el) => el.getBoundingClientRect().width);
   ok(fill > 0, `Plan: Fortschritt in der laufenden Phase sichtbar (${Math.round(fill)}px)`);
-  const tones = await page.locator(".phase-card").evaluateAll((els) =>
+  const tones = await page.locator(".sd-phase__num").evaluateAll((els) =>
     [...new Set(els.map((e) => getComputedStyle(e).backgroundColor))]);
   ok(tones.length === 4, `Plan: jede Phase hat eine eigene Farbe (${tones.length} verschiedene)`);
   await shot(page, "07-plan");
@@ -1604,7 +1633,7 @@ for (const [recal, wantText, notText, label] of [
   const { page, ctx } = await newPage({ connected: true });
   await page.goto(BASE + "/index.html");
   await goTab(page, "plan"); // lange Liste (35 Wochen)
-  await page.waitForSelector("#main .goal-card");
+  await page.waitForSelector('#main [data-card="goal"]');
 
   const vh = 844;
   // Stride: die Leiste schwebt 26 px über dem unteren Rand (Handoff §4, Safe-Area im Test 0).
@@ -1630,6 +1659,14 @@ for (const [recal, wantText, notText, label] of [
   // Kopf: Stride-Zeichen auf allen vier Tabs
   for (const tab of ["dashboard", "woche", "verlauf", "plan"]) {
     await page.click(`[data-tab="${tab}"]`);
+    if (tab === "verlauf" || tab === "plan") {
+      // Verlauf und Plan (Markup 13.0/14.0): Titelzeile .sd-tabhead, ohne Markenzeile.
+      await page.waitForSelector("#main > header.sd-pagehead > .sd-tabhead h1");
+      ok((await page.locator("#main > header.sd-pagehead .sd-brand").count()) === 0 &&
+         (await page.textContent("#main > header.sd-pagehead .sd-tabhead h1")) === (tab === "verlauf" ? "Verlauf" : "Trainingsplan"),
+        `Kopf ${tab}: Titelzeile (sd-tabhead) ohne Markenzeile (Markup 13.0/14.0)`);
+      continue;
+    }
     if (tab === "woche") {
       // Der Wochenkopf (Markup 10.1) ist eine Titelzeile mit Rundtasten, ohne Markenzeile.
       await page.waitForSelector("#main > header.sd-pagehead > .sd-weekhead h1");
@@ -1820,7 +1857,7 @@ for (const [recal, wantText, notText, label] of [
   const { page, ctx } = await newPage();
   await page.goto(BASE + "/index.html");
   await goTab(page, "plan"); // Tab-Seite mit langem Inhalt (Detailseiten haben keine Leiste)
-  await page.waitForSelector("#main .goal-card");
+  await page.waitForSelector('#main [data-card="goal"]');
 
   const bar = await page.locator("#tabbar").evaluate((el) => {
     const cs = getComputedStyle(el);
@@ -1841,10 +1878,13 @@ for (const [recal, wantText, notText, label] of [
   const passesUnder = await page.evaluate(() => {
     const m = document.getElementById("main");
     const bar = document.getElementById("tabbar").getBoundingClientRect();
-    m.scrollTop = m.scrollHeight / 2;
-    return [...document.querySelectorAll("#main .card")].some((el) => {
-      const r = el.getBoundingClientRect();
-      return r.top < bar.top && r.bottom > bar.top;
+    // Die Karten des Plan-Tabs sind kurz: an mehreren Scrollstellen prüfen, ob eine unter der Leiste durchläuft.
+    return [0.3, 0.4, 0.5, 0.6, 0.7, 0.8].some((f) => {
+      m.scrollTop = (m.scrollHeight - m.clientHeight) * f;
+      return [...document.querySelectorAll("#main .sd-card")].some((el) => {
+        const r = el.getBoundingClientRect();
+        return r.top < bar.top && r.bottom > bar.top;
+      });
     });
   });
   ok(passesUnder, "Glas: Inhalt scrollt unter der Leiste durch");
@@ -1878,7 +1918,7 @@ for (const [recal, wantText, notText, label] of [
     ["Krafttag", async () => { await goTab(page, "woche"); await openDay(page, "2026-09-08"); await waitKraft(page); }],
     ["Direkte Eingabe (V1)", async () => { await page.click('.sd-set--active [data-action="edit-value"][data-field="kg"]'); await page.waitForSelector(".sd-stepper__input"); }],
     ["Übung hinzufügen", async () => { await page.click('[data-action="toggle-edit"]'); await page.click('[data-action="quick-add"]'); await page.waitForSelector("#new-ex-name"); }],
-    ["Verlauf", async () => { await goTab(page, "verlauf"); await page.waitForSelector("#ex-picker"); }],
+    ["Verlauf", async () => { await goTab(page, "verlauf"); await page.waitForSelector("#hist-slot [data-card]:not([data-card='loading'])"); }],
   ];
   for (const [name, go] of views) {
     await go();
@@ -1905,12 +1945,12 @@ for (const [recal, wantText, notText, label] of [
   // Sicherheitsabstände greifen (auf dem Home-Bildschirm liegt sonst der
   // Kopf unter der Uhr)
   const insets = await page.evaluate(() => {
-    // Oben trägt der Seitenkopf den Statusbar-Abstand, seitlich das Polster von #main.
+    // Oben trägt der Seitenkopf den Statusbar-Abstand (8 px + env), seitlich .sd-main (max(12 px, env)).
     return { top: getComputedStyle(document.querySelector("#main > header.sd-pagehead")).paddingTop,
-             left: getComputedStyle(document.getElementById("main")).paddingLeft };
+             left: getComputedStyle(document.querySelector("#main .sd-main")).paddingLeft };
   });
-  ok(parseFloat(insets.top) >= 16, `Sicherheitsabstand oben berücksichtigt (${insets.top})`);
-  ok(parseFloat(insets.left) >= 20, `Sicherheitsabstand seitlich berücksichtigt (${insets.left})`);
+  ok(parseFloat(insets.top) >= 8, `Sicherheitsabstand oben berücksichtigt (${insets.top})`);
+  ok(parseFloat(insets.left) >= 12, `Sicherheitsabstand seitlich berücksichtigt (${insets.left})`);
 
   // Der Inhalt füllt die volle Gerätebreite
   const appW = await page.locator("#app").evaluate((el) => el.getBoundingClientRect().width);
@@ -2103,7 +2143,7 @@ for (const [recal, wantText, notText, label] of [
      "Nach dem Rennen: 'Diese Woche' bleibt leer, die Status-Zeilen stehen mit Grund (grau)");
   // go-tab: "Zum Plan" macht dasselbe wie ein Klick auf den Tab.
   await page.click(`${TODAY} [data-action="go-tab"][data-tab="plan"]`);
-  await page.waitForSelector(".zone-line");
+  await page.waitForSelector(".sd-zone");
   ok((await page.locator("#tabbar button.active").getAttribute("data-tab")) === "plan", "Nach dem Rennen: 'Zum Plan' öffnet den Plan-Tab, die Tab-Leiste folgt");
   await goTab(page, "dashboard");
   await page.waitForSelector(`${TODAY}[data-kind="noplan"]`);
@@ -2148,9 +2188,11 @@ for (const [recal, wantText, notText, label] of [
   ok((await weekTitle(page)) === "Woche 1", "Vor Planstart: Wochen-Tab zeigt Woche 1, nicht Woche 35");
 
   await goTab(page, "plan");
-  await page.waitForSelector(".zone-line");
-  ok((await page.textContent("#main > header.sd-pagehead .eyebrow")).includes("Woche 1 von 35"), "Vor Planstart: Plan-Tab zeigt Woche 1, nicht Woche 35");
-  ok((await page.textContent("#main > header.sd-pagehead .eyebrow")).includes("0% geschafft"), "Vor Planstart: 0% geschafft, nicht 97%");
+  await page.waitForSelector(".sd-zone");
+  ok((await page.textContent(PLAN_SUB)).includes("Woche 1 von 35"), "Vor Planstart: Plan-Tab zeigt Woche 1, nicht Woche 35");
+  ok((await page.textContent(PLAN_SUB)).includes("0" + NBSP_PCT + " geschafft"), "Vor Planstart: 0 % geschafft, nicht 97 %");
+  ok((await page.locator(".sd-phase.is-current").count()) === 0 && (await page.locator(".sd-phasebar__fill").count()) === 0,
+     "Vor Planstart: keine laufende Phase, nichts im Phasenbalken gefüllt");
   await ctx.close();
 }
 
@@ -2558,14 +2600,15 @@ for (const [fail, want, notWant, label] of [
   ok((await page.textContent('[data-card="week-placeholder"]')).includes("Tagesdetails folgen"), "Woche 35: Platzhalterkarte");
 
   await goTab(page, "plan");
-  await page.waitForSelector(".zone-line");
-  ok((await page.textContent("#main > header.sd-pagehead .eyebrow")).includes("Woche 10 von 35"), "Plan-Tab: Woche 10 von 35");
+  await page.waitForSelector(".sd-zone");
+  ok((await page.textContent(PLAN_SUB)).includes("Woche 10 von 35"), "Plan-Tab: Woche 10 von 35");
   const planTxt = await page.textContent("#main");
   ok(planTxt.includes("26.10.2026–17.01.2027") && planTxt.includes("18.01.–18.04.2027") && planTxt.includes("19.04.–02.05.2027"),
     "Plan-Tab: neue Phasenzeiträume");
   ok(planTxt.includes("5:45–6:15 /km") && planTxt.includes("> 6:30 /km"), "Plan-Tab: neue Z1/Z2-Pace");
-  ok(planTxt.includes("Halbmarathon, 02.05.2027"), "Plan-Tab: bestätigtes Renndatum");
-  ok((await page.locator(".timeline .seg").count()) === 4, "Plan-Tab: Zeitleiste mit 4 Phasen");
+  ok(planTxt.includes("Ziel · Halbmarathon") && (await page.textContent(".sd-goal__race")).replace(/\s+/g, " ").includes("Renntag 02.05.2027"),
+    "Plan-Tab: bestätigtes Renndatum (Renntag, nicht 'ca.')");
+  ok((await page.locator(".sd-phasebar__seg").count()) === 4, "Plan-Tab: Phasenbalken mit 4 Phasen");
   await noHScroll(page, "Plan (35 Wochen)");
   ok(errors.length === 0, "Plan-Phase 2: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -2713,11 +2756,11 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   const { page, ctx, errors } = await authPage("ok");
   await page.waitForSelector('#main [data-card="today"]');
   await goTab(page, "plan");
-  await page.waitForSelector(".account-card");
-  const card = await page.textContent(".account-card");
-  ok(card.includes("louis@example.test") && card.includes(TEST_UID), "Konto-Karte: zeigt E-Mail und UID");
+  await page.waitForSelector(ACCOUNT);
+  const card = await page.textContent(ACCOUNT);
+  ok(card.includes("louis@example.test") && !card.includes(TEST_UID), "Konto-Karte: zeigt die E-Mail, die UID steht nur auf 'Kein Zugriff'");
   ok(card.includes("räumt dieses Gerät"), "Konto-Karte: weist darauf hin, dass Abmelden das Gerät räumt");
-  const btn = await page.locator('.account-card [data-action="logout"]').boundingBox();
+  const btn = await page.locator('[data-card="account"] [data-action="logout"]').boundingBox();
   ok(btn && btn.height >= 44, `Konto-Karte: Abmelden-Knopf mindestens 44px hoch (${btn?.height})`);
   await shot(page, "30f-konto-karte");
   await noHScroll(page, "Konto-Karte");
@@ -2728,15 +2771,18 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
 
   // offene Einträge: abbrechen, nichts löschen, kein Neuladen
   await page.evaluate(() => { window.__PENDING__ = "hang"; });
-  await page.click('.account-card [data-action="logout"]');
+  await page.click('[data-card="account"] [data-action="logout"]');
   await page.waitForFunction(() => document.getElementById("account-status")?.textContent.includes("noch nicht übertragene"));
   ok((await page.evaluate(() => sessionStorage.getItem("test.wiped"))) === null, "Abmelden mit offenen Einträgen: es wird nichts gelöscht");
   ok((await page.locator('form[data-form="login"]').count()) === 0, "Abmelden mit offenen Einträgen: bleibt angemeldet, kein Login");
-  ok(await page.locator('.account-card [data-action="logout"]').isEnabled(), "Abmelden mit offenen Einträgen: Knopf wieder bedienbar");
+  ok(await page.locator('[data-card="account"] [data-action="logout"]').isEnabled(), "Abmelden mit offenen Einträgen: Knopf wieder bedienbar");
+  const abort = await page.locator("#account-status").evaluate((el) => ({ text: el.textContent, cls: el.className, hidden: el.hidden }));
+  ok(!abort.hidden && abort.cls.includes("sd-notice--danger") && abort.text.startsWith("Abmelden abgebrochen. Es gibt noch nicht übertragene Einträge."),
+     `Abmelden abgebrochen: Hinweis in Gefahrenfarbe mit Text aus dem Mockup (${abort.cls})`);
 
   // sonst: räumen, neu laden, Login
   await page.evaluate(() => { window.__PENDING__ = null; });
-  await page.click('.account-card [data-action="logout"]');
+  await page.click('[data-card="account"] [data-action="logout"]');
   await page.waitForSelector('form[data-form="login"]');
   ok((await page.evaluate(() => sessionStorage.getItem("test.wiped"))) === "1", "Abmelden: Gerät wird geräumt (signOutAndWipeDevice)");
   ok(errors.length === 0, "Konto-Karte: keine Konsolenfehler " + JSON.stringify(errors));
@@ -2749,8 +2795,8 @@ const signouts = (page) => page.evaluate(() => Number(sessionStorage.getItem("te
   const { page, ctx, errors } = await authPage("ok", { flags: { __CACHE_KEPT__: true } });
   await page.waitForSelector('#main [data-card="today"]');
   await goTab(page, "plan");
-  await page.waitForSelector(".account-card");
-  await page.click('.account-card [data-action="logout"]');
+  await page.waitForSelector(ACCOUNT);
+  await page.click('[data-card="account"] [data-action="logout"]');
   await page.waitForSelector('form[data-form="login"]');
   const notice = await page.textContent("[data-notice]");
   ok(notice.includes("Offline-Speicher") && notice.includes("nicht geleert"), `Abmelden mit zweitem Tab: ehrlicher Hinweis statt "geräumt" (${notice})`);
@@ -2897,7 +2943,7 @@ const refreshOk = { status: 200, body: { access_token: "at2", refresh_token: "rt
 }
 
 // ---- 33. Daten exportieren (Plan-Tab, Karte "Daten") ----
-async function exportPage({ activities = ACTIVITIES, stravaFail = false, share = "" } = {}) {
+async function exportPage({ activities = ACTIVITIES, stravaFail = false, share = "", breakFile = false } = {}) {
   const made = await newPage({ connected: true, activities });
   const { page, ctx } = made;
   if (stravaFail) {
@@ -2905,6 +2951,8 @@ async function exportPage({ activities = ACTIVITIES, stravaFail = false, share =
   }
   const urls = [];
   page.on("request", (r) => { if (r.url().includes("/athlete/activities")) urls.push(r.url()); });
+  // Die Datei lässt sich nicht erzeugen: der Export scheitert nach dem Laden (Fehlerton)
+  if (breakFile) await page.addInitScript(() => { window.File = function () { throw new Error("kaputt"); }; });
   await page.addInitScript((s) => {
     localStorage.setItem("test.logs", JSON.stringify({ "2026-09-08_kniebeuge": {
       date: "2026-09-08", exercise: "kniebeuge", name: "Kniebeuge", soll: "3x8",
@@ -2938,7 +2986,7 @@ const stripPlan = (s) => s.replace(/"plan":[\s\S]*?"strava":/, "");
     ? { ...a, sport_type: "Run", map: { summary_polyline: "GEHEIMEPOLYLINE" }, athlete: { id: 42 }, start_latlng: [1, 2] }
     : a);
   const { page, ctx, errors, urls } = await exportPage({ activities });
-  ok(await page.locator(".export-card").count() === 1, "Export: Karte Daten im Plan-Tab");
+  ok(await page.locator(ACCOUNT).count() === 1 && (await page.textContent(ACCOUNT)).includes("Daten exportieren"), "Export: Bereich Daten und Konto im Plan-Tab");
   const btnBox = await page.locator('[data-action="export-data"]').boundingBox();
   ok(btnBox && btnBox.height >= 44, "Export: Knopf mindestens 44px hoch");
   const [download] = await Promise.all([
@@ -2961,6 +3009,7 @@ const stripPlan = (s) => s.replace(/"plan":[\s\S]*?"strava":/, "");
     "Export: eigener Abruf ab 2026-01-01 mit per_page=200");
   await page.waitForFunction(() => document.getElementById("export-status")?.textContent === "Export fertig.");
   ok(await page.isEnabled('[data-action="export-data"]'), "Export: Knopf danach wieder aktiv");
+  ok((await page.getAttribute("#export-status", "class")) === "sd-split__hint sd-split__status", "Export fertig: Status neutral, ohne Tonklasse");
   await noHScroll(page, "Plan-Tab mit Export-Karte");
   ok(errors.length === 0, "Export: keine Konsolenfehler " + JSON.stringify(errors));
   await ctx.close();
@@ -2974,6 +3023,8 @@ const stripPlan = (s) => s.replace(/"plan":[\s\S]*?"strava":/, "");
   ok(data.meta.warnings.length === 1 && data.meta.warnings[0].startsWith("Strava:") && !data.meta.warnings[0].includes("—") && !data.meta.warnings[0].startsWith("Strava: Strava"),
     "Export ohne Strava: Warnung in meta.warnings " + JSON.stringify(data.meta.warnings));
   await page.waitForFunction(() => document.getElementById("export-status")?.textContent.startsWith("Exportiert, aber unvollständig"));
+  ok(await page.locator("#export-status.is-warn").count() === 1 && await page.locator("#export-status:not([hidden])").count() === 1,
+     "Export unvollständig: Status in Warnfarbe (is-warn) sichtbar");
   await ctx.close();
 }
 {
@@ -4065,6 +4116,400 @@ const geoInRange = (geo) => geo.every((g) =>
     ok(/createSheet\("assignSheet", "assignBackdrop"\)/.test(app) && !/import[^;]*from "\.\/(firebase-init|strava)\.js/.test(view),
        "Lauf-Tag: Zuordnungs-Sheet über die gemeinsame Fabrik, view-run.js importiert weder Firebase noch Strava (C5)");
   }
+}
+
+// ============================================================================
+// 39. Verlauf (Stride E7, neu). Markup: docs/ui-markup-stride.md Abschnitt 13.
+// ============================================================================
+const OLD_RUN = { id: 20, type: "Run", name: "Alter <b>Lauf</b>", start_date_local: "2026-08-20T07:00:00Z", distance: 5000, moving_time: 1800 };
+// Lauf 1 heißt in Strava anders als im Plan, der alte Lauf liegt vor dem Planstart (31.08.) und ist keinem Plantag zugeordnet.
+const HIST_ACTIVITIES = ACTIVITIES.map((a) => (a.id === 1 ? { ...a, name: "Morgenrunde" } : a)).concat([OLD_RUN]);
+// Browserkontext ohne Worker-URL (config.js ersetzt), wie in Szenario 8
+async function noWorkerPage() {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "Europe/Berlin" });
+  await ctx.route(/workers\.dev\/coach/, (r) => r.fulfill({ contentType: "application/json", body: "{}" }));
+  await ctx.route(/firebase-init\.js/, (r) => r.fulfill({ contentType: "application/javascript", body: FIREBASE_STUB }));
+  await ctx.route(/config\.js/, (r) => r.fulfill({
+    contentType: "application/javascript",
+    body: `export const ALLOWED_UID = "${TEST_UID}"; export const STRAVA_WORKER_URL = ""; export const STRAVA_CLIENT_ID = "277715"; export const isWorkerConfigured = false; export const COACH_URL = ""; export const WORKER_URL = "";
+      export const THRESHOLDS = ${JSON.stringify(REAL_THRESHOLDS)};`,
+  }));
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  await page.clock.setFixedTime(new Date("2026-09-07T09:00:00Z"));
+  await page.goto(BASE + "/index.html");
+  return { page, ctx, errors };
+}
+const runStatsLabels = (page) => page.locator('[data-card="run-stats"] .sd-tile__label').allTextContents().then((a) => a.map((t) => t.trim()));
+
+// 39a. Modus Lauf: Segment, Kacheln, Diagramm, Liste
+{
+  scenario("39a");
+  const { page, ctx, errors } = await newPage({ connected: true, activities: HIST_ACTIVITIES });
+  await page.goto(BASE + "/index.html");
+  await goTab(page, "verlauf");
+  await page.waitForSelector('#hist-slot [data-card="run-list"]');
+  const opts = await page.locator("#main > header.sd-pagehead .sd-seg[role='group'] [data-action='hist-mode']")
+    .evaluateAll((els) => els.map((e) => `${e.textContent.trim()}:${e.getAttribute("aria-pressed")}`));
+  ok(JSON.stringify(opts) === '["Lauf:true","Kraft:false"]', `Verlauf: Segment als Gruppe, Reihenfolge Lauf | Kraft, Lauf gedrückt (${JSON.stringify(opts)})`);
+  ok((await page.locator(".sd-filter").count()) === 0, "Verlauf Lauf: keine Übungs-Chips im Kopf");
+  ok((await page.locator('[data-card="run-stats"] .sd-tile').count()) === 4 &&
+     JSON.stringify(await runStatsLabels(page)) === '["Letzte 7 Tage","Letzte 28 Tage","Ø Pace","Läufe seit 31.08."]',
+     "Verlauf Lauf: vier Kacheln in fester Reihenfolge, Label 'Läufe seit 31.08.'");
+  ok((await page.textContent('[data-tile="count"] .sd-tile__value')) === "5",
+     "Verlauf Lauf: 'Läufe seit 31.08.' zählt nur Läufe ab Planstart (6 Läufe, der vom 20.08. zählt nicht)");
+  ok(/^\d+:\d{2}\/km$/.test((await page.textContent('[data-tile="pace"] .sd-tile__value')).trim()),
+     "Verlauf Lauf: Ø Pace als m:ss mit Einheit /km");
+  const bars = await chartBars(page, "run-chart");
+  const box = await chartBox(page, "run-chart");
+  ok(bars.length === 6 && box.w === 320 && box.h === 120 && barsInside(bars, box),
+     `Verlauf Lauf: 6 Balken, Rect-Attribute sind Zahlen und liegen im viewBox (${JSON.stringify(box)})`);
+  const axis = await chartAxis(page, "run-chart");
+  ok(axis.length === bars.length && JSON.stringify(axis.map((a) => a.text)) === '["20","2","5","7","7","10"]',
+     `Verlauf Lauf: genau so viele Achsen-Labels wie Balken (Tag des Monats, ${JSON.stringify(axis.map((a) => a.text))})`);
+  ok(bars.filter((b) => b.cls.includes("sd-chart__bar--long")).length === 1 && bars.filter((b) => b.cls.includes("sd-chart__bar--lauf")).length === 5 &&
+     (await page.textContent('[data-card="run-chart"] .sd-chart__legend')).includes("Long Run"),
+     "Verlauf Lauf: Long Run als eigener Balken mit Legende, nicht nur durch die Farbe");
+  ok(box.aria.includes("6 Läufe") && box.aria.includes("2,0") && box.aria.includes("12,0") && box.aria.includes("Liste"),
+     `Verlauf Lauf: Text-Alternative nennt Anzahl, Minimum, Maximum (${box.aria})`);
+  ok((await page.locator('[data-card="run-list"] .sd-hrow').count()) === 6, "Verlauf Lauf: Liste mit 6 Zeilen, neueste zuerst");
+  const first = await page.locator('[data-card="run-list"] .sd-hrow').first().getAttribute("data-run");
+  ok(first === "6", `Verlauf Lauf: neuester Lauf steht oben (${first})`);
+  ok((await page.textContent('[data-run="1"] .sd-hrow__title')) === "Easy run",
+     "Verlauf Lauf: zugeordneter Lauf trägt den Plan-Typ als Titel, nicht den Strava-Namen");
+  ok((await page.textContent('[data-run="20"] .sd-hrow__title')) === "Alter <b>Lauf</b>" && (await page.locator('[data-run="20"] b').count()) === 0,
+     "Verlauf Lauf: nicht zugeordneter Lauf trägt den Strava-Namen, HTML darin bleibt Text (esc)");
+  await page.click('[data-info="verlauf-pace"]');
+  await page.waitForSelector("#infoSheet.open");
+  ok((await page.textContent("#infoSheetTitle")).trim() === "Ø Pace" && (await page.textContent("#infoSheetBody")).includes("letzten bis zu 10 Läufen"),
+     "Verlauf Lauf: (i) an der Ø Pace öffnet das Info-Sheet mit Berechnung");
+  await page.keyboard.press("Escape");
+  await waitSheetHidden(page, "#infoSheet");
+  await noHScroll(page, "Verlauf Lauf (6 Läufe)");
+  await page.setViewportSize({ width: 320, height: 568 });
+  await noHScroll(page, "Verlauf Lauf 320");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await noHScroll(page, "Verlauf Lauf 1280");
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  // Segment: Kraft/Lauf umschalten, aria-pressed folgt, Fokus bleibt auf dem Schalter
+  await page.click('[data-action="hist-mode"][data-mode="kraft"]');
+  await page.waitForSelector('#hist-slot [data-card="strength-empty"], #hist-slot [data-card="strength-best"]');
+  ok((await histMode(page)) === "kraft" && (await page.getAttribute('[data-action="hist-mode"][data-mode="lauf"]', "aria-pressed")) === "false" &&
+     (await page.locator(".sd-filter").count()) === 1,
+     "Verlauf: Segment schaltet auf Kraft, aria-pressed folgt, Übungs-Chips erscheinen");
+  ok((await page.evaluate(() => document.activeElement?.dataset?.mode)) === "kraft", "Verlauf: Fokus bleibt nach dem Moduswechsel auf dem Schalter");
+  await page.click('[data-action="hist-mode"][data-mode="lauf"]');
+  await page.waitForSelector('#hist-slot [data-card="run-list"]');
+  ok((await histMode(page)) === "lauf" && (await page.locator(".sd-filter").count()) === 0, "Verlauf: zurück auf Lauf, Chips weg");
+  ok(errors.length === 0, "Verlauf Lauf: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// 39b. Modus Lauf: Zustandskarten
+{
+  scenario("39b");
+  {
+    const { page, ctx } = await newPage({ connected: false });
+    await page.goto(BASE + "/index.html");
+    await goTab(page, "verlauf");
+    await page.waitForSelector('#hist-slot [data-card="no-strava"]');
+    ok((await page.locator('#hist-slot [data-card="no-strava"] [data-action="connect-strava"].sd-btn--primary').count()) === 1 &&
+       (await page.locator("#hist-slot .primary-btn").count()) === 0,
+       "Verlauf Lauf, nicht verbunden: Karte mit einer Primär-Schaltfläche statt losem Knopf");
+    await ctx.close();
+  }
+  {
+    const { page, ctx } = await newPage({ connected: true, activities: [] });
+    await page.goto(BASE + "/index.html");
+    await goTab(page, "verlauf");
+    await page.waitForSelector('#hist-slot [data-card="empty"]');
+    ok((await page.textContent('#hist-slot [data-card="empty"]')).includes("Seit 27.07. liegt noch kein Lauf in Strava."),
+       "Verlauf Lauf, keine Läufe: Karte nennt das Suchfenster ab 27.07.");
+    await ctx.close();
+  }
+  {
+    const { page, ctx } = await newPage({ connected: true });
+    await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => r.fulfill({ status: 500, body: "boom" }));
+    await page.goto(BASE + "/index.html");
+    await goTab(page, "verlauf");
+    await page.waitForSelector('#hist-slot [data-card="error"]');
+    ok((await page.getAttribute('#hist-slot [data-card="error"]', "data-source")) === "strava" &&
+       (await page.getAttribute('#hist-slot [data-card="error"]', "role")) === "alert" &&
+       (await page.locator('#hist-slot [data-action="reload-strava"]').count()) === 1 &&
+       (await page.locator('#hist-slot [data-action="connect-strava"]').count()) === 1,
+       "Verlauf Lauf, Abruffehler: Strava-Karte (Alarm) mit 'Nochmal versuchen' und 'Neu verbinden'");
+    await ctx.close();
+  }
+  {
+    const { page, ctx, errors } = await noWorkerPage();
+    await goTab(page, "verlauf");
+    await page.waitForSelector('#hist-slot [data-card="error"][data-source="worker"]');
+    ok((await page.locator("#hist-slot button").count()) === 0, "Verlauf Lauf, Worker fehlt: Fehlerkarte ohne Aktion");
+    ok(errors.length === 0, "Verlauf Lauf, Zustände: keine Konsolenfehler " + JSON.stringify(errors));
+    await ctx.close();
+  }
+}
+
+// 39c. Modus Kraft: Chips, Wochenbalken, Deload, Trend, Einheit Wdh
+{
+  scenario("39c");
+  const { page, ctx, errors } = await newPage({ connected: true, now: "2026-09-23T09:00:00Z" }); // Woche 4 = Entlastung
+  await page.addInitScript(() => {
+    const lg = (date, exercise, kg, reps) => ({ date, exercise, topKg: kg ?? 0, totalReps: reps, completed: true, sets: [{ kg, reps }] });
+    const logs = [
+      lg("2026-09-01", "squats", 70, 9), lg("2026-09-08", "squats", 80, 9), lg("2026-09-22", "squats", 60, 9),
+      lg("2026-09-09", "deadlift", null, 12), lg("2026-09-15", "deadlift", null, 16),
+      lg("2026-09-10", "brustpresse", 55, 8),
+    ];
+    localStorage.setItem("test.logs", JSON.stringify(Object.fromEntries(logs.map((l) => [`${l.date}_${l.exercise}`, l]))));
+  });
+  await page.goto(BASE + "/index.html");
+  await goTab(page, "verlauf");
+  await page.click('[data-action="hist-mode"][data-mode="kraft"]');
+  await page.waitForSelector(".sd-filter");
+  ok((await page.locator(".sd-filter__chip").count()) >= 10 && (await pressedChips(page)).length === 1 &&
+     (await page.locator(".sd-filter").getAttribute("role")) === "group",
+     "Verlauf Kraft: Übungs-Chips als Gruppe, genau eines gedrückt");
+
+  await clickChip(page, "squats");
+  await page.waitForSelector('#hist-slot [data-card="strength-best"]');
+  ok(JSON.stringify(await pressedChips(page)) === '["squats"]' && (await page.evaluate(() => document.activeElement?.dataset?.slug)) === "squats",
+     "Chip-Wechsel: aria-pressed folgt, Fokus bleibt auf dem Chip");
+  const ariaSquats = (await chartBox(page, "strength-best")).aria;
+  const bars = await chartBars(page, "strength-best");
+  const box = await chartBox(page, "strength-best");
+  ok(bars.length === 3 && box.w === 320 && box.h === 130 && barsInside(bars, box), `Squats: 3 Balken (W3 ohne Eintrag bleibt leer), Rect-Attribute im viewBox (${JSON.stringify(box)})`);
+  const axis = await chartAxis(page, "strength-best");
+  ok(JSON.stringify(axis.map((a) => a.text)) === '["W1","W2","W3","W4"]' && axis.length === bars.length + 1,
+     `Squats: ein Achsen-Platz je Woche, auch für die leere (${JSON.stringify(axis.map((a) => a.text))})`);
+  ok(axis[3].current && axis.filter((a) => a.current).length === 1, "Squats: aktuelle Woche W4 trägt is-current");
+  ok((await page.locator('[data-card="strength-best"] .sd-chart__bar--deload').count()) === 1 &&
+     bars.filter((b) => b.cls.includes("sd-chart__bar--deload"))[0].title === "W4: 60 kg (Entlastung)",
+     "Deload-Balken (W4) ist markiert: Klasse und Tooltip 'Entlastung'");
+  ok((await page.textContent('[data-card="strength-best"] .sd-chart__legend')).includes("Entlastungswoche") && ariaSquats.includes("Entlastungswochen"),
+     "Deload nicht nur durch Farbe: Legende 'Entlastungswoche' und Text-Alternative");
+  const trend = await page.locator('[data-card="strength-best"] .sd-trend').evaluate((el) => ({ text: el.textContent, up: el.classList.contains("is-up") }));
+  ok(trend.text.includes("+10 kg") && trend.text.includes("seit W1") && trend.up, `Squats: Trend '+10 kg seit W1', aufwärts (${trend.text})`);
+  ok((await page.textContent('[data-card="strength-best"] .sd-best__val')).includes("60"), "Squats: große Zahl ist der Wert der letzten Woche mit Eintrag");
+  const rows = await page.locator('[data-card="strength-list"] .sd-hrow').evaluateAll((els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim()));
+  ok(rows.length === 3 && rows[0].includes("Woche 4 · Entlastung") && rows[0].includes("60 kg") && rows[2].includes("70 kg"),
+     `Squats: Liste neueste zuerst, Entlastung in der Sub-Zeile (${rows[0]})`);
+  await page.click('[data-info="verlauf-trend"]');
+  await page.waitForSelector("#infoSheet.open");
+  ok((await page.textContent("#infoSheetTitle")).trim() === "Trend", "Squats: (i) am Trend öffnet das Info-Sheet");
+  await page.keyboard.press("Escape");
+  await waitSheetHidden(page, "#infoSheet");
+
+  await clickChip(page, "deadlift");
+  await page.waitForSelector('#hist-slot [data-card="strength-best"] .sd-unit');
+  const barsWdh = await chartBars(page, "strength-best");
+  const axisWdh = await chartAxis(page, "strength-best");
+  ok(barsWdh.length === 2 && barsWdh.length !== bars.length && (await chartBox(page, "strength-best")).aria !== ariaSquats,
+     "Chip-Wechsel auf Deadlift: das Diagramm ändert sich (2 statt 3 Balken, andere Text-Alternative)");
+  ok(JSON.stringify(axisWdh.map((a) => a.text)) === '["W2","W3","W4"]' && axisWdh[2].current && barsWdh.every((b) => !b.cls.includes("deload")),
+     "Deadlift: Achse W2 bis W4, aktuelle Woche ohne Balken trotzdem beschriftet, keine Entlastung");
+  const wdh = await page.textContent('[data-card="strength-best"]');
+  ok(wdh.includes("Wiederholungen gesamt") && (await page.textContent('[data-card="strength-best"] .sd-unit')) === "Wdh" && wdh.includes("+4 Wdh") && wdh.includes("seit W2"),
+     "Übung ohne Gewicht: Titel 'Wiederholungen gesamt', Einheit Wdh, Trend '+4 Wdh seit W2'");
+  ok(!(await page.textContent('[data-card="strength-list"]')).includes("kg") && (await page.locator('[data-card="strength-best"] .sd-chart__legend').count()) === 0,
+     "Übung ohne Gewicht: Liste nur mit Wdh, keine Deload-Legende ohne Deload-Balken");
+
+  await clickChip(page, "brustpresse");
+  await page.waitForSelector('#hist-slot [data-card="strength-best"] .sd-best__val');
+  ok((await page.locator(".sd-trend").count()) === 0 && (await page.locator('[data-info="verlauf-trend"]').count()) === 0,
+     "Nur ein Wert: kein Trend und kein (i)");
+
+  await clickChip(page, "klimmzuege");
+  await page.waitForSelector('#hist-slot [data-card="strength-empty"]');
+  ok((await page.textContent('[data-card="strength-empty"]')).includes("Für Klimmzüge gibt es noch keinen Eintrag.") && (await page.locator('[data-card="strength-best"]').count()) === 0,
+     "Übung ohne Einträge: Leer-Karte mit Übungsnamen");
+  await noHScroll(page, "Verlauf Kraft (Chips)");
+  await page.setViewportSize({ width: 320, height: 568 });
+  await noHScroll(page, "Verlauf Kraft 320");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await noHScroll(page, "Verlauf Kraft 1280");
+  ok(errors.length === 0, "Verlauf Kraft: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// 39d. 35 Wochen: Achse dünnt aus, die aktuelle Woche bleibt beschriftet
+{
+  scenario("39d");
+  const { page, ctx, errors } = await newPage({ connected: true, now: "2027-04-27T09:00:00Z" }); // Woche 35
+  await page.addInitScript(() => {
+    const lg = (date, kg) => ({ date, exercise: "squats", topKg: kg, totalReps: 9, completed: true, sets: [{ kg, reps: 9 }] });
+    const logs = [lg("2026-09-01", 70), lg("2027-04-27", 90)];
+    localStorage.setItem("test.logs", JSON.stringify(Object.fromEntries(logs.map((l) => [`${l.date}_squats`, l]))));
+  });
+  await page.goto(BASE + "/index.html");
+  await goTab(page, "verlauf");
+  await page.click('[data-action="hist-mode"][data-mode="kraft"]');
+  await page.waitForSelector(".sd-filter");
+  await clickChip(page, "squats");
+  await page.waitForSelector('#hist-slot [data-card="strength-best"]');
+  const axis = await chartAxis(page, "strength-best");
+  const shown = axis.map((a) => a.text).filter(Boolean);
+  const expected = Array.from({ length: 9 }, (_, k) => `W${3 + 4 * k}`);
+  ok(axis.length === 35 && (await chartBars(page, "strength-best")).length === 2, "35 Wochen: ein Achsen-Platz je Woche (35), 2 Balken");
+  ok(JSON.stringify(shown) === JSON.stringify(expected), `35 Wochen: Labels ausgedünnt, von der neuesten Woche gezählt (${shown.join(" ")})`);
+  ok(axis[34].current && axis[34].text === "W35", "35 Wochen: die aktuelle Woche ist beschriftet und trägt is-current");
+  ok(shown.every((t) => t.length <= 3), "35 Wochen: kein Label länger als 3 Zeichen (W12 ist die längste erlaubte Form)");
+  await page.setViewportSize({ width: 320, height: 568 });
+  await noHScroll(page, "Verlauf Kraft, 35 Wochen, 320");
+  ok(errors.length === 0, "Verlauf Kraft 35 Wochen: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// ============================================================================
+// 40. Plan und Konto (Stride E7, neu). Markup: docs/ui-markup-stride.md Abschnitt 14.
+// ============================================================================
+
+// 40a. Ziel-Karte, Phasenbalken, Phasen, Zonen (Woche 10: Phase 1 fertig, Phase 2 läuft)
+{
+  scenario("40a");
+  const { page, ctx, errors } = await newPage({ now: "2026-11-02T09:00:00Z" });
+  await page.goto(BASE + "/index.html");
+  await goTab(page, "plan");
+  await page.waitForSelector(".sd-zone");
+  ok((await page.textContent(PLAN_SUB)).trim() === "Woche 10 von 35 · 26" + NBSP_PCT + " geschafft", "Plan: Kopfzeile mit geschütztem Leerzeichen vor %");
+  const goal = (await page.textContent('[data-card="goal"]')).replace(/\s+/g, " ");
+  ok(goal.includes("Ziel · Halbmarathon") && goal.includes("1:29:59 h") && goal.includes("Renntag 02.05.2027") && goal.includes("4:16 /km"),
+     `Ziel-Karte: Distanz, Zielzeit, Renntag, Pace (${goal})`);
+  const segs = await page.locator(".sd-phasebar__seg").evaluateAll((els) => els.map((e) => ({ x: Number(e.getAttribute("x")), w: Number(e.getAttribute("width")), cls: e.getAttribute("class") })));
+  const lens = [8, 12, 13, 2];
+  const usable = 300 - 3 * 3;
+  ok(segs.length === 4 && segs.every((s, i) => Math.abs(s.w - (usable * lens[i]) / 35) < 0.06) &&
+     segs.slice(1).every((s, i) => Math.abs(s.x - (segs[i].x + segs[i].w + 3)) < 0.15),
+     `Phasenbalken: Segmentbreiten proportional zu den Wochen (8:12:13:2), je 3 Einheiten Lücke (${segs.map((s) => s.w).join(", ")})`);
+  const fills = await page.locator(".sd-phasebar__fill").evaluateAll((els) => els.map((e) => ({ x: Number(e.getAttribute("x")), w: Number(e.getAttribute("width")) })));
+  ok(fills.length === 2 && Math.abs(fills[0].w - segs[0].w) < 0.06 && fills[0].x === segs[0].x,
+     "Phasenbalken: abgeschlossene Phase 1 ist ganz gefüllt");
+  ok(Math.abs(fills[1].w - segs[1].w / 12) < 0.1 && fills[1].x === segs[1].x,
+     `Phasenbalken: laufende Phase 2 anteilig gefüllt (1 von 12 Wochen, ${fills[1].w} von ${segs[1].w}), spätere leer`);
+  ok(JSON.stringify(segs.map((s) => s.cls.replace("sd-phasebar__seg sd-phasebar__seg--", ""))) === '["teal","sky","amber","purple"]',
+     "Phasenbalken: Segmentfarben über Klassen (teal, sky, amber, purple)");
+  const barAria = await page.getAttribute(".sd-phasebar", "aria-label");
+  ok((await page.getAttribute(".sd-phasebar", "viewBox")) === "0 0 300 10" && barAria.includes("Phase 2 Aufbau, Woche 9 bis 20, läuft") && barAria.includes("35 Wochen"),
+     `Phasenbalken: viewBox 0 0 300 10, Text-Alternative nennt die laufende Phase (${barAria})`);
+  const cur = page.locator(".sd-phase.is-current");
+  ok((await cur.count()) === 1 && (await cur.getAttribute("data-phase")) === "2" && (await cur.getAttribute("aria-current")) === "true" &&
+     (await cur.locator(".sd-pill").textContent()).trim() === "läuft" && (await page.locator(".sd-phase .sd-pill").count()) === 1,
+     "Phasen: nur Phase 2 läuft (is-current, aria-current, Pille 'läuft')");
+  const badges = await page.locator(".sd-zone__badge").allTextContents();
+  ok(JSON.stringify(badges) === '["Z1","Z2","Z3","Z4","Z5"]' && (await page.locator(".sd-zone[class*='tone-']").count()) === 5,
+     `Zonen: Z1 bis Z5 als Badges, je mit Farbklasse (${badges.join(" ")})`);
+  const heads = await page.locator("#main h2.sd-label").allTextContents();
+  ok(JSON.stringify(heads) === '["Phasen","Trainingsbereiche","Daten und Konto"]', `Plan: Abschnittsüberschriften sind h2 (${heads.join(" | ")})`);
+  await page.setViewportSize({ width: 320, height: 568 });
+  await noHScroll(page, "Plan 320");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await noHScroll(page, "Plan 1280");
+  ok(errors.length === 0, "Plan Woche 10: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// 40b. Konto: Angemeldet-als (esc), Strava-Zeile in allen Zuständen, Plan-Zeile, Export-Fehlerton
+{
+  scenario("40b");
+  const kv = (page, slot) => page.locator(`[data-slot="${slot}"] dd`).textContent();
+  {
+    const { page, ctx, errors } = await newPage({ connected: true });
+    await page.addInitScript(() => { window.__EMAIL__ = 'a<b>x</b>"@example.test'; });
+    await page.goto(BASE + "/index.html");
+    await page.waitForSelector(`${TODAY} [data-action="open-day"]`);
+    await goTab(page, "plan");
+    await page.waitForSelector(ACCOUNT);
+    const mail = page.locator(`${ACCOUNT} .sd-kv`).first().locator("dd");
+    ok((await mail.textContent()) === 'a<b>x</b>"@example.test' && (await mail.locator("b").count()) === 0, "Konto: E-Mail läuft durch esc() (HTML bleibt Text)");
+    ok((await kv(page, "strava-status")).trim() === "verbunden · Sync heute 11:00",
+       `Konto, Strava verbunden: 'Sync heute HH:MM' aus lastFetchedAt (${await kv(page, "strava-status")})`);
+    ok((await page.locator(`${ACCOUNT} [data-action="connect-strava"], ${ACCOUNT} [data-action="reload-strava"]`).count()) === 0,
+       "Konto, Strava verbunden: keine Strava-Aktion");
+    ok((await kv(page, "plan-source")).trim() === "Plandatei" && (await page.locator('[data-slot="plan-source"] button').count()) === 0,
+       "Konto: Plan-Zeile zeigt 'Plandatei' ohne Version und ohne Knopf (F1)");
+    ok((await page.locator(`${ACCOUNT} #export-status[hidden]`).count()) === 1 && (await page.locator(`${ACCOUNT} #account-status[hidden]`).count()) === 1,
+       "Konto: Export- und Abmelde-Status starten versteckt");
+    ok(errors.length === 0, "Konto verbunden: keine Konsolenfehler " + JSON.stringify(errors));
+    await ctx.close();
+  }
+  {
+    const { page, ctx } = await newPage({ connected: false });
+    await page.goto(BASE + "/index.html");
+    await goTab(page, "plan");
+    await page.waitForSelector(ACCOUNT);
+    ok((await kv(page, "strava-status")).trim() === "nicht verbunden" &&
+       (await page.locator(`${ACCOUNT} [data-action="connect-strava"].sd-btn--coral`).count()) === 1,
+       "Konto, Strava nicht verbunden: Text und koralle Schaltfläche 'Strava verbinden'");
+    await ctx.close();
+  }
+  {
+    const { page, ctx } = await newPage({ connected: true });
+    await ctx.route("https://www.strava.com/api/v3/athlete/activities*", (r) => r.fulfill({ status: 500, body: "boom" }));
+    await page.goto(BASE + "/index.html");
+    await page.waitForSelector(`${TODAY} [data-action="open-day"]`);
+    await goTab(page, "plan");
+    await page.waitForSelector(`${ACCOUNT} [data-slot="strava-status"] dd.is-danger`);
+    ok((await kv(page, "strava-status")).trim() === "Abruf fehlgeschlagen" &&
+       (await page.locator(`${ACCOUNT} .sd-notice--danger[role="alert"]`).count()) === 1 &&
+       (await page.textContent(`${ACCOUNT} .sd-notice--danger`)).includes("Strava-Abruf fehlgeschlagen (HTTP 500)") &&
+       (await page.locator(`${ACCOUNT} [data-action="reload-strava"]`).count()) === 1 && (await page.locator(`${ACCOUNT} [data-action="connect-strava"]`).count()) === 1,
+       "Konto, Strava-Abruffehler: rote Zeile, Hinweis mit Meldung, 'Nochmal versuchen' und 'Neu verbinden'");
+    await ctx.close();
+  }
+  {
+    const { page, ctx } = await noWorkerPage();
+    await goTab(page, "plan");
+    await page.waitForSelector(ACCOUNT);
+    ok((await kv(page, "strava-status")).trim() === "nicht eingerichtet" && (await page.locator(`${ACCOUNT} [data-action="connect-strava"]`).count()) === 0,
+       "Konto, Worker fehlt: 'nicht eingerichtet' ohne Knopf");
+    await ctx.close();
+  }
+  {
+    // Export scheitert beim Erzeugen der Datei: Fehlerton, Knopf wieder aktiv
+    const { page, ctx } = await exportPage({ breakFile: true });
+    await page.click('[data-action="export-data"]');
+    await page.waitForFunction(() => document.getElementById("export-status")?.textContent.startsWith("Export fehlgeschlagen"));
+    ok((await page.locator("#export-status.is-danger:not([hidden])").count()) === 1 && (await page.textContent("#export-status")).includes("kaputt") &&
+       await page.isEnabled('[data-action="export-data"]'),
+       "Export fehlgeschlagen: Status in Gefahrenfarbe (is-danger) mit Meldung, Knopf wieder aktiv");
+    await ctx.close();
+  }
+}
+
+// 40c. Kein style= im #main auf allen sechs Screens (C5, Auflage zu E7)
+{
+  scenario("40c");
+  const { page, ctx } = await newPage({ connected: true });
+  await page.addInitScript(() => {
+    localStorage.setItem("test.logs", JSON.stringify({
+      "2026-09-01_squats": { date: "2026-09-01", exercise: "squats", topKg: 70, totalReps: 27, completed: true, sets: [{ kg: 70, reps: 9 }] },
+      "2026-09-08_squats": { date: "2026-09-08", exercise: "squats", topKg: 80, totalReps: 27, completed: true, sets: [{ kg: 80, reps: 9 }] },
+    }));
+  });
+  await page.goto(BASE + "/index.html");
+  await page.waitForSelector(`${TODAY} [data-action="open-day"]`);
+  ok((await hasStyleAttr(page)) === 0, "Kein style= in #main: Heute");
+  await goTab(page, "woche");
+  await waitWeekRows(page);
+  ok((await hasStyleAttr(page)) === 0, "Kein style= in #main: Woche");
+  await goTab(page, "verlauf");
+  await page.waitForSelector('#hist-slot [data-card="run-list"]');
+  ok((await hasStyleAttr(page)) === 0, "Kein style= in #main: Verlauf, Lauf");
+  await page.click('[data-action="hist-mode"][data-mode="kraft"]');
+  await clickChip(page, "squats");
+  await page.waitForSelector('#hist-slot [data-card="strength-best"]');
+  ok((await hasStyleAttr(page)) === 0, "Kein style= in #main: Verlauf, Kraft (Chips, Balken, Liste)");
+  await goTab(page, "plan");
+  await page.waitForSelector(ACCOUNT);
+  ok((await hasStyleAttr(page)) === 0, "Kein style= in #main: Plan (Ziel-Karte, Phasenbalken, Zonen, Konto)");
+  await openKraftViaWeek(page);
+  ok((await hasStyleAttr(page)) === 0, "Kein style= in #main: Kraft-Tag");
+  await goTab(page, "dashboard");
+  await openRunToday(page);
+  ok((await hasStyleAttr(page)) === 0, "Kein style= in #main: Lauf-Tag");
+  await ctx.close();
 }
 
 await browser.close();

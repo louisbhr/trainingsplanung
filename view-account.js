@@ -1,8 +1,8 @@
-// Markup für Anmelden, "Kein Zugriff", Hinweis auf offene Einträge und die
-// Konto-Karte. Reine String-Funktionen (wie view-dashboard.js); alles aus
-// Nutzer- oder Firebase-Daten läuft durch esc(). Die Klassen stehen in
-// style.css (Abschnitt "Anmeldung").
-import { esc, markSVG } from "./ui.js?v=202610220932";
+// Markup für Anmelden, "Kein Zugriff", Hinweis auf offene Einträge und den Abschnitt
+// "Daten und Konto" im Plan-Tab. Reine String-Funktionen (wie view-dashboard.js); alles
+// aus Nutzer- oder Firebase-Daten läuft durch esc(). Die Klassen stehen in style.css
+// (Abschnitte "Anmeldung" und "Verlauf + Plan (E7)").
+import { esc, markSVG } from "./ui.js?v=202610221024";
 
 // Anmeldeformular. Ein echtes <form> mit autocomplete username und
 // current-password, damit der iCloud-Schlüsselbund ausfüllt und speichert.
@@ -57,25 +57,70 @@ function accountRows({ email, uid }) {
   </dl>`;
 }
 
-// Konto-Karte am Ende des Plan-Tabs. status: kurzer Hinweistext unter dem
-// Knopf (z. B. wenn das Abmelden wegen offener Einträge abgebrochen wurde).
-export function renderAccountCard({ email, uid, status = "" }) {
-  return `<div class="card account-card">
-    <p class="name">Konto</p>
-    ${accountRows({ email, uid })}
-    <p class="hint">Abmelden räumt dieses Gerät: lokale Kopien und der Offline-Speicher werden gelöscht. Nicht übertragene Einträge werden vorher gesendet.</p>
-    <p class="auth-error" role="status" id="account-status" ${status ? "" : "hidden"}>${esc(status)}</p>
-    <button type="button" class="small-btn danger-btn account-logout" data-action="logout">Abmelden</button>
-  </div>`;
+// ---------- Daten und Konto im Plan-Tab (Stride E7, Markup 14.5) ----------
+
+const two = (n) => String(n).padStart(2, "0");
+
+/** "Sync heute 07:12" bzw. "Sync 20.10. 07:12"; ohne Zeitpunkt leer. Ortszeit des Geräts. */
+export function syncText(fetchedAt, now) {
+  if (typeof fetchedAt !== "number") return "";
+  const at = new Date(fetchedAt);
+  const ref = new Date(now);
+  const time = `${two(at.getHours())}:${two(at.getMinutes())}`;
+  const sameDay = at.getFullYear() === ref.getFullYear() && at.getMonth() === ref.getMonth() && at.getDate() === ref.getDate();
+  return sameDay ? `Sync heute ${time}` : `Sync ${two(at.getDate())}.${two(at.getMonth() + 1)}. ${time}`;
 }
 
-// Karte "Daten" im Plan-Tab (über der Konto-Karte): Export aller
-// Trainingsdaten als JSON-Datei. Der Fortschritt steht im Status-Absatz.
-export function renderExportCard() {
-  return `<div class="card export-card">
-    <p class="name">Daten</p>
-    <p class="hint">Alle Trainingsdaten (Strava, Kraft-Logs, Plan) als eine JSON-Datei herausgeben. Es sind keine Zugangsdaten und keine Standortdaten enthalten.</p>
-    <p class="hint" role="status" id="export-status" hidden></p>
-    <button type="button" class="small-btn export-btn" data-action="export-data">Daten exportieren</button>
-  </div>`;
+const connectButton = (cls = "sd-btn sd-btn--coral", label = "Strava verbinden") =>
+  `<button type="button" class="${cls}" data-action="connect-strava">${label}</button>`;
+
+/**
+ * Strava-Zeile plus Aktion darunter. s: { workerConfigured, connected, error, fetchedAt, now }.
+ * Rückgabe { dd, ddClass, below }.
+ */
+export function stravaStatus(s) {
+  if (!s.workerConfigured) return { dd: "nicht eingerichtet", ddClass: "", below: "" };
+  if (s.error) {
+    return {
+      dd: "Abruf fehlgeschlagen",
+      ddClass: ' class="is-danger"',
+      below: `<p class="sd-notice sd-notice--danger" role="alert">${esc(s.error)}</p>
+  <div class="sd-actions"><button type="button" class="sd-btn" data-action="reload-strava">Nochmal versuchen</button>${connectButton(undefined, "Neu verbinden")}</div>`,
+    };
+  }
+  if (s.connected === null) return { dd: "wird geprüft …", ddClass: "", below: "" };
+  if (s.connected === false) return { dd: "nicht verbunden", ddClass: "", below: `<div>${connectButton()}</div>` };
+  const sync = syncText(s.fetchedAt, s.now);
+  return { dd: sync ? `verbunden · ${sync}` : "verbunden", ddClass: "", below: "" };
+}
+
+/**
+ * Abschnitt "Daten und Konto": Export, Angemeldet-als, Strava, Plan-Quelle, Abmelden.
+ * vm: { email, strava (siehe stravaStatus), planVersion }. Die Plan-Zeile ist reine Anzeige,
+ * ein Knopf kommt erst mit Login 1b Teil B (F1). Die UID steht nur auf "Kein Zugriff".
+ */
+export function renderAccountSection({ email, strava, planVersion = null }) {
+  const st = stravaStatus(strava);
+  const plan = planVersion ? `Plandatei · Version ${esc(planVersion)}` : "Plandatei";
+  return `<h2 class="sd-label" id="accountTitle">Daten und Konto</h2>
+<section class="sd-card sd-card--loose" data-card="account" aria-labelledby="accountTitle">
+  <div class="sd-split">
+    <div class="sd-split__main">
+      <p class="sd-split__title">Daten exportieren</p>
+      <p class="sd-split__hint">Alle Trainingsdaten als JSON-Datei, ohne Zugangs- und Standortdaten.</p>
+      <p class="sd-split__hint sd-split__status" id="export-status" role="status" hidden></p>
+    </div>
+    <button type="button" class="sd-btn" data-action="export-data">Export</button>
+  </div>
+  <hr class="sd-rule" />
+  <dl class="sd-kvlist">
+    <div class="sd-kv"><dt>Angemeldet als</dt><dd>${esc(email || "unbekannt")}</dd></div>
+    <div class="sd-kv" data-slot="strava-status"><dt>Strava</dt><dd${st.ddClass}>${esc(st.dd)}</dd></div>
+    <div class="sd-kv" data-slot="plan-source"><dt>Plan</dt><dd>${plan}</dd></div>
+  </dl>
+  ${st.below ? `${st.below}\n  ` : ""}<hr class="sd-rule" />
+  <p class="sd-hint">Abmelden räumt dieses Gerät: lokale Kopien und der Offline-Speicher werden gelöscht. Nicht übertragene Einträge werden vorher gesendet.</p>
+  <p class="sd-notice sd-notice--quiet" id="account-status" role="status" hidden></p>
+  <div><button type="button" class="sd-btn sd-btn--danger" data-action="logout">Abmelden</button></div>
+</section>`;
 }

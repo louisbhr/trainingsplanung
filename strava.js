@@ -1,6 +1,6 @@
-import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610220932";
-import { fetchWithAuthRetry } from "./access.js?v=202610220932";
-import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610220932";
+import { saveStravaTokens, loadStravaTokens, authHeaders } from "./firebase-init.js?v=202610221024";
+import { fetchWithAuthRetry } from "./access.js?v=202610221024";
+import { STRAVA_CLIENT_ID, STRAVA_WORKER_URL, isWorkerConfigured } from "./config.js?v=202610221024";
 
 // Die Client-ID ist unkritisch öffentlich (sie steht ohnehin in der
 // Authorize-URL). Das Client-Secret liegt NICHT hier, sondern nur als
@@ -227,6 +227,11 @@ export async function fetchRecentRuns(sinceISO, { force = false } = {}) {
 
   runCache = { sinceISO, runs, sessions: lastSessions, fetchedAt: Date.now() };
   return runs;
+}
+
+// Zeitpunkt (ms) des letzten erfolgreichen Abrufs für "Sync heute HH:MM" im Plan-Tab; null ohne Cache.
+export function lastFetchedAt() {
+  return runCache?.fetchedAt ?? null;
 }
 
 // Krafteinheiten aus dem letzten Abruf

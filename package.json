@@ -22,7 +22,8 @@
     "test:runcompare": "node --test tests/runcompare.test.mjs",
     "test:history-data": "node --test tests/history-data.test.mjs",
     "test:view-run": "node --test tests/view-run.test.mjs",
-    "test": "node tests/plan.test.mjs && node tests/plan-golden.test.mjs && node tests/runmatch.test.mjs && node tests/progression.test.mjs && node tests/version.test.mjs && node tests/stubs.test.mjs && node tests/export.test.mjs && node --test tests/metrics.test.mjs && node --test tests/coach.test.mjs && node --test tests/worker.test.mjs && node --test tests/access.test.mjs && node --test tests/config-consistency.test.mjs && node --test tests/kraftflow.test.mjs && node --test tests/runcompare.test.mjs && node --test tests/history-data.test.mjs && node --test tests/view-run.test.mjs && npm run test:naming && node tests/app.test.mjs",
+    "test:view-history": "node --test tests/view-history.test.mjs",
+    "test": "node tests/plan.test.mjs && node tests/plan-golden.test.mjs && node tests/runmatch.test.mjs && node tests/progression.test.mjs && node tests/version.test.mjs && node tests/stubs.test.mjs && node tests/export.test.mjs && node --test tests/metrics.test.mjs && node --test tests/coach.test.mjs && node --test tests/worker.test.mjs && node --test tests/access.test.mjs && node --test tests/config-consistency.test.mjs && node --test tests/kraftflow.test.mjs && node --test tests/runcompare.test.mjs && node --test tests/history-data.test.mjs && node --test tests/view-run.test.mjs && node --test tests/view-history.test.mjs && npm run test:naming && node tests/app.test.mjs",
     "version": "node tools/bump-version.mjs",
     "test:version": "node tests/version.test.mjs"
   },
