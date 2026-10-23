@@ -5562,15 +5562,18 @@ const toastText = (page) => page.textContent("#toast").then((t) => t.trim());
     return { del: box("confirmSheetDelete"), cancel: box("confirmSheetCancel"), vw: innerWidth, vh: innerHeight, scroll: list.scrollHeight > list.clientHeight, sheetOverflowX: sheet.scrollWidth > sheet.clientWidth };
   });
   const inView = (b) => b.top >= 0 && b.bottom <= geo.vh && b.left >= 0 && b.right <= geo.vw && b.h >= 44;
-  // Bei 320x640 mit zehn langen Namen ist das Sheet höher als seine 78 % und scrollt in sich (style.css, Designer):
-  // die Knöpfe sind dann erst nach dem Scrollen im Bild. Geprüft wird, dass nichts abgeschnitten ist und beide erreichbar sind.
-  await page.locator(CONFIRM_DEL).scrollIntoViewIfNeeded();
-  const reach = await page.evaluate(() => {
-    const r = (id) => document.getElementById(id).getBoundingClientRect();
-    return { del: { top: r("confirmSheetDelete").top, bottom: r("confirmSheetDelete").bottom }, cancel: { top: r("confirmSheetCancel").top, bottom: r("confirmSheetCancel").bottom }, vh: innerHeight };
+  // Die Knopfzeile klebt unten im Sheet (sticky): beide Knöpfe ohne Scrollen sichtbar, auch auf kurzen Bildschirmen.
+  ok(inView(geo.del) && inView(geo.cancel),
+    "Löschen: bei 320x640 sind 'Abbrechen' und 'Löschen' ohne Scrollen vollständig sichtbar und mindestens 44 px hoch " + JSON.stringify({ del: geo.del, cancel: geo.cancel, vh: geo.vh }));
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.waitForTimeout(150);
+  const short = await page.evaluate(() => {
+    const box = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, h: r.height }; };
+    return { del: box("confirmSheetDelete"), cancel: box("confirmSheetCancel"), vw: innerWidth, vh: innerHeight };
   });
-  ok(geo.del.h >= 44 && geo.cancel.h >= 44 && geo.del.left >= 0 && geo.del.right <= geo.vw && reach.del.bottom <= reach.vh && reach.cancel.top >= 0,
-    "Löschen: bei 320 px sind 'Abbrechen' und 'Löschen' vollständig, mindestens 44 px hoch und per Scrollen im Bild erreichbar " + JSON.stringify({ geo: inView(geo.del) ? "sofort sichtbar" : "erst nach Scrollen", reach }));
+  const inShort = (b) => b.top >= 0 && b.bottom <= short.vh && b.left >= 0 && b.right <= short.vw && b.h >= 44;
+  ok(inShort(short.del) && inShort(short.cancel),
+    "Löschen: bei 320x568 sind beide Knöpfe ohne Scrollen sichtbar " + JSON.stringify(short));
   ok(geo.scroll && !geo.sheetOverflowX, "Löschen: die lange Liste scrollt in sich, das Sheet läuft nicht seitlich über");
   await ctx.close();
 }

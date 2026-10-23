@@ -1234,6 +1234,20 @@ button.sd-option.is-selected:active { background: var(--teal-tint); }
 .sd-sheet__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .sd-sheet__actions .sd-btn { min-width: 0; overflow-wrap: anywhere; }
 
+/* Nur Bestätigungs-Sheet: Knopfzeile klebt am unteren Rand des scrollenden Sheets, damit "Löschen"
+   und "Abbrechen" auf jeder Höhe >= 568 px ohne Scrollen erreichbar sind. Sticky bezieht sich auf
+   den Rand der Scrollfläche, nicht auf das Sheet-Padding; darum rutscht die Zeile per negativem
+   margin-bottom ins Padding und trägt es selbst (inkl. Safe-Area). */
+#confirmSheet .sd-sheet__actions {
+  position: sticky; bottom: 0; z-index: 1;
+  margin-bottom: calc(-36px - env(safe-area-inset-bottom));
+  padding: 12px 0 calc(36px + env(safe-area-inset-bottom));
+  background: var(--card);
+  box-shadow: 0 -1px 0 var(--line);
+}
+/* Liste gibt auf kurzen Viewports nach (Obergrenze bleibt 11.5rem), sie scrollt intern und per Tastatur. */
+#confirmSheet .sd-confirm__list { max-height: clamp(5rem, 24dvh, 11.5rem); }
+
 /* =====================================================================
    Bewegung: nur dort, wo sie etwas erklärt, und abschaltbar. EIN Block für alles; wer
    eine neue transition oder animation anlegt, trägt sie hier ein.

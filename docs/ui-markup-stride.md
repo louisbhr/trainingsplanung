@@ -1382,7 +1382,7 @@ Deaktiviert (D7, sobald irgendeine Übung `saving` ist): nur dem Knopf `disabled
   </div>
 </div>
 ```
-Der Coder setzt `#confirmSheetTitle.textContent` und `#confirmSheetBody.innerHTML`. Die Knöpfe sind **fest und für A und B gleich**; beim Öffnen setzt der Coder sie zurück (`disabled` weg, `aria-busy` weg, Label „Löschen“). Beide Knöpfe teilen die Zeile (je mindestens 140 px, darunter brechen sie untereinander: Abbrechen oben, Löschen unten; bei 320 px = 280 px Sheet-Innenbreite stehen sie untereinander).
+Der Coder setzt `#confirmSheetTitle.textContent` und `#confirmSheetBody.innerHTML`. Die Knöpfe sind **fest und für A und B gleich**; beim Öffnen setzt der Coder sie zurück (`disabled` weg, `aria-busy` weg, Label „Löschen“). Beide Knöpfe teilen die Zeile (je mindestens 140 px, darunter brechen sie untereinander: Abbrechen oben, Löschen unten; bei 320 px = 280 px Sheet-Innenbreite stehen sie untereinander). Die Knopfzeile klebt (`position: sticky; bottom: 0`) am unteren Sheet-Rand und bleibt ab 320×568 ohne Scrollen sichtbar; die Liste ist auf `clamp(5rem, 24dvh, 11.5rem)` begrenzt und scrollt intern.
 
 **Body für B (eine Übung)**: Titel `Eintrag löschen?`
 ```html
