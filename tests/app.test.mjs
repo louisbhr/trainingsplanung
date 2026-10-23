@@ -74,11 +74,35 @@ export async function authHeaders({ force } = {}) {
   return { Authorization: "Bearer " + (force ? "fresh-token" : "test-token") };
 }
 export async function ensureSignedIn() { return AUTH_USERS.ok; }
+// Schreibvorgänge laufen wie in Firestore in einer geordneten Warteschlange (Auflage D8):
+// ein verzögertes Speichern schreibt nie NACH einem später gestellten Löschen.
+let chain = Promise.resolve();
+const enqueue = (fn) => { const run = chain.then(fn); chain = run.catch(() => {}); return run; };
+const noteCall = (name, args) => { window.__DELETE_CALLS__ = (window.__DELETE_CALLS__ || []).concat([{ name, args }]); };
 export async function saveLog(dateISO, slug, data) { fs();
   // Test-Haken: __SAVE_DELAY__ (ms) verzögert, __SAVE_FAIL__ (Text) lässt das Schreiben scheitern.
-  if (window.__SAVE_DELAY__) await new Promise((r) => setTimeout(r, window.__SAVE_DELAY__));
-  if (window.__SAVE_FAIL__) throw new Error(window.__SAVE_FAIL__);
-  const s = read(); s[dateISO + "_" + slug] = { date: dateISO, exercise: slug, ...data }; write(s);
+  return enqueue(async () => {
+    if (window.__SAVE_DELAY__) await new Promise((r) => setTimeout(r, window.__SAVE_DELAY__));
+    if (window.__SAVE_FAIL__) throw new Error(window.__SAVE_FAIL__);
+    const s = read(); s[dateISO + "_" + slug] = { date: dateISO, exercise: slug, ...data }; write(s);
+  });
+}
+// Test-Haken: __DELETE_DELAY__ (ms) verzögert, __DELETE_FAIL__ (Text) lässt das Löschen scheitern
+// (dann bleibt der Speicher unverändert, wie bei einer abgelehnten Firestore-Mutation).
+const removeKeys = async (keys) => {
+  if (window.__DELETE_DELAY__) await new Promise((r) => setTimeout(r, window.__DELETE_DELAY__));
+  if (window.__DELETE_FAIL__) throw new Error(window.__DELETE_FAIL__);
+  const s = read(); for (const k of keys) delete s[k]; write(s);
+};
+export async function deleteLog(dateISO, slug) { fs();
+  noteCall("deleteLog", [dateISO, slug]);
+  return enqueue(() => removeKeys([dateISO + "_" + slug]));
+}
+export async function deleteLogsForDate(dateISO, slugs) { fs();
+  noteCall("deleteLogsForDate", [dateISO, slugs]);
+  if (!slugs.length) return [];
+  await enqueue(() => removeKeys(slugs.map((s) => dateISO + "_" + s)));
+  return slugs;
 }
 export async function loadLog(d, s) { fs(); return read()[d + "_" + s] || null; }
 export async function loadLogsForDate(d) { fs();
@@ -813,6 +837,8 @@ const run = (id, name, date, time, meters, sec, hr) => ({
       export async function saveRunLink() {}
       export async function clearRunLink() {}
       export async function saveLog() {}
+      export async function deleteLog() {}
+      export async function deleteLogsForDate() { return []; }
       export async function saveStravaTokens() {}
       export async function loadStravaTokens() { return null; }`,
   }));
@@ -1452,6 +1478,8 @@ for (const [recal, wantText, notText, label] of [
       export async function authHeaders() { return { Authorization: "Bearer test-token" }; }
       export async function ensureSignedIn() { return { uid: "t" }; }
       export async function saveLog() { boom(); }
+      export async function deleteLog() { boom(); }
+      export async function deleteLogsForDate() { boom(); }
       export async function loadLog() { boom(); }
       export async function loadLogsForDate() { boom(); }
       export async function loadLogsForExercise() { boom(); }
@@ -2470,6 +2498,8 @@ for (const [fail, want, notWant, label] of [
       export async function saveRunLink() {}
       export async function clearRunLink() {}
       export async function saveLog() {}
+      export async function deleteLog() {}
+      export async function deleteLogsForDate() { return []; }
       export async function saveStravaTokens() {}
       export async function loadStravaTokens() {
         return { refresh_token: "rt", access_token: "at", expires_at: Math.floor(Date.now() / 1000) + 3600 };

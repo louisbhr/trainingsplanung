@@ -15,6 +15,7 @@ import {
   getDoc,
   setDoc,
   deleteDoc,
+  writeBatch,
   waitForPendingWrites as fsWaitForPendingWrites,
   terminate,
   clearIndexedDbPersistence,
@@ -187,9 +188,15 @@ export async function signOutAndWipeDevice({ flushMs = 10000 } = {}) {
 }
 
 // --- Kraft-Log: eine Zeile pro Datum+Übung ---
+// Gemeinsame Doc-ID für Speichern, Laden und Löschen (Auflage D1): so können
+// die Pfade nie auseinanderlaufen.
+function logRef(dateISO, exerciseSlug) {
+  return doc(db, "logs", `${dateISO}_${exerciseSlug}`);
+}
+
 export async function saveLog(dateISO, exerciseSlug, data) {
   await ensureSignedIn();
-  const ref = doc(db, "logs", `${dateISO}_${exerciseSlug}`);
+  const ref = logRef(dateISO, exerciseSlug);
   await fb(() =>
     setDoc(ref, { date: dateISO, exercise: exerciseSlug, ...data, updatedAt: Date.now() }, { merge: true })
   );
@@ -197,9 +204,28 @@ export async function saveLog(dateISO, exerciseSlug, data) {
 
 export async function loadLog(dateISO, exerciseSlug) {
   await ensureSignedIn();
-  const ref = doc(db, "logs", `${dateISO}_${exerciseSlug}`);
-  const snap = await fb(() => getDoc(ref));
+  const snap = await fb(() => getDoc(logRef(dateISO, exerciseSlug)));
   return snap.exists() ? snap.data() : null;
+}
+
+// Einen Kraft-Eintrag löschen. Offline löst die Promise erst beim Sync auf,
+// der lokale Cache zeigt die Löschung sofort (Latency Compensation).
+export async function deleteLog(dateISO, exerciseSlug) {
+  await ensureSignedIn();
+  await fb(() => deleteDoc(logRef(dateISO, exerciseSlug)));
+}
+
+// Mehrere Einträge eines Tages atomar löschen. Die Slugs kommen vom Aufrufer
+// (genau das, was das Bestätigungs-Sheet nannte), es gibt keine zweite
+// Abfrage. Bei leerer Liste wird nichts committet.
+export async function deleteLogsForDate(dateISO, slugs) {
+  const list = [...new Set(slugs ?? [])];
+  if (!list.length) return [];
+  await ensureSignedIn();
+  const batch = writeBatch(db);
+  for (const slug of list) batch.delete(logRef(dateISO, slug));
+  await fb(() => batch.commit());
+  return list;
 }
 
 // Alle Übungen eines Tages in einer einzigen Abfrage — statt pro Übung

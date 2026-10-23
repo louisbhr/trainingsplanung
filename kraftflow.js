@@ -287,3 +287,50 @@ export function dropSavedFromDraft(draft, savedSlugs) {
   if (!Object.keys(ex).length) return null;
   return { focus: draft.focus && Object.hasOwn(ex, draft.focus) ? draft.focus : null, ex };
 }
+
+// ---------- Löschen (Lösch-Funktion, Auflagen D1/D3) ----------
+
+/**
+ * Verlauf ohne die gelöschten Einträge. Ohne slugs fällt der ganze Tag weg,
+ * mit slugs nur diese Übungen an diesem Tag. Andere Tage und gleichnamige
+ * Übungen an anderen Tagen bleiben. Liefert immer ein neues Array (nie die
+ * Eingabe), damit eine veraltete Referenz nichts zurückbringt (D4/D5).
+ * @param {{date:string, exercise:string}[]|null} logs
+ * @param {string} date ISO-Datum
+ * @param {string[]|null} [slugs]
+ */
+export function withoutLogs(logs, date, slugs = null) {
+  const only = slugs ? new Set(slugs) : null;
+  return (logs ?? []).filter((l) => !(l?.date === date && (!only || only.has(l.exercise))));
+}
+
+/**
+ * Was „Einträge dieses Tages löschen“ trifft: genau die Schlüssel von savedMap
+ * (auch verwaiste und Dokumente mit completed:false). Sichtbare Übungen in
+ * Anzeigereihenfolge zuerst, verwaiste danach.
+ * @param {Record<string, object>} savedMap slug -> Dokument
+ * @param {string[]} visibleSlugs Slugs der Tagesliste in Anzeigereihenfolge
+ * @param {(slug:string) => string|null|undefined} nameOf Name aus Zustand oder Plan
+ * @returns {{slugs:string[], items:{slug:string, name:string, orphan:boolean}[], names:string[], orphanCount:number}}
+ */
+export function deleteDayTargets(savedMap, visibleSlugs, nameOf = () => null) {
+  const keys = Object.keys(savedMap ?? {});
+  const visible = (visibleSlugs ?? []).filter((s) => keys.includes(s));
+  const orphans = keys.filter((s) => !visible.includes(s));
+  const item = (slug, orphan) => ({ slug, name: nameOf(slug) || savedMap[slug]?.name || slug, orphan });
+  const items = [...visible.map((s) => item(s, false)), ...orphans.map((s) => item(s, true))];
+  return { slugs: items.map((i) => i.slug), items, names: items.map((i) => i.name), orphanCount: orphans.length };
+}
+
+/**
+ * Texte fürs Bestätigungs-Sheet: "1 Eintrag" / "3 Einträge" und, nur bei
+ * verwaisten Einträgen, "davon 1 einer entfernten Übung" (sonst "").
+ * @returns {{count:string, orphan:string}}
+ */
+export function deleteCountText(n, orphans = 0) {
+  const count = n === 1 ? "1 Eintrag" : `${n} Einträge`;
+  const orphan = orphans > 0
+    ? (orphans === 1 ? "davon 1 einer entfernten Übung" : `davon ${orphans} von entfernten Übungen`)
+    : "";
+  return { count, orphan };
+}

@@ -8,8 +8,9 @@ import {
   exerciseMode, startSets, lastTimeText, applyWeightForward, initialFocus, nextOpenExercise,
   setStepper, stepValue, toPayloadSets, payloadTotals, buildLogPayload, setsCount,
   draftKey, staleDraftKeys, serializeDraft, parseDraft, dropSavedFromDraft,
+  withoutLogs, deleteDayTargets, deleteCountText,
 } from "../kraftflow.js";
-import { progressionChip } from "../progression.js";
+import { progressionChip, previousEntry } from "../progression.js";
 
 const entry = (soll, kgs, reps) => ({ date: "2026-09-01", soll, sets: reps.map((r, i) => ({ kg: kgs[i] ?? kgs[0], reps: r })) });
 
@@ -325,4 +326,50 @@ test("dropSavedFromDraft: gespeicherte Übung fällt aus dem Entwurf (R9), Fokus
   assert.equal(dropSavedFromDraft(goodDraft, ["squats", "deadlift"]), null);
   assert.equal(dropSavedFromDraft(null, []), null);
   assert.equal(Object.keys(goodDraft.ex).length, 2, "Eingabe bleibt unverändert");
+});
+
+// ---------- Löschen: withoutLogs, deleteDayTargets, deleteCountText ----------
+const L = (date, exercise, extra = {}) => ({ date, exercise, sets: [{ kg: 50, reps: 5 }], ...extra });
+const LOGS = [L("2026-10-19", "squats"), L("2026-10-19", "bench"), L("2026-10-12", "squats"), L("2026-10-26", "squats")];
+
+test("withoutLogs: ohne slugs fällt der ganze Tag weg, andere Tage bleiben", () => {
+  const out = withoutLogs(LOGS, "2026-10-19");
+  assert.deepEqual(out.map((l) => l.date + l.exercise), ["2026-10-12squats", "2026-10-26squats"]);
+});
+test("withoutLogs: mit slugs nur diese Übung an diesem Tag, gleichnamige an anderen Tagen bleiben", () => {
+  const out = withoutLogs(LOGS, "2026-10-19", ["squats"]);
+  assert.equal(out.length, 3);
+  assert.ok(out.some((l) => l.date === "2026-10-12" && l.exercise === "squats"));
+  assert.ok(out.some((l) => l.date === "2026-10-19" && l.exercise === "bench"));
+});
+test("withoutLogs: liefert ein neues Array, mutiert nicht, verträgt null", () => {
+  const out = withoutLogs(LOGS, "2099-01-01");
+  assert.notEqual(out, LOGS);
+  assert.equal(out.length, 4);
+  assert.equal(LOGS.length, 4);
+  assert.deepEqual(withoutLogs(null, "2026-10-19"), []);
+});
+test("withoutLogs: previousEntry liefert danach wieder die echte letzte Einheit", () => {
+  const logs = [L("2026-10-12", "squats"), L("2026-10-19", "squats", { sets: [{ kg: 5, reps: 1 }] })];
+  assert.equal(previousEntry(logs, "2026-10-26").date, "2026-10-19");
+  assert.equal(previousEntry(withoutLogs(logs, "2026-10-19"), "2026-10-26").date, "2026-10-12");
+});
+
+test("deleteDayTargets: sichtbare in Listenreihenfolge, dann verwaiste", () => {
+  const saved = { rows: { completed: true }, squats: { completed: true, name: "Kniebeuge" }, old: { completed: true, name: "Alte Übung" } };
+  const t = deleteDayTargets(saved, ["squats", "bench", "rows"], (s) => ({ squats: "Squats", rows: "Rudern" })[s]);
+  assert.deepEqual(t.slugs, ["squats", "rows", "old"]);
+  assert.deepEqual(t.names, ["Squats", "Rudern", "Alte Übung"]);
+  assert.equal(t.orphanCount, 1);
+  assert.deepEqual(t.items.map((i) => i.orphan), [false, false, true]);
+});
+test("deleteDayTargets: Name fehlt überall, dann der Slug; leere Map ergibt nichts", () => {
+  assert.deepEqual(deleteDayTargets({ x: { completed: false } }, [], () => null).names, ["x"]);
+  const none = deleteDayTargets({}, ["squats"]);
+  assert.deepEqual(none, { slugs: [], items: [], names: [], orphanCount: 0 });
+});
+test("deleteCountText: Singular, Plural, verwaiste Einträge", () => {
+  assert.deepEqual(deleteCountText(1, 0), { count: "1 Eintrag", orphan: "" });
+  assert.deepEqual(deleteCountText(3, 1), { count: "3 Einträge", orphan: "davon 1 einer entfernten Übung" });
+  assert.equal(deleteCountText(4, 2).orphan, "davon 2 von entfernten Übungen");
 });
