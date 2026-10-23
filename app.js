@@ -1139,7 +1139,8 @@ function paintKraft(focus = null) {
   const scrollTop = main.scrollTop;
   if (editMode) {
     setPageHead(kraftView.editHeadHTML({ label: info.label, backLabel: kraftBackLabel, dateText: `${dayNameDE(iso)}, ${shortDate(iso)}` }));
-    renderMain(kraftView.editMainHTML({ rows: editRows(info), form: editForm, dateText: shortDate(iso) }));
+    const deleteDay = kraftLoadError || !Object.keys(kraftSaved).length ? null : { disabled: deleteBusy || anySaving() };
+    renderMain(kraftView.editMainHTML({ rows: editRows(info), form: editForm, dateText: shortDate(iso), deleteDay }));
   } else {
     const exercises = exerciseVMs();
     setPageHead(kraftView.headWithDotsHTML({ label: info.label, backLabel: kraftBackLabel, exercises, focusSlug: focusExerciseId }));
@@ -1489,6 +1490,13 @@ let deleteBusy = false;   // früher Abschnitt eines Löschens läuft (D7)
 const deleteDateText = (iso) => `${dayNameDE(iso)}, ${shortDate(iso)}`;
 const anySaving = () => [...logState.values()].some((st) => st.saving);
 
+// Name einer gespeicherten Übung: Zustand, dann Plan (auch „entfernte“), dann eigene Übungen.
+function deleteNameOf(slugName) {
+  const planned = currentKraftDay.info?.exercises.find((ex) => slug(ex.name) === slugName);
+  const added = dayPlan.added.find((ex) => slug(ex.name) === slugName);
+  return logState.get(slugName)?.name ?? planned?.name ?? added?.name ?? null;
+}
+
 // Löschknöpfe der Seite direkt umschalten, ohne neu zu zeichnen (Fokus bleibt).
 function syncDeleteButtons() {
   document.querySelectorAll('#main [data-action="open-delete-entry"], #main [data-action="open-delete-day"]')
@@ -1515,6 +1523,13 @@ function openDeleteSheet(kind, trigger, slugName) {
     if (!st?.saved || st.saving) return;
     op = { kind, iso, slugs: [st.slug], gen: kraftGen };
     body = kraftView.confirmBodyHTML({ kind, name: st.name, dateText: deleteDateText(iso), summary: kraftView.summaryText(st.savedSets, st.mode) });
+  } else if (kind === "day") {
+    // Ziel ist genau kraftSaved (auch verwaiste Einträge), nie die sichtbare Liste (Auflage D1)
+    if (anySaving() || !Object.keys(kraftSaved).length) return;
+    const targets = deleteDayTargets(kraftSaved, [...logState.keys()], deleteNameOf);
+    const text = deleteCountText(targets.slugs.length, targets.orphanCount);
+    op = { kind, iso, slugs: targets.slugs, gen: kraftGen };
+    body = kraftView.confirmBodyHTML({ kind, dateText: deleteDateText(iso), countText: text.count, orphanText: text.orphan, items: targets.items });
   } else return;
   pendingDelete = op;
   setConfirmBusy(false);
@@ -1555,16 +1570,20 @@ async function confirmDelete() {
 // nur, wenn dieser Kraft-Tag noch offen ist. Liefert, was für eine Rücknahme nötig ist.
 function applyDelete(op) {
   const undo = {
-    saved: kraftSaved, allLogs, logState: new Map(logState),
+    saved: kraftSaved, allLogs, logState: new Map(logState), draftRaw: null,
     appliedLogs: null, appliedSaved: null, appliedStates: new Map(),
   };
+  if (op.kind === "day") { // Entwurf immer verwerfen, auch wenn der Nutzer inzwischen woanders ist (D3)
+    undo.draftRaw = draftRead(op.iso);
+    draftRemove(op.iso);
+  }
   if (allLogs) allLogs = withoutLogs(allLogs, op.iso, op.slugs);
   undo.appliedLogs = allLogs;
   const live = op.gen === kraftGen && kraftOpen && currentKraftDay.iso === op.iso;
   const wasOpen = confirmSheet.isOpen();
   if (!live) {
     confirmSheet.close();
-    toast("Eintrag gelöscht");
+    toast(op.kind === "day" ? "Einträge gelöscht" : "Eintrag gelöscht");
     return undo;
   }
 
@@ -1572,19 +1591,26 @@ function applyDelete(op) {
   for (const s of op.slugs) delete next[s];
   kraftSaved = next;
   undo.appliedSaved = next;
-  for (const s of op.slugs) {
-    const old = logState.get(s);
-    if (!old) continue;
-    const fresh = buildExerciseState(old, null, op.iso);
-    undo.appliedStates.set(s, fresh);
-    logState.set(s, fresh);
+  if (op.kind === "day") {
+    // ganzer Tag: alle Übungen neu aufbauen, auch die offenen (ihr Entwurf ist verworfen)
+    buildLogState(effectiveExercises(currentKraftDay.info), op.iso);
+    for (const [s, fresh] of logState) undo.appliedStates.set(s, fresh);
+    focusExerciseId = pickInitialFocus();
+  } else {
+    for (const s of op.slugs) {
+      const old = logState.get(s);
+      if (!old) continue;
+      const fresh = buildExerciseState(old, null, op.iso);
+      undo.appliedStates.set(s, fresh);
+      logState.set(s, fresh);
+    }
+    if (wasOpen) focusExerciseId = op.slugs[0];
   }
-  if (wasOpen) focusExerciseId = op.slugs[0];
   confirmSheet.close(); // D6: zuerst das Sheet, danach der App-Fokus
-  paintKraft(wasOpen ? { kind: "primary" } : null);
-  const name = logState.get(op.slugs[0])?.name;
-  toast("Eintrag gelöscht");
-  announceKraft(`Eintrag ${name} gelöscht`);
+  const day = op.kind === "day";
+  paintKraft(wasOpen ? (day && editMode ? { kind: "selector", selector: ".sd-edit__row button:not([disabled])" } : { kind: "primary" }) : null);
+  toast(day ? "Einträge gelöscht" : "Eintrag gelöscht");
+  announceKraft(day ? "Einträge gelöscht" : `Eintrag ${logState.get(op.slugs[0])?.name} gelöscht`);
   return undo;
 }
 
@@ -1592,6 +1618,8 @@ function applyDelete(op) {
 function rollbackDelete(op, undo, err) {
   console.error(err);
   toast("Löschen fehlgeschlagen: " + (err.message || String(err)), true);
+  // Der verworfene Entwurf kommt zurück, aber nur, wenn inzwischen kein neuer entstanden ist (D4)
+  if (undo.draftRaw != null && draftRead(op.iso) == null) draftWrite(op.iso, undo.draftRaw);
   const logsSame = allLogs === undo.appliedLogs;
   const dayOpen = kraftOpen && currentKraftDay.iso === op.iso;
   // kraftSaved wird beim Speichern in place geändert: die Referenz allein reicht nicht,
@@ -1603,8 +1631,13 @@ function rollbackDelete(op, undo, err) {
   if (logsSame && savedSame) {
     kraftSaved = undo.saved;
     allLogs = undo.allLogs;
-    for (const s of op.slugs) if (undo.logState.has(s)) logState.set(s, undo.logState.get(s));
-    if (dayOpen && !editMode) { focusExerciseId = op.slugs[0]; paintKraft({ kind: "primary" }); }
+    if (op.kind === "day") { logState.clear(); for (const [s, st] of undo.logState) logState.set(s, st); }
+    else for (const s of op.slugs) if (undo.logState.has(s)) logState.set(s, undo.logState.get(s));
+    if (dayOpen) {
+      if (op.kind === "entry") focusExerciseId = op.slugs[0];
+      else focusExerciseId = pickInitialFocus();
+      paintKraft(editMode ? null : { kind: "primary" });
+    }
     return;
   }
   if (logsSame && !undo.appliedSaved && !dayOpen) { allLogs = undo.allLogs; return; } // Tag war schon zu: nur die Daten zurück
@@ -2247,6 +2280,7 @@ document.getElementById("app").addEventListener("click", async (e) => {
   }
   if (action === "close-sheet") return closeOpenSheet();
   if (action === "open-delete-entry") return openDeleteSheet("entry", target, target.dataset.slug);
+  if (action === "open-delete-day") return openDeleteSheet("day", target);
   if (action === "confirm-delete") return confirmDelete();
   if (action === "toggle-bilanz") {
     state.bilanzExpanded = !state.bilanzExpanded;

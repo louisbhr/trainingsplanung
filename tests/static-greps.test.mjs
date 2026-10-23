@@ -58,3 +58,8 @@ test("alter Name (Halbmarathon Tracker, HM Tracker) steht nur in docs, tests und
   const found = files.filter((f) => /Halbmarathon Tracker|HM Tracker/.test(read(f)));
   assert.deepEqual(found, []);
 });
+
+test("kein natives confirm()/alert()/prompt(): Bestätigungen laufen über das Sheet (Lösch-Funktion)", () => {
+  const found = renderFiles.flatMap((f) => hits(f, /(^|[^.\w$])(confirm|alert|prompt)\s*\(/));
+  assert.deepEqual(found, []);
+});

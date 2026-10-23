@@ -108,6 +108,7 @@ export async function loadLog(d, s) { fs(); return read()[d + "_" + s] || null; 
 export async function loadLogsForDate(d) { fs();
   // Test-Haken: __LOAD_DELAY__ (ms) lässt das Lesen später stattfinden (Reihenfolge Löschen/Speichern/Neuladen)
   if (window.__LOAD_DELAY__) await new Promise((r) => setTimeout(r, window.__LOAD_DELAY__));
+  if (window.__LOAD_FAIL__) throw new Error(window.__LOAD_FAIL__); // Ladefehler (Löschknöpfe müssen dann fehlen)
   const out = {}; for (const v of Object.values(read())) if (v.date === d) out[v.exercise] = v; return out;
 }
 export async function loadAllLogs() { fs(); return Object.values(read()); }
@@ -5218,6 +5219,39 @@ const toastText = (page) => page.textContent("#toast").then((t) => t.trim());
     ok(last.includes("3×9 · 70 kg"), `D9c: 'Letztes Mal' der Folgewoche kennt den gelöschten Eintrag nicht mehr (${last})`);
     await ctx.close();
   }
+  // (d) D5: ein Kraft-Tag, der VOR dem Löschen zu laden begann, überschreibt das gefilterte allLogs nicht mit seinem alten Array
+  {
+    const { page, ctx } = await newPage();
+    await seedLogs(page, DELETE_SEED);
+    await page.addInitScript(() => { window.__DELETE_DELAY__ = 1200; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    await page.click(DELETE_ENTRY);
+    await page.evaluate(() => { window.__LOAD_DELAY__ = 1800; });
+    await page.click(CONFIRM_DEL);
+    // Wechsel in einem Zug (deutlich unter den 800 ms des optimistischen Fensters): Der Tag 10.09. beginnt zu laden
+    // und hat das alte allLogs schon in der Hand, wenn das Löschen angewendet wird.
+    await page.evaluate(async () => {
+      const until = async (sel) => { for (let i = 0; i < 100 && !document.querySelector(sel); i++) await new Promise((r) => setTimeout(r, 10)); return document.querySelector(sel); };
+      document.querySelector('[data-action="back"]').click();
+      const row = '.sd-day[data-date="2026-09-10"]';
+      const toggle = await until(`${row} [data-action="toggle-day-detail"]`);
+      if (toggle.getAttribute("aria-expanded") !== "true") toggle.click();
+      (await until(`${row} [data-action="open-day"]`)).click();
+    });
+    await waitStoredGone(page, "2026-09-08_squats");
+    await page.waitForSelector(NOW, { timeout: 6000 });
+    await page.evaluate(() => { window.__LOAD_DELAY__ = 0; });
+    await page.click('[data-action="back"]');
+    await page.click('[data-action="week-next"]');
+    await openDay(page, "2026-09-15");
+    await waitKraft(page);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    const last = (await page.textContent('[data-card="now"] .sd-last')).trim();
+    ok(last.includes("3×9 · 70 kg"), `D5: das gefilterte allLogs bleibt, 'Letztes Mal' kennt den gelöschten Eintrag nicht (${last})`);
+    await ctx.close();
+  }
   // D7: während einer Speicherung (Korrigieren) ist 'Eintrag löschen' gesperrt
   {
     const { page, ctx } = await newPage();
@@ -5267,6 +5301,277 @@ const toastText = (page) => page.textContent("#toast").then((t) => t.trim());
   await page.keyboard.press("Escape");
   await page.click('[data-action="back"]');
   ok(!(await confirmOpen(page)) && (await page.evaluate(() => document.getElementById("confirmSheet").hidden)), "Sheets: beim Verlassen des Kraft-Tags ist das Bestätigungs-Sheet zu");
+  await ctx.close();
+}
+
+// 41e. Ganzer Kraft-Tag löschen (A): verwaiste Einträge, Sheet-Liste, Abbrechen-Wege, ein Batch, Entwurf, Fokus
+{
+  scenario("41e");
+  const { page, ctx, errors } = await newPage();
+  await page.addInitScript(([seed]) => {
+    localStorage.setItem("test.logs", JSON.stringify(seed));
+    // Klimmzüge wurden im Anpassen-Modus entfernt, ihr Eintrag blieb liegen: verwaist
+    localStorage.setItem("test.dayplan.2026-09-08", JSON.stringify({ removed: ["klimmzuege"], added: [] }));
+    localStorage.setItem("hm-tracker.kraftDraft.2026-09-10", '{"v":1,"focus":null,"ex":{"squats":{"sets":[{"kg":50,"reps":5}],"doneSets":0}}}');
+  }, [{ ...DELETE_SEED, "2026-09-08_klimmzuege": logDoc("2026-09-08", "klimmzuege", "Klimmzüge", 0, 6) }]);
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  await page.click('[data-action="step"][data-field="kg"][data-dir="1"]'); // Deadlift: es entsteht ein Entwurf
+  ok((await draftOf(page, "2026-09-08")) !== null, "Löschen A: Vorbedingung, für den Tag steht ein Entwurf");
+  ok((await page.locator('[data-action="open-delete-day"]').count()) === 0, "Löschen A: in der Normalansicht gibt es keinen 'Einträge dieses Tages löschen'-Knopf");
+  await page.click('[data-action="toggle-edit"]');
+  await page.waitForSelector('[data-card="edit-list"]');
+  const zone = DELETE_DAY;
+  ok((await page.locator(zone).count()) === 1 && (await page.textContent(zone)).trim() === "Einträge dieses Tages löschen" && !(await page.isDisabled(zone)),
+    "Löschen A: im Anpassen-Modus steht unten 'Einträge dieses Tages löschen' (aktiv)");
+  ok((await page.getAttribute(zone, "aria-describedby")) === "deleteDayHint" && (await page.textContent("#deleteDayHint")).includes("Die Übungsliste bleibt"),
+    "Löschen A: Hinweis ist per aria-describedby verknüpft");
+  ok(await page.evaluate(() => { const main = document.querySelector(".sd-main"); return main.lastElementChild.dataset.slot === "delete-day"; }),
+    "Löschen A: der Bereich ist das letzte Kind des Anpassen-Inhalts, unter '+ Übung hinzufügen'");
+
+  await page.click(zone);
+  ok(await confirmOpen(page) && (await page.textContent("#confirmSheetTitle")).trim() === "Einträge dieses Tages löschen?" && (await activeId(page)) === "confirmSheetTitle",
+    "Löschen A: Sheet 'Einträge dieses Tages löschen?', Fokus auf dem Titel");
+  const subject = (await page.textContent(`${CONFIRM} .sd-confirm__subject`)).trim();
+  const orphanNote = (await page.textContent(`${CONFIRM} .sd-confirm__sub`)).trim();
+  const items = (await page.locator(`${CONFIRM} .sd-confirm__list li`).allTextContents()).map((t) => t.replace(/\s+/g, " ").trim());
+  ok(subject === "2 Einträge am Di, 08.09." && orphanNote === "davon 1 einer entfernten Übung", `Löschen A: Zählung und Zusatz (${subject} / ${orphanNote})`);
+  ok(JSON.stringify(items) === JSON.stringify(["Squats", "Klimmzüge (entfernt)"]) && (await page.locator(`${CONFIRM} .sd-confirm__tag`).count()) === 1,
+    "Löschen A: Liste nennt sichtbare Übungen zuerst, dann die verwaiste mit '(entfernt)' " + JSON.stringify(items));
+
+  const closers = {
+    "Abbrechen": () => page.click("#confirmSheetCancel"),
+    "×": () => page.click("#confirmSheetClose"),
+    "Escape": () => page.keyboard.press("Escape"),
+    "Backdrop": () => page.click("#confirmBackdrop", { position: { x: 5, y: 5 } }),
+  };
+  for (const [name, close] of Object.entries(closers)) {
+    if (!(await confirmOpen(page))) await page.click(zone);
+    await close();
+    ok(!(await confirmOpen(page)) && (await storedLogKeys(page)).length === 3 && (await deleteCalls(page)).length === 0 && (await draftOf(page, "2026-09-08")) !== null,
+      `Löschen A: ${name} schließt das Sheet, Dokumente und Entwurf bleiben`);
+    ok((await activeAction(page)) === "open-delete-day", `Löschen A: nach ${name} liegt der Fokus wieder auf dem Auslöser`);
+  }
+
+  await page.click(zone);
+  await page.click(CONFIRM_DEL);
+  await page.waitForFunction(() => Object.keys(JSON.parse(localStorage.getItem("test.logs") || "{}")).length === 1, null, { timeout: 5000 });
+  await page.waitForFunction(() => !document.querySelector('[data-slot="delete-day"]'), null, { timeout: 5000 });
+  const calls = await deleteCalls(page);
+  ok(calls.length === 1 && calls[0].name === "deleteLogsForDate" && calls[0].args[0] === "2026-09-08" && JSON.stringify(calls[0].args[1]) === JSON.stringify(["squats", "klimmzuege"]),
+    "Löschen A: genau ein Batch-Aufruf mit beiden Slugs inklusive des verwaisten " + JSON.stringify(calls));
+  ok(JSON.stringify(await storedLogKeys(page)) === JSON.stringify(["2026-09-01_squats"]), "Löschen A: nur die Dokumente dieses Tages sind weg, der Vortag bleibt");
+  ok((await draftOf(page, "2026-09-08")) === null && (await draftOf(page, "2026-09-10")) !== null, "Löschen A: Entwurfsschlüssel des Tages entfernt, der eines anderen Tages bleibt");
+  ok((await page.locator('[data-card="edit-list"]').count()) === 1 && !(await confirmOpen(page)), "Löschen A: der Modus bleibt 'Anpassen', Sheet zu");
+  ok(await page.evaluate(() => document.activeElement === document.querySelector(".sd-edit__row button")), "Löschen A: Fokus liegt auf dem ersten Knopf der ersten Übungszeile");
+  ok(await waitLive(page, "Einträge gelöscht") && (await toastText(page)) === "Einträge gelöscht", "Löschen A: Live-Region und Toast 'Einträge gelöscht'");
+  const subs = await page.locator(".sd-edit__row:not(.is-removed) .sd-edit__sub").allTextContents();
+  ok(subs.length === 7 && subs.every((t) => !t.includes("kg")), "Löschen A: alle Zeilen zeigen wieder das Soll statt einer Zusammenfassung");
+  await page.click('[data-action="toggle-edit"]');
+  await waitKraft(page);
+  ok((await kraftMeta(page)) === "0 von 7 erledigt" && (await nowSlug(page)) === "squats" && (await primaryText(page)) === "Satz 1 fertig",
+    "Löschen A: nach 'Fertig' startet die Normalansicht bei der ersten offenen Übung, 0 von 7 erledigt");
+  ok(errors.length === 0, "Löschen A: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// 41f. Fehler beim Löschen des Tages (A): früh = nichts ändert sich, spät = Rücknahme inklusive Entwurf
+{
+  scenario("41f");
+  const seed = async (page) => page.addInitScript(([logs]) => {
+    localStorage.setItem("test.logs", JSON.stringify(logs));
+    localStorage.setItem("test.dayplan.2026-09-08", JSON.stringify({ removed: ["klimmzuege"], added: [] }));
+  }, [{ ...DELETE_SEED, "2026-09-08_klimmzuege": logDoc("2026-09-08", "klimmzuege", "Klimmzüge", 0, 6) }]);
+  // früh
+  {
+    const { page, ctx } = await newPage();
+    await seed(page);
+    await page.addInitScript(() => { window.__DELETE_FAIL__ = "Kaputt"; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('[data-action="step"][data-field="kg"][data-dir="1"]');
+    await page.click('[data-action="toggle-edit"]');
+    await page.click(DELETE_DAY);
+    await page.click(CONFIRM_DEL);
+    await page.waitForSelector("#toast.error");
+    ok((await toastText(page)) === "Löschen fehlgeschlagen: Kaputt" && !(await confirmOpen(page)), "Löschen A früh: Fehler-Toast, Sheet zu");
+    ok((await storedLogKeys(page)).length === 3 && (await draftOf(page, "2026-09-08")) !== null && (await page.locator(DELETE_DAY).count()) === 1 && !(await page.isDisabled(DELETE_DAY)),
+      "Löschen A früh: Dokumente und Entwurf unverändert, Knopf wieder aktiv");
+    ok((await activeAction(page)) === "open-delete-day", "Löschen A früh: Fokus beim Auslöser");
+    await ctx.close();
+  }
+  // spät
+  {
+    const { page, ctx } = await newPage();
+    await seed(page);
+    await page.addInitScript(() => { window.__DELETE_DELAY__ = 1500; window.__DELETE_FAIL__ = "Spät"; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('[data-action="step"][data-field="kg"][data-dir="1"]');
+    const draftBefore = await draftOf(page, "2026-09-08");
+    await page.click('[data-action="toggle-edit"]');
+    await page.click(DELETE_DAY);
+    await page.click(CONFIRM_DEL);
+    await page.waitForFunction(() => !document.querySelector('[data-slot="delete-day"]'), null, { timeout: 4000 });
+    ok((await draftOf(page, "2026-09-08")) === null, "Löschen A spät: nach dem Zeitfenster ist der Tag optimistisch zurückgesetzt (Entwurf weg)");
+    await page.waitForSelector("#toast.error", { timeout: 4000 });
+    await page.waitForSelector(DELETE_DAY);
+    ok((await toastText(page)) === "Löschen fehlgeschlagen: Spät", "Löschen A spät: Fehler-Toast mit Originaltext");
+    const subs = await page.locator(".sd-edit__row:not(.is-removed) .sd-edit__sub").allTextContents();
+    ok(subs.some((t) => t.includes("80 kg")) && (await storedLogKeys(page)).length === 3, "Löschen A spät: Übungen erscheinen wieder als erledigt, Dokumente da");
+    ok((await draftOf(page, "2026-09-08")) === draftBefore, "Löschen A spät: der verworfene Entwurf ist wiederhergestellt");
+    await page.click('[data-action="toggle-edit"]');
+    await waitKraft(page);
+    ok((await kraftMeta(page)) === "1 von 7 erledigt", "Löschen A spät: Zähler wie vor dem Löschen (1 von 7)");
+    await ctx.close();
+  }
+}
+
+// 41g. Löschknöpfe: gesperrt beim Speichern, fehlen bei Ladefehler und an Tagen ohne Einträge; Folgen ohne Neuladen
+{
+  scenario("41g");
+  // gesperrt, solange irgendeine Übung speichert (A)
+  {
+    const { page, ctx } = await newPage();
+    await seedLogs(page, DELETE_SEED);
+    await page.addInitScript(() => { window.__SAVE_DELAY__ = 1400; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    await page.click('[data-action="reopen-set"][data-set="2"]');
+    await page.click(PRIMARY);
+    await page.click('[data-action="toggle-edit"]');
+    ok((await page.locator(DELETE_DAY).count()) === 1 && (await page.isDisabled(DELETE_DAY)), "Löschen A: während einer Speicherung ist der Tages-Knopf gesperrt");
+    await page.waitForFunction((sel) => !document.querySelector(sel)?.disabled, DELETE_DAY, { timeout: 4000 });
+    ok(true, "Löschen A: nach der Speicherung wieder aktiv");
+    await ctx.close();
+  }
+  // Ladefehler: keine Löschknöpfe, auch nicht für in dieser Sitzung gespeicherte Übungen
+  {
+    const { page, ctx } = await newPage();
+    await page.addInitScript(() => { window.__LOAD_FAIL__ = "Offline"; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.waitForSelector('[data-card="load-error"]');
+    await enterValue(page, "kg", "50");
+    for (let i = 0; i < 3; i++) await page.click(PRIMARY);
+    await page.waitForSelector(`${NOW} [data-action="next-exercise"]`);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    ok((await page.locator('[data-action="open-delete-entry"]').count()) === 0, "Löschen: bei Ladefehler gibt es keinen 'Eintrag löschen'-Knopf");
+    await page.click('[data-action="toggle-edit"]');
+    ok((await page.locator('[data-slot="delete-day"]').count()) === 0, "Löschen: bei Ladefehler gibt es keinen Tages-Knopf");
+    await ctx.close();
+  }
+  // Tag ohne Einträge: kein Tages-Knopf
+  {
+    const { page, ctx } = await newPage();
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('[data-action="toggle-edit"]');
+    await page.waitForSelector('[data-card="edit-list"]');
+    ok((await page.locator('[data-slot="delete-day"]').count()) === 0, "Löschen A: an einem Tag ohne Einträge fehlt der Tages-Knopf");
+    await ctx.close();
+  }
+  // Folgen ohne Neuladen: Woche, Verlauf
+  {
+    const { page, ctx } = await newPage();
+    await seedLogs(page, { ...DELETE_SEED, "2026-09-09_deadlift": logDoc("2026-09-09", "deadlift", "Deadlift", 100, 5) });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    await page.click(DELETE_ENTRY);
+    await page.click(CONFIRM_DEL);
+    await waitEyebrow(page, "Jetzt");
+    await page.click('[data-action="back"]');
+    await waitWeekRows(page);
+    const row = page.locator('.sd-day[data-date="2026-09-08"]');
+    const pills = (await rowPills(row)).join(" ");
+    ok(!/erledigt/i.test(pills), `Folgen: die Woche zeigt den Kraft-Tag nicht mehr als erledigt (${pills})`);
+    await goTab(page, "verlauf");
+    await page.click('[data-action="hist-mode"][data-mode="kraft"]');
+    await page.waitForSelector('[data-action="pick-exercise"]');
+    await page.click('[data-action="pick-exercise"][data-slug="squats"]');
+    await page.waitForSelector('#hist-slot [data-card="strength-best"]');
+    const histText = await page.textContent("#hist-slot");
+    ok(histText.includes("70") && !histText.includes("80"), "Folgen: der Verlauf zeigt den gelöschten Eintrag (80 kg) nicht mehr, wohl aber den älteren (70 kg)");
+    ok((await hasStyleAttr(page)) === 0, "Folgen: kein style= im Verlauf nach dem Löschen");
+    await ctx.close();
+  }
+}
+
+// 41i. Ampeln und Progression ohne Neuladen: nach dem Löschen rechnen sie mit dem gefilterten allLogs
+{
+  scenario("41i");
+  const stagnant = (kg) => [{ kg, reps: 9 }, { kg, reps: 9 }, { kg, reps: 9 }];
+  const doc = (date, ex, name, kg) => ({ date, exercise: ex, name, soll: "3x8-10", topKg: kg, totalReps: 27, completed: true, sets: stagnant(kg) });
+  const { page, ctx, errors } = await newPage({ connected: true, now: "2026-09-15T09:00:00Z" });
+  await seedLogs(page, {
+    "2026-09-01_squats": doc("2026-09-01", "squats", "Squats", 60), "2026-09-08_squats": doc("2026-09-08", "squats", "Squats", 60),
+    "2026-09-01_deadlift": doc("2026-09-01", "deadlift", "Deadlift", 70), "2026-09-08_deadlift": doc("2026-09-08", "deadlift", "Deadlift", 70),
+    "2026-09-01_brustpresse": doc("2026-09-01", "brustpresse", "Brustpresse", 50), "2026-09-08_brustpresse": doc("2026-09-08", "brustpresse", "Brustpresse", 55),
+  });
+  await page.goto(BASE + "/index.html");
+  await waitStatusLoaded(page);
+  const before = (await statusByTitle(page))["Kraft-Progression"];
+  ok(before.status === "rot" && before.detail.includes("Squats"), `Folgen: Ausgangslage, zwei stagnierende Übungen = rot (${before.status}, ${before.detail})`);
+  await goTab(page, "woche");
+  await page.click('[data-action="week-prev"]');
+  await openDay(page, "2026-09-08");
+  await waitKraft(page);
+  await page.click('.sd-order__row[data-slug="squats"]');
+  await page.click(DELETE_ENTRY);
+  await page.click(CONFIRM_DEL);
+  await waitEyebrow(page, "Jetzt");
+  await page.click('[data-action="back"]');
+  await goTab(page, "dashboard");
+  await waitStatusLoaded(page);
+  const after = (await statusByTitle(page))["Kraft-Progression"];
+  ok(after.status !== "rot" && !after.detail.includes("Squats"), `Folgen: die Kraft-Ampel rechnet ohne den gelöschten Eintrag, ohne Neuladen (${after.status}, ${after.detail})`);
+  ok(errors.length === 0, "Folgen: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// 41h. Kein style=, 320 px mit zehn Übungen: Knöpfe des Sheets bleiben sichtbar
+{
+  scenario("41h");
+  const { slug: planSlug } = await import("../plan.js");
+  const names = ["Squats", "Deadlift", "Nordic hamstring curl", "Klimmzüge", "Brustpresse", "Soleus raises", "Pallof press", "Planks (wechselnd)"];
+  const longOrphans = ["Sehr lange Übung mit einem wirklich langen Namen Nummer eins", "Sehr lange Übung mit einem wirklich langen Namen Nummer zwei"];
+  const logs = {};
+  for (const n of [...names, ...longOrphans]) logs["2026-09-08_" + planSlug(n)] = logDoc("2026-09-08", planSlug(n), n, 60, 8);
+  const { page, ctx } = await newPage();
+  await seedLogs(page, logs);
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  ok((await hasStyleAttr(page)) === 0, "Löschen: kein style= im Kraft-Tag (Normalansicht)");
+  await page.click('.sd-order__row[data-slug="squats"]');
+  ok((await page.locator(DELETE_ENTRY).count()) === 1 && (await hasStyleAttr(page)) === 0, "Löschen: kein style= mit sichtbarem 'Eintrag löschen'");
+  await page.click('[data-action="toggle-edit"]');
+  await page.waitForSelector(DELETE_DAY);
+  ok((await hasStyleAttr(page)) === 0, "Löschen: kein style= im Anpassen-Modus mit Tages-Knopf");
+  await page.click(DELETE_DAY);
+  await page.waitForSelector(`${CONFIRM}.open`);
+  await page.waitForTimeout(350); // Einblend-Übergang
+  ok((await page.locator(`${CONFIRM} .sd-confirm__list li`).count()) === 10, "Löschen: das Sheet listet zehn Einträge");
+  ok((await page.locator("#confirmSheet [style], #confirmBackdrop[style]").count()) === 0 && (await hasStyleAttr(page)) === 0, "Löschen: kein style= im offenen Bestätigungs-Sheet und in #main");
+  const geo = await page.evaluate(() => {
+    const box = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, h: r.height }; };
+    const list = document.querySelector("#confirmSheet .sd-confirm__list");
+    const sheet = document.getElementById("confirmSheet");
+    return { del: box("confirmSheetDelete"), cancel: box("confirmSheetCancel"), vw: innerWidth, vh: innerHeight, scroll: list.scrollHeight > list.clientHeight, sheetOverflowX: sheet.scrollWidth > sheet.clientWidth };
+  });
+  const inView = (b) => b.top >= 0 && b.bottom <= geo.vh && b.left >= 0 && b.right <= geo.vw && b.h >= 44;
+  // Bei 320x640 mit zehn langen Namen ist das Sheet höher als seine 78 % und scrollt in sich (style.css, Designer):
+  // die Knöpfe sind dann erst nach dem Scrollen im Bild. Geprüft wird, dass nichts abgeschnitten ist und beide erreichbar sind.
+  await page.locator(CONFIRM_DEL).scrollIntoViewIfNeeded();
+  const reach = await page.evaluate(() => {
+    const r = (id) => document.getElementById(id).getBoundingClientRect();
+    return { del: { top: r("confirmSheetDelete").top, bottom: r("confirmSheetDelete").bottom }, cancel: { top: r("confirmSheetCancel").top, bottom: r("confirmSheetCancel").bottom }, vh: innerHeight };
+  });
+  ok(geo.del.h >= 44 && geo.cancel.h >= 44 && geo.del.left >= 0 && geo.del.right <= geo.vw && reach.del.bottom <= reach.vh && reach.cancel.top >= 0,
+    "Löschen: bei 320 px sind 'Abbrechen' und 'Löschen' vollständig, mindestens 44 px hoch und per Scrollen im Bild erreichbar " + JSON.stringify({ geo: inView(geo.del) ? "sofort sichtbar" : "erst nach Scrollen", reach }));
+  ok(geo.scroll && !geo.sheetOverflowX, "Löschen: die lange Liste scrollt in sich, das Sheet läuft nicht seitlich über");
   await ctx.close();
 }
 
