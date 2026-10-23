@@ -46,5 +46,14 @@ Findings from Stride redesign (docs/review-architecture-stride.md, 2026-10-21):
 - bump-version.mjs stamps only index.html assets + JS imports, never CSS url(). Versioned filenames are the
   fix; also demand a test that every url() in style.css exists.
 - config.js stub in app.test.mjs is a literal; stubs.test checks names only, not shape → derive THRESHOLDS from real config.
+Findings from Delete-day (docs/review-architecture-delete-day.md, 2026-10-23):
+
+- `allLogs ? Promise.resolve(allLogs) : load()` inside Promise.all then `allLogs = logs` re-assigns a
+  captured stale array (ensureAllLogsAndDayPlans, renderKraftDay). **How to apply:** any feature that
+  replaces allLogs in memory needs `allLogs = allLogs ?? logs`.
+- Test firebase stub runs delayed writes out of order (Firestore queue is ordered) — demand a serialized
+  write chain in the stub for save/delete interplay tests.
+- Optimistic ops (SAVE_OPTIMISTIC_MS): data-side effects must apply regardless of gen; only view parts gate
+  on kraftGen. Late rollbacks need a reference-identity guard. render() only closes assignSheet.
 - Main keeps moving with plan re-calibrations (28.10, 22.11). Those also touch plan-golden/app tests, not just
   JSON. Demand merging main into the branch right away + plan-independent fixtures for placeholder-week tests.

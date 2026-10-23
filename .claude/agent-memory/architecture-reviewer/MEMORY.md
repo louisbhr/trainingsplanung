@@ -1,1 +1,1 @@
-- [Trainingsplanung review patterns](project_trainingsplanung_review_patterns.md) — slugs, no SW, shared origin (incl. docs/ CDN code), 401, pending writes, kg/reps facts, draft pruning, main drift
+- [Trainingsplanung review patterns](project_trainingsplanung_review_patterns.md) — slugs, no SW, shared origin (incl. docs/ CDN code), 401, pending writes, kg/reps facts, draft pruning, main drift, stale allLogs refs, ordered stub writes
