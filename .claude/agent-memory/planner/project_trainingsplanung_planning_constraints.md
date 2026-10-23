@@ -34,6 +34,11 @@ Planning constraints learned while planning Dashboard v2 (2026-09-27, docs/plan-
   (no ToolSearch in planner subagent, 2026-10-20). Non-obvious data trap: stepper value 0 vs
   legacy `kg: null` changes written Firestore docs; fonts versioned via filename since
   bump-version only stamps JS imports + ASSETS list.
+- Delete feature (2026-10-23, docs/plan-delete-day.md): planner subagent had NO Bash, so it
+  could not commit even when asked. **How to apply:** write docs + state, tell the orchestrator
+  to commit. Pattern used: delete exactly the slugs the confirm sheet showed (from kraftSaved)
+  instead of re-querying; replace references (kraftSaved/logState/allLogs) so late
+  rollbackSave can't resurrect deleted state.
 - Claude API check via claude-api skill (cache 2026-06-24): Haiku 4.5 active, alias
   `claude-haiku-4-5`, snapshot `claude-haiku-4-5-20251001`, `anthropic-version: 2023-06-01`.
   Re-verify before relying on it later.

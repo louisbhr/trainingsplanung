@@ -1,1 +1,1 @@
-- [Trainingsplanung planning constraints](project_trainingsplanung_planning_constraints.md) — flat modules (version stamp), test stubs, 1b login, Stride etappen pattern, visual-plan tools missing in subagent
+- [Trainingsplanung planning constraints](project_trainingsplanung_planning_constraints.md) — flat modules, test stubs, 1b login, Stride etappen, no visual-plan/Bash in subagent, delete pattern
