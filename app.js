@@ -9,7 +9,7 @@ import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
-  authHeaders, waitForPendingWrites,
+  authHeaders, waitForPendingWrites, deleteLog, deleteLogsForDate,
 } from "./firebase-init.js?v=202610221509";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
@@ -20,6 +20,7 @@ import {
   exerciseMode, startSets, lastTimeText, applyWeightForward, initialFocus, nextOpenExercise,
   stepValue, buildLogPayload, MAX_VALUE,
   draftKey, serializeDraft, parseDraft, staleDraftKeys, dropSavedFromDraft,
+  withoutLogs, deleteDayTargets, deleteCountText,
 } from "./kraftflow.js?v=202610221509";
 import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610221509";
 import { distanceStatus, hrStatus } from "./runcompare.js?v=202610221509";
@@ -386,11 +387,13 @@ async function ensureAllLogsAndDayPlans() {
       allLogs ? Promise.resolve(allLogs) : loadAllLogs(),
       allDayPlans ? Promise.resolve(allDayPlans) : loadAllDayPlans(),
     ]);
-    allLogs = logs;
-    allDayPlans = dps;
+    // Nur zuweisen, wenn nichts da ist (Auflage D5): ein Löschen während des Ladens
+    // hat allLogs schon durch ein gefiltertes Array ersetzt, das nie überschrieben werden darf.
+    allLogs = allLogs ?? logs;
+    allDayPlans = allDayPlans ?? dps;
     dataLoadError = null;
     paintBanners();
-    return { logs, dps, ok: true };
+    return { logs: allLogs, dps: allDayPlans, ok: true };
   } catch (err) {
     console.error(err);
     dataLoadError = err.message || "Unbekannter Fehler";
@@ -884,6 +887,8 @@ function render() {
   kraftOpen = false; // renderKraftDay setzt es wieder, sobald der Kraft-Tag die Seite ist
   runOpen = false; // ebenso renderRunDay; das Zuordnungs-Sheet gehört nur zum Lauf-Tag
   assignSheet.closeImmediately();
+  confirmSheet.closeImmediately(); // Auflage D6: das Bestätigungs-Sheet gehört zum Kraft-Tag
+  pendingDelete = null;
   if (!plans.length) return; // Plan lädt noch (siehe init()); nichts zu rendern
   syncTabbar();
   setDetailMode(false); // renderDay schaltet es für Kraft-/Lauf-Tage wieder ein
@@ -988,11 +993,13 @@ async function renderKraftDay(info, iso, backLabel) {
 
   let saved = {};
   try {
-    [saved, dayPlan, allLogs] = await Promise.all([
+    let logs;
+    [saved, dayPlan, logs] = await Promise.all([
       loadLogsForDate(iso),
       loadDayPlan(iso),
       allLogs ? Promise.resolve(allLogs) : loadAllLogs(),
     ]);
+    allLogs = allLogs ?? logs; // Auflage D5: nie ein gefiltertes Array durch ein altes ersetzen
   } catch (err) {
     console.error(err);
     dayPlan = { removed: [], added: [] };
@@ -1099,9 +1106,10 @@ function exerciseVMs() {
   const list = [...logState.values()];
   const savedMap = Object.fromEntries(list.map((s) => [s.slug, s.saved]));
   const next = nextOpenExercise(list.map((s) => s.slug), focusExerciseId, savedMap);
+  const del = (st) => (kraftLoadError ? null : { disabled: st.saving || deleteBusy });
   return list.map((st) => (st.slug === focusExerciseId && next
-    ? { ...st, nextSlug: next, nextName: logState.get(next).name }
-    : st));
+    ? { ...st, nextSlug: next, nextName: logState.get(next).name, del: del(st) }
+    : { ...st, del: del(st) }));
 }
 
 function editRows(info) {
@@ -1466,6 +1474,142 @@ function rollbackSave(st, snapshot, err, gen, savedMap) {
   if (!kraftOpen || gen !== kraftGen || editMode) return;
   focusExerciseId = st.slug;
   paintKraft({ kind: "primary" });
+}
+
+// ---------- Löschen (Bestätigungs-Sheet, Markup 11.15) ----------
+// Was gelöscht wird, steht beim Öffnen fest (pendingDelete) und ist genau das, was das
+// Sheet zeigt. Optimistisch wie das Speichern: „Löscht …“ steht höchstens
+// SAVE_OPTIMISTIC_MS, danach gilt der Eintrag als gelöscht und wird nur bei einem
+// späten Fehler zurückgenommen. Neue Objekte statt Mutation, damit ein später
+// rollbackSave einer früheren Speicherung nichts zurückholt (Architektur-Review D2 bis D7).
+const confirmSheet = createSheet("confirmSheet", "confirmBackdrop");
+let pendingDelete = null; // { kind: "entry"|"day", iso, slugs, gen }
+let deleteBusy = false;   // früher Abschnitt eines Löschens läuft (D7)
+
+const deleteDateText = (iso) => `${dayNameDE(iso)}, ${shortDate(iso)}`;
+const anySaving = () => [...logState.values()].some((st) => st.saving);
+
+// Löschknöpfe der Seite direkt umschalten, ohne neu zu zeichnen (Fokus bleibt).
+function syncDeleteButtons() {
+  document.querySelectorAll('#main [data-action="open-delete-entry"], #main [data-action="open-delete-day"]')
+    .forEach((b) => { b.disabled = deleteBusy || (b.dataset.action === "open-delete-day" ? anySaving() : !!logState.get(b.dataset.slug)?.saving); });
+}
+
+function setConfirmBusy(busy) {
+  const del = document.getElementById("confirmSheetDelete");
+  const cancel = document.getElementById("confirmSheetCancel");
+  if (busy) document.getElementById("confirmSheetTitle")?.focus(); // vor dem Deaktivieren, sonst fällt der Fokus auf body
+  del.disabled = busy;
+  cancel.disabled = busy;
+  if (busy) del.setAttribute("aria-busy", "true"); else del.removeAttribute("aria-busy");
+  del.textContent = busy ? "Löscht …" : "Löschen";
+}
+
+function openDeleteSheet(kind, trigger, slugName) {
+  if (!kraftOpen || kraftLoadError || deleteBusy) return;
+  const { iso } = currentKraftDay;
+  let op;
+  let body;
+  if (kind === "entry") {
+    const st = logState.get(slugName);
+    if (!st?.saved || st.saving) return;
+    op = { kind, iso, slugs: [st.slug], gen: kraftGen };
+    body = kraftView.confirmBodyHTML({ kind, name: st.name, dateText: deleteDateText(iso), summary: kraftView.summaryText(st.savedSets, st.mode) });
+  } else return;
+  pendingDelete = op;
+  setConfirmBusy(false);
+  document.getElementById("confirmSheetTitle").textContent = kraftView.confirmTitle(kind);
+  document.getElementById("confirmSheetBody").innerHTML = body;
+  confirmSheet.open(trigger);
+}
+
+// Schreibt das Löschen und gibt Fehler als Wert zurück (nie als Ausnahme).
+function runDelete(op) {
+  const call = op.kind === "day" ? () => deleteLogsForDate(op.iso, op.slugs) : () => deleteLog(op.iso, op.slugs[0]);
+  return (async () => call())().then(() => null, (err) => err ?? new Error("Unbekannter Fehler"));
+}
+
+async function confirmDelete() {
+  const op = pendingDelete; // D2: eingefrorene Operation, nichts liest pendingDelete danach neu
+  if (!op || deleteBusy) return;
+  pendingDelete = null;
+  deleteBusy = true;
+  setConfirmBusy(true);
+  syncDeleteButtons();
+
+  const write = runDelete(op);
+  const early = await Promise.race([write, sleep(SAVE_OPTIMISTIC_MS).then(() => null)]);
+  deleteBusy = false;
+  syncDeleteButtons();
+  if (early) { // früher Fehler: lokal hat sich nichts geändert
+    console.error(early);
+    toast("Löschen fehlgeschlagen: " + (early.message || early), true);
+    confirmSheet.close();
+    return;
+  }
+  const undo = applyDelete(op);
+  write.then((err) => { if (err) rollbackDelete(op, undo, err); });
+}
+
+// Daten- und Ansichtsteil getrennt (D3): allLogs und der Entwurf gelten immer, der Rest
+// nur, wenn dieser Kraft-Tag noch offen ist. Liefert, was für eine Rücknahme nötig ist.
+function applyDelete(op) {
+  const undo = {
+    saved: kraftSaved, allLogs, logState: new Map(logState),
+    appliedLogs: null, appliedSaved: null, appliedStates: new Map(),
+  };
+  if (allLogs) allLogs = withoutLogs(allLogs, op.iso, op.slugs);
+  undo.appliedLogs = allLogs;
+  const live = op.gen === kraftGen && kraftOpen && currentKraftDay.iso === op.iso;
+  const wasOpen = confirmSheet.isOpen();
+  if (!live) {
+    confirmSheet.close();
+    toast("Eintrag gelöscht");
+    return undo;
+  }
+
+  const next = { ...kraftSaved };
+  for (const s of op.slugs) delete next[s];
+  kraftSaved = next;
+  undo.appliedSaved = next;
+  for (const s of op.slugs) {
+    const old = logState.get(s);
+    if (!old) continue;
+    const fresh = buildExerciseState(old, null, op.iso);
+    undo.appliedStates.set(s, fresh);
+    logState.set(s, fresh);
+  }
+  if (wasOpen) focusExerciseId = op.slugs[0];
+  confirmSheet.close(); // D6: zuerst das Sheet, danach der App-Fokus
+  paintKraft(wasOpen ? { kind: "primary" } : null);
+  const name = logState.get(op.slugs[0])?.name;
+  toast("Eintrag gelöscht");
+  announceKraft(`Eintrag ${name} gelöscht`);
+  return undo;
+}
+
+// D4: nur zurücksetzen, wenn der Speicher noch genau das ist, was das Löschen gesetzt hat.
+function rollbackDelete(op, undo, err) {
+  console.error(err);
+  toast("Löschen fehlgeschlagen: " + (err.message || String(err)), true);
+  const logsSame = allLogs === undo.appliedLogs;
+  const dayOpen = kraftOpen && currentKraftDay.iso === op.iso;
+  // kraftSaved wird beim Speichern in place geändert: die Referenz allein reicht nicht,
+  // ein Schlüssel der gelöschten Übungen bedeutet eine neue Speicherung (Fall D9 b).
+  // Dasselbe gilt für den Zustand: eine inzwischen gestartete oder fertige Speicherung
+  // derselben Übung (saving/saved) ist neuer als der alte Stand und darf nicht überschrieben werden.
+  const statesSame = [...undo.appliedStates].every(([s, fresh]) => logState.get(s) === fresh && !fresh.saving && !fresh.saved);
+  const savedSame = !!undo.appliedSaved && kraftSaved === undo.appliedSaved && op.slugs.every((s) => !kraftSaved[s]) && statesSame;
+  if (logsSame && savedSame) {
+    kraftSaved = undo.saved;
+    allLogs = undo.allLogs;
+    for (const s of op.slugs) if (undo.logState.has(s)) logState.set(s, undo.logState.get(s));
+    if (dayOpen && !editMode) { focusExerciseId = op.slugs[0]; paintKraft({ kind: "primary" }); }
+    return;
+  }
+  if (logsSame && !undo.appliedSaved && !dayOpen) { allLogs = undo.allLogs; return; } // Tag war schon zu: nur die Daten zurück
+  allLogs = null; // Firestore setzt den Cache bei Ablehnung selbst zurück: neu laden
+  if (dayOpen) renderKraftDay(currentKraftDay.info, op.iso, kraftBackLabel);
 }
 
 // ---------- Übungen anpassen ----------
@@ -2102,6 +2246,8 @@ document.getElementById("app").addEventListener("click", async (e) => {
     return;
   }
   if (action === "close-sheet") return closeOpenSheet();
+  if (action === "open-delete-entry") return openDeleteSheet("entry", target, target.dataset.slug);
+  if (action === "confirm-delete") return confirmDelete();
   if (action === "toggle-bilanz") {
     state.bilanzExpanded = !state.bilanzExpanded;
     renderCoachSlot();

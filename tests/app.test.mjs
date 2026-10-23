@@ -106,6 +106,8 @@ export async function deleteLogsForDate(dateISO, slugs) { fs();
 }
 export async function loadLog(d, s) { fs(); return read()[d + "_" + s] || null; }
 export async function loadLogsForDate(d) { fs();
+  // Test-Haken: __LOAD_DELAY__ (ms) lässt das Lesen später stattfinden (Reihenfolge Löschen/Speichern/Neuladen)
+  if (window.__LOAD_DELAY__) await new Promise((r) => setTimeout(r, window.__LOAD_DELAY__));
   const out = {}; for (const v of Object.values(read())) if (v.date === d) out[v.exercise] = v; return out;
 }
 export async function loadAllLogs() { fs(); return Object.values(read()); }
@@ -5013,6 +5015,258 @@ const runStatsLabels = (page) => page.locator('[data-card="run-stats"] .sd-tile_
   await goTab(page, "dashboard");
   await openRunToday(page);
   ok((await hasStyleAttr(page)) === 0, "Kein style= in #main: Lauf-Tag");
+  await ctx.close();
+}
+
+// ---- 41. Löschen (Lösch-Funktion, docs/ui-markup-stride.md 11.15): Haken und Hilfen ----
+const CONFIRM = "#confirmSheet";
+const CONFIRM_DEL = "#confirmSheetDelete";
+const DELETE_ENTRY = '[data-card="now"] [data-action="open-delete-entry"]';
+const DELETE_DAY = '[data-slot="delete-day"] [data-action="open-delete-day"]';
+const logDoc = (date, exercise, name, kg, reps, n = 3) => ({
+  date, exercise, name, topKg: kg, totalReps: reps * n, completed: true, sets: Array.from({ length: n }, () => ({ kg, reps })),
+});
+const DELETE_SEED = {
+  "2026-09-01_squats": logDoc("2026-09-01", "squats", "Squats", 70, 9),
+  "2026-09-08_squats": logDoc("2026-09-08", "squats", "Squats", 80, 9),
+};
+const seedLogs = (page, logs) => page.addInitScript((l) => localStorage.setItem("test.logs", JSON.stringify(l)), logs);
+const confirmOpen = (page) => page.locator(`${CONFIRM}.open`).count().then((n) => n === 1);
+const deleteCalls = (page) => page.evaluate(() => window.__DELETE_CALLS__ ?? []);
+const activeIsPrimary = (page) => page.evaluate(() => !!document.activeElement?.matches('[data-card="now"] .sd-btn--primary'));
+const nowEyebrow = async (page) => (await page.textContent('[data-card="now"] .sd-eyebrow')).trim();
+const waitEyebrow = (page, text) => page.waitForFunction((t) => document.querySelector('[data-card="now"] .sd-eyebrow')?.textContent.trim() === t, text, { timeout: 5000 });
+const waitStoredGone = (page, key) => page.waitForFunction((k) => !JSON.parse(localStorage.getItem("test.logs") || "{}")[k], key, { timeout: 5000 });
+const draftOf = (page, iso) => page.evaluate((i) => localStorage.getItem("hm-tracker.kraftDraft." + i), iso);
+const toastText = (page) => page.textContent("#toast").then((t) => t.trim());
+
+// 41a. Eine Übung löschen (B): Sheet, Abbrechen/×/Escape/Backdrop, Bestätigen, Fokus, Ansage, Entwurf
+{
+  scenario("41a");
+  const { page, ctx, errors } = await newPage();
+  await seedLogs(page, DELETE_SEED);
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  ok((await page.locator('[data-action="open-delete-entry"]').count()) === 0, "Löschen B: auf einer offenen Übung gibt es keinen 'Eintrag löschen'-Knopf");
+  // Entwurf der Deadlift-Eingabe: muss das Löschen einer anderen Übung überstehen
+  await page.click('[data-action="step"][data-field="kg"][data-dir="1"]');
+  ok((await draftOf(page, "2026-09-08")) !== null, "Löschen B: Vorbedingung, für Deadlift steht ein Entwurf");
+  await page.click('.sd-order__row[data-slug="squats"]');
+  ok((await page.locator(DELETE_ENTRY).count()) === 1 && (await page.textContent(DELETE_ENTRY)).trim() === "Eintrag löschen" && !(await page.isDisabled(DELETE_ENTRY)) && (await nowEyebrow(page)) === "Erledigt",
+    "Löschen B: auf der erledigten Jetzt-Karte steht 'Eintrag löschen' (aktiv)");
+
+  await page.click(DELETE_ENTRY);
+  ok(await confirmOpen(page), "Löschen B: der Knopf öffnet das Bestätigungs-Sheet");
+  ok((await page.textContent("#confirmSheetTitle")).trim() === "Eintrag löschen?" && (await activeId(page)) === "confirmSheetTitle",
+    "Löschen B: Titel 'Eintrag löschen?', Fokus auf dem Titel");
+  const subject = (await page.textContent(`${CONFIRM} .sd-confirm__subject`)).trim();
+  const sub = (await page.textContent(`${CONFIRM} .sd-confirm__sub`)).trim();
+  ok(subject === "Squats am Di, 08.09." && sub === "3× 9 · 80 kg", `Löschen B: Sheet nennt Übung, Tag und Zusammenfassung (${subject} / ${sub})`);
+
+  // Abbrechen, ×, Escape, Backdrop: nichts ändert sich, der Fokus geht zum Auslöser zurück
+  const closers = {
+    "Abbrechen": () => page.click("#confirmSheetCancel"),
+    "×": () => page.click("#confirmSheetClose"),
+    "Escape": () => page.keyboard.press("Escape"),
+    "Backdrop": () => page.click("#confirmBackdrop", { position: { x: 5, y: 5 } }),
+  };
+  for (const [name, close] of Object.entries(closers)) {
+    if (!(await confirmOpen(page))) await page.click(DELETE_ENTRY);
+    await close();
+    ok(!(await confirmOpen(page)) && (await storedLog(page, "2026-09-08", "squats")) !== null && (await deleteCalls(page)).length === 0 && (await nowEyebrow(page)) === "Erledigt",
+      `Löschen B: ${name} schließt das Sheet, nichts wird gelöscht`);
+    ok((await activeAction(page)) === "open-delete-entry", `Löschen B: nach ${name} liegt der Fokus wieder auf dem Auslöser`);
+  }
+
+  // Bestätigen
+  await page.click(DELETE_ENTRY);
+  await page.click(CONFIRM_DEL);
+  await waitStoredGone(page, "2026-09-08_squats");
+  await waitEyebrow(page, "Jetzt");
+  ok(JSON.stringify(await deleteCalls(page)) === JSON.stringify([{ name: "deleteLog", args: ["2026-09-08", "squats"] }]),
+    "Löschen B: genau ein deleteLog('2026-09-08', 'squats')");
+  ok(!(await confirmOpen(page)) && (await primaryText(page)) === "Satz 1 fertig" && (await kraftMeta(page)) === "0 von 8 erledigt" && (await page.locator(DELETE_ENTRY).count()) === 0,
+    "Löschen B: Übung ist wieder offen ('Jetzt', 'Satz 1 fertig', 0 von 8 erledigt), Sheet zu, kein Löschknopf mehr");
+  ok(await activeIsPrimary(page), "Löschen B: Fokus liegt auf dem Primärbutton der wieder offenen Übung");
+  ok(await waitLive(page, "Eintrag Squats gelöscht"), "Löschen B: Live-Region sagt 'Eintrag Squats gelöscht'");
+  ok((await toastText(page)) === "Eintrag gelöscht", "Löschen B: Toast 'Eintrag gelöscht'");
+  ok((await page.locator('.sd-dots__seg.is-done').count()) === 0, "Löschen B: Fortschrittspunkte zählen neu (keiner erledigt)");
+  ok((await page.textContent('[data-card="now"] .sd-last')).includes("3×9 · 70 kg"), "Löschen B: Startwerte und 'Letztes Mal' stammen wieder aus der echten letzten Einheit (70 kg)");
+  const draft = JSON.parse((await draftOf(page, "2026-09-08")) ?? "null");
+  ok(draft && draft.ex.deadlift && !draft.ex.squats, "Löschen B: der Entwurf der übrigen Übungen bleibt, die gelöschte Übung steht nicht darin");
+  ok(errors.length === 0, "Löschen B: keine Konsolenfehler " + JSON.stringify(errors));
+  await ctx.close();
+}
+
+// 41b. Fehler beim Löschen (B): früh = nichts ändert sich, spät = Rücknahme nach D4
+{
+  scenario("41b");
+  // früh
+  {
+    const { page, ctx } = await newPage();
+    await seedLogs(page, DELETE_SEED);
+    await page.addInitScript(() => { window.__DELETE_FAIL__ = "Kaputt"; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    await page.click(DELETE_ENTRY);
+    await page.click(CONFIRM_DEL);
+    await page.waitForSelector("#toast.error");
+    ok((await toastText(page)) === "Löschen fehlgeschlagen: Kaputt", "Löschen B früh: Fehler-Toast mit Originaltext");
+    ok(!(await confirmOpen(page)) && (await storedLog(page, "2026-09-08", "squats")) !== null && (await nowEyebrow(page)) === "Erledigt" && (await kraftMeta(page)) === "1 von 8 erledigt",
+      "Löschen B früh: Sheet zu, Dokument da, Übung weiter erledigt");
+    ok((await activeAction(page)) === "open-delete-entry" && !(await page.isDisabled(DELETE_ENTRY)), "Löschen B früh: Fokus beim Auslöser, Knopf wieder aktiv");
+    await ctx.close();
+  }
+  // spät
+  {
+    const { page, ctx } = await newPage();
+    await seedLogs(page, DELETE_SEED);
+    await page.addInitScript(() => { window.__DELETE_DELAY__ = 1500; window.__DELETE_FAIL__ = "Spät"; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    await page.click(DELETE_ENTRY);
+    await page.click(CONFIRM_DEL);
+    const busy = await page.evaluate(() => ({
+      label: document.getElementById("confirmSheetDelete").textContent.trim(),
+      busy: document.getElementById("confirmSheetDelete").getAttribute("aria-busy"),
+      delDisabled: document.getElementById("confirmSheetDelete").disabled,
+      cancelDisabled: document.getElementById("confirmSheetCancel").disabled,
+      focus: document.activeElement?.id,
+    }));
+    ok(busy.label === "Löscht …" && busy.busy === "true" && busy.delDisabled && busy.cancelDisabled && busy.focus === "confirmSheetTitle",
+      "Löschen B spät: 'Löscht …' (aria-busy), beide Knöpfe gesperrt, Fokus auf dem Titel " + JSON.stringify(busy));
+    await waitEyebrow(page, "Jetzt");
+    ok(!(await confirmOpen(page)) && (await kraftMeta(page)) === "0 von 8 erledigt", "Löschen B spät: nach dem Zeitfenster gilt der Eintrag optimistisch als gelöscht");
+    await page.waitForSelector("#toast.error", { timeout: 4000 });
+    await waitEyebrow(page, "Erledigt");
+    ok((await toastText(page)) === "Löschen fehlgeschlagen: Spät" && (await kraftMeta(page)) === "1 von 8 erledigt" && (await storedLog(page, "2026-09-08", "squats")) !== null,
+      "Löschen B spät: der Fehler setzt Übung, Zähler und Dokument zurück, Toast mit Originaltext");
+    ok((await page.textContent('[data-card="now"] .sd-last')).includes("3×9 · 70 kg") && (await page.locator(DELETE_ENTRY).count()) === 1,
+      "Löschen B spät: nach der Rücknahme ist alles wie vorher (erledigt, Löschknopf da)");
+    await ctx.close();
+  }
+}
+
+// 41c. Zusammenspiel mit Speichern und Navigation (Auflage D9 a, b, c) und D7
+{
+  scenario("41c");
+  // (a) späte Rücknahme einer Speicherung nach dem Löschen holt nichts zurück
+  {
+    const { page, ctx } = await newPage();
+    await page.addInitScript(() => { window.__SAVE_DELAY__ = 2500; window.__SAVE_FAIL__ = "Spät"; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    for (let i = 0; i < 3; i++) await page.click(PRIMARY);
+    await page.waitForSelector(`${NOW} [data-action="next-exercise"]`); // optimistisch gespeichert nach 800 ms
+    await page.click('.sd-order__row[data-slug="squats"]');
+    await page.click(DELETE_ENTRY);
+    await page.click(CONFIRM_DEL);
+    await waitEyebrow(page, "Jetzt"); // Löschen optimistisch angewendet (die Speicherung scheitert erst nach 2,5 s)
+    await page.waitForSelector("#toast.error", { timeout: 5000 });
+    ok((await toastText(page)).startsWith("Speichern fehlgeschlagen"), "D9a: die späte Rücknahme der Speicherung meldet ihren Fehler");
+    await page.waitForTimeout(600);
+    ok((await nowEyebrow(page)) === "Jetzt" && (await kraftMeta(page)) === "0 von 8 erledigt" && (await page.locator('[data-slot="save-error"]').count()) === 0 && (await page.locator(DELETE_ENTRY).count()) === 0,
+      "D9a: die Übung bleibt offen (0 von 8, keine Fehlermeldung in der Karte, kein Löschknopf)");
+    ok((await storedLogKeys(page)).length === 0, "D9a: im Speicher liegt nichts (die verzögerte Speicherung hat das Löschen nicht überschrieben)");
+    await ctx.close();
+  }
+  // (b) spät scheiterndes Löschen nach einer neuen Speicherung derselben Übung: kein veralteter Stand kommt zurück
+  {
+    const { page, ctx } = await newPage();
+    await seedLogs(page, DELETE_SEED);
+    await page.addInitScript(() => { window.__DELETE_DELAY__ = 1500; window.__DELETE_FAIL__ = "Spät"; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    await page.click(DELETE_ENTRY);
+    await page.click(CONFIRM_DEL);
+    await waitEyebrow(page, "Jetzt");
+    await page.evaluate(() => { window.__LOAD_DELAY__ = 300; }); // die Neuladung liest erst nach dem Schreiben der neuen Speicherung
+    await enterValue(page, "kg", "65");
+    for (let i = 0; i < 3; i++) await page.click(PRIMARY);
+    await page.waitForSelector("#toast.error", { timeout: 4000 });
+    ok((await toastText(page)) === "Löschen fehlgeschlagen: Spät", "D9b: der späte Fehler des Löschens wird gemeldet");
+    await page.waitForFunction(() => document.querySelector('.sd-order__row[data-slug="squats"] .sd-order__sub')?.textContent.includes("65 kg"), null, { timeout: 5000 });
+    const doc = await storedLog(page, "2026-09-08", "squats");
+    ok(doc && doc.topKg === 65 && (await kraftMeta(page)) === "1 von 8 erledigt",
+      "D9b: die neue Speicherung (65 kg) bleibt maßgeblich, der alte Stand (80 kg) kommt nicht zurück");
+    await ctx.close();
+  }
+  // (c) Navigation während 'Löscht …': allLogs ist trotzdem gefiltert (D3)
+  {
+    const { page, ctx } = await newPage();
+    await seedLogs(page, DELETE_SEED);
+    await page.addInitScript(() => { window.__DELETE_DELAY__ = 1200; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    await page.click(DELETE_ENTRY);
+    await page.click(CONFIRM_DEL);
+    await page.click('[data-action="back"]'); // Kraft-Tag verlassen, während 'Löscht …' läuft
+    ok(!(await confirmOpen(page)), "D9c: der Wechsel schließt das Bestätigungs-Sheet sofort");
+    await waitStoredGone(page, "2026-09-08_squats");
+    await page.waitForTimeout(300);
+    await goTab(page, "woche");
+    await page.click('[data-action="week-next"]');
+    await openDay(page, "2026-09-15");
+    await waitKraft(page);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    const last = (await page.textContent('[data-card="now"] .sd-last')).trim();
+    ok(last.includes("3×9 · 70 kg"), `D9c: 'Letztes Mal' der Folgewoche kennt den gelöschten Eintrag nicht mehr (${last})`);
+    await ctx.close();
+  }
+  // D7: während einer Speicherung (Korrigieren) ist 'Eintrag löschen' gesperrt
+  {
+    const { page, ctx } = await newPage();
+    await seedLogs(page, DELETE_SEED);
+    await page.addInitScript(() => { window.__SAVE_DELAY__ = 1400; });
+    await page.goto(BASE + "/index.html");
+    await openKraftViaWeek(page);
+    await page.click('.sd-order__row[data-slug="squats"]');
+    await page.click('[data-action="reopen-set"][data-set="2"]');
+    await page.click(PRIMARY);
+    ok((await primaryText(page)) === "Speichert …" && (await page.isDisabled(DELETE_ENTRY)), "D7: während 'Speichert …' ist 'Eintrag löschen' gesperrt");
+    await page.waitForFunction(() => !document.querySelector('[data-card="now"] [data-action="open-delete-entry"]')?.disabled, null, { timeout: 4000 });
+    ok(true, "D7: nach dem Speichern ist 'Eintrag löschen' wieder aktiv");
+    await ctx.close();
+  }
+}
+
+// 41d. Drei Sheets: das Bestätigungs-Sheet verdrängt Info- und Zuordnungs-Sheet sofort und umgekehrt (C6)
+{
+  scenario("41d");
+  const { page, ctx } = await newPage();
+  await seedLogs(page, DELETE_SEED);
+  await page.goto(BASE + "/index.html");
+  await openKraftViaWeek(page);
+  await page.click('.sd-order__row[data-slug="squats"]');
+  await page.click(DELETE_ENTRY);
+  ok(await confirmOpen(page), "Sheets: Bestätigungs-Sheet offen");
+  // einen Info-Auslöser einhängen (Kraft-Tag hat keinen eigenen) und wie ein Nutzer klicken
+  await page.evaluate(() => document.getElementById("app").insertAdjacentHTML("beforeend", '<button type="button" id="probeInfo" data-action="open-info" data-info="wochensoll">i</button>'));
+  await page.evaluate(() => document.getElementById("probeInfo").click());
+  const afterInfo = await page.evaluate(() => ({
+    confirmHidden: document.getElementById("confirmSheet").hidden, confirmBackdrop: document.getElementById("confirmBackdrop").hidden,
+    infoOpen: document.getElementById("infoSheet").classList.contains("open"),
+  }));
+  ok(afterInfo.confirmHidden && afterInfo.confirmBackdrop && afterInfo.infoOpen, "Sheets: das Info-Sheet schließt das Bestätigungs-Sheet sofort (ohne Wartezeit)");
+  await page.evaluate((sel) => document.querySelector(sel).click(), DELETE_ENTRY);
+  const afterDel = await page.evaluate(() => ({
+    infoHidden: document.getElementById("infoSheet").hidden, infoBackdrop: document.getElementById("infoBackdrop").hidden,
+    confirmOpen: document.getElementById("confirmSheet").classList.contains("open"),
+  }));
+  ok(afterDel.infoHidden && afterDel.infoBackdrop && afterDel.confirmOpen, "Sheets: das Bestätigungs-Sheet schließt das Info-Sheet sofort");
+  await page.keyboard.press("Escape");
+  ok(!(await confirmOpen(page)) && (await storedLog(page, "2026-09-08", "squats")) !== null, "Sheets: Escape schließt das Bestätigungs-Sheet, nichts wird gelöscht");
+  // Zuordnungs-Sheet (Lauf-Tag) und Bestätigungs-Sheet teilen dieselbe Registry: der Wechsel zum Lauf-Tag räumt es ab
+  await page.click(DELETE_ENTRY);
+  await page.evaluate(() => document.getElementById("probeInfo").click());
+  await page.keyboard.press("Escape");
+  await page.click('[data-action="back"]');
+  ok(!(await confirmOpen(page)) && (await page.evaluate(() => document.getElementById("confirmSheet").hidden)), "Sheets: beim Verlassen des Kraft-Tags ist das Bestätigungs-Sheet zu");
   await ctx.close();
 }
 

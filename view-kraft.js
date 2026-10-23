@@ -10,7 +10,8 @@
 //     sets: [{ kg, reps, done }], activeIndex: number|null, saved, saving,
 //     saveError: string|null, editing: { field, text }|null,
 //     chip: { level, text }|null, lastText: string|null, savedSets: [{ kg, reps }],
-//     nextSlug, nextName }   // nextSlug/nextName nur an der Jetzt-Übung gesetzt
+//     nextSlug, nextName,    // nextSlug/nextName nur an der Jetzt-Übung gesetzt
+//     del: { disabled } | null }   // Knopf „Eintrag löschen“ (nur bei saved); null = nicht anbieten
 import { ICONS, esc, checkCircle, ringOpen, ringRunning, pill } from "./ui.js?v=202610221509";
 
 
@@ -181,6 +182,11 @@ function earlyHTML(vm) {
   return `<button type="button" class="sd-btn sd-btn--text sd-btn--block" data-action="finish-early">Mit ${n} ${n === 1 ? "Satz" : "Sätzen"} abschließen</button>`;
 }
 
+function deleteEntryHTML(vm) {
+  if (!vm.saved || !vm.del) return "";
+  return `<button type="button" class="sd-btn sd-btn--textdanger sd-btn--block" data-action="open-delete-entry" data-slug="${esc(vm.slug)}"${vm.del.disabled ? " disabled" : ""}>Eintrag löschen</button>`;
+}
+
 function nowCardHTML(vm) {
   const finished = vm.saved && vm.activeIndex == null;
   const last = vm.lastText ? `<span class="sd-last sd-mono">Letztes Mal ${esc(vm.lastText)}</span>` : "";
@@ -205,6 +211,7 @@ ${chip}
 ${error}
 ${primaryHTML(vm)}
 ${earlyHTML(vm)}
+${deleteEntryHTML(vm)}
 </article>`;
 }
 
@@ -374,15 +381,58 @@ ${actions}
 
 /**
  * Inhalt von #main im Anpassen-Modus.
- * @param {{rows: object[], form: {kind:string, slug?:string, name:string, soll:string, error:string|null}|null, dateText: string}} model
+ * @param {{rows: object[], form: {kind:string, slug?:string, name:string, soll:string, error:string|null}|null, dateText: string, deleteDay?: {disabled:boolean}|null}} model
  *   rows: { slug, name, soll, custom, saved, savedSets, mode, removed }
+ *   deleteDay: Knopf „Einträge dieses Tages löschen“; null/fehlt = nicht anbieten
  */
-export function editMainHTML({ rows, form, dateText }) {
+export function editMainHTML({ rows, form, dateText, deleteDay = null }) {
   const adding = form?.kind === "add";
   return `<div class="sd-main">
 <div class="sd-card sd-card--list" data-card="edit-list">
 ${rows.map((r) => editRowHTML(r, form)).join("\n")}
 </div>
 ${adding ? addFormHTML(form, dateText) : '<button type="button" class="sd-btn sd-btn--dashed" data-action="quick-add">+ Übung hinzufügen</button>'}
+${deleteDay ? deleteDayHTML(deleteDay) : ""}
+</div>`;
+}
+
+function deleteDayHTML({ disabled }) {
+  return `<div class="sd-dangerzone" data-slot="delete-day">
+<button type="button" class="sd-btn sd-btn--danger sd-btn--md sd-btn--block" data-action="open-delete-day" aria-describedby="deleteDayHint"${disabled ? " disabled" : ""}>Einträge dieses Tages löschen</button>
+<p class="sd-hint sd-hint--center" id="deleteDayHint">Löscht die erfassten Sätze dieses Tages. Die Übungsliste bleibt.</p>
+</div>`;
+}
+
+// ---------- Bestätigungs-Sheet (11.15) ----------
+
+/** Titel des Bestätigungs-Sheets (textContent, kein HTML). */
+export function confirmTitle(kind) {
+  return kind === "day" ? "Einträge dieses Tages löschen?" : "Eintrag löschen?";
+}
+
+/**
+ * Body des Bestätigungs-Sheets. Alles Dynamische läuft durch esc().
+ * kind "entry": { name, dateText, summary }
+ * kind "day":   { dateText, countText, orphanText, items: [{ name, orphan }] }
+ */
+export function confirmBodyHTML({ kind, name, dateText, summary, countText, orphanText, items }) {
+  if (kind === "day") {
+    const list = (items ?? []).map((i) =>
+      `<li>${esc(i.name)}${i.orphan ? ' <span class="sd-confirm__tag">(entfernt)</span>' : ""}</li>`).join("\n");
+    return `<div class="sd-confirm">
+<div>
+<p class="sd-confirm__subject">${esc(countText)} am ${esc(dateText)}</p>${orphanText ? `\n<p class="sd-confirm__sub">${esc(orphanText)}</p>` : ""}
+</div>
+<ul class="sd-confirm__list" role="list" tabindex="0" aria-label="Betroffene Übungen">
+${list}
+</ul>
+<p class="sd-confirm__text">Die erfassten Sätze werden gelöscht. Das lässt sich nicht rückgängig machen. Die Übungsliste des Tages bleibt.</p>
+</div>`;
+  }
+  return `<div class="sd-confirm">
+<div>
+<p class="sd-confirm__subject">${esc(name)} am ${esc(dateText)}</p>${summary ? `\n<p class="sd-confirm__sub sd-mono">${esc(summary)}</p>` : ""}
+</div>
+<p class="sd-confirm__text">Die erfassten Sätze werden gelöscht. Das lässt sich nicht rückgängig machen.</p>
 </div>`;
 }
