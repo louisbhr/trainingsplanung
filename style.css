@@ -195,6 +195,15 @@ h1[tabindex="-1"]:focus { outline: none; }
      zum Containing Block für position: fixed. */
   isolation: isolate;
 }
+/* Deckendes Band über der Statusleiste: #main scrollt darunter durch, sonst
+   schimmert der Inhalt durch die transparente iOS-Statusleiste. z-index 5: über
+   dem Inhalt, unter Tab-Leiste (10), Backdrop (50) und Sheets (51), die es also
+   überdecken bzw. abdunkeln. Höhe 0 ohne Inset (Desktop). */
+#app::before {
+  content: ""; position: absolute; inset: 0 0 auto 0;
+  height: env(safe-area-inset-top);
+  background: var(--bg); z-index: 5; pointer-events: none;
+}
 /* Der Seitenkopf lebt seit E3 als erstes Kind von #main (.sd-pagehead) und scrollt
    mit. #header bleibt im HTML, ist aber immer leer. */
 #header:empty { display: none; }
@@ -217,7 +226,7 @@ h1[tabindex="-1"]:focus { outline: none; }
      dem Inhalt, der letzte Block muss darüber hinaus scrollen können. */
   /* Oben 0: das erste Kind ist immer .sd-pagehead und bringt Statusbar-Abstand mit. */
   padding: 0 max(1.25rem, env(safe-area-inset-right))
-           calc(120px + env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+           calc(64px + max(26px, env(safe-area-inset-bottom)) + 30px) max(1.25rem, env(safe-area-inset-left));
   /* 12px: nächste Stufe auf dem 4/8/12/16-Raster zwischen Karten/Blöcken. */
   display: flex; flex-direction: column; gap: 12px;
   overflow-y: auto; overflow-x: hidden;
@@ -257,7 +266,8 @@ button:active { transform: scale(0.97); }
 #tabbar {
   position: absolute; z-index: 10;
   left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right));
-  bottom: calc(26px + env(safe-area-inset-bottom));
+  /* max statt Summe: Browser 26px, iPhone mit Home-Indikator 34px (knapp darüber). */
+  bottom: max(26px, env(safe-area-inset-bottom));
   display: flex; height: 64px; padding: 6px;
   border-radius: 32px;
   background: var(--card);
@@ -302,7 +312,7 @@ select {
 }
 
 #toast {
-  position: absolute; left: 50%; bottom: calc(104px + env(safe-area-inset-bottom)); transform: translate(-50%, 16px);
+  position: absolute; left: 50%; bottom: calc(64px + max(26px, env(safe-area-inset-bottom)) + 14px); transform: translate(-50%, 16px);
   max-width: 440px; width: calc(100% - 2.5rem);
   background: var(--text-primary); color: var(--card);
   font-size: 13px; padding: 10px 14px; border-radius: 14px;
