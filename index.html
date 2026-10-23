@@ -44,6 +44,20 @@
     </div>
     <div id="assignSheetBody"></div>
   </div>
+  <!-- Bestätigung vor dem Löschen (Kraft-Einträge). Der Coder füllt nur Titel und Body; die Knöpfe sind fest, damit "Löscht …" nur Label und disabled/aria-busy ändert. -->
+  <div id="confirmBackdrop" class="sd-backdrop" data-action="close-sheet" hidden></div>
+  <div id="confirmSheet" class="sd-sheet" role="dialog" aria-modal="true" aria-labelledby="confirmSheetTitle" aria-describedby="confirmSheetBody" hidden>
+    <div class="sd-sheet__grip"></div>
+    <div class="sd-sheet__head">
+      <h2 class="sd-sheet__title" id="confirmSheetTitle" tabindex="-1"></h2>
+      <button type="button" id="confirmSheetClose" class="sd-sheet__close" data-action="close-sheet" aria-label="Schließen"><svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div id="confirmSheetBody"></div>
+    <div class="sd-sheet__actions">
+      <button type="button" id="confirmSheetCancel" class="sd-btn sd-btn--md sd-btn--grow" data-action="close-sheet">Abbrechen</button>
+      <button type="button" id="confirmSheetDelete" class="sd-btn sd-btn--md sd-btn--danger sd-btn--grow" data-action="confirm-delete">Löschen</button>
+    </div>
+  </div>
 </div>
 <noscript><p class="sd-hint sd-hint--center">Diese App braucht JavaScript.</p></noscript>
 <script type="module" src="app.js?v=202610221509"></script>

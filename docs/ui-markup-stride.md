@@ -1338,6 +1338,111 @@ Erst löschen, wenn `view-kraft.js` die alten Funktionen (`exerciseCard`, `simpl
 - Nach E5 prüfen: `.done-dot`, `.strava-note` (E6), `.link-btn` (E6), `.small-btn` (E6), `.seg`, die Utilities `.jc-between`, `.ai-start`, `.gap-10`, `.gap-8`, `.flex-1`, `.min-w-0`, `.mt-6`, `.mt-8`, `.mb-8`, `.w-full`, `.w-70`, `.fs-11`, `.fg-secondary` (je einzeln greppen, mehrere werden erst nach E6 frei).
 - Aus `app.js` entfallen mit E5: `data-action="toggle-sets"`, `data-action="save"`, Ids `session-slot` (bleibt, aber mit neuem Inhalt), `progress-line`, `data-ex`, `data-status`, `data-kg`, `data-reps`.
 
+### 11.15 Löschen (Kraft-Einträge)
+
+Grundlage: `docs/requirements-delete-day.md`, `docs/plan-delete-day.md`, Auflagen D6/D7 in `docs/review-architecture-delete-day.md`. CSS: Abschnitt „Löschen von Kraft-Einträgen“ am Ende von `style.css`. Kein `style=`. Rot (`--danger-*`) nur hier und nur fürs Zerstörerische, Koralle nie, **keine zusätzliche Teal-Fläche**: Auf der Karte bleibt der Primärbutton die einzige, im Sheet ist „Löschen“ die Hauptaktion in Rot und „Abbrechen“ sekundär (grau).
+
+**Neue Klassen:** `sd-btn--textdanger`, `sd-dangerzone`, `sd-confirm`, `sd-confirm__subject`, `sd-confirm__sub`, `sd-confirm__text`, `sd-confirm__list`, `sd-confirm__tag`, `sd-sheet__actions`. Wiederverwendet: `sd-btn`, `sd-btn--danger`, `sd-btn--md`, `sd-btn--block`, `sd-btn--grow`, `sd-hint--center`.
+
+**1. Knopf B „Eintrag löschen“ (Jetzt-Karte)**
+
+Bedingung: `vm.saved` (also auch beim Korrigieren und bei vorzeitig abgeschlossenen Übungen). Stelle: **letztes Kind der `.sd-now`-Karte, unter dem Primärbutton**. Begründung: Im Zustand „gespeichert“ ist der Primärbutton „Weiter: …“ bzw. „Training abschließen“, „Mit n Sätzen abschließen“ gibt es dann nur beim Korrigieren. Der Löschknopf steht daher am Ende des Daumenwegs, nie zwischen Primärbutton und der Alternative, und sieht durch Textform (kein Fond) neben dem 54-px-Primärbutton klein aus. Er teilt die Reihe nicht mit dem Primärbutton (keine Verwechslung beim Weitertippen) und steht auch nach „Mit n Sätzen abschließen“, falls beide sichtbar sind.
+```html
+<button type="button" class="sd-btn sd-btn--textdanger sd-btn--block" data-action="open-delete-entry" data-slug="${esc(slug)}">Eintrag löschen</button>
+```
+Deaktiviert (D7, solange die Übung `saving` ist oder ein Löschen früh läuft): zusätzlich `disabled`, Aussehen über die Basisregel (Deckkraft 0,4, kein Hover). Kein eigener Text.
+`aria-label` entfällt, die Karte hat `aria-labelledby="nowTitle"`; der Sheet-Titel nennt die Übung.
+
+**2. Knopf A „Einträge dieses Tages löschen“ (Anpassen-Modus)**
+
+Bedingung: `!kraftLoadError` und mindestens ein Schlüssel in `kraftSaved` (auch nur verwaiste). Stelle: **letztes Kind von `.sd-main`, unter „+ Übung hinzufügen“** (bzw. unter dem Hinzufügen-Formular), abgesetzt durch `margin-top` 12 px zusätzlich zum Spaltenabstand. Der Hinweis steht unter dem Knopf und ist per `aria-describedby` verknüpft.
+```html
+<div class="sd-dangerzone" data-slot="delete-day">
+  <button type="button" class="sd-btn sd-btn--danger sd-btn--md sd-btn--block" data-action="open-delete-day" aria-describedby="deleteDayHint">Einträge dieses Tages löschen</button>
+  <p class="sd-hint sd-hint--center" id="deleteDayHint">Löscht die erfassten Sätze dieses Tages. Die Übungsliste bleibt.</p>
+</div>
+```
+Deaktiviert (D7, sobald irgendeine Übung `saving` ist): nur dem Knopf `disabled` geben, der Hinweis bleibt. Lange Beschriftung bricht um (kein Abschneiden); Höhe mindestens 48 px.
+
+**3. Bestätigungs-Sheet `#confirmSheet` (statisch in `index.html`, Geschwister von `#assignSheet`)**
+
+`createSheet("confirmSheet", "confirmBackdrop")`. Gerüst fest:
+```html
+<div id="confirmBackdrop" class="sd-backdrop" data-action="close-sheet" hidden></div>
+<div id="confirmSheet" class="sd-sheet" role="dialog" aria-modal="true" aria-labelledby="confirmSheetTitle" aria-describedby="confirmSheetBody" hidden>
+  <div class="sd-sheet__grip"></div>
+  <div class="sd-sheet__head">
+    <h2 class="sd-sheet__title" id="confirmSheetTitle" tabindex="-1"></h2>
+    <button type="button" id="confirmSheetClose" class="sd-sheet__close" data-action="close-sheet" aria-label="Schließen">${closeIcon}</button>
+  </div>
+  <div id="confirmSheetBody"></div>
+  <div class="sd-sheet__actions">
+    <button type="button" id="confirmSheetCancel" class="sd-btn sd-btn--md sd-btn--grow" data-action="close-sheet">Abbrechen</button>
+    <button type="button" id="confirmSheetDelete" class="sd-btn sd-btn--md sd-btn--danger sd-btn--grow" data-action="confirm-delete">Löschen</button>
+  </div>
+</div>
+```
+Der Coder setzt `#confirmSheetTitle.textContent` und `#confirmSheetBody.innerHTML`. Die Knöpfe sind **fest und für A und B gleich**; beim Öffnen setzt der Coder sie zurück (`disabled` weg, `aria-busy` weg, Label „Löschen“). Beide Knöpfe teilen die Zeile (je mindestens 140 px, darunter brechen sie untereinander: Abbrechen oben, Löschen unten; bei 320 px = 280 px Sheet-Innenbreite stehen sie untereinander).
+
+**Body für B (eine Übung)**: Titel `Eintrag löschen?`
+```html
+<div class="sd-confirm">
+  <div>
+    <p class="sd-confirm__subject">${esc(name)} am ${esc(dateShort)}</p>
+    <p class="sd-confirm__sub sd-mono">${esc(summary)}</p>   <!-- optional, z. B. „3× 6 · 60 kg“; ohne Zusammenfassung weglassen -->
+  </div>
+  <p class="sd-confirm__text">Die erfassten Sätze werden gelöscht. Das lässt sich nicht rückgängig machen.</p>
+</div>
+```
+`dateShort` wie `shortDate`, z. B. „Di, 08.09.“ (Beispiel: „Squats am Di, 08.09.“).
+
+**Body für A (ganzer Tag)**: Titel `Einträge dieses Tages löschen?`
+```html
+<div class="sd-confirm">
+  <div>
+    <p class="sd-confirm__subject">${esc(countText)} am ${esc(dateShort)}</p>   <!-- „3 Einträge am Mo, 19.10.“ / „1 Eintrag am …“ -->
+    <p class="sd-confirm__sub">davon 1 einer entfernten Übung</p>              <!-- nur bei verwaisten Einträgen -->
+  </div>
+  <ul class="sd-confirm__list" role="list" tabindex="0" aria-label="Betroffene Übungen">
+    <li>${esc(name)}</li>
+    <li>${esc(name)} <span class="sd-confirm__tag">(entfernt)</span></li>      <!-- verwaister Eintrag -->
+  </ul>
+  <p class="sd-confirm__text">Die erfassten Sätze werden gelöscht. Das lässt sich nicht rückgängig machen. Die Übungsliste des Tages bleibt.</p>
+</div>
+```
+Reihenfolge der Liste: sichtbare Übungen in Planreihenfolge, danach verwaiste („(entfernt)“). Die Liste hat eine Höhengrenze (11,5 rem) und scrollt dann selbst, damit die Knöpfe sichtbar bleiben; `tabindex="0"` plus `aria-label` macht den Scrollbereich per Tastatur erreichbar.
+
+**C. Beschäftigt („Löscht …“)** (Auflage D7, optimistisches Fenster)
+```html
+<button type="button" id="confirmSheetDelete" class="sd-btn sd-btn--md sd-btn--danger sd-btn--grow" data-action="confirm-delete" disabled aria-busy="true">Löscht …</button>
+<button type="button" id="confirmSheetCancel" class="sd-btn sd-btn--md sd-btn--grow" data-action="close-sheet" disabled>Abbrechen</button>
+```
+Beide deaktiviert: „Abbrechen“ würde sonst etwas versprechen, was nicht mehr geht (Auflage D2: das Löschen läuft weiter). Deckkraft bei `aria-busy` 0,6 statt 0,4, damit „Löscht …“ lesbar bleibt. **Vor dem Deaktivieren den Fokus auf `#confirmSheetTitle` setzen**, sonst fällt er auf `body`. ×, Escape und Backdrop bleiben aktiv und brechen nichts ab. Eine Animation gibt es nicht (nur das „…“), also nichts für `prefers-reduced-motion`.
+
+**4. `data-action`-Namen**
+
+| Name | Wo | Parameter | Wirkung |
+| --- | --- | --- | --- |
+| `open-delete-entry` | „Eintrag löschen“ (Jetzt-Karte) | `data-slug` | Sheet B öffnen |
+| `open-delete-day` | „Einträge dieses Tages löschen“ (Anpassen-Modus) | – | Sheet A öffnen |
+| `confirm-delete` | „Löschen“ im Sheet | – | Operation aus `pendingDelete` ausführen (Auflage D2) |
+| `close-sheet` | ×, Backdrop, „Abbrechen“ | – | bestehend |
+Stabile Test-Haken: `#confirmSheet`, `#confirmSheetTitle`, `#confirmSheetBody`, `#confirmSheetDelete`, `#confirmSheetCancel`, `[data-slot="delete-day"]`, `.sd-confirm__list li`, `.sd-confirm__tag`.
+
+**5. `esc()`** (Auflage D6): Übungsname (Subjekt, Liste, Eintragsname), `dateShort`, `countText`, Zusammenfassung, `data-slug`. Fest und ohne `esc()`: Titel, Fließtexte, „(entfernt)“, Knopfbeschriftungen. Der Body entsteht ausschließlich aus diesen `esc()`-geschützten View-Strings.
+
+**6. Fokus**
+- Öffnen: auf `#confirmSheetTitle` (macht `createSheet`). Auslöser wird als `trigger` übergeben.
+- „Abbrechen“, ×, Escape, Backdrop: zurück auf den Auslöser (macht `createSheet`).
+- Erfolg: zuerst `confirmSheet.close()`, danach `paintKraft(focus)`: bei B auf den Primärbutton der wieder offenen Übung (`{ kind: "primary" }`), bei A auf den ersten Knopf der ersten `.sd-edit__row`. Der Auslöser verschwindet, `liveTrigger` liefert `null`, der App-Fokus gewinnt.
+- Früher Fehler: Sheet schließt, Fehler-Toast, Fokus auf den Auslöser (der noch existiert).
+- Ansage über `#kraftLive` nach dem Einfügen: „Eintrag Squats gelöscht“ bzw. „Einträge gelöscht“.
+
+**7. Responsive, hell/dunkel, Bewegung**
+- 320 bis 1280 px: Sheet nutzt die bestehende Spalte (Radius 28, Grip, Titel 19/600, × 36 px mit 44-px-Trefferfläche). Namen brechen um (`overflow-wrap: anywhere`), nichts wird abgeschnitten. Knöpfe ≥ 44 px (Sheet 48, Textknopf 44, Block 48).
+- Farben nur aus Tokens: Textknopf `--danger-fg` auf Karte/transparent (hell ca. 6,5:1, dunkel `#ff8a80`), Danger-Knopf `--danger-fg` auf `--danger-bg`, Listenfläche `--sunk`, „(entfernt)“ in `--text-secondary` (nicht `--text-muted`, das reicht auf `--sunk` nicht für 4,5:1). Dunkelmodus automatisch über die Tokens.
+- Zustände: Hover nur mit `(hover: hover)` (`sd-btn--textdanger` bekommt `--danger-bg`), `:active` skaliert über `.sd-btn`, Fokusring global. Alles unter `prefers-reduced-motion` ohne Übergang über den bestehenden Block (`.sd-btn`, `.sd-sheet`, `.sd-backdrop`); neue Übergänge gibt es nicht.
+
 ---
 
 ## 12. Screen-Ergänzungen: Lauf-Tag (E6)

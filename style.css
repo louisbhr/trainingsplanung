@@ -1203,6 +1203,38 @@ button.sd-option.is-selected:active { background: var(--teal-tint); }
 .sd-skel--chart { width: 100%; height: 120px; border-radius: 12px; }
 
 /* =====================================================================
+   Löschen von Kraft-Einträgen. Rot nur hier, weil es zerstört (Handoff §4); Koralle nie.
+   Keine neue Teal-Fläche: Der Primärbutton der Karte bleibt die einzige. Markup:
+   docs/ui-markup-stride.md, Abschnitt 11.15. Kein style= (C5).
+   ===================================================================== */
+
+/* ---- Textknopf "Eintrag löschen" auf der Jetzt-Karte: leise, aber eindeutig rot ---- */
+.sd-btn--textdanger { background: transparent; color: var(--danger-fg); padding: 0 12px; }
+@media (hover: hover) {
+  .sd-btn--textdanger:not(:disabled):hover { background: var(--danger-bg); filter: none; }
+  .sd-btn--textdanger:disabled:hover { background: transparent; }
+}
+
+/* ---- Beschäftigt ("Löscht …"): Beschriftung bleibt lesbar, nicht auf 0,4 abgedunkelt ---- */
+.sd-btn[aria-busy="true"]:disabled { opacity: 0.6; }
+
+/* ---- Block unten im Anpassen-Modus: etwas Abstand zu "+ Übung hinzufügen", Hinweis darunter ---- */
+.sd-dangerzone { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+
+/* ---- Bestätigungs-Sheet ---- */
+.sd-confirm { display: flex; flex-direction: column; gap: 12px; }
+.sd-confirm__subject { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.35; color: var(--text-primary); overflow-wrap: anywhere; }
+.sd-confirm__sub { margin: 2px 0 0; font-size: 13px; line-height: 1.4; color: var(--text-secondary); overflow-wrap: anywhere; }
+.sd-confirm__text { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--text-secondary); }
+/* Eigene Höhengrenze, damit bei zehn Übungen und 320 px die Knöpfe im Blick bleiben. */
+.sd-confirm__list { margin: 0; padding: 10px 14px; list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 11.5rem; overflow-y: auto; background: var(--sunk); border-radius: 14px; font-size: 14.5px; line-height: 1.35; color: var(--text-primary); }
+.sd-confirm__list:focus-visible { outline-offset: -2px; }
+.sd-confirm__list li { overflow-wrap: anywhere; }
+.sd-confirm__tag { margin-left: 4px; font-weight: 500; color: var(--text-secondary); }
+.sd-sheet__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.sd-sheet__actions .sd-btn { min-width: 0; overflow-wrap: anywhere; }
+
+/* =====================================================================
    Bewegung: nur dort, wo sie etwas erklärt, und abschaltbar. EIN Block für alles; wer
    eine neue transition oder animation anlegt, trägt sie hier ein.
    Abgedeckt: Tab-Leiste, Knöpfe, Stepper, Rundtasten, "Zu heute", Chevron im Bilanz-Knopf,
