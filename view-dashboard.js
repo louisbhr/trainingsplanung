@@ -4,10 +4,10 @@
 // importiert nie Firebase, Strava oder app.js). Keine eigenen Styles und kein
 // style="...": alle Klassen kommen aus style.css, das Markup steht in
 // docs/ui-markup-stride.md, Abschnitt 9. Fremde Texte immer durch esc().
-import { formatKm, formatKm1 } from "./metrics.js?v=202610221509";
-import { ICONS, esc, markSVG, checkCircle, ringOpen, pill, numAttr } from "./ui.js?v=202610221509";
-import { slug } from "./plan.js?v=202610221509";
-import { distanceStatus } from "./runcompare.js?v=202610221509";
+import { formatKm, formatKm1 } from "./metrics.js?v=202610231554";
+import { ICONS, esc, markSVG, checkCircle, ringOpen, pill, numAttr } from "./ui.js?v=202610231554";
+import { slug } from "./plan.js?v=202610231554";
+import { distanceStatus } from "./runcompare.js?v=202610231554";
 
 export const AMPEL_LABELS = { wochensoll: "Wochensoll", easy: "Easy-Disziplin", belastung: "Belastung", kraft: "Kraft-Progression" };
 

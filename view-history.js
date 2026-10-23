@@ -4,11 +4,11 @@
 // sind Inline-SVG mit Zahlen-Attributen, die Farbe kommt über Klassen (Entscheid E7).
 // Markup und Klassen: docs/ui-markup-stride.md, Abschnitt 13. Fremde Texte (Laufname,
 // Übungsname, Fehlermeldung) laufen immer durch esc().
-import { addDays, weekNumberFor, weekOf } from "./plan.js?v=202610221509";
-import { formatKm1 } from "./metrics.js?v=202610221509";
-import { ICONS, esc, dayNameDE, shortDate } from "./ui.js?v=202610221509";
-import { kraftWeeklyBars, kraftTrendText, runsSince } from "./history-data.js?v=202610221509";
-import { errorHTML as stravaErrorHTML, workerMissingHTML } from "./view-run.js?v=202610221509";
+import { addDays, weekNumberFor, weekOf } from "./plan.js?v=202610231554";
+import { formatKm1 } from "./metrics.js?v=202610231554";
+import { ICONS, esc, dayNameDE, shortDate } from "./ui.js?v=202610231554";
+import { kraftWeeklyBars, kraftTrendText, runsSince } from "./history-data.js?v=202610231554";
+import { errorHTML as stravaErrorHTML, workerMissingHTML } from "./view-run.js?v=202610231554";
 
 
 const PLOT_W = 320;

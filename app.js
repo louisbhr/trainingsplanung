@@ -3,40 +3,40 @@ import {
   weekStart, weekDates, weekOf, weekNumberFor, phaseOf,
   sessionOn, sessionsFor, activePlanFor, planDayState, exerciseCatalog,
   monthLabel, germanDate, LONG_RUN_TYPES,
-} from "./plan.js?v=202610221509";
-import { loadPlans } from "./plan-store.js?v=202610221509";
+} from "./plan.js?v=202610231554";
+import { loadPlans } from "./plan-store.js?v=202610231554";
 import {
   saveLog, loadLogsForDate, loadLogsForExercise, ensureSignedIn, loadDayPlan, saveDayPlan,
   loadRunLinks, saveRunLink, clearRunLink, loadAllLogs, loadAllDayPlans, loadCoach, saveCoach,
   loadCoachWeek, saveCoachWeek, authReady, signIn, signOutUser, signOutAndWipeDevice,
   authHeaders, waitForPendingWrites, deleteLog, deleteLogsForDate,
-} from "./firebase-init.js?v=202610221509";
+} from "./firebase-init.js?v=202610231554";
 import {
   isAuthorized, startAuthorization, handleAuthRedirect, fetchRecentRuns,
   formatDuration, isWorkerConfigured, sessionForDate, fetchAllActivitiesForExport, lastFetchedAt,
-} from "./strava.js?v=202610221509";
-import { previousEntry, progressionChip } from "./progression.js?v=202610221509";
+} from "./strava.js?v=202610231554";
+import { previousEntry, progressionChip } from "./progression.js?v=202610231554";
 import {
   exerciseMode, startSets, lastTimeText, applyWeightForward, initialFocus, nextOpenExercise,
   stepValue, buildLogPayload, MAX_VALUE,
   draftKey, serializeDraft, parseDraft, staleDraftKeys, dropSavedFromDraft,
   withoutLogs, deleteDayTargets, deleteCountText,
-} from "./kraftflow.js?v=202610221509";
-import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610221509";
-import { distanceStatus, hrStatus } from "./runcompare.js?v=202610221509";
-import { esc, backNavHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet, createSheet } from "./ui.js?v=202610221509";
-import * as dash from "./view-dashboard.js?v=202610221509";
-import * as dashWeek from "./view-week.js?v=202610221509";
-import * as kraftView from "./view-kraft.js?v=202610221509";
-import * as runView from "./view-run.js?v=202610221509";
-import * as historyView from "./view-history.js?v=202610221509";
-import * as planView from "./view-plan.js?v=202610221509";
-import * as metrics from "./metrics.js?v=202610221509";
-import * as coach from "./coach.js?v=202610221509";
-import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610221509";
-import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610221509";
-import { renderLogin, renderNoAccess, renderPendingWrites, renderGateWait, renderGateError, renderAccountSection } from "./view-account.js?v=202610221509";
-import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610221509";
+} from "./kraftflow.js?v=202610231554";
+import { assignRuns, offsetLabel, daysBetween } from "./runmatch.js?v=202610231554";
+import { distanceStatus, hrStatus } from "./runcompare.js?v=202610231554";
+import { esc, backNavHTML, toast, errorCard, loadingCard, dayNameDE, dayLongDE, shortDate, longDateDE, openInfo, closeOpenSheet, createSheet } from "./ui.js?v=202610231554";
+import * as dash from "./view-dashboard.js?v=202610231554";
+import * as dashWeek from "./view-week.js?v=202610231554";
+import * as kraftView from "./view-kraft.js?v=202610231554";
+import * as runView from "./view-run.js?v=202610231554";
+import * as historyView from "./view-history.js?v=202610231554";
+import * as planView from "./view-plan.js?v=202610231554";
+import * as metrics from "./metrics.js?v=202610231554";
+import * as coach from "./coach.js?v=202610231554";
+import { THRESHOLDS, COACH_URL, ALLOWED_UID, WORKER_URL } from "./config.js?v=202610231554";
+import { accessState, authErrorText, raceTimeout, fetchWithAuthRetry } from "./access.js?v=202610231554";
+import { renderLogin, renderNoAccess, renderPendingWrites, renderGateWait, renderGateError, renderAccountSection } from "./view-account.js?v=202610231554";
+import { buildExport, serializeExport, exportFileName, appVersionFromUrl, EXPORT_SINCE } from "./export.js?v=202610231554";
 
 const INFO_CONTENT = { ...dash.infoContent(THRESHOLDS), ...historyView.infoContent() };
 // Modell/Prompt-Version rein informativ fürs Firestore-Dokument (A4) — die

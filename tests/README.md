@@ -56,7 +56,8 @@ npm test               # 20 Läufe: Logik-/Worker-Tests ohne Browser, dann Brows
 - `static-greps.test.mjs` — Quelltext-Wächter (E9): kein sichtbares „Dashboard“ in Markup und UI-Texten,
   keine Koralle (`var(--coral`) in Fehler-/Danger-Regeln von `style.css`, kein `style=` in den JS-Dateien
   und in `index.html`, kein Gedankenstrich in den UI-Texten von `view-*.js` und `app.js`, der alte Name
-  („Halbmarathon Tracker“, „HM Tracker“) in keiner Datei im Wurzelverzeichnis.
+  („Halbmarathon Tracker“, „HM Tracker“) in keiner Datei im Wurzelverzeichnis, und (Lösch-Funktion) kein natives
+  `confirm()`/`alert()`/`prompt()` im Render-Code: Bestätigungen laufen über das Sheet.
 - `view-run.test.mjs` — Lauf-Tag-Markup (`view-run.js`) ohne Browser: kein Soll-km,
   nur Pace oder nur HF ohne Zielband, Marker ohne Messwert/geklemmt, `esc()`,
   Rangfolge der Zustände, `pickerOptions` (gesperrte Läufe mit `takenBy`),
@@ -94,7 +95,7 @@ druckt am Ende „Checks je Szenario“ (`scenario("…")` steht in der ersten Z
 kein Szenario verschwindet, keine Absicht fällt weg. Aufgefüllt wird nicht, um eine Zahl zu halten.
 
 Baseline: der Plan nennt 336 Checks; gemessen am Merge-Base `a6e6c4b` waren es **390** (Login und
-Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nach dem Kopf-Umbau (Seitenkopf scrollt mit, +6 in Szenario 12) 447, nach E4 (Woche) 491, nach E5a (Kraft-Tag B „Fokus“) 614, nach E5b (V2-Entwurf) 659, nach E6 (Lauf-Tag B „Vergleich“) 750, nach E7 (Verlauf + Plan) 838, nach E8 (Login und Nebenscreens) 906, nach E9 (Abschluss, Prüfmatrix) **1125** (Browser-Checks; `npm test` führt zusätzlich 19 Node-Läufe aus).
+Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nach dem Kopf-Umbau (Seitenkopf scrollt mit, +6 in Szenario 12) 447, nach E4 (Woche) 491, nach E5a (Kraft-Tag B „Fokus“) 614, nach E5b (V2-Entwurf) 659, nach E6 (Lauf-Tag B „Vergleich“) 750, nach E7 (Verlauf + Plan) 838, nach E8 (Login und Nebenscreens) 906, nach E9 (Abschluss, Prüfmatrix) 1125, nach der Lösch-Funktion (41a bis 41i) **1221** (Browser-Checks; `npm test` führt zusätzlich 19 Node-Läufe aus).
 
 | Szenario | Prüfabsichten | a6e6c4b | E2 | E3 | Etappe |
 | --- | --- | --- | --- | --- | --- |
@@ -191,6 +192,15 @@ Export kamen auf main nach dem Planstand dazu). Nach E1/E2 399, nach E3 441, nac
 | 34c (neu) | Wartezustände mit genau einem h1: „Prüfe Anmeldung …“ (unsichtbarer h1 als erstes Kind von `.sd-auth`) und „Plan wird geladen …“ | – | – | – → 2 | E9 |
 | 30h (Warten) | h1-Zahl im Warte-Zustand 0 → 1 (unsichtbarer Marken-h1); Anzahl der Checks unverändert | 18 | 18 | 18 → 18 | E9 |
 | 17–19b (Fehlerkarte) | `#main .error-card` → `#main [data-card="error"]` (Plan-404 mit/ohne Kopie, Ladefehler); Anzahl unverändert | – | – | – | E9 |
+| 41a (neu) | Lösch-Funktion, eine Übung (B): kein Knopf auf offener Übung, 'Eintrag löschen' auf der erledigten Jetzt-Karte; Sheet mit Titel, Übung, Tag, Zusammenfassung und Fokus auf dem Titel; Abbrechen, ×, Escape, Backdrop ändern nichts und geben den Fokus zurück (je zwei Checks); Bestätigen ruft genau `deleteLog`, Übung wieder offen, Fokus auf dem Primärbutton, Live-Region, Toast, Fortschritt, „Letztes Mal“ aus der echten letzten Einheit, Entwurf der übrigen Übungen bleibt | – | – | – → 23 | Löschen |
+| 41b (neu) | Fehler beim Löschen (B): früh = Toast, nichts ändert sich, Fokus beim Auslöser; spät = „Löscht …“ (aria-busy, beide Knöpfe gesperrt, Fokus auf dem Titel), optimistisch gelöscht, dann Rücknahme mit Toast | – | – | – → 7 | Löschen |
+| 41c (neu) | Zusammenspiel (Review D9, D5, D7): (a) späte Rücknahme einer Speicherung nach dem Löschen holt nichts zurück, (b) spät scheiterndes Löschen nach neuer Speicherung bringt keinen alten Stand zurück, (c) Navigation während „Löscht …“ filtert `allLogs` trotzdem, (d) ein vorher gestarteter Tag-Ladevorgang überschreibt das gefilterte `allLogs` nicht, Löschen gesperrt während des Speicherns | – | – | – → 10 | Löschen |
+| 41d (neu) | Drei Sheets: das Bestätigungs-Sheet verdrängt das Info-Sheet sofort und umgekehrt, Escape, Verlassen des Kraft-Tags schließt es | – | – | – → 5 | Löschen |
+| 41e (neu) | Ganzer Kraft-Tag (A) mit verwaistem Eintrag: Knopf nur im Anpassen-Modus, zuletzt im Inhalt, Hinweis per `aria-describedby`; Sheet mit Zählung, Zusatz, Liste und „(entfernt)“; vier Abbrechen-Wege; ein Batch mit beiden Slugs; Vortag bleibt; Entwurf des Tages weg, anderer Tag bleibt; Modus bleibt, Fokus auf erster Zeile, Ansage, Toast; nach „Fertig“ 0 von 7 | – | – | – → 25 | Löschen |
+| 41f (neu) | Fehler beim Löschen des Tages (A): früh = nichts ändert sich; spät = optimistisch zurückgesetzt, dann Rücknahme inklusive Entwurf | – | – | – → 8 | Löschen |
+| 41g (neu) | Knöpfe: Tages-Knopf gesperrt während des Speicherns; bei Ladefehler weder B noch A; kein A an Tag ohne Einträge; Folgen ohne Neuladen (Woche, Verlauf) | – | – | – → 8 | Löschen |
+| 41h (neu) | Kein `style=` im Kraft-Tag inklusive offenem Bestätigungs-Sheet; 320 × 640 mit zehn Einträgen und langen Namen: Liste scrollt in sich, Knöpfe ≥ 44 px und erreichbar. Befund: erst nach Scrollen sichtbar (Sheet höher als 78 %), an den Designer gemeldet | – | – | – → 7 | Löschen |
+| 41i (neu) | Kraft-Ampel rechnet nach dem Löschen ohne Neuladen mit dem gefilterten `allLogs` (rot → nicht rot) | – | – | – → 3 | Löschen |
 | übrige (7, 8, 17–19b, 23, 24, 26, 27, 29–32) | unverändert; nur Selektoren auf Heute angepasst (27, 23, 30b); 29 hat keinen Kraft-Tag-Teil mehr (seit E3 nur Ampel und Banner) | – | – | – | – |
 
 **Bewusste Ausnahmen in 2c („Im Detail“, einzeln):** Wochenvolumen (8 Wochen, aktuelle Woche, kein Ist

@@ -20,6 +20,11 @@ Firestore gespeichert, Läufe kommen automatisch aus Strava.
 Krafttage lassen sich über „Anpassen" für den jeweiligen Tag umbauen:
 Übungen entfernen, zurückholen oder eigene hinzufügen.
 
+Gespeicherte Kraft-Einträge lassen sich löschen, jeweils nach einer Bestätigung im Sheet:
+eine Übung über „Eintrag löschen“ auf der Jetzt-Karte, der ganze Kraft-Tag (auch Einträge
+entfernter Übungen) über „Einträge dieses Tages löschen“ unten im Anpassen-Modus. Lauf-Zuordnung,
+Tagesanpassungen und Coach-Texte bleiben unberührt. Kein Rückgängig: gelöscht ist gelöscht.
+
 Verschobene Läufe erkennt die App selbst: liegt am Plantag kein Lauf in
 Strava, sucht sie einen Tag davor bis drei Tage danach und weist ihn als
 nachgeholt aus (`runmatch.js`). Passt die Vermutung nicht, lässt sich über
@@ -150,7 +155,7 @@ Details siehe `tests/README.md`.
 | `view-run.js`, `runcompare.js` | Lauf-Tag: Markup und der Vergleich Soll gegen Ist |
 | `view-history.js`, `history-data.js`, `view-plan.js` | Verlauf und Plan: Markup und die Datenaufbereitung |
 | `export.js` | Stellt die Export-Datei zusammen (Strava, Logs, Plan, Zuordnungen) |
-| `firebase-init.js` | Firestore mit Offline-Cache und Anmeldung (E-Mail und Passwort) |
+| `firebase-init.js` | Firestore mit Offline-Cache und Anmeldung (E-Mail und Passwort); Kraft-Einträge speichern, laden und löschen (`deleteLog`, `deleteLogsForDate`) |
 | `access.js`, `view-account.js` | Zugangslogik (Zustand der Sitzung, Fehlertexte, Token-Retry) und das Markup von Anmeldung und Konto-Karte |
 | `strava.js` | Strava-Anbindung |
 | `worker.js`, `wrangler.toml` | Cloudflare Worker: Strava-Token-Austausch und Coach-Endpunkt `/coach` (Claude API), alle mit Prüfung des Firebase-ID-Tokens |

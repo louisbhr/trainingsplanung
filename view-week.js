@@ -8,8 +8,8 @@
 // Die Tageszeile ist ein Akkordeon: der Zeilen-Button klappt die Details auf,
 // "Tag öffnen" (eigener Button im Detail, keine verschachtelten Buttons) führt
 // in die Tagesansicht.
-import { formatKm } from "./metrics.js?v=202610221509";
-import { ICONS, esc, checkCircle, ringOpen, pill, numAttr, MONTHS_DE } from "./ui.js?v=202610221509";
+import { formatKm } from "./metrics.js?v=202610231554";
+import { ICONS, esc, checkCircle, ringOpen, pill, numAttr, MONTHS_DE } from "./ui.js?v=202610231554";
 
 
 // Streifenklasse aus fester Map, nie aus Daten (Markup 10.3).

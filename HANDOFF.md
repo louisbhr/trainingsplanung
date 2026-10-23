@@ -35,7 +35,7 @@ Versionsstempel und der Export (`export.test.mjs`), dazu `metrics.test.mjs` (Amp
 Vertragstest gegen die echten App-Eingaben, dazu die Token-Prüfung),
 `access.test.mjs` (Zugangslogik) und `config-consistency.test.mjs` (UID und
 Projekt-ID an allen Stellen gleich), alle ohne Browser, und
-`kraftflow`, `runcompare`, `history-data`, `view-run`, `view-history` (reine Logik und Markup der neuen Module), `naming-guard` und `static-greps` (Quelltext-Wächter), und zuletzt die Browser-Checks in Chromium (1125 Checks, darunter Szenario 34, die Prüfmatrix über sieben Fenstergrößen, hell und dunkel).
+`kraftflow`, `runcompare`, `history-data`, `view-run`, `view-history` (reine Logik und Markup der neuen Module), `naming-guard` und `static-greps` (Quelltext-Wächter), und zuletzt die Browser-Checks in Chromium (1221 Checks, darunter Szenario 34, die Prüfmatrix über sieben Fenstergrößen, hell und dunkel).
 **Der Testserver auf Port 8099 muss laufen** (`npm run serve`, aus diesem Verzeichnis); Firebase und Strava sind
 darin gestubbt, es braucht also keine echten Konten.
 
@@ -152,6 +152,16 @@ tragen absichtlich die Endung `.txt`, damit sie nie als Seite auf GitHub Pages l
     `renderMain()`/`setPageHead()` geschrieben.
 14. **`.pipeline-state.md` ist in `.gitignore`.** Der Pipeline-Stand lebt nur lokal
     und im Agenten-Arbeitsverzeichnis, nie im Repo.
+15. **Kraft-Einträge löschen.** Zwei neue Exporte in `firebase-init.js`: `deleteLog(datum, slug)` und
+    `deleteLogsForDate(datum, slugs)` (ein `writeBatch`, kein Commit bei leerer Liste, keine eigene
+    Abfrage: die Slugs kommen aus `kraftSaved`, also genau das, was das Sheet nannte, auch verwaiste
+    Einträge). Die Doc-ID bildet für Speichern, Laden und Löschen derselbe private Helfer `logRef`.
+    Reine Helfer in `kraftflow.js`: `withoutLogs`, `deleteDayTargets`, `deleteCountText`. Optimistisch
+    wie das Speichern (`SAVE_OPTIMISTIC_MS`); die Regeln stehen in `docs/review-architecture-delete-day.md`
+    (D1 bis D9, u. a.: neue Objekte statt Mutation, `allLogs = allLogs ?? logs`, späte Rücknahme nur bei
+    unverändertem Stand). Der Standard-Stub in `app.test.mjs` führt Speichern und Löschen in einer
+    geordneten Warteschlange; Haken `__DELETE_FAIL__`, `__DELETE_DELAY__`, `__LOAD_DELAY__`, `__LOAD_FAIL__`,
+    `window.__DELETE_CALLS__`. Neue Löschwege gehören in alle vier Stub-Literale.
 
 ## Wie hier gearbeitet wird
 

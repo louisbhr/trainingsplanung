@@ -88,20 +88,31 @@ bewusst auf 480 px begrenzt).
 
 **Herkunft:** Product-Strategist, Discovery Stride 2026-10-20.
 
-### Lösch-Funktion für Tageseinträge — quick win · M
+### „Entfernen“ einer gespeicherten Übung fragt nach dem Löschen des Eintrags — quick win · S
 
-**Was:** Ein gespeicherter Kraft-Eintrag (eine Übung an einem Tag) lässt sich wieder löschen,
-etwa über „Zurücksetzen“ im Kraft-Tag. Heute kann ein Eintrag nur überschrieben, nie entfernt werden.
+**Was:** Wird im Anpassen-Modus eine bereits gespeicherte Übung „entfernt“, fragt ein Sheet, ob ihr
+Eintrag mitgelöscht werden soll.
 
-**Warum:** Louis hat das nach seinem Test-Training gebraucht: Die Testdaten blieben in
-Verlauf und Ampeln stehen. Löschen heißt `deleteDoc` auf `logs/{datum}_{übung}`; das ist ein neuer
-Export in `firebase-init.js` (alle Stub-Literale in `app.test.mjs` nachziehen) und eine Regel-Prüfung
-in `firestore.rules`. Ein Ehrlichkeits-Hinweis („Gelöscht ist gelöscht“) und eine Bestätigung gehören dazu.
+**Warum:** Heute bleibt der Eintrag unsichtbar liegen und zählt weiter in Verlauf, Progression und
+Ampeln. „Einträge dieses Tages löschen“ räumt solche verwaisten Einträge zwar mit auf (und nennt sie
+als „(entfernt)“), aber nur, wer davon weiß.
 
-**Einordnung:** Nicht im Stride-Umfang (C10: `firebase-init.js` bekommt keine neuen Exporte).
-Berührt Firestore-Zugriff, also vor der Umsetzung freigeben lassen.
+**Einordnung:** Beim Löschen-Feature (F5) bewusst ausgeklammert; nutzt `deleteLog` und das
+Bestätigungs-Sheet, braucht also nur noch Verdrahtung und Text.
 
-**Herkunft:** Louis nach seinem Test-Training, Stride E9 (2026-10-22).
+**Herkunft:** `docs/requirements-delete-day.md` F5, 2026-10-23.
+
+### `allLogs` nach dem Speichern im Speicher nachführen — quick win · S
+
+**Was:** Nach „Übung speichern“ den gespeicherten Eintrag auch in `allLogs` einfügen.
+
+**Warum:** `allLogs` wird nur einmal geladen. Ampeln, „Letztes Mal“ und Progression bleiben nach einem
+Speichern bis zum Neuladen auf dem alten Stand. Beim Löschen ist das behoben (`withoutLogs`), beim
+Speichern besteht die Lücke weiter.
+
+**Einordnung:** Bestehende Lücke, kein Teil des Löschens. Gegenstück: `withoutLogs` in `kraftflow.js`.
+
+**Herkunft:** `docs/requirements-delete-day.md` §12, 2026-10-23.
 
 ### 1b Meilenstein B im Stride-Stil — bigger bet · L
 

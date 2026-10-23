@@ -12,7 +12,7 @@
 //     chip: { level, text }|null, lastText: string|null, savedSets: [{ kg, reps }],
 //     nextSlug, nextName,    // nextSlug/nextName nur an der Jetzt-Übung gesetzt
 //     del: { disabled } | null }   // Knopf „Eintrag löschen“ (nur bei saved); null = nicht anbieten
-import { ICONS, esc, checkCircle, ringOpen, ringRunning, pill } from "./ui.js?v=202610221509";
+import { ICONS, esc, checkCircle, ringOpen, ringRunning, pill } from "./ui.js?v=202610231554";
 
 
 // Deutsche Kommazahl: 62.5 -> "62,5", 20 -> "20"
